@@ -33,6 +33,32 @@ Importante:
 - Use apenas a chave publica/anon do Supabase no frontend.
 - Nunca coloque `service_role` no `.env` do Vite.
 
+## Banco e Edge Functions (Supabase)
+
+Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o frontend.
+
+1. Aplique a migration `supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql`
+   (trial de 7 dias, funil, avisos de cobranca, chegada por raio, auto-finalizacao de
+   romaneio e permissoes). Ela e idempotente.
+2. Publique as edge functions alteradas/novas: `register-tenant` e `send-driver-credentials`.
+3. Configure os segredos das functions (Supabase > Edge Functions > Secrets) para o e-mail
+   de dados de acesso do motorista:
+   - `RESEND_API_KEY`: chave da API do [Resend](https://resend.com)
+   - `RESEND_FROM_EMAIL`: remetente verificado, ex.: `NaHora Frota <nao-responda@nahorafrota.tech>`
+   - `APP_URL` (opcional): padrao `https://nahorafrota.tech`
+
+   Sem esses segredos o cadastro do motorista funciona normalmente e o painel avisa que o
+   e-mail nao foi enviado.
+
+Regras de acesso aplicadas pelo banco:
+
+- Empresa nova entra em teste gratis de 7 dias; ao fim, o banco deixa de servir os dados
+  ate o Super Admin ativar a assinatura ou estender o teste (+7 dias, no painel Master).
+- O teste gratis e liberado uma unica vez por CNPJ da empresa e por CPF/CNPJ de cobranca.
+- Plano, status, trial, vencimento e documento de cobranca so mudam pelo Super Admin.
+- Dados da empresa, usuarios e niveis de acesso so mudam pelo Administrador da empresa.
+- Arquivos de documentos do motorista so abrem para o Super Admin.
+
 ## Build de producao
 
 Para gerar os arquivos prontos para hospedagem:
