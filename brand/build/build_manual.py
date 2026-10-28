@@ -73,7 +73,7 @@ def grid_svg():
         elif kind == 'd1': L.append(f'<line x1="{x0}" y1="{x0 + c}" x2="{x1}" y2="{x1 + c}"/>')
         else: L.append(f'<line x1="{x0}" y1="{c - x0}" x2="{x1}" y2="{c - x1}"/>')
     circles = ''.join(f'<circle cx="{_f(x)}" cy="{_f(y)}" r="3.2"/>' for x, y in verts)
-    mono = 'font-family="JetBrains Mono, ui-monospace, monospace" font-size="11" fill="#8A9199" letter-spacing="1"'
+    mono = 'font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="11" fill="#8A9199" letter-spacing="1"'
     dim = []
     # width
     dim.append(f'<line x1="0" y1="-44" x2="{_f(SYMBOL_W)}" y2="-44" stroke="#8A9199" stroke-width="1"/><line x1="0" y1="-50" x2="0" y2="-38" stroke="#8A9199"/><line x1="{_f(SYMBOL_W)}" y1="-50" x2="{_f(SYMBOL_W)}" y2="-38" stroke="#8A9199"/><text x="{_f(SYMBOL_W/2)}" y="-52" text-anchor="middle" {mono}>L = 7,30 t</text>')
@@ -98,7 +98,7 @@ def grid_svg():
 def clear_svg():
     W, H = dims['logoH']; x = 53.0
     u, _ = use_in_svg('logoH', 0, 0, W, GREEN, WHITE, GREEN)
-    mono = 'font-family="JetBrains Mono, ui-monospace, monospace" font-size="13" fill="#8A9199" letter-spacing="1"'
+    mono = 'font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="13" fill="#8A9199" letter-spacing="1"'
     sq = lambda cx, cy: f'<rect x="{_f(cx)}" y="{_f(cy)}" width="{_f(x)}" height="{_f(x)}" fill="#04E8A4" fill-opacity=".18" stroke="#04E8A4" stroke-width="1"/><text x="{_f(cx + x/2)}" y="{_f(cy + x/2 + 5)}" text-anchor="middle" {mono.replace("#8A9199","#04E8A4")}>x</text>'
     return (f'<svg viewBox="{-2*x-10} {-2*x-10} {W + 4*x + 20} {H + 4*x + 20}" role="img" aria-label="Área de proteção do logo">'
             f'<rect x="{-x}" y="{-x}" width="{W + 2*x}" height="{H + 2*x}" fill="none" stroke="#8A9199" stroke-dasharray="6 6" stroke-width="1"/>'
@@ -141,7 +141,7 @@ def truck_svg(dark=False):
             f'<line x1="262" y1="176" x2="262" y2="430" stroke="#2A2D30" stroke-width="2"/>'
             f'<use href="#sym" x="276" y="292" width="40" height="23.2" style="--cs:#04E8A4"/>'
             + wheel(215, 448) + wheel(905, 448) + wheel(1015, 448) + logo +
-            f'<text x="390" y="408" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15" letter-spacing="2.5" fill="{url_fill}">SEMPRE NA HORA · NAHORAFROTA.COM.BR</text></svg>')
+            f'<text x="390" y="408" font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="15" letter-spacing="2.5" fill="{url_fill}">SEMPRE NA HORA · NAHORAFROTA.COM.BR</text></svg>')
 
 def van_svg():
     sym, h = use_in_svg('sym', 118, 184, 250, GREEN, GREEN, GREEN)
@@ -154,14 +154,14 @@ def van_svg():
             f'<path d="M802,304 L840,344 V362 H822 Z" fill="#F2F4F5" opacity=".85"/>'
             f'<rect x="60" y="392" width="786" height="10" fill="#1C1F22"/>'
             + wheel(210, 398, 46) + wheel(690, 398, 46) + sym + wm +
-            f'<text x="520" y="372" font-family="JetBrains Mono, ui-monospace, monospace" font-size="11" letter-spacing="2" fill="#8A9199">NAHORAFROTA.COM.BR</text></svg>')
+            f'<text x="520" y="372" font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="11" letter-spacing="2" fill="#8A9199">NAHORAFROTA.COM.BR</text></svg>')
 
 def tee_svg():
     shape = 'M60,60 L185,22 Q230,70 275,22 L400,60 L455,150 L395,195 L355,165 L355,600 L105,600 L105,165 L65,195 L5,150 Z'
     collar = 'M185,22 Q230,70 275,22 Q230,46 185,22 Z'
     front_sym, _ = use_in_svg('sym', 262, 118, 72, GREEN, GREEN, GREEN)
     back_wm, bh = use_in_svg('wm2', 130, 150, 200, GREEN, WHITE, GREEN)
-    mono = 'font-family="JetBrains Mono, ui-monospace, monospace" font-size="12" letter-spacing="3" fill="#8A9199"'
+    mono = 'font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="12" letter-spacing="3" fill="#8A9199"'
     return (f'<svg viewBox="0 0 1000 640" role="img" aria-label="Camiseta com a identidade Na Hora Frota">'
             f'<g><path d="{shape}" fill="#0E1012"/><path d="{collar}" fill="#1C1F22"/>{front_sym}<text x="230" y="628" text-anchor="middle" {mono}>FRENTE</text></g>'
             f'<g transform="translate(540,0)"><path d="{shape}" fill="#0E1012"/><path d="M185,22 Q230,40 275,22 Q230,36 185,22 Z" fill="#1C1F22"/>{back_wm}<text x="230" y="{_f(150 + bh + 30)}" text-anchor="middle" {mono}>SEMPRE NA HORA</text><text x="230" y="628" text-anchor="middle" {mono}>COSTAS</text></g></svg>')
@@ -213,7 +213,7 @@ for k, v in repl.items():
     assert k in body, k
     body = body.replace(k, v)
 assert '{{' not in body, re.findall(r'\{\{[^}]*\}\}', body)[:5]
-FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Chakra+Petch:wght@700&display=swap">'
+FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=Chakra+Petch:wght@700&display=swap">'
 TITLE = 'Manual da Marca Na Hora Frota'
 head_artifact = f'<title>{TITLE}</title>\n<meta name="claude:viewport-fit-sides" content="cover">\n{FONTS}\n<style>\n{css}\n</style>\n'
 artifact = head_artifact + body
@@ -221,5 +221,7 @@ standalone = ('<!doctype html>\n<html lang="pt-BR">\n<head>\n<meta charset="utf-
               f'<title>{TITLE}</title>\n{FONTS}\n<style>\n{css}\n</style>\n</head>\n<body>\n{body}\n</body>\n</html>\n')
 os.makedirs(OUT, exist_ok=True)
 open(os.path.join(OUT, 'manual-da-marca.html'), 'w', encoding='utf-8').write(standalone)
+if len(sys.argv) > 1:
+    open(sys.argv[1], 'w', encoding='utf-8').write(artifact)
 print('artifact bytes', len(artifact.encode()), 'standalone bytes', len(standalone.encode()))
 print('dims', {k: (round(v[0]), round(v[1])) for k, v in dims.items()})

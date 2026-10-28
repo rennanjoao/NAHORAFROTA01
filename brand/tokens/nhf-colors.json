@@ -22,6 +22,6 @@
     "verde-no-preto": 12.5, "preto-no-verde": 12.5, "branco-no-preto": 20.0, "verde-escuro-no-branco": 6.5, "verde-no-verde-tinta": 7.6, "verde-no-branco (proibido)": 1.6
   },
   "fonts": {
-    "display": "Space Grotesk 500/700", "text": "Inter 400/500/600", "data": "JetBrains Mono 400/500/700", "wordmark_only": "Chakra Petch 700 (apenas no logo, nunca em texto)"
+    "display": "Space Grotesk 500/700", "text": "Inter 400/500/600", "data": "Space Grotesk 500/700 (caixa alta, algarismos tabulares)", "wordmark_only": "Chakra Petch 700 (apenas no logo, nunca em texto)"
   }
 }

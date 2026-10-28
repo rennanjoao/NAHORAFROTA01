@@ -54,13 +54,13 @@ Funcionais: atenção `#FFC53D`, atraso `#FF4D4F`, informação `#3B9CFF`.
 
 - Títulos: **Space Grotesk** 500/700
 - Texto e interface: **Inter** 400/500/600
-- Horários, placas, KPIs: **JetBrains Mono** 400/500/700
+- Horários, placas, KPIs e rótulos: **Space Grotesk** 500/700 em caixa alta, com algarismos tabulares
 - Só no logo: Chakra Petch 700 (nunca em texto)
 
 Todas no Google Fonts:
 
 ```html
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap">
 ```
 
 ## Como regenerar os arquivos

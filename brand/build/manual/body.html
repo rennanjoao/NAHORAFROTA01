@@ -59,7 +59,7 @@
       </div>
       <div class="body">
         <h3>A ideia</h3>
-        <p style="margin-top:14px">A hora como protagonista. Toda a identidade nasce do instante em que a entrega acontece: o percurso que sobe e desce (o chevron), a aceleração final (a haste) e o destino alcançado (a ponta da seta). O verde sobre o preto é a luz do painel de madrugada, a cor de "no prazo", de "online", de "entregue". Formas a 45°, linhas de rota e o carimbo de horário em fonte mono levam esse conceito para todas as peças.</p>
+        <p style="margin-top:14px">A hora como protagonista. Toda a identidade nasce do instante em que a entrega acontece: o percurso que sobe e desce (o chevron), a aceleração final (a haste) e o destino alcançado (a ponta da seta). O verde sobre o preto é a luz do painel de madrugada, a cor de "no prazo", de "online", de "entregue". Formas a 45°, linhas de rota e o carimbo de horário em caixa alta levam esse conceito para todas as peças.</p>
       </div>
     </div>
     <hr class="rule">
@@ -279,13 +279,13 @@
     <div class="chap">
       <p class="eyebrow">04 · Tipografia</p>
       <h2>Títulos que avisam. Texto que explica. Números que não mentem.</h2>
-      <p class="lead muted">Três famílias com papéis fixos, todas gratuitas no Google Fonts. A quarta, Chakra Petch, vive apenas dentro do logo e nunca é usada em texto.</p>
+      <p class="lead muted">Duas famílias com papéis fixos, as duas gratuitas no Google Fonts: Space Grotesk para títulos, rótulos e dados; Inter para texto. A terceira, Chakra Petch, vive apenas dentro do logo e nunca é usada em texto.</p>
     </div>
     <div class="spec">
-      <div class="kicker"><span>Display · Títulos</span><span>Space Grotesk · 500 / 700</span><span>Já usada no produto</span></div>
+      <div class="kicker"><span>Display · Títulos · Rótulos</span><span>Space Grotesk · 500 / 700</span><span>Já usada no produto</span></div>
       <p class="big" style="font-family:var(--fd);font-weight:700">Sempre na hora.</p>
       <p class="glyphs" style="font-family:var(--fd)">ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 ÁÉÍÓÚÃÕÇ</p>
-      <p class="body muted" style="font-size:14px">Para títulos, headlines e números grandes em peças de comunicação. Entreletra levemente negativa (−2% a −3%) e entrelinha curta (0,95 a 1,05). Nunca em texto corrido.</p>
+      <p class="body muted" style="font-size:14px">Para títulos, headlines e números grandes. Entreletra levemente negativa (−2% a −3%) e entrelinha curta (0,95 a 1,05). Em rótulos pequenos: peso 500, caixa alta e entreletra de +8% a +14%. Nunca em texto corrido.</p>
     </div>
     <div class="spec">
       <div class="kicker"><span>Texto · Interface</span><span>Inter · 400 / 500 / 600</span><span>Recomendada no lugar da Lato</span></div>
@@ -294,10 +294,10 @@
       <p class="body muted" style="font-size:14px">Para parágrafos, botões, formulários e todo o produto. Corpo 16 px no web, 15 px no app, entrelinha 1,5. Largura de leitura de 60 a 70 caracteres.</p>
     </div>
     <div class="spec">
-      <div class="kicker"><span>Dados · Horários · Placas</span><span>JetBrains Mono · 400 / 500 / 700</span><span>Assinatura da marca</span></div>
+      <div class="kicker"><span>Dados · Horários · Placas</span><span>Space Grotesk · 500 / 700 · algarismos tabulares</span><span>Assinatura da marca</span></div>
       <p class="big mono" style="font-weight:700;font-size:clamp(28px,5vw,64px);letter-spacing:-.03em">14:32 · ENTREGUE · ABC1D23</p>
       <p class="glyphs mono">ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 :/·-%</p>
-      <p class="body muted" style="font-size:14px">A hora é sempre em mono. Também placas, KPIs, rótulos pequenos em caixa alta (entreletra +8% a +14%), códigos de romaneio e valores financeiros com algarismos tabulares.</p>
+      <p class="body muted" style="font-size:14px">A hora é sempre assim: Space Grotesk, caixa alta e algarismos tabulares (<span class="code">tnum</span>), para os dígitos alinharem em colunas. Vale para placas, KPIs, códigos de romaneio e valores financeiros. É a assinatura visual do "na hora" em qualquer peça.</p>
     </div>
     <div class="spec" style="border-bottom:1px solid var(--line)">
       <div class="kicker"><span>Somente no logo</span><span>Chakra Petch · 700</span><span>Nunca em texto</span></div>
@@ -321,13 +321,13 @@
         <p class="eyebrow">Regras de composição</p>
         <div class="tbl" style="margin-top:14px"><table>
           <tr><td><b>Alinhamento</b></td><td>À esquerda, sempre. Centralizado só em selos, adesivos e capas de story.</td></tr>
-          <tr><td><b>Caixa</b></td><td>Títulos em caixa normal. Caixa alta apenas em rótulos mono curtos.</td></tr>
+          <tr><td><b>Caixa</b></td><td>Títulos em caixa normal. Caixa alta apenas em rótulos curtos.</td></tr>
           <tr><td><b>Peso</b></td><td>Um peso de destaque por bloco. Negrito dentro de parágrafo só para dados e nomes de telas.</td></tr>
           <tr><td><b>Destaque de cor</b></td><td>No máximo uma palavra ou número em verde por título. É a "hora" da frase.</td></tr>
-          <tr><td><b>Números</b></td><td>Tabulares em tabelas e KPIs (<span class="mono">font-variant-numeric: tabular-nums</span>). Separador de milhar com ponto, decimal com vírgula.</td></tr>
+          <tr><td><b>Números</b></td><td>Tabulares em tabelas e KPIs (<span class="code">font-variant-numeric: tabular-nums</span>). Separador de milhar com ponto, decimal com vírgula.</td></tr>
           <tr><td><b>Pontuação</b></td><td>Frases curtas com ponto final. Sem exclamação em interface. Sem reticências em botões.</td></tr>
         </table></div>
-        <pre style="margin-top:18px">&lt;link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap"&gt;</pre>
+        <pre style="margin-top:18px">&lt;link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;family=Inter:wght@400;500;600&amp;display=swap"&gt;</pre>
       </div>
     </div>
   </div>
@@ -355,7 +355,7 @@
       <div class="el">
         <div class="demo" style="background:var(--ink)"><div style="display:grid;gap:16px;justify-items:start"><span class="live"><i></i>AO VIVO · 14:32</span><span class="live" style="border-color:var(--alert);color:var(--alert);background:rgba(255,197,61,.06)"><i style="background:var(--alert);animation:none"></i>ATENÇÃO · SLA 15 MIN</span><span class="live" style="border-color:var(--signal);color:var(--signal);background:transparent"><i style="background:var(--signal);animation:none"></i>ENTREGUE · 13:58</span></div></div>
         <h3>Marcador de hora</h3>
-        <p class="body" style="font-size:15px">Um carimbo em mono com ponto de status e horário. É a assinatura "na hora" em qualquer peça: no canto de um post, na tela do app, em um relatório. O ponto pulsa apenas no estado "ao vivo".</p>
+        <p class="body" style="font-size:15px">Um carimbo em caixa alta com ponto de status e horário. É a assinatura "na hora" em qualquer peça: no canto de um post, na tela do app, em um relatório. O ponto pulsa apenas no estado "ao vivo".</p>
       </div>
       <div class="el">
         <div class="demo" style="background:var(--ink)"><div style="display:grid;gap:22px;justify-items:start;width:100%;max-width:520px"><div class="arrowbar"><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg off"></div><div class="head" style="border-left-color:var(--lead)"></div></div><div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn chamfer" href="#elementos">Ver frota ao vivo</a><a class="btn btn--ghost chamfer" href="#elementos">Baixar relatório</a></div><div class="chamfer" style="background:var(--graphite);color:#fff;padding:18px 20px;width:100%;font-size:14px"><span class="eyebrow" style="color:var(--green)">Cartão com chanfro</span><br><span style="font-family:var(--fd);font-size:22px;font-weight:600">12 veículos em rota</span></div></div></div>
@@ -370,7 +370,7 @@
       </div>
       <div>
         <p class="eyebrow">Movimento</p>
-        <p class="body" style="margin-top:8px;font-size:15px">Animações curtas (150 a 300 ms), easing de saída (<span class="mono">ease-out</span>), sempre na direção da seta: entradas vêm da esquerda ou de baixo, nunca com rotação. O símbolo anima em um só gesto, a haste "chegando" na ponta. Respeite <span class="mono">prefers-reduced-motion</span>.</p>
+        <p class="body" style="margin-top:8px;font-size:15px">Animações curtas (150 a 300 ms), easing de saída (<span class="code">ease-out</span>), sempre na direção da seta: entradas vêm da esquerda ou de baixo, nunca com rotação. O símbolo anima em um só gesto, a haste "chegando" na ponta. Respeite <span class="code">prefers-reduced-motion</span>.</p>
       </div>
     </div>
   </div>
@@ -412,8 +412,8 @@
         </div>
         <p class="eyebrow" style="margin-top:28px">Exibição de dados</p>
         <div class="tbl" style="margin-top:12px"><table>
-          <tr><td><b>KPI</b></td><td>Número grande em mono, rótulo pequeno em caixa alta abaixo. Variação com seta (▲ ▼) e cor funcional.</td></tr>
-          <tr><td><b>Tabelas</b></td><td>Linhas divididas por 1 px Chumbo, sem zebra. Hora e placa em mono. Status como ponto + texto, nunca só cor.</td></tr>
+          <tr><td><b>KPI</b></td><td>Número grande em Space Grotesk, rótulo pequeno em caixa alta abaixo. Variação com seta (▲ ▼) e cor funcional.</td></tr>
+          <tr><td><b>Tabelas</b></td><td>Linhas divididas por 1 px Chumbo, sem zebra. Hora e placa com algarismos tabulares. Status como ponto + texto, nunca só cor.</td></tr>
           <tr><td><b>Gráficos</b></td><td>Fundo preto, grade a 10% de branco, série principal em verde, comparação em Cinza Sinal, alertas em amarelo/vermelho. Sem 3D, sem sombra, sem gradiente.</td></tr>
           <tr><td><b>Mapa</b></td><td>Base escura e dessaturada. Rotas em verde a 2 px. Veículo = símbolo. Destino = círculo com anel.</td></tr>
         </table></div>
@@ -522,7 +522,7 @@
     </div>
     <div class="mocks">
       <div class="mock mock--full"><div class="frame">{{TRUCK_SVG}}</div><p class="cap"><span>Frota · Caminhão baú · versão principal (baú branco)</span><span>Logo horizontal com ~40% da altura do baú · faixa a 45° na traseira</span></p></div>
-      <div class="mock mock--full"><div class="frame">{{TRUCK_DARK_SVG}}</div><p class="cap"><span>Frota · Caminhão baú · versão escura</span><span>Padrão chevron a 14% na traseira · site em mono</span></p></div>
+      <div class="mock mock--full"><div class="frame">{{TRUCK_DARK_SVG}}</div><p class="cap"><span>Frota · Caminhão baú · versão escura</span><span>Padrão chevron a 14% na traseira · site em cinza</span></p></div>
       <div class="mock"><div class="frame">{{VAN_SVG}}</div><p class="cap"><span>Frota · Van / utilitário</span><span>Símbolo grande + wordmark em linha</span></p></div>
       <div class="mock"><div class="frame">{{TEE_SVG}}</div><p class="cap"><span>Uniforme · Camiseta frente e costas</span><span>Bordado 60 mm no peito · estampa 240 mm nas costas</span></p></div>
       <div class="mock"><div class="frame"><div class="cards">
@@ -543,11 +543,11 @@
         <div style="display:grid;gap:8px;justify-items:center"><div style="width:32px;height:32px;background:var(--ink);display:grid;place-items:center;border:1px solid var(--line)">{{USE sym #04E8A4 #04E8A4 #04E8A4 w=26}}</div><span class="mono" style="font-size:10px;color:var(--signal)">Favicon 32</span></div>
       </div></div><p class="cap"><span>Produto · Ícones de app, avatar e favicon</span><span>Símbolo ocupa 62% da largura (52% no maskable)</span></p></div>
       <div class="mock"><div class="frame" style="padding:0"><div class="post"><div style="display:flex;justify-content:space-between;align-items:center">{{USE logoL #04E8A4 #FFFFFF #04E8A4 w=130}}<span class="ts">● 05:47 · PÁTIO</span></div><p class="h">Quem vê a rota inteira <em>chega primeiro.</em></p><div class="ft"><span>NAHORAFROTA.COM.BR</span><span>SEMPRE NA HORA</span></div></div></div><p class="cap"><span>Redes · Post 1:1 · Frase</span><span>Uma palavra em verde</span></p></div>
-      <div class="mock"><div class="frame" style="padding:0"><div class="post post--green"><div style="display:flex;justify-content:space-between;align-items:center">{{USE logoL #080808 #080808 #080808 w=130}}<span class="ts">● SLA · OUTUBRO</span></div><p class="kpi">98,4%<small>DAS ENTREGAS NO PRAZO · 1.240 ROMANEIOS</small></p><div class="ft"><span>DADOS DA OPERAÇÃO</span><span>NA HORA FROTA</span></div></div></div><p class="cap"><span>Redes · Post 1:1 · Dado</span><span>Número em mono, fundo verde (máx. 1 em 5 posts)</span></p></div>
+      <div class="mock"><div class="frame" style="padding:0"><div class="post post--green"><div style="display:flex;justify-content:space-between;align-items:center">{{USE logoL #080808 #080808 #080808 w=130}}<span class="ts">● SLA · OUTUBRO</span></div><p class="kpi">98,4%<small>DAS ENTREGAS NO PRAZO · 1.240 ROMANEIOS</small></p><div class="ft"><span>DADOS DA OPERAÇÃO</span><span>NA HORA FROTA</span></div></div></div><p class="cap"><span>Redes · Post 1:1 · Dado</span><span>Número gigante, fundo verde (máx. 1 em 5 posts)</span></p></div>
       <div class="mock"><div class="frame" style="padding:0"><div class="post post--paper"><div style="display:flex;justify-content:space-between;align-items:center">{{USE logoL #04E8A4 #080808 #04E8A4 w=130}}<span class="ts">● PRODUTO</span></div><div style="display:grid;gap:10px;align-self:end"><div style="background:var(--ink);color:#fff;padding:14px;font-family:var(--fm);font-size:12px;display:grid;gap:6px"><span style="color:var(--green)">● 14:32 · ENTREGUE</span><span>ABC1D23 · Osasco · 3 paradas restantes</span></div><p class="h" style="font-size:clamp(22px,4.6vw,40px)">Atraso avisado <em>não é surpresa.</em></p></div><div class="ft"><span>NAHORAFROTA.COM.BR</span><span>SEMPRE NA HORA</span></div></div></div><p class="cap"><span>Redes · Post 1:1 · Produto</span><span>Tela real em moldura preta</span></p></div>
-      <div class="mock"><div class="frame"><div class="story"><div style="display:flex;justify-content:space-between;align-items:center">{{USE sym #04E8A4 #04E8A4 #04E8A4 w=36}}<span class="ts" style="font-family:var(--fm);font-size:11px;color:var(--green);letter-spacing:.08em">● AO VIVO · 06:10</span></div><p class="h">O pátio inteiro <em>numa tela.</em></p><div style="display:grid;gap:10px"><div class="arrowbar" style="max-width:100%"><div class="seg"></div><div class="seg"></div><div class="seg off"></div><div class="head" style="border-left-color:var(--lead)"></div></div><span class="mono" style="font-size:10px;color:var(--signal);letter-spacing:.08em">ARRASTE PARA VER A FROTA →</span></div></div></div><p class="cap"><span>Redes · Story 9:16</span><span>Símbolo no topo, CTA em mono</span></p></div>
+      <div class="mock"><div class="frame"><div class="story"><div style="display:flex;justify-content:space-between;align-items:center">{{USE sym #04E8A4 #04E8A4 #04E8A4 w=36}}<span class="ts" style="font-family:var(--fm);font-size:11px;color:var(--green);letter-spacing:.08em">● AO VIVO · 06:10</span></div><p class="h">O pátio inteiro <em>numa tela.</em></p><div style="display:grid;gap:10px"><div class="arrowbar" style="max-width:100%"><div class="seg"></div><div class="seg"></div><div class="seg off"></div><div class="head" style="border-left-color:var(--lead)"></div></div><span class="mono" style="font-size:10px;color:var(--signal);letter-spacing:.08em">ARRASTE PARA VER A FROTA →</span></div></div></div><p class="cap"><span>Redes · Story 9:16</span><span>Símbolo no topo, CTA em caixa alta</span></p></div>
       <div class="mock"><div class="frame frame--mist"><div class="sig"><div class="bar"></div><div><p class="nm">Matheus Alvarenga</p><p>Diretor de Operações · Na Hora Frota</p><p class="mono" style="margin-top:6px">+55 11 90000-0000 · nahorafrota.com.br</p><div style="margin-top:12px">{{USE logoL #04E8A4 #080808 #04E8A4 w=140}}</div></div></div></div><p class="cap"><span>Digital · Assinatura de e-mail</span><span>Barra verde, logo em linha, sem imagens pesadas</span></p></div>
-      <div class="mock"><div class="frame" style="padding:0"><div class="slide"><div style="display:flex;justify-content:space-between;align-items:center">{{USE logoL #04E8A4 #FFFFFF #04E8A4 w=150}}<span class="mono" style="font-size:10px;color:var(--green);letter-spacing:.1em">● PROPOSTA · 2026</span></div><p class="h">Sua frota em <em>tempo real.</em></p><div class="ft"><span>APRESENTAÇÃO COMERCIAL</span><span>CONFIDENCIAL</span></div></div></div><p class="cap"><span>Apresentação · Capa 16:9</span><span>Título à esquerda, rodapé em mono</span></p></div>
+      <div class="mock"><div class="frame" style="padding:0"><div class="slide"><div style="display:flex;justify-content:space-between;align-items:center">{{USE logoL #04E8A4 #FFFFFF #04E8A4 w=150}}<span class="mono" style="font-size:10px;color:var(--green);letter-spacing:.1em">● PROPOSTA · 2026</span></div><p class="h">Sua frota em <em>tempo real.</em></p><div class="ft"><span>APRESENTAÇÃO COMERCIAL</span><span>CONFIDENCIAL</span></div></div></div><p class="cap"><span>Apresentação · Capa 16:9</span><span>Título à esquerda, rodapé em caixa alta</span></p></div>
       <div class="mock"><div class="frame" style="padding:0"><div class="web"><div class="nav"><span>{{USE logoL #04E8A4 #FFFFFF #04E8A4 w=120}}</span><span>Produto · Preços · Entrar</span></div><div class="hero2"><span class="live" style="width:max-content"><i></i>1.284 VEÍCULOS EM ROTA AGORA</span><p class="h">Gestão de frota em tempo real. Entrega <em>sempre na hora.</em></p><div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn chamfer" href="#aplicacoes">Ver demonstração</a><a class="btn btn--ghost chamfer" href="#aplicacoes">Falar com a equipe</a></div></div><div class="kp"><div><b>98,4%</b>NO PRAZO</div><div><b>−31%</b>ATRASOS</div><div><b>1 dia</b>ACERTO</div></div></div></div><p class="cap"><span>Digital · Hero do site</span><span>Marcador ao vivo + título com uma palavra verde</span></p></div>
       <div class="mock"><div class="frame frame--mist" style="gap:24px;grid-template-columns:1fr 1fr;align-items:center"><div class="sticker">{{USE sym #080808 #080808 #080808}}</div><div class="sign"><div>{{USE sym #04E8A4 #04E8A4 #04E8A4 w=60}}</div><div><p class="t">Pátio 02<br>Carregamento</p><p class="m">● CONFERÊNCIA DE ROMANEIO</p></div></div></div><p class="cap"><span>Pátio · Adesivo e placa de sinalização</span><span>Símbolo isolado só onde o nome já está presente</span></p></div>
     </div>
@@ -563,7 +563,7 @@
       <p class="lead">Toda peça da Na Hora carrega um horário. É o fio que une campanha, conteúdo e produto: a marca não fala de "tecnologia", fala do minuto em que a entrega aconteceu. O conceito guarda-chuva é <b>Sempre na hora.</b> e tudo abaixo dele responde à pergunta "que horas são na sua operação?".</p>
     </div>
     <div class="cols cols--2">
-      <div class="body"><h3>Território criativo</h3><p style="margin-top:12px">Preto, verde, hora. O visual é o painel de uma operação acordada antes de todo mundo: carimbos de horário em mono, uma única palavra em verde por frase, dados reais em vez de ilustração, a seta sempre apontando para a chegada. Nada de personagens, mascotes, ícones 3D ou fotos de banco.</p></div>
+      <div class="body"><h3>Território criativo</h3><p style="margin-top:12px">Preto, verde, hora. O visual é o painel de uma operação acordada antes de todo mundo: carimbos de horário em caixa alta, uma única palavra em verde por frase, dados reais em vez de ilustração, a seta sempre apontando para a chegada. Nada de personagens, mascotes, ícones 3D ou fotos de banco.</p></div>
       <div class="body"><h3>Regra de ouro</h3><p style="margin-top:12px">Cada peça precisa responder em três segundos: <b>que horas são</b> (marcador), <b>o que aconteceu</b> (título com uma palavra em verde) e <b>quem garante</b> (logo). Se a peça não tem hora, não é Na Hora.</p></div>
     </div>
   </div>
@@ -586,10 +586,10 @@
         <div class="tbl" style="margin-top:12px"><table>
           <tr><th>Formato</th><th>Template</th><th>Regra</th></tr>
           <tr><td>Post 1:1 · Frase</td><td>Fundo preto, logo em linha no topo, marcador à direita, título com uma palavra verde</td><td>Máximo 9 palavras</td></tr>
-          <tr><td>Post 1:1 · Dado</td><td>Fundo verde, número em mono gigante, rótulo em caixa alta</td><td>No máximo 1 a cada 5 posts</td></tr>
+          <tr><td>Post 1:1 · Dado</td><td>Fundo verde, número gigante, rótulo em caixa alta</td><td>No máximo 1 a cada 5 posts</td></tr>
           <tr><td>Post 1:1 · Produto</td><td>Fundo branco, tela real em moldura preta, título abaixo</td><td>Tela sempre com dado plausível, nunca vazia</td></tr>
           <tr><td>Carrossel</td><td>Capa = post frase; frames internos = fundo preto, título pequeno + corpo; último frame = CTA com logo</td><td>5 a 7 frames</td></tr>
-          <tr><td>Story 9:16</td><td>Símbolo no topo, título no terço inferior, CTA em mono</td><td>Zona segura de 250 px em cima e embaixo</td></tr>
+          <tr><td>Story 9:16</td><td>Símbolo no topo, título no terço inferior, CTA em caixa alta</td><td>Zona segura de 250 px em cima e embaixo</td></tr>
           <tr><td>Capa de Reels</td><td>Foto duotone + título de 3 palavras</td><td>Marcador de hora no canto superior direito</td></tr>
         </table></div>
       </div>
@@ -623,7 +623,7 @@
           <label><input type="checkbox" id="ck1">A peça tem um marcador de hora?</label>
           <label><input type="checkbox" id="ck2">Só uma palavra ou número em verde no título?</label>
           <label><input type="checkbox" id="ck3">Logo na versão certa, com área de proteção, nunca verde sobre branco?</label>
-          <label><input type="checkbox" id="ck4">Fontes: Space Grotesk no título, Inter no texto, JetBrains Mono nos dados?</label>
+          <label><input type="checkbox" id="ck4">Fontes: Space Grotesk em títulos, rótulos e dados; Inter no texto?</label>
           <label><input type="checkbox" id="ck5">Dado real e verificável, ou claramente marcado como exemplo?</label>
           <label><input type="checkbox" id="ck6">Texto direto, sem jargão, sem exclamação?</label>
           <label><input type="checkbox" id="ck7">No máximo dois elementos gráficos?</label>
@@ -643,8 +643,8 @@
   <div class="wrap stack">
     <div class="chap">
       <p class="eyebrow">11 · Arquivos e tokens</p>
-      <h2>Tudo na pasta <span class="mono" style="font-weight:500;letter-spacing:0">brand/</span> do repositório.</h2>
-      <p class="lead muted">Os logos são vetores com o texto convertido em curvas: abrem no Illustrator, Figma, CorelDRAW e Inkscape sem precisar da fonte. Os PNG têm fundo transparente. Nomenclatura: <span class="mono">nhf-[tipo]-[arranjo]-[cor].[ext]</span>.</p>
+      <h2>Tudo na pasta <span class="code" style="font-weight:500;letter-spacing:0">brand/</span> do repositório.</h2>
+      <p class="lead muted">Os logos são vetores com o texto convertido em curvas: abrem no Illustrator, Figma, CorelDRAW e Inkscape sem precisar da fonte. Os PNG têm fundo transparente. Nomenclatura: <span class="code">nhf-[tipo]-[arranjo]-[cor].[ext]</span>.</p>
     </div>
     <div class="cols cols--2">
       <div class="tbl"><table class="files">
@@ -675,11 +675,11 @@
   --nhf-info:         #3B9CFF;
   --nhf-font-display: 'Space Grotesk', system-ui, sans-serif;
   --nhf-font-text:    'Inter', system-ui, sans-serif;
-  --nhf-font-data:    'JetBrains Mono', ui-monospace, monospace;
+  --nhf-font-data:    'Space Grotesk', system-ui, sans-serif; /* caixa alta + tnum */
   --nhf-radius:       4px;
   --nhf-chamfer:      18px;
 }</pre>
-        <p class="grid-note" style="margin-top:14px">Para o produto atual (Tailwind + shadcn), a troca é: <span class="mono">--primary</span> deixa de ser vermelho neon e passa a ser <span class="mono">162 97% 46%</span> (o verde em HSL); <span class="mono">--background</span> escuro vira <span class="mono">0 0% 3%</span>. O arquivo <span class="mono">brand/tokens/tailwind.colors.js</span> traz o bloco pronto.</p>
+        <p class="grid-note" style="margin-top:14px">Para o produto atual (Tailwind + shadcn), a troca é: <span class="code">--primary</span> deixa de ser vermelho neon e passa a ser <span class="code">162 97% 46%</span> (o verde em HSL); <span class="code">--background</span> escuro vira <span class="code">0 0% 3%</span>. O arquivo <span class="code">brand/tokens/tailwind.colors.js</span> traz o bloco pronto.</p>
       </div>
     </div>
     <div class="foot">

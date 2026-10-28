@@ -1,9 +1,9 @@
-/* Layout: "editorial de pátio" — bandas de cor em largura total (preto / branco / verde), grade de 12 colunas, rótulos em mono, desenhos técnicos em linha fina. Tema único e deliberado: a marca vive no preto. */
+/* Layout: "editorial de pátio" — bandas de cor em largura total (preto / branco / verde), grade de 12 colunas, rótulos em caixa alta, desenhos técnicos em linha fina. Tema único e deliberado: a marca vive no preto. */
 :root{
   --ink:#080808; --paper:#FFFFFF; --green:#04E8A4; --green-deep:#0B6B4F; --green-tint:#0F3D30; --green-dark:#00B37E;
   --graphite:#141617; --lead:#2A2D30; --signal:#8A9199; --mist:#F2F4F5;
   --alert:#FFC53D; --late:#FF4D4F; --info:#3B9CFF;
-  --fd:'Space Grotesk','Inter',system-ui,sans-serif; --fb:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif; --fm:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace; --fw:'Chakra Petch','Space Grotesk',sans-serif;
+  --fd:'Space Grotesk','Inter',system-ui,sans-serif; --fb:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif; --fm:'Space Grotesk','Inter',system-ui,sans-serif; --fc:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; --fw:'Chakra Petch','Space Grotesk',sans-serif;
   --line:rgba(138,145,153,.28); --wrap:1280px;
   color-scheme:dark;
 }
@@ -31,7 +31,8 @@ p{margin:0}
 .band--light .eyebrow,.band--mist .eyebrow{color:var(--green-deep)}
 .band--green .eyebrow{color:var(--ink)}
 .eyebrow{font-family:var(--fm);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:500}
-.mono{font-family:var(--fm);font-variant-numeric:tabular-nums}
+.mono{font-family:var(--fm);font-variant-numeric:tabular-nums;font-weight:500}
+.code{font-family:var(--fc);font-size:.92em}
 .muted{color:var(--signal)}
 .band--light .muted,.band--mist .muted{color:#5B6168}
 .band--green .muted{color:var(--green-tint)}
@@ -235,7 +236,7 @@ th{font-family:var(--fm);font-size:11px;letter-spacing:.08em;text-transform:uppe
 .check{display:grid;gap:0;max-width:720px}
 .check label{display:grid;grid-template-columns:22px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px;align-items:start}
 .check input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--green)}
-pre{margin:0;padding:18px;background:var(--graphite);color:#DDE2E6;font-family:var(--fm);font-size:12.5px;line-height:1.55;overflow-x:auto;border:1px solid var(--line)}
+pre{margin:0;padding:18px;background:var(--graphite);color:#DDE2E6;font-family:var(--fc);font-size:12.5px;line-height:1.55;overflow-x:auto;border:1px solid var(--line)}
 .band--light pre{background:var(--mist);color:var(--ink)}
 .files{font-size:13px}
 .files td:first-child{font-family:var(--fm);font-size:12px;white-space:nowrap}

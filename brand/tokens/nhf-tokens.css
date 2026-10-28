@@ -25,7 +25,7 @@
   /* Tipografia */
   --nhf-font-display: 'Space Grotesk', system-ui, sans-serif;   /* títulos */
   --nhf-font-text:    'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; /* texto e interface */
-  --nhf-font-data:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; /* horas, placas, KPIs */
+  --nhf-font-data:    'Space Grotesk', system-ui, sans-serif; /* horas, placas, KPIs: caixa alta + algarismos tabulares */
 
   /* Forma */
   --nhf-radius:       4px;      /* raio máximo da interface */
