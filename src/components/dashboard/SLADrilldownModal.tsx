@@ -34,8 +34,7 @@ import {
   isSLAAttention, 
   SLA_THRESHOLDS,
   SLA_OCCURRENCE_WEIGHTS,
-  SLAInvoiceItem
-} from "@/hooks/useSLADB";
+  SLAInvoiceItem, getOccurrenceLabel } from "@/hooks/useSLADB";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { DeliveryDetailSheet, DeliveryWithHistory } from "@/components/deliveries/DeliveryDetailSheet";
@@ -610,7 +609,7 @@ function OrphanInvoiceRow({ invoice }: { invoice: OrphanInvoice }) {
           "text-xs",
           isZeroWeight ? "bg-destructive/10 text-destructive border-destructive/30" : "bg-orange-500/10 text-orange-500 border-orange-500/30"
         )}>
-          {OCCURRENCE_LABELS[invoice.occurrenceType] || invoice.occurrenceType}
+          {getOccurrenceLabel(invoice.occurrenceType)}
         </Badge>
         <p className="text-xs text-muted-foreground mt-1">
           Peso: {(invoice.weight * 100).toFixed(0)}%
@@ -697,7 +696,7 @@ function DriverInvoicesView({
           {occurrences.map((occ, idx) => (
             <div key={idx} className="flex justify-between text-muted-foreground">
               <span className="truncate flex-1 mr-2">
-                {OCCURRENCE_LABELS[occ.occurrenceType] || occ.occurrenceType} (NF {occ.nfeNumber}):
+                {getOccurrenceLabel(occ.occurrenceType)} (NF {occ.nfeNumber}):
               </span>
               <span className={cn("font-mono", occ.weight === 0 ? "text-destructive" : "")}>
                 {occ.weight.toFixed(1)}
@@ -777,7 +776,7 @@ function DriverInvoicesView({
         <div className="grid grid-cols-2 gap-2 text-xs">
           {Object.entries(SLA_OCCURRENCE_WEIGHTS).map(([key, weight]) => (
             <div key={key} className="flex justify-between p-1.5 rounded bg-muted/50">
-              <span className="text-muted-foreground">{OCCURRENCE_LABELS[key] || key}:</span>
+              <span className="text-muted-foreground">{getOccurrenceLabel(key)}:</span>
               <span className={cn(
                 "font-mono font-medium",
                 weight === 0 ? "text-destructive" :
@@ -835,7 +834,7 @@ function InvoiceItemCard({ invoice, onClick }: { invoice: SLAInvoiceItem; onClic
               ? "bg-destructive/10 text-destructive border-destructive/30"
               : "bg-warning/10 text-warning border-warning/30"
           )}>
-            {isDelivered ? "Entregue" : OCCURRENCE_LABELS[invoice.occurrenceType || "outros"] || invoice.occurrenceType}
+            {isDelivered ? "Entregue" : getOccurrenceLabel(invoice.occurrenceType)}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground truncate">{invoice.recipientName}</p>
@@ -887,7 +886,7 @@ function InvoiceOccurrenceCard({ occurrence }: { occurrence: DriverSLAStats["tod
             isCritical ? "bg-warning/10 text-warning border-warning/30" :
             "bg-muted"
           )}>
-            {OCCURRENCE_LABELS[occurrence.occurrenceType] || occurrence.occurrenceType}
+            {getOccurrenceLabel(occurrence.occurrenceType)}
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground truncate">{occurrence.recipientName}</p>

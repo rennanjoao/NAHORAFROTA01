@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { uniqueChannelName } from "@/lib/realtime";
 import { formatSLA } from "@/lib/formatSLA";
-import { useSLADB, OCCURRENCE_LABELS, getSLAColorScheme, isSLACritical, SLA_THRESHOLDS } from "@/hooks/useSLADB";
+import { useSLADB, getSLAColorScheme, isSLACritical, SLA_THRESHOLDS, getOccurrenceLabel } from "@/hooks/useSLADB";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -420,7 +420,7 @@ function DriverDetailSheet({
                     {delivery.status === "occurrence" && (
                       <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">
                         <AlertCircle className="h-3 w-3 mr-1" />
-                        {OCCURRENCE_LABELS[delivery.occurrenceType || ""] || delivery.occurrenceType || "Ocorrência"}
+                        {getOccurrenceLabel(delivery.occurrenceType)}
                       </Badge>
                     )}
                     {delivery.status === "pending" && (
@@ -719,7 +719,7 @@ export function PredictiveIntelligence() {
           <p className="text-sm">
             {onlyInRoute && driversInRoute.length === 0
               ? "Aguardando início das rotas do dia."
-              : `Ninguém abaixo de ${SLA_THRESHOLDS.EXCELLENT}% nos últimos ${SLA_PERIOD_LABELS[period].toLowerCase()}.`
+              : `Ninguém abaixo de ${SLA_THRESHOLDS.EXCELLENT}% em ${SLA_PERIOD_LABELS[period].toLowerCase()} (conta quem tem ao menos ${MIN_INVOICES_FOR_ATTENTION[period]} NFs finalizadas no período).`
             }
           </p>
         </div>

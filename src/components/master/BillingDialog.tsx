@@ -83,6 +83,10 @@ const financialStatusConfig: Record<string, { label: string; className: string }
   blocked: { label: "Bloqueado", className: "bg-destructive/20 text-destructive" },
 };
 
+function addCycle(date: Date, cycle: string): Date {
+  return cycle === "annual" ? addMonths(date, 12) : cycle === "quarterly" ? addMonths(date, 3) : addMonths(date, 1);
+}
+
 function calcNextDueDate(startDate: string, cycle: string): string {
   const start = new Date(startDate + "T12:00:00");
   const today = new Date();
@@ -132,13 +136,15 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     }
   }, [tenant, open]);
 
-  // Auto-suggest next due date when contract start or cycle changes
+  // Sugere o proximo vencimento quando o inicio do contrato ou o ciclo sao
+  // alterados aqui. Ao abrir o dialogo mantem a data gravada (antes era sobrescrita).
   useEffect(() => {
-    if (contractStart && cycle) {
-      const suggested = calcNextDueDate(contractStart, cycle);
-      setNextDue(suggested);
-    }
-  }, [contractStart, cycle]);
+    if (!tenant || !contractStart || !cycle) return;
+    const unchanged =
+      contractStart === (tenant.contract_start_date || "") && cycle === (tenant.payment_cycle || "monthly");
+    if (unchanged && tenant.next_due_date) return;
+    setNextDue(calcNextDueDate(contractStart, cycle));
+  }, [contractStart, cycle, tenant]);
 
   const fetchHistory = async () => {
     if (!tenant) return;
@@ -248,9 +254,11 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       setNewNotes("");
       setShowNewPayment(false);
 
-      // Auto-advance next due date and set status to current
-      if (contractStart && cycle) {
-        const newNextDue = calcNextDueDate(new Date().toISOString().split("T")[0], cycle);
+      // Avanca um ciclo a partir do vencimento pago (antes contava a partir de hoje
+      // e um pagamento atrasado "pulava" o vencimento seguinte).
+      const paidDue = nextDue || (contractStart ? calcNextDueDate(contractStart, cycle) : "");
+      if (paidDue) {
+        const newNextDue = format(addCycle(new Date(paidDue.slice(0, 10) + "T12:00:00"), cycle), "yyyy-MM-dd");
         setNextDue(newNextDue);
         setFinancialStatus("current");
         await supabase.from("tenants").update({

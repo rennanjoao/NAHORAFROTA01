@@ -185,4 +185,20 @@ UPDATE public.manifests SET status = 'paid', freight_value = 130 WHERE id = '500
 SELECT pg_temp.check((SELECT status || ':' || amount FROM public.driver_wallet WHERE manifest_id = '50000000-0000-0000-0000-000000000070' AND type = 'freight') = 'paid:130', 'pagamento e valor refletem na carteira');
 DELETE FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000070';
 SELECT pg_temp.check(NOT EXISTS (SELECT 1 FROM public.driver_wallet WHERE description LIKE '%ROM-W1%'), 'romaneio excluido sai da carteira');
+SELECT pg_temp.check((SELECT completed_at IS NOT NULL FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000060'), 'conclusao grava completed_at');
+
+-- Bloqueio automatico por atraso: so depois dos X dias configurados
+SELECT set_config('request.jwt.claim.sub', '', false);
+UPDATE public.tenants SET next_due_date = current_date - 2, auto_block_days = 5 WHERE id = '10000000-0000-0000-0000-00000000000c';
+SELECT pg_temp.check(public.tenant_access_state('10000000-0000-0000-0000-00000000000c') = 'active', 'atraso dentro do prazo nao bloqueia');
+UPDATE public.tenants SET next_due_date = current_date - 6 WHERE id = '10000000-0000-0000-0000-00000000000c';
+SELECT pg_temp.check(public.tenant_access_state('10000000-0000-0000-0000-00000000000c') = 'overdue', 'atraso acima do prazo bloqueia');
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
+SELECT pg_temp.check((SELECT count(*) FROM public.invoices) = 0, 'cliente bloqueado por atraso nao le dados');
+SELECT pg_temp.check((public.get_my_tenant_access()->>'auto_block_days')::int = 5, 'acesso informa o prazo de bloqueio');
+RESET role;
+SELECT set_config('request.jwt.claim.sub', '', false);
+UPDATE public.tenants SET auto_block_days = 0 WHERE id = '10000000-0000-0000-0000-00000000000c';
+SELECT pg_temp.check(public.tenant_access_state('10000000-0000-0000-0000-00000000000c') = 'active', 'prazo 0 = sem bloqueio automatico');
+UPDATE public.tenants SET next_due_date = NULL WHERE id = '10000000-0000-0000-0000-00000000000c';
 \echo ALL_DRIVER_ACCESS_TESTS_PASSED

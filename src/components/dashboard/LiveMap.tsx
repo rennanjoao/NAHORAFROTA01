@@ -84,7 +84,7 @@ function MapLoading({ positionCount }: { positionCount: number }) {
           <div>
             <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
             <p className="text-sm text-muted-foreground">
-              {positionCount} veículos ativos • São Paulo
+              {positionCount === 1 ? "1 veículo ativo" : `${positionCount} veículos ativos`} • São Paulo
             </p>
           </div>
         </div>
@@ -119,7 +119,7 @@ function MapError({ positionCount, error, onRetry }: { positionCount: number; er
           <div>
             <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
             <p className="text-sm text-muted-foreground">
-              {positionCount} veículos ativos • Erro ao carregar
+              {positionCount === 1 ? "1 veículo ativo" : `${positionCount} veículos ativos`} • Erro ao carregar
             </p>
           </div>
         </div>

@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { CyberLogo } from "@/components/ui/CyberLogo";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { useIsPlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useFeatureAccess, Feature } from "@/hooks/useFeatureAccess";
 import {
   Tooltip,
@@ -83,7 +83,7 @@ export function AppSidebar({
   onCollapsedChange 
 }: AppSidebarProps) {
   const { profile, roles, isAdmin } = useAuth();
-  const { isPlatformAdmin } = usePlatformAdmin();
+  const { isPlatformAdmin } = useIsPlatformAdmin();
   const { checkFeatureAccess, isLoading: planAccessLoading } = useFeatureAccess();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const collapsed = externalCollapsed ?? internalCollapsed;

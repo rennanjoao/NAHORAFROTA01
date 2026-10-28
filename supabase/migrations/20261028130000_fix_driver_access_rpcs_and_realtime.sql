@@ -909,3 +909,127 @@ WHERE m.driver_id IS NOT NULL
   AND NOT COALESCE(m.is_own_fleet, false)
   AND m.status <> 'cancelled'
 ON CONFLICT (manifest_id) WHERE type = 'freight' DO NOTHING;
+
+-- ============================================================================
+-- 15. Data de conclusao do romaneio
+-- ============================================================================
+
+-- "Finalizaram hoje" usava a data de criacao: romaneio de ontem concluido hoje
+-- nao aparecia. completed_at passa a ser gravado em qualquer caminho de conclusao.
+ALTER TABLE public.manifests ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+
+CREATE OR REPLACE FUNCTION public.stamp_manifest_completed_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.status = 'completed' AND OLD.status IS DISTINCT FROM 'completed' AND OLD.status IS DISTINCT FROM 'paid' THEN
+    NEW.completed_at := COALESCE(NEW.completed_at, now());
+  ELSIF NEW.status IN ('pending', 'in_progress') THEN
+    NEW.completed_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_stamp_manifest_completed_at ON public.manifests;
+CREATE TRIGGER trg_stamp_manifest_completed_at
+BEFORE UPDATE OF status ON public.manifests
+FOR EACH ROW EXECUTE FUNCTION public.stamp_manifest_completed_at();
+
+UPDATE public.manifests
+SET completed_at = updated_at
+WHERE status IN ('completed', 'paid')
+  AND completed_at IS NULL;
+
+
+-- ============================================================================
+-- 16. Bloqueio automatico por atraso (configurado no Master)
+-- ============================================================================
+
+-- "Bloqueio automatico apos X dias de atraso (0 = desativado)" era salvo mas nunca
+-- aplicado, e o painel bloqueava qualquer cliente no dia seguinte ao vencimento.
+-- Agora: dentro do prazo o cliente so recebe o aviso; passado o prazo o banco para
+-- de servir os dados (estado "overdue").
+CREATE OR REPLACE FUNCTION public.tenant_access_state(p_tenant_id uuid)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT CASE
+        WHEN t.status = 'blocked' THEN 'blocked'
+        WHEN t.status = 'inactive' THEN 'pending'
+        WHEN t.status = 'trial' AND t.trial_ends_at IS NOT NULL AND t.trial_ends_at > now() THEN 'trial'
+        WHEN t.status = 'trial' THEN 'trial_expired'
+        WHEN COALESCE(t.auto_block_days, 0) > 0
+          AND t.next_due_date IS NOT NULL
+          AND ((now() AT TIME ZONE 'America/Sao_Paulo')::date - t.next_due_date::date) > t.auto_block_days
+          THEN 'overdue'
+        ELSE 'active'
+      END
+      FROM public.tenants t
+      WHERE t.id = p_tenant_id
+    ),
+    'none'
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_my_tenant_access()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_tenant public.tenants%ROWTYPE;
+  v_state text;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('tenant_id', NULL, 'access_state', 'none', 'has_access', false);
+  END IF;
+
+  -- Vinculo real do usuario (sem o fallback de tenant padrao de get_user_tenant_id),
+  -- para quem nao pertence a nenhuma empresa nao ver dados de cobranca de outra.
+  SELECT * INTO v_tenant
+  FROM public.tenants t
+  WHERE t.id = COALESCE(
+    (SELECT tm.tenant_id FROM public.tenant_memberships tm WHERE tm.user_id = v_user_id LIMIT 1),
+    (SELECT p.tenant_id FROM public.profiles p WHERE p.id = v_user_id LIMIT 1),
+    (SELECT d.tenant_id FROM public.drivers d WHERE d.user_id = v_user_id LIMIT 1)
+  );
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'tenant_id', NULL,
+      'access_state', 'none',
+      'has_access', false,
+      'is_platform_admin', public.is_platform_admin(v_user_id)
+    );
+  END IF;
+
+  v_state := public.tenant_access_state(v_tenant.id);
+
+  RETURN jsonb_build_object(
+    'tenant_id', v_tenant.id,
+    'razao_social', v_tenant.razao_social,
+    'status', v_tenant.status,
+    'plan', v_tenant.plan,
+    'access_state', v_state,
+    'has_access', v_state IN ('trial', 'active'),
+    'trial_started_at', v_tenant.trial_started_at,
+    'trial_ends_at', v_tenant.trial_ends_at,
+    'trial_extensions', v_tenant.trial_extensions,
+    'next_due_date', v_tenant.next_due_date,
+    'financial_status', v_tenant.financial_status,
+    'auto_block_days', v_tenant.auto_block_days,
+    'is_platform_admin', public.is_platform_admin(v_user_id)
+  );
+END;
+$$;

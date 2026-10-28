@@ -1,5 +1,5 @@
 import { usePlanLimits } from './usePlanLimits';
-import { usePlatformAdmin } from './usePlatformAdmin';
+import { useIsPlatformAdmin } from './usePlatformAdmin';
 
 export type Feature =
   | 'sla_weekly'
@@ -36,7 +36,7 @@ const PLAN_HIERARCHY: Record<string, number> = { basic: 0, control: 1, total: 2 
 
 export function useFeatureAccess() {
   const planStatus = usePlanLimits();
-  const { isPlatformAdmin } = usePlatformAdmin();
+  const { isPlatformAdmin } = useIsPlatformAdmin();
   const { plan, limits, isLoading } = planStatus;
 
   function checkFeatureAccess(feature: Feature): { allowed: boolean; upgradePlanLabel: string } {

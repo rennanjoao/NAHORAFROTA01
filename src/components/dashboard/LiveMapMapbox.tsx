@@ -172,7 +172,7 @@ export default function LiveMapMapbox({
           <div>
             <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real - Mapbox</h3>
             <p className="text-sm text-muted-foreground">
-              {positions.length} veículos ativos • São Paulo
+              {positions.length === 1 ? "1 veículo ativo" : `${positions.length} veículos ativos`} • São Paulo
             </p>
           </div>
         </div>

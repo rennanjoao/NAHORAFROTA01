@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { usePlatformAdmin, TenantData } from "@/hooks/usePlatformAdmin";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
 import { BillingDialog } from "@/components/master/BillingDialog";
 import { DueDateIndicator, getDueSoonCount, getOverdueCount } from "@/components/master/DueDateIndicator";
@@ -45,14 +47,48 @@ const planConfig: Record<string, { label: string; className: string }> = {
   total: { label: "Total", className: "bg-amber-500/20 text-amber-400" },
 };
 
-const planLimitsMap: Record<string, { max_users: number; max_drivers: number }> = {
+type PlanLimitsSummary = { max_users: number; max_drivers: number };
+
+// Usado so enquanto os limites do banco (get_plan_limits) carregam.
+const FALLBACK_PLAN_LIMITS: Record<string, PlanLimitsSummary> = {
   basic: { max_users: 1, max_drivers: 5 },
-  control: { max_users: 5, max_drivers: 20 },
+  control: { max_users: 20, max_drivers: 200 },
   total: { max_users: -1, max_drivers: -1 },
 };
 
+/** Limites de cada plano como o banco aplica (antes eram fixos aqui e divergiam). */
+function usePlanLimitsMap(): Record<string, PlanLimitsSummary> {
+  const { data } = useQuery({
+    queryKey: ["plan-limits-map"],
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const entries = await Promise.all(
+        Object.keys(FALLBACK_PLAN_LIMITS).map(async (plan) => {
+          const { data: limits } = await supabase.rpc("get_plan_limits", { p_plan: plan });
+          const parsed = (typeof limits === "string" ? JSON.parse(limits) : limits) as Partial<PlanLimitsSummary> | null;
+          return [
+            plan,
+            {
+              max_users: Number(parsed?.max_users ?? FALLBACK_PLAN_LIMITS[plan].max_users),
+              max_drivers: Number(parsed?.max_drivers ?? FALLBACK_PLAN_LIMITS[plan].max_drivers),
+            },
+          ] as const;
+        }),
+      );
+      return Object.fromEntries(entries) as Record<string, PlanLimitsSummary>;
+    },
+  });
+  return data ?? FALLBACK_PLAN_LIMITS;
+}
+
 export default function MasterAdminPage() {
   const { isPlatformAdmin, checking, tenants, isLoading, fetchTenants, updateTenantStatus, updateTenantPlan, extendTrial } = usePlatformAdmin();
+  const planLimitsMap = usePlanLimitsMap();
+  // Empresa em teste usa todos os recursos (o banco trata o teste como plano Total).
+  const limitsFor = (tenant: TenantData) =>
+    tenant.status === "trial" && !isTrialExpired(tenant)
+      ? planLimitsMap.total
+      : planLimitsMap[tenant.plan] || planLimitsMap.basic;
   const [billingTenant, setBillingTenant] = useState<TenantData | null>(null);
   const [extendingTenantId, setExtendingTenantId] = useState<string | null>(null);
 
@@ -312,7 +348,7 @@ export default function MasterAdminPage() {
                                       <span className="font-medium">{tenant.system_users_count || 0}</span>
                                       <span className="text-muted-foreground">/</span>
                                       <span className="text-muted-foreground">
-                                        {(planLimitsMap[tenant.plan] || planLimitsMap.basic).max_users === -1 ? '∞' : (planLimitsMap[tenant.plan] || planLimitsMap.basic).max_users}
+                                        {limitsFor(tenant).max_users === -1 ? '∞' : limitsFor(tenant).max_users}
                                       </span>
                                     </div>
                                   </TooltipTrigger>
@@ -325,7 +361,7 @@ export default function MasterAdminPage() {
                                       <span className="font-medium">{tenant.drivers_count || 0}</span>
                                       <span className="text-muted-foreground">/</span>
                                       <span className="text-muted-foreground">
-                                        {(planLimitsMap[tenant.plan] || planLimitsMap.basic).max_drivers === -1 ? '∞' : (planLimitsMap[tenant.plan] || planLimitsMap.basic).max_drivers}
+                                        {limitsFor(tenant).max_drivers === -1 ? '∞' : limitsFor(tenant).max_drivers}
                                       </span>
                                     </div>
                                   </TooltipTrigger>

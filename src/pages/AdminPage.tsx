@@ -91,6 +91,8 @@ export default function AdminPage() {
     ? { label: "Teste grátis", className: "bg-primary text-primary-foreground" }
     : subscriptionStatus === "expired"
       ? { label: "Vencido", className: "bg-destructive text-destructive-foreground" }
+      : subscriptionStatus === "overdue"
+        ? { label: "Em atraso", className: "bg-destructive text-destructive-foreground" }
       : subscriptionStatus === "due_today" || subscriptionStatus === "warning"
         ? { label: "Vencendo", className: "bg-warning text-warning-foreground" }
         : { label: "Ativo", className: "bg-success text-success-foreground" };

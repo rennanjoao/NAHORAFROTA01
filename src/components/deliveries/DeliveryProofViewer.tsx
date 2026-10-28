@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getOccurrenceLabel } from "@/hooks/useSLADB";
 
 interface DeliveryProof {
   id: string;
@@ -54,20 +55,6 @@ interface DeliveryProofViewerProps {
   status: string;
 }
 
-const OCCURRENCE_LABELS: Record<string, string> = {
-  cliente_ausente: "Cliente Ausente",
-  recusado: "Recusado pelo Cliente",
-  endereco_errado: "Endereço Errado/Não Encontrado",
-  endereco_nao_localizado: "Endereço Não Localizado",
-  area_risco: "Área de Risco",
-  horario_restrito: "Fora do Horário de Entrega",
-  avaria: "Mercadoria Avariada",
-  extravio: "Mercadoria Extraviada",
-  ausente: "Cliente Ausente",
-  fora_horario: "Fora do Horário",
-  outro: "Outros",
-  outros: "Outros",
-};
 
 export function DeliveryProofViewer({
   open,
@@ -318,7 +305,7 @@ export function DeliveryProofViewer({
                         >
                           <div className="flex items-start justify-between">
                             <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
-                              {OCCURRENCE_LABELS[occ.type] || occ.type}
+                              {getOccurrenceLabel(occ.type)}
                             </Badge>
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Clock className="h-3 w-3" />

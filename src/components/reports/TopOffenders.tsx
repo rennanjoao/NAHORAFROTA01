@@ -9,6 +9,7 @@ import {
   TrendingDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getOccurrenceLabel } from "@/hooks/useSLADB";
 
 interface TopRoute {
   rank: number;
@@ -169,7 +170,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
                   {reason.rank}
                 </Badge>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{reason.reason}</p>
+                  <p className="text-sm font-medium truncate">{getOccurrenceLabel(reason.reason)}</p>
                   <p className="text-xs text-muted-foreground">{reason.count} ocorrências</p>
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">

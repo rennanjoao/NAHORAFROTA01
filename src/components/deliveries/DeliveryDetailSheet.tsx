@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { getOccurrenceLabel } from "@/hooks/useSLADB";
 
 interface AuditLogEntry {
   id: string;
@@ -668,30 +669,6 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
   );
 }
 
-// Helper functions
-function getOccurrenceLabel(type: string): string {
-  const labels: Record<string, string> = {
-    cliente_ausente: "Cliente Ausente",
-    endereco_incorreto: "Endereço Incorreto",
-    recusa_cliente: "Recusa do Cliente",
-    avaria_transporte: "Avaria no Transporte",
-    extravio: "Extravio/Perda",
-    tentativa_entrega: "Tentativa de Entrega",
-    aguardando_pagamento: "Aguardando Pagamento",
-    area_risco: "Área de Risco",
-    veiculo_quebrado: "Veículo Quebrado",
-    mercadoria_avariada: "Mercadoria Avariada",
-    mercadoria_nao_localizada: "Mercadoria Não Localizada",
-  };
-  const fallbackLabels: Record<string, string> = {
-    horario_restrito: "Fora do Horario de Entrega",
-    endereco_errado: "Endereco Errado/Nao Encontrado",
-    recusado: "Recusado pelo Cliente",
-    avaria: "Mercadoria Avariada",
-    outros: "Outros",
-  };
-  return labels[type] || fallbackLabels[type] || type;
-}
 
 async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurrenceEntry[]> {
   const columns = "id, occurrence_type, description, photo_url, created_at";

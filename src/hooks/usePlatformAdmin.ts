@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchAllPages } from '@/lib/supabasePaging';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -41,27 +43,32 @@ export interface BillingNoticeSummary {
   created_at: string;
 }
 
-export function usePlatformAdmin() {
+/**
+ * So a checagem "e Super Admin?", compartilhada (react-query). Telas comuns usam
+ * esta: usePlatformAdmin() tambem carrega a lista completa de empresas.
+ */
+export function useIsPlatformAdmin() {
   const { user } = useAuth();
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
-  const [tenants, setTenants] = useState<TenantData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [checking, setChecking] = useState(true);
-
-  // Check if user is platform admin
-  useEffect(() => {
-    const check = async () => {
-      if (!user) { setChecking(false); return; }
+  const query = useQuery({
+    queryKey: ['is-platform-admin', user?.id],
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
       const { data } = await supabase
         .from('platform_admins')
         .select('user_id')
-        .eq('user_id', user.id)
+        .eq('user_id', user!.id)
         .maybeSingle();
-      setIsPlatformAdmin(!!data);
-      setChecking(false);
-    };
-    check();
-  }, [user]);
+      return !!data;
+    },
+  });
+  return { isPlatformAdmin: query.data ?? false, checking: !!user && query.isLoading };
+}
+
+export function usePlatformAdmin() {
+  const { isPlatformAdmin, checking } = useIsPlatformAdmin();
+  const [tenants, setTenants] = useState<TenantData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchTenants = useCallback(async () => {
     if (!isPlatformAdmin) return;
@@ -85,76 +92,58 @@ export function usePlatformAdmin() {
         if (!latestNoticeByTenant.has(notice.tenant_id)) latestNoticeByTenant.set(notice.tenant_id, notice);
       });
 
-      // Enrich with member count and admin info
-      const enriched: TenantData[] = await Promise.all(
-        (tenantsData || []).map(async (t) => {
-          const { count } = await supabase
-            .from('tenant_memberships')
-            .select('*', { count: 'exact', head: true })
-            .eq('tenant_id', t.id);
+      // Contagens em lote (antes eram ~6 consultas por empresa).
+      const [memberships, driverRows, roleRows] = await Promise.all([
+        fetchAllPages((from, to) =>
+          supabase.from('tenant_memberships').select('tenant_id, user_id, role').order('user_id').range(from, to)
+        ),
+        fetchAllPages((from, to) =>
+          supabase.from('drivers').select('id, tenant_id').order('id').range(from, to)
+        ),
+        fetchAllPages((from, to) =>
+          supabase.from('user_roles').select('user_id, role').order('user_id').range(from, to)
+        ),
+      ]);
 
-          // Count drivers for this tenant
-          const { count: driversCount } = await supabase
-            .from('drivers')
-            .select('*', { count: 'exact', head: true })
-            .eq('tenant_id', t.id);
-
-          // Count system users (non-driver roles)
-          const { data: membersList } = await supabase
-            .from('tenant_memberships')
-            .select('user_id')
-            .eq('tenant_id', t.id);
-
-          let systemUsersCount = 0;
-          if (membersList && membersList.length > 0) {
-            const userIds = membersList.map(m => m.user_id);
-            const { data: roles } = await supabase
-              .from('user_roles')
-              .select('user_id, role')
-              .in('user_id', userIds);
-            
-            const systemRoles = new Set(['admin', 'dispatcher', 'fleet_manager', 'manager', 'owner']);
-            const systemUserIds = new Set<string>();
-            (roles || []).forEach(r => {
-              if (systemRoles.has(r.role as string)) {
-                systemUserIds.add(r.user_id);
-              }
-            });
-            systemUsersCount = systemUserIds.size;
-          }
-
-          // Get admin member
-          const { data: adminMember } = await supabase
-            .from('tenant_memberships')
-            .select('user_id')
-            .eq('tenant_id', t.id)
-            .eq('role', 'admin')
-            .limit(1)
-            .maybeSingle();
-
-          let admin_name = '';
-          let admin_email = '';
-          if (adminMember) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('name, email')
-              .eq('id', adminMember.user_id)
-              .maybeSingle();
-            admin_name = profile?.name || '';
-            admin_email = profile?.email || '';
-          }
-
-          return {
-            ...t,
-            last_billing_notice: latestNoticeByTenant.get(t.id) || null,
-            members_count: count || 0,
-            system_users_count: systemUsersCount,
-            drivers_count: driversCount || 0,
-            admin_name,
-            admin_email,
-          };
-        })
+      const systemRoles = new Set(['admin', 'dispatcher', 'fleet_manager', 'manager', 'owner']);
+      const systemUserIds = new Set(
+        (roleRows as Array<{ user_id: string; role: string }>)
+          .filter((r) => systemRoles.has(r.role))
+          .map((r) => r.user_id)
       );
+
+      const adminUserIds = [
+        ...new Set(
+          (memberships as Array<{ tenant_id: string; user_id: string; role: string }>)
+            .filter((m) => m.role === 'admin')
+            .map((m) => m.user_id)
+        ),
+      ];
+      const profilesById = new Map<string, { name: string | null; email: string | null }>();
+      for (let i = 0; i < adminUserIds.length; i += 200) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', adminUserIds.slice(i, i + 200));
+        (profiles || []).forEach((p) => profilesById.set(p.id, { name: p.name, email: p.email }));
+      }
+
+      const enriched: TenantData[] = (tenantsData || []).map((t) => {
+        const tenantMembers = (memberships as Array<{ tenant_id: string; user_id: string; role: string }>).filter(
+          (m) => m.tenant_id === t.id
+        );
+        const adminMember = tenantMembers.find((m) => m.role === 'admin');
+        const adminProfile = adminMember ? profilesById.get(adminMember.user_id) : undefined;
+        return {
+          ...t,
+          last_billing_notice: latestNoticeByTenant.get(t.id) || null,
+          members_count: tenantMembers.length,
+          system_users_count: tenantMembers.filter((m) => systemUserIds.has(m.user_id)).length,
+          drivers_count: (driverRows as Array<{ tenant_id: string | null }>).filter((d) => d.tenant_id === t.id).length,
+          admin_name: adminProfile?.name || '',
+          admin_email: adminProfile?.email || '',
+        };
+      });
 
       setTenants(enriched);
     } catch (err) {

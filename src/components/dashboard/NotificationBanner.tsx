@@ -28,6 +28,11 @@ export function NotificationBanner() {
     icon = ShieldAlert;
     message = "Acesso Suspenso. Entre em contato com o suporte para renovação.";
     style = "bg-destructive/15 border-destructive/30 text-destructive";
+  } else if (status === "overdue") {
+    icon = AlertCircle;
+    const late = Math.abs(daysRemaining);
+    message = `Pagamento em atraso há ${late} dia${late > 1 ? "s" : ""}. Regularize para evitar a suspensão do acesso.`;
+    style = "bg-destructive/10 border-destructive/20 text-destructive";
   } else if (status === "due_today") {
     icon = AlertCircle;
     message = "Sua assinatura vence hoje. Regularize para evitar interrupções.";

@@ -10,7 +10,8 @@ export const TRIAL_WARNING_DAYS = 3;
 /** A partir de quantos dias para o vencimento o pop-up de cobranca aparece. */
 export const DUE_WARNING_DAYS = 5;
 
-export type AccessState = "trial" | "trial_expired" | "active" | "pending" | "blocked" | "none";
+/** "overdue": passou do prazo de bloqueio automatico por atraso (o banco bloqueia). */
+export type AccessState = "trial" | "trial_expired" | "active" | "overdue" | "pending" | "blocked" | "none";
 
 export interface TenantAccess {
   tenant_id: string | null;
@@ -24,6 +25,8 @@ export interface TenantAccess {
   trial_extensions?: number | null;
   next_due_date?: string | null;
   financial_status?: string | null;
+  /** Dias de atraso tolerados antes do bloqueio (0/nulo = nunca bloqueia sozinho). */
+  auto_block_days?: number | null;
   is_platform_admin?: boolean;
 }
 
@@ -33,6 +36,7 @@ export type SubscriptionStatus =
   | "active"
   | "warning"
   | "due_today"
+  | "overdue"
   | "expired"
   | "trial"
   | "trial_expired"
@@ -92,6 +96,13 @@ export function getSubscriptionStatus(access: TenantAccess | null | undefined, n
       return { status: "pending", daysRemaining: 0 };
     case "trial_expired":
       return { status: "trial_expired", daysRemaining: 0 };
+    case "overdue":
+      return {
+        status: "expired",
+        daysRemaining: access.next_due_date
+          ? calendarDaysBetween(toBrazilDate(now), access.next_due_date.slice(0, 10))
+          : 0,
+      };
     case "trial":
       return {
         status: "trial",
@@ -102,7 +113,8 @@ export function getSubscriptionStatus(access: TenantAccess | null | undefined, n
   if (!access.next_due_date) return { status: "no_date", daysRemaining: 999 };
 
   const diff = calendarDaysBetween(toBrazilDate(now), access.next_due_date.slice(0, 10));
-  if (diff < 0) return { status: "expired", daysRemaining: diff };
+  // Em atraso, mas dentro do prazo de bloqueio: continua usando, com aviso.
+  if (diff < 0) return { status: "overdue", daysRemaining: diff };
   if (diff === 0) return { status: "due_today", daysRemaining: 0 };
   if (diff <= DUE_WARNING_DAYS) return { status: "warning", daysRemaining: diff };
   return { status: "active", daysRemaining: diff };
@@ -145,13 +157,18 @@ export function getBillingAlert(access: TenantAccess | null | undefined, now: Da
 
   if (diff < 0) {
     const late = Math.abs(diff);
+    const blockDays = Number(access.auto_block_days) || 0;
+    const blockIn = blockDays > 0 ? blockDays - late + 1 : null;
     return {
       type: "overdue",
       referenceDate,
       daysRemaining: diff,
       severity: "critical",
       title: "Pagamento em atraso",
-      message: `Sua fatura está vencida há ${plural(late, "dia", "dias")}. Regularize para evitar a suspensão do acesso.`,
+      message:
+        blockIn !== null
+          ? `Sua fatura está vencida há ${plural(late, "dia", "dias")}. O acesso será suspenso em ${plural(blockIn, "dia", "dias")} se o pagamento não for regularizado.`
+          : `Sua fatura está vencida há ${plural(late, "dia", "dias")}. Regularize para evitar a suspensão do acesso.`,
     };
   }
 

@@ -188,7 +188,7 @@ export default function LiveMapLeaflet({
           <div>
             <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
             <p className="text-sm text-muted-foreground">
-              {onlineCount ?? positions.length} veiculos ativos - OpenStreetMap
+              {(onlineCount ?? positions.length) === 1 ? "1 veículo ativo" : `${onlineCount ?? positions.length} veículos ativos`} - OpenStreetMap
             </p>
           </div>
         </div>

@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { uniqueChannelName } from "@/lib/realtime";
+import { getDayBoundsUTC, getTodayBrazil, toDateStringBrazil } from "@/lib/timezone";
+import { getInvoiceEventDate } from "@/lib/reportFilters";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 interface Invoice {
   id: string;
@@ -45,19 +48,33 @@ export function DeliveryStatus() {
   // Fetch invoices from Supabase
   useEffect(() => {
     const fetchInvoices = async () => {
+      // NFs em operacao (pendentes/em rota) + as finalizadas hoje. Antes buscava
+      // todas as NFs (com o XML) e o "Em Rota" procurava um status inexistente.
+      const todayStart = getDayBoundsUTC(getTodayBrazil()).start;
+      const tenantId = await getCurrentTenantId();
+      if (!tenantId) {
+        setStatusItems([]);
+        setLoading(false);
+        return;
+      }
       const { data, error } = await supabase
         .from('invoices')
-        .select('*')
-        .order('imported_at', { ascending: false });
-      
+        .select('id, nfe_number, recipient_name, address_full, status, driver_id, delivered_at, updated_at, imported_at')
+        .eq('tenant_id', tenantId)
+        .or(`status.in.(pending,in_transit),updated_at.gte.${todayStart}`)
+        .order('imported_at', { ascending: false })
+        .limit(1000);
+
       if (data && !error) {
+        const finishedToday = (inv: (typeof data)[number]) =>
+          toDateStringBrazil(getInvoiceEventDate(inv)) === getTodayBrazil();
         // Group by status
         const pending = data.filter(i => i.status === 'pending');
-        const inRoute = data.filter(i => i.status === 'in_route');
-        const delivered = data.filter(i => i.status === 'delivered');
-        const returned = data.filter(i => i.status === 'returned' || i.status === 'occurrence');
+        const inRoute = data.filter(i => i.status === 'in_transit');
+        const delivered = data.filter(i => i.status === 'delivered' && finishedToday(i));
+        const returned = data.filter(i => (i.status === 'returned' || i.status === 'occurrence') && finishedToday(i));
         
-        const total = data.length || 1; // Prevent division by zero
+        const total = pending.length + inRoute.length + delivered.length + returned.length || 1;
         
         setStatusItems([
           { 
@@ -88,7 +105,7 @@ export function DeliveryStatus() {
             invoices: delivered
           },
           { 
-            label: "Devolução", 
+            label: "Ocorrência/Devolução", 
             count: returned.length, 
             icon: RotateCcw, 
             color: "text-destructive", 
@@ -145,7 +162,7 @@ export function DeliveryStatus() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="font-semibold">Status das Notas Fiscais</h3>
-            <p className="text-sm text-muted-foreground">{total} notas hoje</p>
+            <p className="text-sm text-muted-foreground">{total} notas em operação hoje</p>
           </div>
         </div>
 

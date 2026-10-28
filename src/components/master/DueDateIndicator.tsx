@@ -1,11 +1,18 @@
-import { differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CalendarDays } from "lucide-react";
+import { calendarDaysBetween } from "@/lib/billingStatus";
+import { formatDateOnly, getTodayBrazil } from "@/lib/timezone";
 
 interface DueDateIndicatorProps {
   nextDueDate: string | null;
   financialStatus: string | null;
+}
+
+/** Dias de calendario (Brasilia) ate o vencimento; negativo = atrasado. */
+function daysUntilDue(nextDueDate: string): number {
+  // differenceInDays truncava as horas: vencido ontem aparecia como "Vence hoje".
+  return calendarDaysBetween(getTodayBrazil(), nextDueDate.slice(0, 10));
 }
 
 export function DueDateIndicator({ nextDueDate, financialStatus }: DueDateIndicatorProps) {
@@ -13,10 +20,7 @@ export function DueDateIndicator({ nextDueDate, financialStatus }: DueDateIndica
     return <span className="text-xs text-muted-foreground">—</span>;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(nextDueDate + "T12:00:00");
-  const diff = differenceInDays(due, today);
+  const diff = daysUntilDue(nextDueDate);
 
   let color: string;
   let label: string;
@@ -32,7 +36,7 @@ export function DueDateIndicator({ nextDueDate, financialStatus }: DueDateIndica
     label = `${diff}d restantes`;
   }
 
-  const formattedDate = due.toLocaleDateString("pt-BR");
+  const formattedDate = formatDateOnly(nextDueDate.slice(0, 10));
 
   return (
     <Tooltip>
@@ -50,22 +54,13 @@ export function DueDateIndicator({ nextDueDate, financialStatus }: DueDateIndica
 }
 
 export function getDueSoonCount(tenants: Array<{ next_due_date?: string | null }>, withinDays = 5): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   return tenants.filter((t) => {
     if (!t.next_due_date) return false;
-    const due = new Date(t.next_due_date + "T12:00:00");
-    const diff = differenceInDays(due, today);
+    const diff = daysUntilDue(t.next_due_date);
     return diff >= 0 && diff <= withinDays;
   }).length;
 }
 
 export function getOverdueCount(tenants: Array<{ next_due_date?: string | null }>): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return tenants.filter((t) => {
-    if (!t.next_due_date) return false;
-    const due = new Date(t.next_due_date + "T12:00:00");
-    return differenceInDays(due, today) < 0;
-  }).length;
+  return tenants.filter((t) => !!t.next_due_date && daysUntilDue(t.next_due_date) < 0).length;
 }

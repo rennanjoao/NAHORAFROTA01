@@ -51,7 +51,12 @@ describe("getSubscriptionStatus", () => {
   });
 
   it("mantem as regras de vencimento da assinatura", () => {
-    expect(getSubscriptionStatus(access({ next_due_date: "2026-10-27" }), NOW)).toEqual({ status: "expired", daysRemaining: -1 });
+    // Atraso dentro do prazo: so aviso. Passado o prazo o banco devolve access_state "overdue" (bloqueia).
+    expect(getSubscriptionStatus(access({ next_due_date: "2026-10-27" }), NOW)).toEqual({ status: "overdue", daysRemaining: -1 });
+    expect(getSubscriptionStatus(access({ access_state: "overdue", next_due_date: "2026-10-20" }), NOW)).toEqual({
+      status: "expired",
+      daysRemaining: -8,
+    });
     expect(getSubscriptionStatus(access({ next_due_date: "2026-10-28" }), NOW).status).toBe("due_today");
     expect(getSubscriptionStatus(access({ next_due_date: "2026-11-02" }), NOW)).toEqual({ status: "warning", daysRemaining: 5 });
     expect(getSubscriptionStatus(access({ next_due_date: "2026-11-03" }), NOW).status).toBe("active");
@@ -74,6 +79,9 @@ describe("getBillingAlert", () => {
     expect(getBillingAlert(access({ next_due_date: "2026-11-02" }), NOW)).toMatchObject({ type: "due_soon", daysRemaining: 5 });
     expect(getBillingAlert(access({ next_due_date: "2026-10-28" }), NOW)).toMatchObject({ type: "due_today", severity: "critical" });
     expect(getBillingAlert(access({ next_due_date: "2026-10-25" }), NOW)).toMatchObject({ type: "overdue", daysRemaining: -3 });
+    expect(getBillingAlert(access({ next_due_date: "2026-10-25", auto_block_days: 5 }), NOW)?.message).toContain(
+      "suspenso em 3 dias",
+    );
   });
 
   it("nao incomoda o Super Admin nem empresas sem data", () => {

@@ -30,7 +30,9 @@ import { useInvoicesDB } from "@/hooks/useInvoicesDB";
 import { useManifestsDB } from "@/hooks/useManifestsDB";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
-import { getOccurrenceWeight } from "@/hooks/useSLADB";
+import { getOccurrenceLabel, getOccurrenceWeight } from "@/hooks/useSLADB";
+import { downloadReportPdf, pdfCurrency, pdfPercent, type ReportPdfSection } from "@/lib/reportPdf";
+import { useTenantData } from "@/hooks/useTenantData";
 import {
   buildManifestIndex,
   filterInvoicesByEntity,
@@ -103,6 +105,7 @@ export default function ReportsPage() {
   // Fetch real invoices and manifests for reports
   const { invoices, isLoading: invoicesLoading, refetch: refetchInvoices } = useInvoicesDB();
   const { manifests, fetchManifests } = useManifestsDB();
+  const { tenant } = useTenantData();
 
   // Handle filter changes with simulated loading
   const handleFiltersChange = (newFilters: FilterState) => {
@@ -211,7 +214,9 @@ export default function ReportsPage() {
 
   // Custo medio = fretes de agregados (nao frota propria) no periodo / entregas realizadas no periodo
   const avgCostOf = (list: typeof filteredManifests, delivered: number) => {
-    const totalFreight = list.filter(m => !m.is_own_fleet).reduce((sum, m) => sum + (m.freight_value || 0), 0);
+    const totalFreight = list
+      .filter(m => !m.is_own_fleet && m.status !== 'cancelled')
+      .reduce((sum, m) => sum + (m.freight_value || 0), 0);
     return delivered > 0 ? totalFreight / delivered : 0;
   };
 
@@ -307,19 +312,126 @@ export default function ReportsPage() {
     setDrilldownOpen(true);
   };
 
-  // Handle export
+  // Exporta em PDF o que esta filtrado na tela (antes so simulava e avisava sucesso).
   const handleExport = async (options: ExportOptions) => {
     setIsExporting(true);
-    
-    // Simulate export
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast({
-      title: "✅ Relatório Exportado",
-      description: "O arquivo PDF foi gerado com sucesso.",
-    });
-    
-    setIsExporting(false);
+    try {
+      const fmtDate = (d?: Date) => (d ? d.toLocaleDateString('pt-BR') : '...');
+      const periodLabel = filters.dateRange.from || filters.dateRange.to
+        ? `${fmtDate(filters.dateRange.from)} a ${fmtDate(filters.dateRange.to)}`
+        : 'Todo o histórico';
+      const driverName = filterOptions.drivers.find(d => d.id === filters.driver)?.name;
+      const filtersLabel = [
+        filters.client !== 'all' ? `Cliente: ${filters.client}` : null,
+        filters.route !== 'all' ? `Região: ${filters.route}` : null,
+        filters.driver !== 'all' ? `Motorista: ${driverName || filters.driver}` : null,
+        filters.operationType !== 'all' ? `Operação: ${filters.operationType === 'own_fleet' ? 'Frota própria' : 'Agregados'}` : null,
+      ].filter(Boolean).join(' • ') || 'Nenhum';
+
+      const sections: ReportPdfSection[] = [];
+      const activeManifests = filteredManifests.filter(m => m.status !== 'cancelled');
+      const thirdParty = activeManifests.filter(m => !m.is_own_fleet);
+      const totalFreight = thirdParty.reduce((sum, m) => sum + (m.freight_value || 0), 0);
+      const totalCargo = filteredInvoices.reduce((sum, inv) => sum + (inv.total_value || 0), 0);
+
+      if (options.tabs.desempenho) {
+        sections.push({
+          title: 'Desempenho',
+          summary: [
+            ['SLA do período', pdfPercent(kpiData.sla)],
+            ['NFs no período', String(deliveryData.total)],
+            ['Entregues', String(deliveryData.entregue)],
+            ['Atrasadas', String(deliveryData.atrasado)],
+            ['Devolvidas', String(deliveryData.devolvido)],
+            ['Custo médio por entrega', pdfCurrency(kpiData.avgCost)],
+          ],
+        });
+      }
+      if (options.tabs.operacional) {
+        sections.push({
+          title: 'Regiões com mais atrasos e ocorrências',
+          table: {
+            headers: ['#', 'Região', 'Atrasos', 'Ocorrências', 'Tendência'],
+            widths: [10, 82, 30, 32, 28],
+            rows: topOffendersData.routes.map(r => [
+              String(r.rank), r.name, String(r.delays), String(r.occurrences), `${r.trend > 0 ? '+' : ''}${r.trend}%`,
+            ]),
+          },
+          emptyText: 'Nenhum atraso ou ocorrência no período.',
+        });
+        sections.push({
+          title: 'Motivos de ocorrência',
+          table: {
+            headers: ['#', 'Motivo', 'Quantidade', '% das ocorrências'],
+            widths: [10, 102, 32, 38],
+            rows: topOffendersData.reasons.map(r => [String(r.rank), getOccurrenceLabel(r.reason), String(r.count), pdfPercent(r.percentage)]),
+          },
+          emptyText: 'Nenhuma ocorrência no período.',
+        });
+      }
+      if (options.tabs.financeiro) {
+        sections.push({
+          title: 'Financeiro',
+          summary: [
+            ['Romaneios no período', String(activeManifests.length)],
+            ['Romaneios de agregados', String(thirdParty.length)],
+            ['Frete de agregados', pdfCurrency(totalFreight)],
+            ['Valor das mercadorias', pdfCurrency(totalCargo)],
+            ['Frete / valor das mercadorias', pdfPercent(totalCargo > 0 ? (totalFreight / totalCargo) * 100 : 0)],
+            ['Custo médio por entrega', pdfCurrency(kpiData.avgCost)],
+          ],
+        });
+      }
+      if (options.tabs.clientes) {
+        const byClient = new Map<string, { count: number; value: number }>();
+        filteredInvoices.forEach(inv => {
+          const entry = byClient.get(inv.recipient_name) || { count: 0, value: 0 };
+          entry.count += 1;
+          entry.value += inv.total_value || 0;
+          byClient.set(inv.recipient_name, entry);
+        });
+        sections.push({
+          title: 'Principais clientes (por valor)',
+          table: {
+            headers: ['Cliente', 'NFs', 'Valor'],
+            widths: [122, 25, 35],
+            rows: Array.from(byClient.entries())
+              .sort((a, b) => b[1].value - a[1].value)
+              .slice(0, 15)
+              .map(([name, d]) => [name, String(d.count), pdfCurrency(d.value)]),
+          },
+        });
+        sections.push({
+          title: 'Clientes com mais devoluções/ocorrências',
+          table: {
+            headers: ['#', 'Cliente', 'Devoluções', 'Tendência'],
+            widths: [10, 112, 30, 30],
+            rows: topOffendersData.clients.map(c => [String(c.rank), c.name, String(c.returns), `${c.trend > 0 ? '+' : ''}${c.trend}%`]),
+          },
+          emptyText: 'Nenhuma devolução no período.',
+        });
+      }
+
+      if (sections.length === 0) {
+        toast({ title: 'Nada para exportar', description: 'Selecione ao menos uma seção.', variant: 'destructive' });
+        return;
+      }
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      const fileName = downloadReportPdf(
+        { companyName: tenant?.razao_social || 'NaHora Frota', periodLabel, filtersLabel, sections },
+        `relatorio-${stamp}.pdf`,
+      );
+      toast({
+        title: "✅ Relatório Exportado",
+        description: `${fileName} baixado.`,
+      });
+    } catch (err) {
+      console.error('Report export error:', err);
+      toast({ title: 'Erro ao exportar', description: 'Não foi possível gerar o PDF.', variant: 'destructive' });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (

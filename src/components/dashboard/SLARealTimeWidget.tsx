@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useSLADB, OCCURRENCE_LABELS, DriverSLAStats, getSLAColorScheme, isSLACritical, isSLAAttention, SLA_THRESHOLDS } from "@/hooks/useSLADB";
+import { useSLADB, DriverSLAStats, getSLAColorScheme, isSLACritical, isSLAAttention, SLA_THRESHOLDS, getOccurrenceLabel } from "@/hooks/useSLADB";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -158,7 +158,7 @@ function DriverOccurrenceCard({
               variant="outline" 
               className="text-xs bg-background"
             >
-              {OCCURRENCE_LABELS[occ.occurrenceType] || occ.occurrenceType}
+              {getOccurrenceLabel(occ.occurrenceType)}
             </Badge>
           ))}
           {driver.todayOccurrences.length > 3 && (

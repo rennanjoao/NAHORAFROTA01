@@ -60,18 +60,44 @@ export const SLA_OCCURRENCE_WEIGHTS: Record<string, number> = {
 // Human-readable labels for occurrence types
 export const OCCURRENCE_LABELS: Record<string, string> = {
   delivered: "Entrega Realizada",
-  endereco_incorreto: "Endereço Incorreto",
-  doc_incorreta: "Doc. Incorreta",
-  horario_restrito: "Horário Restrito",
-  area_risco: "Área de Risco",
+  cliente_ausente: "Cliente Ausente",
+  ausente: "Cliente Ausente",
+  recusado: "Recusado pelo Cliente",
   recusa_recebimento: "Recusa de Recebimento",
-  outros: "Outros",
+  endereco_incorreto: "Endereço Incorreto",
+  endereco_errado: "Endereço Errado/Não Encontrado",
+  endereco_nao_localizado: "Endereço Não Localizado",
+  endereco_nao_encontrado: "Endereço Não Encontrado",
+  doc_incorreta: "Doc. Incorreta",
+  documentacao_incorreta: "Documentação Incorreta",
+  horario_restrito: "Horário Restrito",
+  fora_horario: "Fora do Horário",
+  area_risco: "Área de Risco",
   veiculo_quebrou: "Veículo Quebrou",
+  veiculo_quebrado: "Veículo Quebrado",
   avaria: "Avaria",
   avaria_mercadoria: "Avaria de Mercadoria",
+  mercadoria_avariada: "Mercadoria Avariada",
+  extravio: "Mercadoria Extraviada",
   falta_mercadoria: "Falta de Mercadoria",
   falta: "Falta de Mercadoria",
+  mercadoria_nao_localizada: "Mercadoria Não Localizada",
+  recusa_cliente: "Recusa do Cliente",
+  avaria_transporte: "Avaria no Transporte",
+  tentativa_entrega: "Tentativa de Entrega",
+  aguardando_pagamento: "Aguardando Pagamento",
+  outro: "Outros",
+  outros: "Outros",
 };
+
+/** Nome legivel do tipo de ocorrencia; codigo desconhecido vira texto ("cliente_x" -> "Cliente x"). */
+export function getOccurrenceLabel(type: string | null | undefined): string {
+  if (!type) return "Ocorrência";
+  const known = OCCURRENCE_LABELS[type];
+  if (known) return known;
+  const text = type.replace(/_/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 // Get weight for an occurrence type (defaults to 0.8 for unknown types)
 export function getOccurrenceWeight(occurrenceType: string | null, status: string): number {
