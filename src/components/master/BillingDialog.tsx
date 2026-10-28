@@ -61,6 +61,7 @@ interface BillingDialogProps {
     id: string;
     razao_social: string;
     cnpj: string;
+    status?: string;
     contract_start_date?: string | null;
     payment_cycle?: string | null;
     next_due_date?: string | null;
@@ -229,6 +230,20 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       toast({ title: "Erro ao registrar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "✅ Pagamento registrado" });
+
+      // Pagamento de empresa em teste encerra o trial e ativa a assinatura
+      if (tenant.status === "trial") {
+        const { error: activateError } = await supabase
+          .from("tenants")
+          .update({ status: "active", updated_at: new Date().toISOString() })
+          .eq("id", tenant.id);
+        if (activateError) {
+          toast({ title: "Erro ao ativar assinatura", description: activateError.message, variant: "destructive" });
+        } else {
+          toast({ title: "✅ Assinatura ativada", description: "O período de teste foi encerrado." });
+        }
+      }
+
       setNewAmount("");
       setNewNotes("");
       setShowNewPayment(false);
