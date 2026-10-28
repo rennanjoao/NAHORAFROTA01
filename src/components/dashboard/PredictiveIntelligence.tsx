@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, CheckCircle2, Clock, AlertCircle, MessageCircle, ChevronRight } from "lucide-react";
+import { AlertTriangle, Eye, CheckCircle2, Clock, AlertCircle, MessageCircle, History, Truck } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useMemo, useState, useEffect } from "react";
@@ -10,7 +10,23 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSLA } from "@/lib/formatSLA";
-import { useSLADB, getOccurrenceWeight, OCCURRENCE_LABELS, getSLAColorScheme, isSLACritical, isSLAAttention, isSLAGood, SLA_THRESHOLDS } from "@/hooks/useSLADB";
+import { useSLADB, OCCURRENCE_LABELS, getSLAColorScheme, isSLACritical, SLA_THRESHOLDS } from "@/hooks/useSLADB";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  MIN_INVOICES_FOR_ATTENTION,
+  SLA_PERIODS,
+  SLA_PERIOD_LABELS,
+  rankBySLA,
+  type PeriodSLA,
+  type SLAPeriodDays,
+} from "@/lib/slaRanking";
+
+interface PeriodRank {
+  rank: number | null;
+  of: number;
+}
 
 interface DriverAttention {
   id: string;
@@ -18,7 +34,11 @@ interface DriverAttention {
   avatar: string;
   phone: string;
   photoUrl: string | null;
-  historicalSLA: number; // 6-month average
+  isInRoute: boolean;
+  /** SLA do periodo selecionado */
+  historicalSLA: number;
+  periodStats: Record<SLAPeriodDays, PeriodSLA>;
+  ranks: Record<SLAPeriodDays, PeriodRank>;
   todayDeliveries: {
     id: string;
     nfNumber: string;
@@ -72,11 +92,50 @@ function DeliveryStatusDot({ status }: { status: "completed" | "occurrence" | "p
   );
 }
 
+function RankLabel({ rank }: { rank: PeriodRank }) {
+  if (rank.rank === null) return <span className="text-muted-foreground">sem ranking</span>;
+  return (
+    <span>
+      <span className="font-semibold text-foreground">{rank.rank}º</span> de {rank.of}
+    </span>
+  );
+}
+
+/** Linha compacta com o SLA de cada janela de historico. */
+function PeriodHistoryRow({ driver, selected }: { driver: DriverAttention; selected: SLAPeriodDays }) {
+  return (
+    <div className="grid grid-cols-5 gap-1 text-center">
+      {SLA_PERIODS.map((days) => {
+        const stats = driver.periodStats[days];
+        const hasData = stats.total > 0;
+        const scheme = getSLAColorScheme(stats.sla);
+        return (
+          <div
+            key={days}
+            className={cn(
+              "rounded-md border px-1 py-1",
+              days === selected ? "border-primary/50 bg-primary/5" : "border-border"
+            )}
+            title={hasData ? `${stats.total} NF(s), ${stats.occurrences} ocorrência(s)` : "Sem entregas no período"}
+          >
+            <p className="text-[10px] text-muted-foreground leading-tight">{days === 180 ? "Geral" : `${days}d`}</p>
+            <p className={cn("text-xs font-mono font-semibold", hasData ? scheme.textClass : "text-muted-foreground")}>
+              {hasData ? `${formatSLA(stats.sla)}%` : "—"}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function DriverAttentionCard({ 
   driver, 
+  period,
   onClick 
 }: { 
   driver: DriverAttention;
+  period: SLAPeriodDays;
   onClick: () => void;
 }) {
   const attentionLevel = getAttentionLevel(driver.historicalSLA);
@@ -129,7 +188,19 @@ function DriverAttentionCard({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className="font-medium text-foreground truncate">{driver.name}</p>
+            <div className="min-w-0">
+              <p className="font-medium text-foreground truncate flex items-center gap-1.5">
+                {driver.name}
+                {driver.isInRoute && (
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/30">
+                    <Truck className="h-3 w-3 mr-0.5" /> em rota
+                  </Badge>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Ranking {SLA_PERIOD_LABELS[period]}: <RankLabel rank={driver.ranks[period]} />
+              </p>
+            </div>
             <div className="flex items-center gap-1">
               <span className={cn("text-lg font-bold font-mono", getAttentionColor(attentionLevel))}>
                 {formatSLA(driver.historicalSLA)}%
@@ -154,6 +225,8 @@ function DriverAttentionCard({
           <MessageCircle className="h-4 w-4" />
         </Button>
       </div>
+
+      <PeriodHistoryRow driver={driver} selected={period} />
 
       {/* Delivery sequence dots */}
       {driver.todayDeliveries.length > 0 && (
@@ -195,10 +268,12 @@ function DriverAttentionCard({
 
 function DriverDetailSheet({ 
   driver, 
+  period,
   open, 
   onOpenChange 
 }: { 
   driver: DriverAttention | null;
+  period: SLAPeriodDays;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -234,16 +309,52 @@ function DriverDetailSheet({
             <div>
               <p>{driver.name}</p>
               <p className={cn("text-sm font-normal", getAttentionColor(attentionLevel))}>
-                SLA Histórico (6 meses): {formatSLA(driver.historicalSLA)}%
+                SLA {SLA_PERIOD_LABELS[period]}: {formatSLA(driver.historicalSLA)}%
               </p>
             </div>
           </SheetTitle>
           <SheetDescription>
-            Sequência de entregas do dia
+            Histórico de SLA, posição no ranking e entregas do dia
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-4">
+          {/* SLA history and ranking per period */}
+          <div className="rounded-lg border">
+            <div className="flex items-center gap-2 border-b px-3 py-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Como tem sido o SLA</span>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-muted-foreground">
+                  <th className="px-3 py-1.5 text-left font-normal">Período</th>
+                  <th className="px-3 py-1.5 text-right font-normal">SLA</th>
+                  <th className="px-3 py-1.5 text-right font-normal">NFs</th>
+                  <th className="px-3 py-1.5 text-right font-normal">Ocorr.</th>
+                  <th className="px-3 py-1.5 text-right font-normal">Ranking</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SLA_PERIODS.map((days) => {
+                  const stats = driver.periodStats[days];
+                  const hasData = stats.total > 0;
+                  return (
+                    <tr key={days} className={cn("border-t", days === period && "bg-primary/5")}>
+                      <td className="px-3 py-1.5">{SLA_PERIOD_LABELS[days]}</td>
+                      <td className={cn("px-3 py-1.5 text-right font-mono font-semibold", hasData ? getSLAColorScheme(stats.sla).textClass : "text-muted-foreground")}>
+                        {hasData ? `${formatSLA(stats.sla)}%` : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{stats.total}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{stats.occurrences}</td>
+                      <td className="px-3 py-1.5 text-right text-xs"><RankLabel rank={driver.ranks[days]} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
           {/* Legend */}
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5">
@@ -338,6 +449,8 @@ export function PredictiveIntelligence() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [driversInRoute, setDriversInRoute] = useState<string[]>([]);
   const [todayInvoices, setTodayInvoices] = useState<any[]>([]);
+  const [period, setPeriod] = useState<SLAPeriodDays>(30);
+  const [onlyInRoute, setOnlyInRoute] = useState(false);
 
   // Fetch drivers currently in route and their today's invoices
   useEffect(() => {
@@ -385,17 +498,37 @@ export function PredictiveIntelligence() {
     };
   }, []);
 
-  // Calculate drivers requiring attention:
-  // - Currently in_route today
-  // - Historical SLA (6 months) < 97%
+  // Posicao de cada motorista no ranking de SLA de cada janela (1 = melhor).
+  const ranksByDriver = useMemo(() => {
+    const result = new Map<string, Record<SLAPeriodDays, PeriodRank>>();
+    driverStats.forEach(d => result.set(d.driver_id, {} as Record<SLAPeriodDays, PeriodRank>));
+    SLA_PERIODS.forEach(days => {
+      const ranked = rankBySLA(
+        driverStats,
+        d => d.periodStats[days].sla,
+        d => d.periodStats[days].total,
+        d => d.driver_name
+      );
+      const of = ranked.filter(r => r.rank !== null).length;
+      ranked.forEach(({ item, rank }) => {
+        result.get(item.driver_id)![days] = { rank, of };
+      });
+    });
+    return result;
+  }, [driverStats]);
+
+  // Motoristas que precisam de atencao no periodo escolhido:
+  // SLA abaixo da meta com volume minimo de NFs finalizadas.
   const driversRequiringAttention = useMemo(() => {
     const attentionList: DriverAttention[] = driverStats
-      // Filter: in route AND has enough historical data AND below 97%
-      .filter(d => 
-        driversInRoute.includes(d.driver_id) && 
-        d.historicalTotalInvoices >= 10 && 
-        d.historicalSLA < SLA_THRESHOLDS.EXCELLENT
-      )
+      .filter(d => {
+        const stats = d.periodStats[period];
+        return (
+          (!onlyInRoute || driversInRoute.includes(d.driver_id)) &&
+          stats.total >= MIN_INVOICES_FOR_ATTENTION[period] &&
+          stats.sla < SLA_THRESHOLDS.EXCELLENT
+        );
+      })
       .map(driver => {
         // Get today's invoices for this driver
         const driverInvoices = todayInvoices
@@ -423,7 +556,10 @@ export function PredictiveIntelligence() {
           avatar: driver.driver_name.split(" ").map(n => n[0]).join("").slice(0, 2),
           phone: driver.phone,
           photoUrl: driver.photo_url,
-          historicalSLA: driver.historicalSLA,
+          isInRoute: driversInRoute.includes(driver.driver_id),
+          historicalSLA: driver.periodStats[period].sla,
+          periodStats: driver.periodStats,
+          ranks: ranksByDriver.get(driver.driver_id)!,
           todayDeliveries: driverInvoices,
           completedCount,
           occurrenceCount,
@@ -433,11 +569,11 @@ export function PredictiveIntelligence() {
       .sort((a, b) => a.historicalSLA - b.historicalSLA);
 
     return attentionList;
-  }, [driverStats, driversInRoute, todayInvoices]);
+  }, [driverStats, driversInRoute, todayInvoices, period, onlyInRoute, ranksByDriver]);
 
-  // Split into critical (<90%) and attention (90-96.9%)
+  // Split into critical and attention
   const criticalDrivers = driversRequiringAttention.filter(d => isSLACritical(d.historicalSLA));
-  const attentionDrivers = driversRequiringAttention.filter(d => isSLAAttention(d.historicalSLA));
+  const attentionDrivers = driversRequiringAttention.filter(d => !isSLACritical(d.historicalSLA));
 
   const criticalCount = criticalDrivers.length;
   const warningCount = attentionDrivers.length;
@@ -468,15 +604,36 @@ export function PredictiveIntelligence() {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-foreground">Motoristas em Rota que Requerem Atenção</h3>
+            <h3 className="font-semibold text-foreground">Motoristas que Precisam de Atenção</h3>
             <HelperTooltip 
               term="Histórico SLA" 
-              explanation="Baseado na média do SLA dos últimos 6 meses. Motoristas com SLA abaixo de 97% são listados aqui para acompanhamento." 
+              explanation={`SLA de cada motorista no período escolhido. Entram na lista os motoristas abaixo de ${SLA_THRESHOLDS.EXCELLENT}% com um volume mínimo de NFs finalizadas. O ranking compara todos os motoristas com entregas no período (1º = melhor SLA).`}
             />
           </div>
           <p className="text-sm text-muted-foreground">
-            Baseado no histórico de SLA dos últimos 6 meses
+            Histórico de SLA dos últimos {SLA_PERIOD_LABELS[period].toLowerCase()} e ranking da frota
           </p>
+        </div>
+      </div>
+
+      {/* Period + filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <ToggleGroup
+          type="single"
+          size="sm"
+          variant="outline"
+          value={String(period)}
+          onValueChange={(value) => value && setPeriod(Number(value) as SLAPeriodDays)}
+        >
+          {SLA_PERIODS.map(days => (
+            <ToggleGroupItem key={days} value={String(days)} className="h-8 px-2.5 text-xs">
+              {days === 180 ? "Geral" : `${days}d`}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <div className="flex items-center gap-2">
+          <Switch id="only-in-route" checked={onlyInRoute} onCheckedChange={setOnlyInRoute} />
+          <Label htmlFor="only-in-route" className="text-xs text-muted-foreground">Só em rota</Label>
         </div>
       </div>
 
@@ -494,7 +651,7 @@ export function PredictiveIntelligence() {
             {warningCount} atenção ({SLA_THRESHOLDS.ATTENTION}-{SLA_THRESHOLDS.EXCELLENT - 0.1}%)
           </Badge>
         )}
-        {driversRequiringAttention.length === 0 && driversInRoute.length > 0 && (
+        {driversRequiringAttention.length === 0 && driverStats.length > 0 && (
           <Badge variant="outline" className="bg-success/10 text-success border-success/30">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Todos acima de {SLA_THRESHOLDS.EXCELLENT}%
@@ -518,6 +675,7 @@ export function PredictiveIntelligence() {
                   <DriverAttentionCard 
                     key={driver.id} 
                     driver={driver} 
+                    period={period}
                     onClick={() => handleDriverClick(driver)}
                   />
                 ))}
@@ -539,6 +697,7 @@ export function PredictiveIntelligence() {
                   <DriverAttentionCard 
                     key={driver.id} 
                     driver={driver} 
+                    period={period}
                     onClick={() => handleDriverClick(driver)}
                   />
                 ))}
@@ -550,15 +709,15 @@ export function PredictiveIntelligence() {
         <div className="text-center py-8 text-muted-foreground">
           <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-success/50" />
           <p className="font-medium text-success">
-            {driversInRoute.length > 0 
-              ? "Todos os motoristas em rota estão com bom histórico!"
-              : "Nenhum motorista em rota no momento"
+            {onlyInRoute && driversInRoute.length === 0
+              ? "Nenhum motorista em rota no momento"
+              : "Nenhum motorista precisa de atenção neste período!"
             }
           </p>
           <p className="text-sm">
-            {driversInRoute.length > 0 
-              ? `Nenhum motorista com SLA abaixo de ${SLA_THRESHOLDS.EXCELLENT}% nos últimos 6 meses.`
-              : "Aguardando início das rotas do dia."
+            {onlyInRoute && driversInRoute.length === 0
+              ? "Aguardando início das rotas do dia."
+              : `Ninguém abaixo de ${SLA_THRESHOLDS.EXCELLENT}% nos últimos ${SLA_PERIOD_LABELS[period].toLowerCase()}.`
             }
           </p>
         </div>
@@ -586,6 +745,7 @@ export function PredictiveIntelligence() {
       {/* Detail Sheet */}
       <DriverDetailSheet
         driver={selectedDriver}
+        period={period}
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
       />

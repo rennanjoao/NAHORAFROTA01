@@ -3,7 +3,7 @@
  * Shows today's fleet SLA with real-time updates and drill-down to drivers/invoices
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { 
   Activity, 
   AlertTriangle, 
@@ -14,7 +14,8 @@ import {
   Minus,
   CheckCircle2,
   MessageCircle,
-  Clock
+  Clock,
+  Trophy
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,31 @@ import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SLADrilldownModal } from "./SLADrilldownModal";
+import { rankBySLA } from "@/lib/slaRanking";
+
+function RankBadge({ rank }: { rank: number | null }) {
+  if (rank === null) {
+    return (
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+        —
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+        rank === 1 && "bg-amber-400 text-amber-950",
+        rank === 2 && "bg-slate-300 text-slate-900",
+        rank === 3 && "bg-orange-300 text-orange-950",
+        rank > 3 && "bg-muted text-foreground"
+      )}
+      title={`${rank}º lugar no SLA de hoje`}
+    >
+      {rank}º
+    </span>
+  );
+}
 
 function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff: number }) {
   if (trend === "stable") {
@@ -56,12 +82,15 @@ function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff
 
 function DriverOccurrenceCard({ 
   driver, 
+  rank,
   onClick 
 }: { 
   driver: DriverSLAStats;
+  rank: number | null;
   onClick: () => void;
 }) {
-  const colorScheme = getSLAColorScheme(driver.todaySLA);
+  const hasActivity = driver.todayTotalInvoices > 0;
+  const colorScheme = getSLAColorScheme(hasActivity ? driver.todaySLA : 100);
 
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,11 +103,12 @@ function DriverOccurrenceCard({
       onClick={onClick}
       className={cn(
         "p-3 rounded-lg border cursor-pointer transition-all hover:bg-muted/50 group",
-        colorScheme.borderClass,
-        colorScheme.bgClass
+        hasActivity ? colorScheme.borderClass : "border-border",
+        hasActivity ? colorScheme.bgClass : "bg-card"
       )}
     >
       <div className="flex items-center gap-3">
+        <RankBadge rank={rank} />
         {driver.photo_url ? (
           <img 
             src={driver.photo_url} 
@@ -94,13 +124,15 @@ function DriverOccurrenceCard({
         <div className="flex-1 min-w-0">
           <p className="font-medium truncate">{driver.driver_name}</p>
           <p className="text-xs text-muted-foreground">
-            {driver.todayDeliveredCount} entregas • {driver.todayOccurrenceCount} ocorrências
+            {hasActivity
+              ? `${driver.todayDeliveredCount} entregas • ${driver.todayOccurrenceCount} ocorrências`
+              : "Em rota, aguardando as primeiras baixas"}
           </p>
         </div>
 
         <div className="text-right">
-          <span className={cn("text-lg font-bold font-mono", colorScheme.textClass)}>
-            {formatSLA(driver.todaySLA)}%
+          <span className={cn("text-lg font-bold font-mono", hasActivity ? colorScheme.textClass : "text-muted-foreground")}>
+            {hasActivity ? `${formatSLA(driver.todaySLA)}%` : "—"}
           </span>
         </div>
 
@@ -136,10 +168,12 @@ function DriverOccurrenceCard({
         </div>
       )}
 
-      <Progress 
-        value={driver.todaySLA} 
-        className={cn("h-1 mt-2", colorScheme.progressClass)} 
-      />
+      {hasActivity && (
+        <Progress 
+          value={driver.todaySLA} 
+          className={cn("h-1 mt-2", colorScheme.progressClass)} 
+        />
+      )}
     </div>
   );
 }
@@ -162,6 +196,19 @@ export function SLARealTimeWidget() {
   const warningCount = todayProblematicDrivers.filter(d => isSLAAttention(d.todaySLA)).length;
   const driversWithActivity = activeDriverStats.filter(d => d.todayTotalInvoices > 0);
   const trendDiff = fleetSLA.today - fleetSLA.yesterday;
+
+  // Ranking de hoje: todos os motoristas com baixa hoje, do melhor para o pior,
+  // seguidos dos que estao em rota e ainda nao finalizaram nenhuma entrega.
+  const todayRanking = useMemo(
+    () =>
+      rankBySLA(
+        driverStats.filter(d => d.todayTotalInvoices > 0 || d.status === "in_route"),
+        d => d.todaySLA,
+        d => d.todayTotalInvoices,
+        d => d.driver_name
+      ),
+    [driverStats]
+  );
 
   const handleDriverClick = (driver: DriverSLAStats) => {
     setSelectedDriverForDrilldown(driver);
@@ -284,29 +331,31 @@ export function SLARealTimeWidget() {
             </div>
           </div>
 
-          {/* Problematic Drivers List */}
+          {/* Ranking of all drivers today */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning" />
-                Motoristas abaixo da meta hoje
+                <Trophy className="h-4 w-4 text-amber-500" />
+                Ranking de SLA dos motoristas hoje
               </h4>
+              <span className="text-xs text-muted-foreground">{todayRanking.length} motorista(s)</span>
             </div>
-            <ScrollArea className="h-[280px]">
+            <ScrollArea className="h-[320px]">
               <div className="space-y-2">
-                {todayProblematicDrivers.length > 0 ? (
-                  todayProblematicDrivers.map(driver => (
+                {todayRanking.length > 0 ? (
+                  todayRanking.map(({ item: driver, rank }) => (
                     <DriverOccurrenceCard 
                       key={driver.driver_id}
                       driver={driver}
+                      rank={rank}
                       onClick={() => handleDriverClick(driver)}
                     />
                   ))
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-success/50" />
-                    <p className="font-medium text-success">Todos acima de {SLA_THRESHOLDS.EXCELLENT}%!</p>
-                    <p className="text-sm">Nenhum motorista com ocorrência crítica hoje</p>
+                    <p className="font-medium">Nenhum motorista em rota hoje</p>
+                    <p className="text-sm">O ranking aparece assim que as primeiras entregas forem baixadas</p>
                   </div>
                 )}
               </div>

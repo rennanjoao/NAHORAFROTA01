@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { 
-  Users, 
   Package, 
   FileWarning, 
   Truck, 
@@ -169,7 +168,7 @@ export default function Index() {
             <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-2">
               <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
               <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                {driversInRouteCount} na rua
+                {driversInRouteCount} em rota
               </span>
             </div>
             {/* Finished Drivers Badge */}
@@ -195,26 +194,26 @@ export default function Index() {
             )}
           </div>
 
-          {/* Motoristas na Rua - Clickable */}
+          {/* Motoristas em Rota ("na rua" e "em rota" são o mesmo indicador) */}
           <MetricCard
-            title="Motoristas na Rua"
+            title="Motoristas em Rota"
             value={driversInRouteCount}
-            subtitle="Com romaneios em andamento"
-            icon={Users}
+            subtitle={`${invoicesInTransitCount} NF(s) em trânsito`}
+            icon={Truck}
             variant="default"
             clickable
             onClick={() => setIsDriversInRouteOpen(true)}
           />
-          
-          {/* Em Rota (Acumulado) */}
+
+          {/* Finalizaram Hoje */}
           <MetricCard
-            title="Em Rota"
-            value={invoicesInTransitCount}
-            subtitle="NFs em trânsito (acumulado)"
-            icon={Truck}
-            variant="default"
+            title="Finalizaram Hoje"
+            value={finishedDriversCount}
+            subtitle="Romaneios concluídos no dia"
+            icon={CheckCircle2}
+            variant="success"
             clickable
-            onClick={() => setIsInTransitOpen(true)}
+            onClick={() => setIsFinishedDriversOpen(true)}
           />
         </div>
 
@@ -588,6 +587,11 @@ export default function Index() {
         open={isDriversInRouteOpen}
         onOpenChange={setIsDriversInRouteOpen}
         data={driversInRoute}
+        invoicesInTransitCount={invoicesInTransitCount}
+        onShowInvoices={() => {
+          setIsDriversInRouteOpen(false);
+          setIsInTransitOpen(true);
+        }}
       />
       <FinishedDriversModal
         open={isFinishedDriversOpen}

@@ -24,9 +24,12 @@ interface DriversInRouteModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: DriversInRouteData[];
+  /** Quantidade de NFs em transito nesses romaneios. */
+  invoicesInTransitCount?: number;
+  onShowInvoices?: () => void;
 }
 
-export function DriversInRouteModal({ open, onOpenChange, data }: DriversInRouteModalProps) {
+export function DriversInRouteModal({ open, onOpenChange, data, invoicesInTransitCount, onShowInvoices }: DriversInRouteModalProps) {
   const handleWhatsApp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, "");
     window.open(`https://wa.me/55${cleanPhone}`, "_blank");
@@ -38,11 +41,18 @@ export function DriversInRouteModal({ open, onOpenChange, data }: DriversInRoute
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5 text-primary" />
-            Motoristas na Rua
+            Motoristas em Rota
           </SheetTitle>
           <SheetDescription>
-            {data.length} motorista(s) com romaneio em andamento ou GPS ativo
+            {data.length} motorista(s) com romaneio em andamento
+            {typeof invoicesInTransitCount === "number" ? ` • ${invoicesInTransitCount} NF(s) em trânsito` : ""}
           </SheetDescription>
+          {onShowInvoices && (
+            <Button variant="outline" size="sm" className="w-fit gap-2" onClick={onShowInvoices}>
+              <Package className="h-4 w-4" />
+              Ver NFs em trânsito
+            </Button>
+          )}
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] mt-4 pr-4">
