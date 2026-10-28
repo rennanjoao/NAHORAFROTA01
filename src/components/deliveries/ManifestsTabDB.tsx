@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { formatDateOnly, getTodayBrazil, parseDateOnly } from "@/lib/timezone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,12 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   cancelled: { label: "Cancelado", color: "bg-red-100 text-red-800" },
 };
 
-export function ManifestsTabDB() {
+interface ManifestsTabDBProps {
+  /** Termo vindo da busca geral do topo (nonce reaplica o mesmo termo). */
+  externalSearch?: { term: string; nonce: number } | null;
+}
+
+export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
   const {
     manifests,
     isLoading,
@@ -64,6 +69,10 @@ export function ManifestsTabDB() {
 
   const [search, setSearch] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
+
+  useEffect(() => {
+    if (externalSearch) setSearch(externalSearch.term);
+  }, [externalSearch]);
 
   const [selectedManifest, setSelectedManifest] = useState<DBManifest | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -85,8 +94,11 @@ export function ManifestsTabDB() {
       // Compare date strings directly (YYYY-MM-DD format)
       const manifestDateStr = m.scheduled_date.slice(0, 10);
 
+      // Com busca digitada procura em todos os periodos.
       let timeMatch = true;
-      if (timeFilter === "daily") {
+      if (search.trim()) {
+        timeMatch = true;
+      } else if (timeFilter === "daily") {
         // Exact match for today
         timeMatch = manifestDateStr === todayStr;
       } else if (timeFilter === "weekly") {

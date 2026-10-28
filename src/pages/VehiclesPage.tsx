@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,13 +53,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { usePlanLimits } from "@/hooks/usePlanLimits";
+import { usePlanLimits, invalidatePlanStatus } from "@/hooks/usePlanLimits";
+import { useQueryClient } from "@tanstack/react-query";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
 import { 
   companyVehicleStore, 
   CompanyVehicle, 
   CompanyVehicleType, 
-  VehicleStatus 
+  VehicleStatus,
+  vehicleCapacityByType,
 } from "@/stores/companyVehicleStore";
 
 const VEHICLE_TYPES: CompanyVehicleType[] = ["Fiorino", "VUC", "Toco", "Truck", "Carreta", "Van"];
@@ -69,19 +72,27 @@ const statusConfig: Record<VehicleStatus, { label: string; className: string; ic
   maintenance: { label: "Manutenção", className: "bg-warning/20 text-warning border-warning/30", icon: Wrench },
 };
 
-const capacityByType: Record<CompanyVehicleType, string> = {
-  Fiorino: "650kg",
-  VUC: "3.5t",
-  Toco: "8t",
-  Truck: "15t",
-  Carreta: "25t",
-  Van: "1.5t",
-};
+const capacityByType = vehicleCapacityByType;
+
+// Placa antiga (ABC1234) ou Mercosul (ABC1D23).
+const PLATE_REGEX = /^[A-Z]{3}\d[A-Z0-9]\d{2}$/;
+const CURRENT_YEAR = new Date().getFullYear();
+
+const emptyVehicleForm = () => ({
+  plate: "",
+  model: "",
+  brand: "",
+  type: "" as CompanyVehicleType | "",
+  year: String(CURRENT_YEAR),
+  renavam: "",
+});
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<CompanyVehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { canAddVehicle, vehiclesCount, limits, plan, planLabels, isLoading: planLoading } = usePlanLimits();
+  const { canAddVehicle, vehiclesCount, limits, plan, planLabels } = usePlanLimits();
+  const queryClient = useQueryClient();
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isNewVehicleDialogOpen, setIsNewVehicleDialogOpen] = useState(false);
   const [isEditVehicleDialogOpen, setIsEditVehicleDialogOpen] = useState(false);
@@ -90,31 +101,31 @@ export default function VehiclesPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  useUrlSearchTerm((term) => {
+    setSearchQuery(term);
+    setFilterStatus("all");
+    setFilterType("all");
+  });
   
   // New vehicle form state
-  const [newVehicle, setNewVehicle] = useState({
-    plate: "",
-    model: "",
-    brand: "",
-    type: "" as CompanyVehicleType | "",
-    year: new Date().getFullYear(),
-    renavam: "",
-  });
+  const [newVehicle, setNewVehicle] = useState(emptyVehicleForm);
+
+  const loadVehicles = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const data = await companyVehicleStore.initialize();
+      setVehicles(data);
+    } catch (error) {
+      console.error("Error loading vehicles:", error);
+      setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os veículos.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Load vehicles from database
   useEffect(() => {
-    const loadVehicles = async () => {
-      setIsLoading(true);
-      try {
-        const data = await companyVehicleStore.getAllAsync();
-        setVehicles(data);
-      } catch (error) {
-        console.error("Error loading vehicles:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     loadVehicles();
     
     // Subscribe to store changes
@@ -125,7 +136,15 @@ export default function VehiclesPage() {
   }, []);
 
   // Stats
-  const stats = useMemo(() => companyVehicleStore.getStats(), [vehicles]);
+  const stats = useMemo(
+    () => ({
+      total: vehicles.length,
+      available: vehicles.filter((v) => v.status === "available").length,
+      inUse: vehicles.filter((v) => v.status === "in_use").length,
+      maintenance: vehicles.filter((v) => v.status === "maintenance").length,
+    }),
+    [vehicles],
+  );
 
   // Filtered vehicles
   const filteredVehicles = useMemo(() => {
@@ -142,40 +161,66 @@ export default function VehiclesPage() {
     });
   }, [vehicles, filterStatus, filterType, searchQuery]);
 
-  const handleNewVehicle = async () => {
-    if (!newVehicle.plate || !newVehicle.model || !newVehicle.brand || !newVehicle.type) {
+  /** Valida o formulario; devolve o ano numerico ou null se algo estiver errado. */
+  const validateVehicleForm = (): number | undefined | null => {
+    if (!newVehicle.plate.trim() || !newVehicle.model.trim() || !newVehicle.brand.trim() || !newVehicle.type) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios.",
+        description: "Preencha placa, marca, modelo e tipo.",
         variant: "destructive",
       });
-      return;
+      return null;
     }
+    if (!PLATE_REGEX.test(newVehicle.plate.trim().toUpperCase())) {
+      toast({
+        title: "Placa inválida",
+        description: "Use o formato ABC1234 ou ABC1D23.",
+        variant: "destructive",
+      });
+      return null;
+    }
+    if (!newVehicle.year.trim()) return undefined;
+    const year = Number(newVehicle.year);
+    if (!Number.isInteger(year) || year < 1950 || year > CURRENT_YEAR + 1) {
+      toast({
+        title: "Ano inválido",
+        description: `Informe um ano entre 1950 e ${CURRENT_YEAR + 1}.`,
+        variant: "destructive",
+      });
+      return null;
+    }
+    return year;
+  };
+
+  const handleNewVehicle = async () => {
+    const year = validateVehicleForm();
+    if (year === null) return;
 
     setIsSaving(true);
     try {
       await companyVehicleStore.add({
-        plate: newVehicle.plate.toUpperCase(),
-        model: newVehicle.model,
-        brand: newVehicle.brand,
+        plate: newVehicle.plate.trim().toUpperCase(),
+        model: newVehicle.model.trim(),
+        brand: newVehicle.brand.trim(),
         type: newVehicle.type as CompanyVehicleType,
         status: "available",
         capacity: capacityByType[newVehicle.type as CompanyVehicleType],
-        year: newVehicle.year,
-        renavam: newVehicle.renavam,
+        year,
+        renavam: newVehicle.renavam.trim() || undefined,
       });
+      invalidatePlanStatus(queryClient);
 
       toast({
         title: "✅ Veículo Cadastrado!",
         description: `${newVehicle.plate} foi adicionado à frota e salvo no banco de dados.`,
       });
 
-      setNewVehicle({ plate: "", model: "", brand: "", type: "", year: new Date().getFullYear(), renavam: "" });
+      setNewVehicle(emptyVehicleForm());
       setIsNewVehicleDialogOpen(false);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Erro ao cadastrar",
-        description: error.message || "Não foi possível cadastrar o veículo.",
+        description: error instanceof Error ? error.message : "Não foi possível cadastrar o veículo.",
         variant: "destructive",
       });
     } finally {
@@ -185,16 +230,21 @@ export default function VehiclesPage() {
 
   const handleEditVehicle = async () => {
     if (!selectedVehicle) return;
+    const year = validateVehicleForm();
+    if (year === null) return;
 
     setIsSaving(true);
     try {
+      const type = newVehicle.type as CompanyVehicleType;
       await companyVehicleStore.update(selectedVehicle.id, {
-        plate: newVehicle.plate.toUpperCase() || selectedVehicle.plate,
-        model: newVehicle.model || selectedVehicle.model,
-        brand: newVehicle.brand || selectedVehicle.brand,
-        type: (newVehicle.type as CompanyVehicleType) || selectedVehicle.type,
-        year: newVehicle.year || selectedVehicle.year,
-        renavam: newVehicle.renavam || selectedVehicle.renavam,
+        plate: newVehicle.plate.trim().toUpperCase(),
+        model: newVehicle.model.trim(),
+        brand: newVehicle.brand.trim(),
+        type,
+        // Capacidade segue o tipo: trocar Van por Truck mantinha "1.5t".
+        ...(type !== selectedVehicle.type ? { capacity: capacityByType[type] } : {}),
+        year: year ?? null,
+        renavam: newVehicle.renavam.trim() || null,
       });
 
       toast({
@@ -204,10 +254,10 @@ export default function VehiclesPage() {
 
       setIsEditVehicleDialogOpen(false);
       setSelectedVehicle(null);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Erro ao atualizar",
-        description: error.message || "Não foi possível atualizar o veículo.",
+        description: error instanceof Error ? error.message : "Não foi possível atualizar o veículo.",
         variant: "destructive",
       });
     } finally {
@@ -220,23 +270,23 @@ export default function VehiclesPage() {
 
     setIsSaving(true);
     try {
-      const success = await companyVehicleStore.delete(selectedVehicle.id);
-      
-      if (success) {
-        toast({
-          title: "🗑️ Veículo Removido",
-          description: `${selectedVehicle.plate} foi removido da frota e do banco de dados.`,
-        });
-      } else {
-        throw new Error("Não foi possível remover o veículo");
+      if (selectedVehicle.status === "in_use") {
+        throw new Error("O veículo está em uso. Libere-o antes de remover.");
       }
+
+      await companyVehicleStore.delete(selectedVehicle.id);
+      invalidatePlanStatus(queryClient);
+      toast({
+        title: "🗑️ Veículo Removido",
+        description: `${selectedVehicle.plate} foi removido da frota.`,
+      });
 
       setIsDeleteDialogOpen(false);
       setSelectedVehicle(null);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "Erro ao remover",
-        description: error.message || "Não foi possível remover o veículo.",
+        description: error instanceof Error ? error.message : "Não foi possível remover o veículo.",
         variant: "destructive",
       });
     } finally {
@@ -262,7 +312,7 @@ export default function VehiclesPage() {
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Não foi possível alterar o status do veículo.",
+        description: error instanceof Error ? error.message : "Não foi possível alterar o status do veículo.",
         variant: "destructive",
       });
     }
@@ -275,7 +325,7 @@ export default function VehiclesPage() {
       model: vehicle.model,
       brand: vehicle.brand,
       type: vehicle.type,
-      year: vehicle.year || new Date().getFullYear(),
+      year: vehicle.year ? String(vehicle.year) : "",
       renavam: vehicle.renavam || "",
     });
     setIsEditVehicleDialogOpen(true);
@@ -301,7 +351,7 @@ export default function VehiclesPage() {
                 toast({ title: "Limite atingido", description: `Seu plano permite até ${limits.max_vehicles} veículos.`, variant: "destructive" });
                 return;
               }
-              setNewVehicle({ plate: "", model: "", brand: "", type: "", year: new Date().getFullYear(), renavam: "" });
+              setNewVehicle(emptyVehicleForm());
               setIsNewVehicleDialogOpen(true);
             }}
           >
@@ -395,9 +445,18 @@ export default function VehiclesPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <span className="ml-2 text-muted-foreground">Carregando veículos...</span>
             </div>
+          ) : loadError ? (
+            <div className="col-span-full text-center py-12 space-y-3">
+              <p className="text-destructive">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={loadVehicles}>
+                Tentar novamente
+              </Button>
+            </div>
           ) : filteredVehicles.length === 0 ? (
             <div className="col-span-full text-center py-12 text-muted-foreground">
-              Nenhum veículo encontrado.
+              {vehicles.length === 0
+                ? "Nenhum veículo cadastrado. Clique em \"Novo Veículo\" para adicionar."
+                : "Nenhum veículo encontrado com esses filtros."}
             </div>
           ) : (
             filteredVehicles.map((vehicle) => {
@@ -550,7 +609,7 @@ export default function VehiclesPage() {
                   type="number"
                   placeholder="2024" 
                   value={newVehicle.year}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, year: parseInt(e.target.value) || new Date().getFullYear() })}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value.replace(/\D/g, "").slice(0, 4) })}
                 />
               </div>
             </div>
@@ -644,7 +703,7 @@ export default function VehiclesPage() {
                   type="number"
                   placeholder="2024" 
                   value={newVehicle.year}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, year: parseInt(e.target.value) || new Date().getFullYear() })}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value.replace(/\D/g, "").slice(0, 4) })}
                 />
               </div>
             </div>

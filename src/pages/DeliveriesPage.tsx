@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
 import { endOfDay, format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useInvoicesDB } from "@/hooks/useInvoicesDB";
@@ -178,6 +179,8 @@ export default function DeliveriesPage() {
   // Selection state for DB invoices (by UUID)
   const [selectedDbIds, setSelectedDbIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"nfs" | "romaneios">("nfs");
+  const [manifestSearch, setManifestSearch] = useState<{ term: string; nonce: number } | null>(null);
   const [isXmlDialogOpen, setIsXmlDialogOpen] = useState(false);
   const [isFreightDialogOpen, setIsFreightDialogOpen] = useState(false);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
@@ -255,6 +258,18 @@ export default function DeliveriesPage() {
   // URL params for filter
   const [searchParams, setSearchParams] = useSearchParams();
   const urlFilter = searchParams.get('filter');
+
+  // Busca geral do topo: "?q=" (e "?tab=romaneios" para romaneio).
+  useUrlSearchTerm((term, params) => {
+    if (params.get("tab") === "romaneios") {
+      setActiveTab("romaneios");
+      setManifestSearch({ term, nonce: Date.now() });
+    } else {
+      setActiveTab("nfs");
+      setStatusFilter("all");
+      setSearch(term);
+    }
+  }, ["tab"]);
   const urlStatus = searchParams.get('status');
 
   // "?filter=unrouted" (atalho do dashboard): guarda o filtro na tela. Antes o
@@ -368,7 +383,8 @@ export default function DeliveriesPage() {
   // Periodo rapido (Diario/Semanal/Mensal), contado a partir de agora. Fica de
   // lado quando ha um intervalo de datas escolhido.
   const filterByTime = (delivery: Delivery) => {
-    if (hasPeriodRange) return true;
+    // Com busca digitada procura em todos os periodos (NF antiga nao sumia sem aviso).
+    if (hasPeriodRange || search.trim()) return true;
     if (OPEN_STATUSES.has(delivery.status)) return true;
 
     const eventDate = delivery.eventDate ?? new Date(delivery.scheduledDate);
@@ -1124,7 +1140,7 @@ export default function DeliveriesPage() {
         </div>
 
         {/* Main Tabs - NFs and Romaneios */}
-        <Tabs defaultValue="nfs" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "nfs" | "romaneios")} className="space-y-4">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="nfs" className="gap-2">
               <FileText className="h-4 w-4" />
@@ -1461,6 +1477,11 @@ export default function DeliveriesPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
             />
+            {search.trim() && !hasPeriodRange && (
+              <p className="absolute -bottom-5 left-0 text-[11px] text-muted-foreground">
+                Buscando em todos os períodos
+              </p>
+            )}
           </div>
           <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
             <PopoverTrigger asChild>
@@ -1807,7 +1828,7 @@ export default function DeliveriesPage() {
 
           {/* Romaneios Tab Content */}
           <TabsContent value="romaneios">
-            <ManifestsTabDB />
+            <ManifestsTabDB externalSearch={manifestSearch} />
           </TabsContent>
         </Tabs>
       </div>

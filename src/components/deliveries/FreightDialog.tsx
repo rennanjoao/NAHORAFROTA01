@@ -303,9 +303,11 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   // Load available vehicles when dialog opens for own fleet
   useEffect(() => {
     if (open && fleetType === "own_fleet") {
-      companyVehicleStore.getAllAsync().then(() => {
-        setAvailableVehicles(companyVehicleStore.getAvailable());
-      });
+      // Sempre do banco: romaneios finalizados liberam veiculos no servidor.
+      companyVehicleStore
+        .initialize()
+        .then(() => setAvailableVehicles(companyVehicleStore.getAvailable()))
+        .catch((error) => console.error("Error loading vehicles:", error));
     }
   }, [open, fleetType]);
 

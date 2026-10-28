@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { Search, RefreshCw, Menu, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NotificationDropdown } from "./NotificationDropdown";
+import { GlobalSearch } from "./GlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
@@ -22,6 +24,19 @@ interface TopBarProps {
 export function TopBar({ onMenuToggle, showMenuButton }: TopBarProps) {
   const { profile, roles, signOut } = useAuth();
   const navigate = useNavigate();
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+
+  // O selo "Sistema Online" era fixo; agora acompanha a conexao do aparelho.
+  useEffect(() => {
+    const update = () => setIsOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await signOut();
@@ -34,7 +49,7 @@ export function TopBar({ onMenuToggle, showMenuButton }: TopBarProps) {
 
   const getRoleLabel = (roles: string[]) => {
     if (roles.includes("admin")) return "Administrador";
-    if (roles.includes("fleet_manager")) return "Gerente de Frota";
+    if (roles.includes("fleet_manager")) return "Gestor de Frota";
     if (roles.includes("dispatcher")) return "Despachante";
     return "Visualizador";
   };
@@ -57,25 +72,47 @@ export function TopBar({ onMenuToggle, showMenuButton }: TopBarProps) {
             <Menu className="h-5 w-5" />
           </Button>
         )}
-        <div className="relative hidden sm:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar motorista, veículo, rota..."
-            className="w-48 md:w-80 bg-secondary border-0 pl-10"
-          />
-        </div>
-        <Button variant="ghost" size="icon" className="sm:hidden text-muted-foreground">
+        <GlobalSearch className="hidden sm:block w-48 md:w-80" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="sm:hidden text-muted-foreground"
+          onClick={() => setMobileSearchOpen(true)}
+          aria-label="Buscar"
+        >
           <Search className="h-5 w-5" />
         </Button>
+        <Dialog open={mobileSearchOpen} onOpenChange={setMobileSearchOpen}>
+          <DialogContent className="top-4 translate-y-0 sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Buscar</DialogTitle>
+            </DialogHeader>
+            <GlobalSearch autoFocus onNavigate={() => setMobileSearchOpen(false)} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
-        <div className="hidden md:flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 border border-success/20">
-          <div className="status-dot status-dot-success" />
-          <span className="text-sm font-medium text-success">Sistema Online</span>
-        </div>
+        {isOnline ? (
+          <div className="hidden md:flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 border border-success/20">
+            <div className="status-dot status-dot-success" />
+            <span className="text-sm font-medium text-success">Sistema Online</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-1.5 border border-destructive/20">
+            <div className="h-2 w-2 rounded-full bg-destructive" />
+            <span className="text-sm font-medium text-destructive">Sem conexão</span>
+          </div>
+        )}
 
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => window.location.reload()}
+          title="Atualizar dados"
+          aria-label="Atualizar dados"
+        >
           <RefreshCw className="h-5 w-5" />
         </Button>
 

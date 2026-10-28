@@ -367,7 +367,7 @@ export function AppSidebar({
                   {roles.includes("admin")
                     ? "Administrador"
                     : roles.includes("fleet_manager")
-                    ? "Gerente de Frota"
+                    ? "Gestor de Frota"
                     : roles.includes("dispatcher")
                     ? "Despachante"
                     : "Visualizador"}

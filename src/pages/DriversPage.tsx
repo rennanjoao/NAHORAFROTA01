@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,13 @@ export default function DriversPage() {
   const [filterDriverType, setFilterDriverType] = useState<DriverTypeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  useUrlSearchTerm((term) => {
+    setSearchQuery(term);
+    setFilterStatus("all");
+    setFilterVehicleType("all");
+    setFilterDriverType("all");
+    setCurrentPage(1);
+  });
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [driverToEdit, setDriverToEdit] = useState<Driver | null>(null);
   const [isEditDriverDialogOpen, setIsEditDriverDialogOpen] = useState(false);
