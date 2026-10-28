@@ -47,6 +47,7 @@ import { EditAccessDialog } from "@/components/admin/EditAccessDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 const planFeatures = [
   "Até 50 motoristas cadastrados",
@@ -84,6 +85,22 @@ export default function AdminPage() {
     isLoading: planLimitsLoading,
   } = usePlanLimits();
   const [showQrCode, setShowQrCode] = useState(false);
+  const { status: subscriptionStatus, daysRemaining, access } = useSubscriptionStatus();
+  const isTrial = subscriptionStatus === "trial";
+  const planBadge = isTrial
+    ? { label: "Teste grátis", className: "bg-primary text-primary-foreground" }
+    : subscriptionStatus === "expired"
+      ? { label: "Vencido", className: "bg-destructive text-destructive-foreground" }
+      : subscriptionStatus === "due_today" || subscriptionStatus === "warning"
+        ? { label: "Vencendo", className: "bg-warning text-warning-foreground" }
+        : { label: "Ativo", className: "bg-success text-success-foreground" };
+  const formatDate = (value?: string | null) =>
+    value ? new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString("pt-BR") : null;
+  const billingLine = isTrial
+    ? `Teste grátis até ${formatDate(access?.trial_ends_at) ?? "—"} (${daysRemaining <= 0 ? "termina hoje" : `${daysRemaining} dia(s) restante(s)`})`
+    : formatDate(access?.next_due_date)
+      ? `Próxima cobrança: ${formatDate(access?.next_due_date)}`
+      : "Próxima cobrança: a definir com a equipe NaHora Frota";
   const [editTarget, setEditTarget] = useState<
     | { type: "user"; record: SystemUser }
     | { type: "driver"; record: (typeof drivers)[number] }
@@ -200,7 +217,7 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
                       <CardDescription>Seu plano atual</CardDescription>
                     </div>
                   </div>
-                  <Badge className="bg-success text-success-foreground">Ativo</Badge>
+                  <Badge className={planBadge.className}>{planBadge.label}</Badge>
                 </div>
               </CardHeader>
               <CardContent>
@@ -210,7 +227,7 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
                       R$ 299,00<span className="text-base font-normal text-muted-foreground">/mês</span>
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Próxima cobrança: 15/02/2025
+                      {billingLine}
                     </p>
                   </div>
                   <div className="space-y-2">
