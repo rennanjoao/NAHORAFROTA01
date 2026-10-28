@@ -12,6 +12,7 @@ Pasta oficial da marca. Tudo que está aqui segue o **Manual da Marca** (`manual
 | `icones/` | Ícone de app (escuro, verde, claro, maskable), avatar e favicon. |
 | `padroes/` | Padrão chevron e linhas de rota (versões escura e clara). |
 | `tokens/` | `nhf-tokens.css`, `nhf-colors.json` e `tailwind.colors.js` para usar no código. |
+| `mockups/` | Artes em PNG 300 dpi no tamanho físico de cada aplicação e prompts para gerar mockups fotorrealistas (Higgsfield, Midjourney, Photoshop). |
 
 ## Qual logo usar
 
