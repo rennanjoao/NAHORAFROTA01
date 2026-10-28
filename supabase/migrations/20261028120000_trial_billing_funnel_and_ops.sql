@@ -297,9 +297,15 @@ BEGIN
     RETURN jsonb_build_object('tenant_id', NULL, 'access_state', 'none', 'has_access', false);
   END IF;
 
+  -- Vinculo real do usuario (sem o fallback de tenant padrao de get_user_tenant_id),
+  -- para quem nao pertence a nenhuma empresa nao ver dados de cobranca de outra.
   SELECT * INTO v_tenant
   FROM public.tenants t
-  WHERE t.id = public.get_user_tenant_id(v_user_id);
+  WHERE t.id = COALESCE(
+    (SELECT tm.tenant_id FROM public.tenant_memberships tm WHERE tm.user_id = v_user_id LIMIT 1),
+    (SELECT p.tenant_id FROM public.profiles p WHERE p.id = v_user_id LIMIT 1),
+    (SELECT d.tenant_id FROM public.drivers d WHERE d.user_id = v_user_id LIMIT 1)
+  );
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object(
@@ -354,7 +360,11 @@ BEGIN
     RAISE EXCEPTION 'Empresa nao encontrada.';
   END IF;
 
-  IF v_tenant.status NOT IN ('trial', 'inactive') THEN
+  -- Empresa bloqueada durante o teste (nunca contratou) tambem pode voltar ao teste.
+  IF NOT (
+    v_tenant.status IN ('trial', 'inactive')
+    OR (v_tenant.status = 'blocked' AND v_tenant.converted_at IS NULL)
+  ) THEN
     RAISE EXCEPTION 'Somente empresas em teste podem ter o teste estendido (status atual: %).', v_tenant.status;
   END IF;
 
@@ -625,6 +635,8 @@ GRANT EXECUTE ON FUNCTION public.record_billing_notice(text, date, boolean) TO a
 -- ============================================================================
 
 ALTER TABLE public.drivers ADD COLUMN IF NOT EXISTS contact_email text;
+-- Ultimo envio do e-mail com os dados de acesso (limita reenvios).
+ALTER TABLE public.drivers ADD COLUMN IF NOT EXISTS credentials_email_sent_at timestamptz;
 
 ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS arrived_at timestamptz;
 ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS arrival_distance_m numeric;
@@ -723,6 +735,28 @@ GRANT EXECUTE ON FUNCTION public.register_driver_arrival(uuid, double precision,
 -- 8. Romaneio finaliza sozinho quando todas as NFs foram entregues
 -- ============================================================================
 
+-- Marca o romaneio quando alguma NF dele recebe ocorrencia/devolucao enquanto
+-- esta vinculada a ele (pelo app do motorista ou pelo painel). Ocorrencias de
+-- roteirizacoes anteriores da mesma NF nao contam.
+ALTER TABLE public.manifests ADD COLUMN IF NOT EXISTS had_occurrence boolean NOT NULL DEFAULT false;
+
+UPDATE public.manifests m
+SET had_occurrence = true
+WHERE m.status NOT IN ('completed', 'paid', 'cancelled')
+  AND m.had_occurrence = false
+  AND (
+    EXISTS (
+      SELECT 1 FROM public.invoices i
+      WHERE i.manifest_id = m.id AND i.status IN ('occurrence', 'returned')
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.delivery_occurrences o
+      JOIN public.invoices i ON i.id = o.invoice_id
+      WHERE i.manifest_id = m.id AND o.created_at >= m.created_at
+    )
+  );
+
 -- Nao finaliza se houver qualquer NF nao entregue ou ocorrencia registrada
 -- para as NFs do romaneio; nesses casos a finalizacao continua manual.
 CREATE OR REPLACE FUNCTION public.auto_finalize_manifest_on_delivery()
@@ -737,6 +771,17 @@ DECLARE
   v_delivered integer;
   v_has_occurrence boolean;
 BEGIN
+  IF NEW.manifest_id IS NOT NULL
+    AND NEW.status IN ('occurrence', 'returned')
+    AND OLD.status IS DISTINCT FROM NEW.status
+  THEN
+    UPDATE public.manifests
+    SET had_occurrence = true
+    WHERE id = NEW.manifest_id
+      AND had_occurrence = false;
+    RETURN NULL;
+  END IF;
+
   IF NEW.manifest_id IS NULL OR NEW.status <> 'delivered' OR OLD.status IS NOT DISTINCT FROM 'delivered' THEN
     RETURN NULL;
   END IF;
@@ -759,18 +804,12 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  SELECT EXISTS (
+  SELECT v_manifest.had_occurrence OR EXISTS (
     SELECT 1
     FROM public.delivery_occurrences o
     JOIN public.invoices i ON i.id = o.invoice_id
     WHERE i.manifest_id = NEW.manifest_id
       AND o.created_at >= v_manifest.created_at
-  ) OR EXISTS (
-    SELECT 1
-    FROM public.invoices i
-    WHERE i.manifest_id = NEW.manifest_id
-      AND i.occurrence_type IS NOT NULL
-      AND i.occurrence_type <> ''
   )
   INTO v_has_occurrence;
 
@@ -832,8 +871,10 @@ FOR EACH ROW EXECUTE FUNCTION public.auto_finalize_manifest_on_delivery();
 -- 9. Documentos do motorista: arquivo so para o Super Admin
 -- ============================================================================
 
--- A empresa continua podendo enviar e remover arquivos (e ver que existem, pela
--- tabela driver_documents), mas abrir/baixar o arquivo fica restrito.
+-- A empresa continua podendo enviar e substituir arquivos (e ver que existem,
+-- pela tabela driver_documents), mas abrir, baixar e apagar o arquivo fica
+-- restrito. (O remove() do storage faz DELETE ... RETURNING e depende de SELECT,
+-- entao apagar segue a mesma regra de abrir.)
 CREATE OR REPLACE FUNCTION public.can_view_driver_documents(p_user_id uuid DEFAULT auth.uid())
 RETURNS boolean
 LANGUAGE sql
@@ -868,9 +909,9 @@ WITH CHECK (
   AND public.can_view_driver_documents(auth.uid())
 );
 
--- Corrige upload/remocao: dentro do subselect, "name" sem qualificador resolvia
--- para drivers.name (nome do motorista) e nao para o caminho do arquivo, o que
--- negava todo envio de documento feito pela empresa.
+-- Corrige o upload: dentro do subselect, "name" sem qualificador resolvia para
+-- drivers.name (nome do motorista) e nao para o caminho do arquivo, o que negava
+-- todo envio de documento feito pela empresa.
 DROP POLICY IF EXISTS "driver_documents_storage_tenant_upload" ON storage.objects;
 CREATE POLICY "driver_documents_storage_tenant_upload"
 ON storage.objects
@@ -891,12 +932,47 @@ ON storage.objects
 FOR DELETE TO authenticated
 USING (
   bucket_id = 'driver-documents'
-  AND EXISTS (
-    SELECT 1
-    FROM public.drivers d
-    WHERE d.id::text = (storage.foldername(storage.objects.name))[1]
-      AND public.can_manage_tenant(d.tenant_id, auth.uid())
-  )
+  AND public.can_view_driver_documents(auth.uid())
 );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.trial_registrations, public.funnel_events, public.billing_notices TO authenticated;
+
+-- Funcoes internas ou so para usuarios logados: o Supabase concede EXECUTE a
+-- anon por padrao no schema public. Somente track_funnel_event fica publica.
+DO $$
+DECLARE
+  f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY[
+    'public.tenant_access_state(uuid)',
+    'public.tenant_has_access(uuid)',
+    'public.can_admin_tenant(uuid, uuid)',
+    'public.can_view_driver_documents(uuid)',
+    'public.get_my_tenant_access()',
+    'public.extend_tenant_trial(uuid, integer)',
+    'public.get_funnel_summary(timestamptz, timestamptz)',
+    'public.record_billing_notice(text, date, boolean)',
+    'public.register_driver_arrival(uuid, double precision, double precision, double precision)',
+    'public.guard_tenant_billing_fields()',
+    'public.log_tenant_conversion()',
+    'public.auto_finalize_manifest_on_delivery()'
+  ]
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon', f);
+  END LOOP;
+
+  FOREACH f IN ARRAY ARRAY[
+    'public.tenant_access_state(uuid)',
+    'public.tenant_has_access(uuid)',
+    'public.can_admin_tenant(uuid, uuid)',
+    'public.can_view_driver_documents(uuid)',
+    'public.get_my_tenant_access()',
+    'public.extend_tenant_trial(uuid, integer)',
+    'public.get_funnel_summary(timestamptz, timestamptz)',
+    'public.record_billing_notice(text, date, boolean)',
+    'public.register_driver_arrival(uuid, double precision, double precision, double precision)'
+  ]
+  LOOP
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated, service_role', f);
+  END LOOP;
+END $$;

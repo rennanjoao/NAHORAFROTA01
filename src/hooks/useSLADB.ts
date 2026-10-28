@@ -325,7 +325,8 @@ export function useSLADB() {
             .select(invoiceColumns)
             .gte("updated_at", sixMonthsAgo)
             .in("status", ["delivered", "occurrence", "returned"])
-            .order("updated_at", { ascending: false })
+            // Ordem por id (imutavel): NFs atualizadas durante a leitura nao
+            // trocam de pagina, entao nada e pulado nem contado duas vezes.
             .order("id", { ascending: true })
             .range(from, to)
         ),

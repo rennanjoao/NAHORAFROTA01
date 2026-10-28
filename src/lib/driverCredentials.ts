@@ -2,7 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export type CredentialsEmailReason = "no_contact_email" | "email_not_configured" | "provider_error" | "error";
+export type CredentialsEmailReason =
+  | "no_contact_email"
+  | "email_not_configured"
+  | "provider_error"
+  | "rate_limited"
+  | "error";
 
 export interface CredentialsEmailResult {
   sent: boolean;
@@ -56,6 +61,12 @@ export function describeCredentialsEmailResult(
   switch (result.reason) {
     case "no_contact_email":
       return null;
+    case "rate_limited":
+      return {
+        kind: "warning",
+        title: "E-mail já enviado",
+        description: "Os dados de acesso foram enviados há poucos minutos. Aguarde para reenviar.",
+      };
     case "email_not_configured":
       return {
         kind: "warning",

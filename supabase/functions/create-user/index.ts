@@ -131,6 +131,23 @@ serve(async (req) => {
 
     console.log(`Creating user with email: ${normalizedEmail}, role: ${role}`);
 
+    const allowedRoles = ["admin", "fleet_manager", "dispatcher", "viewer"];
+    if (!allowedRoles.includes(role)) {
+      return new Response(
+        JSON.stringify({ error: "Nivel de acesso invalido" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Hierarquia: so o Administrador cria usuarios do painel. O Gestor de Frota
+    // cria apenas logins de motorista (viewer).
+    if (role !== "viewer" && !isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Apenas o Administrador pode criar usuarios do painel" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Validate required fields
     if (!normalizedEmail || !password || !normalizedName) {
       return new Response(

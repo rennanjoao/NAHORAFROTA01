@@ -157,14 +157,17 @@ export default function ReportsPage() {
     () => filterInvoicesForReport(invoices, manifestsById, filters),
     [invoices, manifestsById, filters]
   );
+  const previousDateRange = useMemo(() => previousRange(filters.dateRange), [filters.dateRange]);
   const previousInvoices = useMemo(
-    () => filterInvoicesForReport(invoices, manifestsById, { ...filters, dateRange: previousRange(filters.dateRange) }),
-    [invoices, manifestsById, filters]
+    () => previousDateRange
+      ? filterInvoicesForReport(invoices, manifestsById, { ...filters, dateRange: previousDateRange })
+      : [],
+    [invoices, manifestsById, filters, previousDateRange]
   );
   const filteredManifests = useMemo(() => filterManifestsForReport(manifests, filters), [manifests, filters]);
   const previousManifests = useMemo(
-    () => filterManifestsForReport(manifests, { ...filters, dateRange: previousRange(filters.dateRange) }),
-    [manifests, filters]
+    () => previousDateRange ? filterManifestsForReport(manifests, { ...filters, dateRange: previousDateRange }) : [],
+    [manifests, filters, previousDateRange]
   );
 
   const summarize = (list: typeof filteredInvoices) => ({

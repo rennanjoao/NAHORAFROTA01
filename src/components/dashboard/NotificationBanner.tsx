@@ -5,7 +5,7 @@ import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 export function NotificationBanner() {
   const { status, daysRemaining, isLoading, access } = useSubscriptionStatus();
 
-  if (isLoading || !access) return null;
+  if (isLoading || !access || access.is_platform_admin) return null;
 
   let icon = Clock;
   let message = "";

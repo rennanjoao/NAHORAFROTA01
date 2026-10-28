@@ -30,6 +30,9 @@ const DRIVER_EMAIL_DOMAIN = "@driver.nahorafrota.app";
 
 // Situacoes em que a empresa perde o acesso ao sistema.
 const BLOCKING_STATUSES: readonly string[] = ["expired", "trial_expired", "blocked", "pending"];
+// No app do motorista so bloqueia o que o banco tambem bloqueia: fatura vencida
+// (bloqueio apenas de tela no painel) nao tira o motorista da rota.
+const DRIVER_BLOCKING_STATUSES: readonly string[] = ["trial_expired", "blocked", "pending"];
 
 // Helper function to check if email follows the driver pattern
 const isDriverEmail = (email: string | undefined): boolean => {
@@ -43,6 +46,8 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
   const { status: subscriptionStatus, isLoading: subLoading, access } = useSubscriptionStatus();
   const isBlockedBySubscription =
     !subLoading && !access?.is_platform_admin && BLOCKING_STATUSES.includes(subscriptionStatus);
+  const isDriverBlockedBySubscription =
+    !subLoading && !access?.is_platform_admin && DRIVER_BLOCKING_STATUSES.includes(subscriptionStatus);
 
   // Get email from authenticated user
   const userEmail = user?.email;
@@ -94,7 +99,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
     }
     // Driver accessing tracker - allowed while the company has access
     if (isTrackerRoute) {
-      if (isBlockedBySubscription) {
+      if (isDriverBlockedBySubscription) {
         return <SubscriptionBlockScreen reason={subscriptionStatus as BlockReason} forDriver />;
       }
       return <>{children}</>;

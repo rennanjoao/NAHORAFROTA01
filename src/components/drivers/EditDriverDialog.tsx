@@ -224,7 +224,18 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
   const handleRemoveDocument = async (type: keyof DriverDocuments) => {
     const document = documents[type];
     if (document?.path) {
-      await supabase.storage.from(DRIVER_DOCUMENTS_BUCKET).remove([document.path]);
+      // remove() nao acusa erro quando a politica bloqueia: confere o que foi apagado.
+      const { data: removed, error: removeError } = await supabase.storage
+        .from(DRIVER_DOCUMENTS_BUCKET)
+        .remove([document.path]);
+      if (removeError || !removed?.length) {
+        toast({
+          title: "Não foi possível remover",
+          description: removeError?.message || "Somente o Super Admin pode apagar documentos do motorista.",
+          variant: "destructive",
+        });
+        return;
+      }
       await (supabase as any)
         .from("driver_documents")
         .delete()
@@ -528,13 +539,17 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                             <Upload className="h-4 w-4" />
                           )}
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveDocument(docType)}
-                        >
-                          <X className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {/* Apagar o arquivo e exclusivo do Super Admin (regra do storage) */}
+                        {canViewDocuments && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveDocument(docType)}
+                            title="Remover documento"
+                          >
+                            <X className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ) : (

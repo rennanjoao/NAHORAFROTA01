@@ -109,7 +109,11 @@ describe("isInvoiceLate / rankRegionsByDelay", () => {
 describe("previousRange", () => {
   it("devolve o periodo anterior de mesmo tamanho", () => {
     const prev = previousRange({ from: new Date(2026, 9, 20), to: new Date(2026, 9, 26) });
-    expect(prev.from?.getDate()).toBe(13);
-    expect(prev.to?.getDate()).toBe(19);
+    expect(prev?.from?.getDate()).toBe(13);
+    expect(prev?.to?.getDate()).toBe(19);
+  });
+
+  it("nao compara quando o periodo esta aberto", () => {
+    expect(previousRange({ from: new Date(2026, 9, 20), to: undefined })).toBeNull();
   });
 });

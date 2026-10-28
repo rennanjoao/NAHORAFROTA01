@@ -558,6 +558,7 @@ export type Database = {
           vehicle_plate: string
           vehicle_type: string
           contact_email: string | null
+          credentials_email_sent_at: string | null
         }
         Insert: {
           address?: string | null
@@ -599,6 +600,7 @@ export type Database = {
           vehicle_plate: string
           vehicle_type: string
           contact_email?: string | null
+          credentials_email_sent_at?: string | null
         }
         Update: {
           address?: string | null
@@ -640,6 +642,7 @@ export type Database = {
           vehicle_plate?: string
           vehicle_type?: string
           contact_email?: string | null
+          credentials_email_sent_at?: string | null
         }
         Relationships: [
           {
@@ -981,6 +984,7 @@ export type Database = {
           updated_at: string
           vehicle_plate: string | null
           vehicle_type: string | null
+          had_occurrence: boolean
         }
         Insert: {
           company_vehicle_id?: string | null
@@ -1008,6 +1012,7 @@ export type Database = {
           updated_at?: string
           vehicle_plate?: string | null
           vehicle_type?: string | null
+          had_occurrence?: boolean
         }
         Update: {
           company_vehicle_id?: string | null
@@ -1035,6 +1040,7 @@ export type Database = {
           updated_at?: string
           vehicle_plate?: string | null
           vehicle_type?: string | null
+          had_occurrence?: boolean
         }
         Relationships: [
           {

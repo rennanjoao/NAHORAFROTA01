@@ -1,6 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { onlyDigits } from "../_shared/documents.ts";
+
+// Intervalo minimo entre dois envios para o mesmo motorista.
+const RESEND_INTERVAL_MS = 10 * 60 * 1000;
+
+/** Senha inicial gerada pelo cadastro: 6 primeiros digitos do CPF + "Na". */
+function initialPasswordFromCpf(cpf: string | null): string | null {
+  const digits = onlyDigits(cpf || "");
+  return digits.length === 11 ? `${digits.slice(0, 6)}Na` : null;
+}
 
 // Envia ao motorista recem-cadastrado um e-mail com os dados de acesso ao app.
 // O destinatario e sempre o e-mail de contato gravado no cadastro do motorista
@@ -84,7 +94,7 @@ serve(async (req) => {
 
     const { data: driver, error: driverError } = await adminClient
       .from("drivers")
-      .select("id, name, email, contact_email, tenant_id, vehicle_plate, vehicle_type")
+      .select("id, name, email, contact_email, tenant_id, vehicle_plate, vehicle_type, cpf, user_id, credentials_email_sent_at")
       .eq("id", body.driver_id)
       .maybeSingle();
 
@@ -94,6 +104,16 @@ serve(async (req) => {
 
     if (!driver.tenant_id || driver.tenant_id !== callerTenantId) {
       return jsonResponse({ error: "Motorista nao pertence a sua empresa" }, 403, jsonHeaders);
+    }
+
+    const { data: tenantHasAccess } = await adminClient.rpc("tenant_has_access", { p_tenant_id: driver.tenant_id });
+    if (tenantHasAccess !== true) {
+      return jsonResponse({ error: "Empresa sem acesso ativo ao sistema" }, 403, jsonHeaders);
+    }
+
+    const lastSentAt = driver.credentials_email_sent_at ? new Date(driver.credentials_email_sent_at).getTime() : 0;
+    if (Date.now() - lastSentAt < RESEND_INTERVAL_MS) {
+      return jsonResponse({ sent: false, reason: "rate_limited" }, 200, jsonHeaders);
     }
 
     const recipient = String(driver.contact_email || "").trim().toLowerCase();
@@ -117,8 +137,11 @@ serve(async (req) => {
     const appUrl = (Deno.env.get("APP_URL") || "https://nahorafrota.tech").replace(/\/$/, "");
     const companyName = tenant?.razao_social || "sua transportadora";
     const driverName = driver.name || "Motorista";
-    const login = driver.email || "";
-    const password = typeof body.password === "string" ? body.password.slice(0, 64) : "";
+    // So envia login/senha se o motorista tem acesso ao app, e a senha so vai se
+    // for a senha inicial do cadastro (nunca texto livre vindo da requisicao).
+    const login = driver.user_id ? driver.email || "" : "";
+    const initialPassword = initialPasswordFromCpf(driver.cpf);
+    const password = login && initialPassword && body.password === initialPassword ? initialPassword : "";
     const vehicle = [driver.vehicle_type, driver.vehicle_plate].filter(Boolean).join(" • ");
 
     const rows: Array<[string, string]> = [
@@ -173,6 +196,11 @@ serve(async (req) => {
       console.error("Resend error:", resendResponse.status, detail);
       return jsonResponse({ sent: false, reason: "provider_error" }, 502, jsonHeaders);
     }
+
+    await adminClient
+      .from("drivers")
+      .update({ credentials_email_sent_at: new Date().toISOString() })
+      .eq("id", driver.id);
 
     console.log(`Driver credentials sent: driver=${driver.id} tenant=${driver.tenant_id}`);
     return jsonResponse({ sent: true, recipient }, 200, jsonHeaders);

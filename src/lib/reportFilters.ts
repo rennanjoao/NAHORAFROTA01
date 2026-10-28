@@ -197,9 +197,12 @@ export function rankRegionsByDelay(
     });
 }
 
-/** Periodo imediatamente anterior, com o mesmo numero de dias. */
-export function previousRange(range: ReportFilterValues["dateRange"]): ReportFilterValues["dateRange"] {
-  if (!range.from || !range.to) return { from: undefined, to: undefined };
+/**
+ * Periodo imediatamente anterior, com o mesmo numero de dias. Sem as duas
+ * pontas nao ha periodo comparavel (null), e as tendencias ficam zeradas.
+ */
+export function previousRange(range: ReportFilterValues["dateRange"]): ReportFilterValues["dateRange"] | null {
+  if (!range.from || !range.to) return null;
   const from = new Date(range.from);
   const to = new Date(range.to);
   from.setHours(0, 0, 0, 0);

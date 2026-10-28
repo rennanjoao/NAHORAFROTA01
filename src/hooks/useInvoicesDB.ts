@@ -7,6 +7,28 @@ import { fetchAllPages } from '@/lib/supabasePaging';
 // Storage bucket name for invoice attachments (if any)
 const INVOICE_ATTACHMENTS_BUCKET = 'invoice-attachments';
 
+// Todas as colunas usadas pelas telas, sem o xml_raw (XML completo da NF-e,
+// pesado e nao exibido), ja que a lista agora carrega o historico inteiro.
+const INVOICE_COLUMNS = [
+  'id', 'access_key', 'nfe_number', 'recipient_name', 'recipient_phone', 'address_full',
+  'address_street', 'address_number', 'address_neighborhood', 'address_city', 'address_state',
+  'address_zip', 'latitude', 'longitude', 'total_value', 'total_weight', 'volume_quantity',
+  'status', 'driver_id', 'manifest_id', 'observation', 'occurrence_type', 'imported_at',
+  'updated_at', 'imported_by', 'updated_by', 'regiao_logistica', 'receiver_name',
+  'receiver_document', 'delivered_at', 'tenant_id',
+].join(', ');
+
+// Lotes para os filtros .in(): milhares de ids numa unica URL estouram o
+// tamanho maximo da requisicao e o limite de 1000 linhas do PostgREST.
+const ID_CHUNK_SIZE = 200;
+const REALTIME_REFETCH_DEBOUNCE_MS = 1500;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 export interface DBInvoice {
   id: string;
   access_key: string;
@@ -75,7 +97,7 @@ export function useInvoicesDB() {
       const buildQuery = () => {
         let query = supabase
           .from('invoices')
-          .select('*')
+          .select(INVOICE_COLUMNS)
           .eq('tenant_id', tenantId)
           .order('imported_at', { ascending: false })
           .order('id', { ascending: true });
@@ -104,27 +126,33 @@ export function useInvoicesDB() {
         return query;
       };
 
-      const invoicesData = await fetchAllPages((from, to) => buildQuery().range(from, to));
+      const invoicesData = (await fetchAllPages((from, to) => buildQuery().range(from, to))) as unknown as DBInvoice[];
 
       // Collect unique IDs for batch fetching related data
       const driverIds = [...new Set((invoicesData || []).map(inv => inv.driver_id).filter(Boolean))];
       const manifestIds = [...new Set((invoicesData || []).map(inv => inv.manifest_id).filter(Boolean))];
 
-      // Fetch related data in parallel
-      const [driversResult, manifestsResult] = await Promise.all([
-        driverIds.length > 0 
-          ? supabase.from('drivers').select('id, name').in('id', driverIds)
-            .eq('tenant_id', tenantId)
-          : { data: [] },
-        manifestIds.length > 0 
-          ? supabase.from('manifests').select('id, manifest_number, driver_name, created_at').in('id', manifestIds)
-            .eq('tenant_id', tenantId)
-          : { data: [] },
+      // Fetch related data in parallel (em lotes de ids)
+      const [driverChunks, manifestChunks] = await Promise.all([
+        Promise.all(chunk(driverIds, ID_CHUNK_SIZE).map(async ids => {
+          const { data, error } = await supabase.from('drivers').select('id, name').in('id', ids).eq('tenant_id', tenantId);
+          if (error) console.warn('Erro ao buscar motoristas das NFs (nao fatal):', error);
+          return data || [];
+        })),
+        Promise.all(chunk(manifestIds, ID_CHUNK_SIZE).map(async ids => {
+          const { data, error } = await supabase
+            .from('manifests')
+            .select('id, manifest_number, driver_name, created_at')
+            .in('id', ids)
+            .eq('tenant_id', tenantId);
+          if (error) console.warn('Erro ao buscar romaneios das NFs (nao fatal):', error);
+          return data || [];
+        })),
       ]);
 
       // Create lookup maps
-      const driversMap = new Map((driversResult.data || []).map(d => [d.id, d.name]));
-      const manifestsMap = new Map((manifestsResult.data || []).map(m => [m.id, m]));
+      const driversMap = new Map(driverChunks.flat().map(d => [d.id, d.name]));
+      const manifestsMap = new Map(manifestChunks.flat().map(m => [m.id, m]));
 
       // Transform data with related info
       const transformedData: DBInvoice[] = (invoicesData || []).map((inv: any) => {
@@ -150,7 +178,9 @@ export function useInvoicesDB() {
   useEffect(() => {
     fetchInvoices();
 
-    // Subscribe to realtime changes - refetch to get joined data
+    // Subscribe to realtime changes - refetch to get joined data.
+    // Rajadas de eventos (ex.: varias baixas seguidas) viram uma unica recarga.
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
       .channel('invoices-changes')
       .on(
@@ -158,12 +188,14 @@ export function useInvoicesDB() {
         { event: '*', schema: 'public', table: 'invoices' },
         () => {
           // Refetch to ensure we have fresh joined data
-          fetchInvoices();
+          if (refetchTimer) clearTimeout(refetchTimer);
+          refetchTimer = setTimeout(() => fetchInvoices(), REALTIME_REFETCH_DEBOUNCE_MS);
         }
       )
       .subscribe();
 
     return () => {
+      if (refetchTimer) clearTimeout(refetchTimer);
       supabase.removeChannel(channel);
     };
   }, [fetchInvoices]);

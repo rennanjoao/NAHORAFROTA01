@@ -261,6 +261,8 @@ export default function MasterAdminPage() {
                     {tenants.map((tenant) => {
                       const sc = statusConfig[isTrialExpired(tenant) ? 'trial_expired' : tenant.status] || statusConfig.inactive;
                       const isTrial = tenant.status === 'trial';
+                      // Bloqueada durante o teste e nunca contratou: volta ao teste, nao vira cliente ativo.
+                      const isBlockedTrial = tenant.status === 'blocked' && !tenant.converted_at && !!tenant.trial_started_at;
                       const pc = planConfig[tenant.plan] || planConfig.basic;
                       return (
                         <TableRow key={tenant.id}>
@@ -363,7 +365,7 @@ export default function MasterAdminPage() {
                               >
                                 <DollarSign className="h-4 w-4" />
                               </Button>
-                              {(isTrial || tenant.status === 'inactive') && (
+                              {(isTrial || isBlockedTrial || tenant.status === 'inactive') && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -380,7 +382,7 @@ export default function MasterAdminPage() {
                                   +7 dias
                                 </Button>
                               )}
-                              {isTrial && (
+                              {(isTrial || isBlockedTrial) && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -427,7 +429,7 @@ export default function MasterAdminPage() {
                                   </AlertDialogContent>
                                 </AlertDialog>
                               )}
-                              {tenant.status === 'blocked' && (
+                              {tenant.status === 'blocked' && !isBlockedTrial && (
                                 <Button
                                   size="sm"
                                   variant="outline"
