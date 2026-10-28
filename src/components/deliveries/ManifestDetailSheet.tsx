@@ -738,6 +738,15 @@ export function ManifestDetailSheet({
                             <p className="text-sm font-medium text-foreground">
                               {invoice.recipient_name}
                             </p>
+
+                            {invoice.arrived_at && (
+                              <p className="text-xs font-medium text-blue-600 flex items-center gap-1.5">
+                                <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                                Motorista chegou às{" "}
+                                {new Date(invoice.arrived_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                {invoice.arrival_distance_m != null && ` (a ${Math.round(Number(invoice.arrival_distance_m))} m)`}
+                              </p>
+                            )}
                             
                             <p className="text-xs text-muted-foreground flex items-start gap-1.5">
                               <MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />

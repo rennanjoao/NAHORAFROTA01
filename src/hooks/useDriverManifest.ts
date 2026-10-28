@@ -14,6 +14,7 @@ export interface DriverDelivery {
   longitude: number | null;
   status: string;
   nfe_number: string | null;
+  arrived_at: string | null;
 }
 
 export interface DriverManifest {
@@ -36,6 +37,7 @@ interface UseDriverManifestReturn {
   error: string | null;
   refetch: () => Promise<void>;
   markDelivered: (deliveryId: string) => Promise<void>;
+  markArrived: (deliveryId: string, arrivedAt: string) => void;
 }
 
 export function useDriverManifest(): UseDriverManifestReturn {
@@ -91,27 +93,28 @@ export function useDriverManifest(): UseDriverManifestReturn {
       // If we have a manifest, fetch ALL its invoices (including those with occurrences)
       // Only exclude "delivered" with success - show everything else
       if (manifestData?.id) {
-        const { data: invoicesData, error: invoicesError } = await supabase
-          .from('invoices')
-          .select(`
-            id,
-            recipient_name,
-            address_full,
-            address_street,
-            address_number,
-            address_city,
-            latitude,
-            longitude,
-            status,
-            nfe_number
-          `)
-          .eq('manifest_id', manifestData.id)
-          .order('status', { ascending: true }); // Pendentes primeiro
+        const baseColumns = 'id, recipient_name, address_full, address_street, address_number, address_city, latitude, longitude, status, nfe_number';
+        const fetchInvoices = (columns: string) =>
+          supabase
+            .from('invoices')
+            .select(columns)
+            .eq('manifest_id', manifestData.id)
+            .order('status', { ascending: true }); // Pendentes primeiro
+
+        let { data: invoicesData, error: invoicesError } = await fetchInvoices(`${baseColumns}, arrived_at`);
+
+        // Banco ainda sem a coluna arrived_at (migration pendente): segue sem ela.
+        if (invoicesError?.code === '42703') {
+          ({ data: invoicesData, error: invoicesError } = await fetchInvoices(baseColumns));
+        }
 
         if (invoicesError) throw invoicesError;
 
         // Show ALL invoices in this manifest - no date or occurrence filtering
-        setDeliveries(invoicesData || []);
+        setDeliveries(
+          ((invoicesData || []) as unknown as Array<Omit<DriverDelivery, 'arrived_at'> & { arrived_at?: string | null }>)
+            .map(invoice => ({ ...invoice, arrived_at: invoice.arrived_at ?? null }))
+        );
       } else {
         setDeliveries([]);
       }
@@ -144,6 +147,13 @@ export function useDriverManifest(): UseDriverManifestReturn {
       console.error('Erro ao marcar entrega:', err);
       throw err;
     }
+  }, []);
+
+  // Chegada registrada pelo raio de 100 m (atualizacao local, sem refetch)
+  const markArrived = useCallback((deliveryId: string, arrivedAt: string) => {
+    setDeliveries(prev =>
+      prev.map(d => d.id === deliveryId ? { ...d, arrived_at: arrivedAt } : d)
+    );
   }, []);
 
   useEffect(() => {
@@ -224,5 +234,6 @@ export function useDriverManifest(): UseDriverManifestReturn {
     error,
     refetch: fetchManifestAndDeliveries,
     markDelivered,
+    markArrived,
   };
 }

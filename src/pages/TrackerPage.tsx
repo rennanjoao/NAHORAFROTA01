@@ -25,6 +25,7 @@ import { useDriverManifest, DriverDelivery } from '@/hooks/useDriverManifest';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useDriverPresence } from '@/hooks/useDriverPresence';
 import { resolveDriverForUser } from '@/lib/driverIdentity';
+import { findArrivals } from '@/lib/geo';
 
 interface GPSPosition {
   latitude: number;
@@ -49,6 +50,8 @@ interface LinkedDriver {
 
 const GPS_TRACKING_PREF_KEY = 'nahorafrota:gps-tracking-pref';
 const GPS_HEARTBEAT_INTERVAL_MS = 30000;
+// Intervalo minimo entre tentativas de registrar chegada na mesma entrega.
+const ARRIVAL_RETRY_MS = 60000;
 
 const readGpsTrackingPreference = () => {
   try {
@@ -88,6 +91,9 @@ export default function TrackerPage() {
   const watchIdRef = useRef<number | null>(null);
   const isStartingTrackingRef = useRef(false);
   const gpsShouldStayActiveRef = useRef(gpsShouldStayActive);
+  const openLocationDriverRef = useRef<string | null>(null);
+  const arrivalAttemptsRef = useRef<Map<string, number>>(new Map());
+  const previousManifestIdRef = useRef<string | null>(null);
   const wakeLock = useWakeLock();
 
   useEffect(() => {
@@ -102,7 +108,8 @@ export default function TrackerPage() {
     deliveries, 
     isLoading: manifestLoading, 
     refetch: refetchManifest,
-    markDelivered 
+    markDelivered,
+    markArrived,
   } = useDriverManifest();
 
   // Fetch linked driver from database (driver with matching user_id)
@@ -196,6 +203,96 @@ export default function TrackerPage() {
       console.error('Erro ao enviar posição:', err);
     }
   }, [driverInfo, batteryLevel]);
+
+  // Ao abrir (ou voltar para) o app, sempre busca a localizacao atual e
+  // atualiza o mapa, mesmo que o rastreamento continuo esteja pausado.
+  const refreshLocationOnce = useCallback(() => {
+    if (!driverInfo || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const gpsPos: GPSPosition = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          speed: (pos.coords.speed || 0) * 3.6,
+          heading: pos.coords.heading || 0,
+          accuracy: pos.coords.accuracy,
+        };
+        setPosition(gpsPos);
+        sendPosition(gpsPos);
+      },
+      (err) => {
+        console.warn('Nao foi possivel obter a localizacao ao abrir o app:', err.message);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [driverInfo, sendPosition]);
+
+  useEffect(() => {
+    if (!driverInfo || openLocationDriverRef.current === driverInfo.id) return;
+    openLocationDriverRef.current = driverInfo.id;
+    refreshLocationOnce();
+  }, [driverInfo, refreshLocationOnce]);
+
+  // Motorista a ate 100 m do endereco de uma entrega pendente = "motorista chegou".
+  useEffect(() => {
+    if (!position || deliveries.length === 0) return;
+
+    const now = Date.now();
+    const arrivals = findArrivals(position, deliveries).filter(({ delivery }) => {
+      const lastAttempt = arrivalAttemptsRef.current.get(delivery.id);
+      return !lastAttempt || now - lastAttempt > ARRIVAL_RETRY_MS;
+    });
+
+    arrivals.forEach(({ delivery }) => {
+      arrivalAttemptsRef.current.set(delivery.id, now);
+      supabase
+        .rpc('register_driver_arrival', {
+          p_invoice_id: delivery.id,
+          p_latitude: position.latitude,
+          p_longitude: position.longitude,
+        })
+        .then(({ data, error }) => {
+          if (error) {
+            console.warn('Erro ao registrar chegada:', error);
+            return;
+          }
+          const result = (data || {}) as { arrived?: boolean; arrived_at?: string; already?: boolean };
+          if (!result.arrived) return;
+          markArrived(delivery.id, result.arrived_at || new Date().toISOString());
+          if (!result.already) {
+            toast.success('Chegada registrada', {
+              description: `Você chegou em ${delivery.recipient_name}`,
+              duration: 3000,
+            });
+          }
+        });
+    });
+  }, [position, deliveries, markArrived]);
+
+  // Quando a ultima entrega e concluida sem ocorrencia, o banco finaliza o
+  // romaneio sozinho; aqui so avisamos o motorista.
+  useEffect(() => {
+    if (manifestLoading) return;
+
+    const previousId = previousManifestIdRef.current;
+    previousManifestIdRef.current = manifest?.id ?? null;
+    if (!previousId || manifest?.id === previousId) return;
+
+    supabase
+      .from('manifests')
+      .select('status')
+      .eq('id', previousId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.status === 'completed') {
+          toast.success('Romaneio finalizado', {
+            description: 'Todas as entregas foram concluídas. Bom trabalho!',
+            duration: 4000,
+          });
+        }
+      });
+  }, [manifest, manifestLoading]);
 
   // Start tracking
   const startTracking = useCallback(() => {
@@ -315,6 +412,7 @@ export default function TrackerPage() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        refreshLocationOnce();
         resumeTracking();
       }
     };
@@ -324,7 +422,7 @@ export default function TrackerPage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [driverInfo, gpsBlocked, position, sendPosition, startTracking, wakeLock]);
+  }, [driverInfo, gpsBlocked, position, sendPosition, startTracking, wakeLock, refreshLocationOnce]);
 
   // Keep the dashboard refreshed even if the driver is stopped.
   useEffect(() => {

@@ -126,6 +126,12 @@ function DeliveryItem({
               {delivery.nfe_number && (
                 <p className="text-[10px] text-muted-foreground">NF-e: {delivery.nfe_number}</p>
               )}
+              {delivery.arrived_at && !isDelivered && !hasOccurrence && (
+                <p className="text-[10px] font-medium text-blue-600 flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Você chegou às {new Date(delivery.arrived_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
             </div>
             <Badge 
               variant="outline" 

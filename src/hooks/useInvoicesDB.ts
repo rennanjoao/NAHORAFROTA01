@@ -37,6 +37,8 @@ export interface DBInvoice {
   receiver_name: string | null;
   receiver_document: string | null;
   delivered_at: string | null;
+  arrived_at?: string | null;
+  arrival_distance_m?: number | null;
   // Joined data for friendly display
   driver_name?: string | null;
   manifest_number?: number | null;
