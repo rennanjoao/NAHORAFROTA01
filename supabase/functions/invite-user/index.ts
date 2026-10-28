@@ -81,6 +81,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Formato de e-mail inválido" }), { status: 400, headers: jsonHeaders });
     }
 
+    // Convite e so para usuarios do painel; login de motorista sai do cadastro do motorista.
+    if (!["admin", "fleet_manager", "dispatcher"].includes(role)) {
+      return new Response(JSON.stringify({ error: "Nível de acesso inválido" }), { status: 400, headers: jsonHeaders });
+    }
+
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     // Check if email already exists
@@ -111,12 +116,22 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Erro ao criar usuário" }), { status: 500, headers: jsonHeaders });
     }
 
-    // Assign role - use upsert to guarantee role exists
+    // Assign role - use upsert to guarantee role exists. Se o banco recusar
+    // (ex.: limite do plano), desfaz o login em vez de deixa-lo sem acesso.
     const assignedRole = role || "dispatcher";
-    await adminClient.from("user_roles").upsert(
+    const { error: roleError } = await adminClient.from("user_roles").upsert(
       { user_id: userId, role: assignedRole, tenant_id: tenantId || null },
       { onConflict: "user_id,role" }
     );
+
+    if (roleError) {
+      console.error("Role assignment error:", roleError);
+      await adminClient.auth.admin.deleteUser(userId);
+      return new Response(
+        JSON.stringify({ error: roleError.message || "Não foi possível definir o nível de acesso" }),
+        { status: 400, headers: jsonHeaders },
+      );
+    }
 
     // If role is different from viewer, also remove any default viewer role created by trigger
     if (assignedRole !== "viewer") {

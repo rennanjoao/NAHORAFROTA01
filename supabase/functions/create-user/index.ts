@@ -203,6 +203,19 @@ serve(async (req) => {
       }
     }
 
+    // Usuario do painel digita o proprio e-mail: se ja existe, avisa em vez de
+    // trocar por "nome1@" sem ninguem saber qual e o login. So o login do
+    // motorista (gerado a partir do nome) ganha numero automaticamente.
+    if (role !== "viewer") {
+      const existingEmails = await listAllUserEmails(adminClient);
+      if (existingEmails.has(normalizedEmail)) {
+        return new Response(
+          JSON.stringify({ error: "Este e-mail já está cadastrado no sistema", code: "email_exists" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Try to find a unique email (auto-increment if exists)
     let finalEmail = normalizedEmail;
     let emailAttempts = 0;
@@ -259,11 +272,21 @@ serve(async (req) => {
 
       const callerTenantId = callerMembership?.tenant_id || null;
 
-      // Upsert the role
-      await adminClient.from("user_roles").upsert(
+      // Upsert the role. Se o banco recusar (ex.: limite do plano), desfaz o
+      // login: antes ficava um usuario criado sem nenhum acesso.
+      const { error: roleError } = await adminClient.from("user_roles").upsert(
         { user_id: newUser.user.id, role, tenant_id: callerTenantId },
         { onConflict: "user_id,role" }
       );
+
+      if (roleError) {
+        console.error("Role assignment error:", roleError);
+        await adminClient.auth.admin.deleteUser(newUser.user.id);
+        return new Response(
+          JSON.stringify({ error: roleError.message || "Não foi possível definir o nível de acesso" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Remove default viewer if assigning a different role
       if (role !== "viewer") {
@@ -299,9 +322,9 @@ serve(async (req) => {
           name: normalizedName,
           role,
         },
-        message: emailAttempts > 0 
-          ? `Motorista criado com email ${finalEmail} (email original já existia)`
-          : "Motorista criado com sucesso",
+        message: emailAttempts > 0
+          ? `Usuário criado com e-mail ${finalEmail} (o e-mail original já existia)`
+          : "Usuário criado com sucesso",
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

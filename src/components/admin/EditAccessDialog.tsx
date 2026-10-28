@@ -63,7 +63,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
   const [vehicleType, setVehicleType] = useState("van");
   const [status, setStatus] = useState("active");
 
-  const getFunctionErrorMessage = async (error: unknown, fallback = "Erro ao salvar alteracoes") => {
+  const getFunctionErrorMessage = async (error: unknown, fallback = "Erro ao salvar alterações") => {
     const anyError = error as {
       message?: string;
       context?: Response | { body?: string; response?: string };
@@ -129,7 +129,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     if (!targetUserId) {
       toast({
         title: "Motorista sem login",
-        description: "Este motorista ainda nao possui usuario de acesso vinculado.",
+        description: "Este motorista ainda não possui usuário de acesso vinculado.",
         variant: "destructive",
       });
       return;
@@ -137,7 +137,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
 
     if (!name.trim() || !email.trim()) {
       toast({
-        title: "Campos obrigatorios",
+        title: "Campos obrigatórios",
         description: "Informe nome e e-mail.",
         variant: "destructive",
       });
@@ -158,7 +158,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.access_token) {
-        throw new Error("Sessao expirada. Faca login novamente.");
+        throw new Error("Sessão expirada. Faça login novamente.");
       }
 
       const body =
@@ -192,11 +192,11 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
       });
 
       if (error) throw new Error(await getFunctionErrorMessage(error));
-      if (!data?.success) throw new Error(data?.error || "Erro ao salvar alteracoes");
+      if (!data?.success) throw new Error(data?.error || "Erro ao salvar alterações");
 
       toast({
         title: "Acesso atualizado",
-        description: "As configuracoes foram salvas.",
+        description: "As configurações foram salvas.",
       });
 
       onSaved();
@@ -204,7 +204,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     } catch (error) {
       toast({
         title: "Erro ao atualizar",
-        description: error instanceof Error ? error.message : "Nao foi possivel salvar.",
+        description: error instanceof Error ? error.message : "Não foi possível salvar.",
         variant: "destructive",
       });
     } finally {
@@ -223,7 +223,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
             {isDriver ? "Editar Acesso do Motorista" : "Editar Usuário"}
           </DialogTitle>
           <DialogDescription>
-            Altere e-mail, senha e configuracoes de acesso. Senha em branco mantém a atual.
+            Altere e-mail, senha e configurações de acesso. Senha em branco mantém a atual.
           </DialogDescription>
         </DialogHeader>
 

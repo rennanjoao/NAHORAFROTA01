@@ -829,13 +829,13 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           if (geocodedCount > 0) {
             toast({
               title: `${geocodedCount} NF(s) geocodificada(s)`,
-              description: "Usamos o endereco da nota para montar a rota.",
+              description: "Usamos o endereço da nota para montar a rota.",
             });
           }
           if (unresolvedCount > 0) {
             toast({
               title: `${unresolvedCount} NF(s) sem coordenadas`,
-              description: "Essas notas ficaram fora do calculo porque o endereco nao pode ser geocodificado.",
+              description: "Essas notas ficaram fora do cálculo porque o endereço não pode ser geocodificado.",
             });
           }
         }

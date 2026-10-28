@@ -16,6 +16,7 @@ import { UserPlus, Loader2, Eye, EyeOff, Shield, Check, Copy } from "lucide-reac
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
+import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
 
 const ROLES = [
   { value: "dispatcher", label: "Despachante", description: "Importa notas e cria romaneios" },
@@ -66,17 +67,17 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
 
   const handleCreate = async () => {
     if (!canAddUser) {
-      toast.error(`Limite de ${limits.max_users} usuario(s) atingido no plano ${planLabels[plan] || plan}. Faca upgrade.`);
+      toast.error(`Limite de ${limits.max_users} usuário(s) atingido no plano ${planLabels[plan] || plan}. Faça upgrade.`);
       return;
     }
 
     if (!name.trim() || !email.trim() || !password.trim()) {
-      toast.error("Nome, e-mail e senha sao obrigatorios");
+      toast.error("Nome, e-mail e senha são obrigatórios");
       return;
     }
 
     if (password.trim().length < 8) {
-      toast.error("A senha deve ter no minimo 8 caracteres");
+      toast.error("A senha deve ter no mínimo 8 caracteres");
       return;
     }
 
@@ -84,7 +85,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session?.access_token) {
-        toast.error("Sessao expirada. Faca login novamente.");
+        toast.error("Sessão expirada. Faça login novamente.");
         return;
       }
 
@@ -115,24 +116,25 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       if (error) {
         console.error("Create user error:", error);
         if (isEdgeTransportError(error)) {
-          toast.error("Nao foi possivel conectar a funcao de criacao de usuarios. Verifique o deploy das Edge Functions e a liberacao de dominio/CORS.");
+          toast.error("Não foi possível conectar à função de criação de usuários. Verifique o deploy das Edge Functions e a liberação de domínio/CORS.");
         } else {
-          toast.error(error.message || "Erro ao criar usuario");
+          const info = await readEdgeFunctionError(error, "Erro ao criar usuário");
+          toast.error(info.message);
         }
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || "Erro ao criar usuario");
+        toast.error(data?.error || "Erro ao criar usuário");
         return;
       }
 
       setCreated(true);
-      toast.success(`Usuario ${name.trim()} criado com sucesso!`);
+      toast.success(`Usuário ${name.trim()} criado com sucesso!`);
       onUserCreated?.();
     } catch (err: any) {
       console.error("Error creating user:", err);
-      toast.error(err.message || "Erro ao criar usuario");
+      toast.error(err.message || "Erro ao criar usuário");
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +153,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       <DialogTrigger asChild>
         <Button className="gap-2" disabled={!canAddUser}>
           <UserPlus className="h-4 w-4" />
-          Criar Usuario
+          Criar Usuário
         </Button>
       </DialogTrigger>
 
@@ -159,10 +161,10 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            Criar Usuario Manual
+            Criar Usuário Manual
           </DialogTitle>
           <DialogDescription>
-            Cadastre um novo colaborador definindo e-mail, senha e nivel de acesso
+            Cadastre um novo colaborador definindo e-mail, senha e nível de acesso
           </DialogDescription>
         </DialogHeader>
 
@@ -171,7 +173,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-3">
               <p className="flex items-center gap-2 font-semibold text-emerald-400">
                 <Check className="h-5 w-5" />
-                Usuario criado com sucesso!
+                Usuário criado com sucesso!
               </p>
 
               <div className="space-y-2 text-sm">
@@ -253,12 +255,12 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                O usuario podera alterar a senha depois no seu perfil
+                O usuário poderá alterar a senha depois no seu perfil
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="createRole">Nivel de Acesso</Label>
+              <Label htmlFor="createRole">Nível de Acesso</Label>
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger>
                   <SelectValue />
@@ -300,7 +302,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
                 ) : (
                   <>
                     <UserPlus className="h-4 w-4" />
-                    Criar Usuario
+                    Criar Usuário
                   </>
                 )}
               </Button>

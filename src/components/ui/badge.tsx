@@ -20,11 +20,12 @@ const badgeVariants = cva(
   },
 );
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 
 // forwardRef: o Badge e usado dentro de TooltipTrigger/PopoverTrigger com asChild.
-const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(({ className, variant, ...props }, ref) => (
-  <div ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />
+// <span> (inline): o Badge aparece dentro de <p> em varias telas, onde <div> e invalido.
+const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(({ className, variant, ...props }, ref) => (
+  <span ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />
 ));
 Badge.displayName = "Badge";
 

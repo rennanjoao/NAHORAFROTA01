@@ -39,6 +39,8 @@ const PERIODS = [
 
 function pct(part: number, total: number): string {
   if (!total) return "—";
+  // Mais que a etapa anterior = cadastros sem visita registrada (ex.: bloqueador de rastreio).
+  if (part > total) return "—";
   return `${((part / total) * 100).toFixed(1).replace(".", ",")}%`;
 }
 
@@ -210,7 +212,12 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
                     </div>
                     <span className="text-sm tabular-nums text-right w-28">
                       <span className="font-semibold text-foreground">{step.value}</span>
-                      <span className="text-muted-foreground"> · {index === 0 ? "100%" : pct(step.value, previous)}</span>
+                      <span
+                        className="text-muted-foreground"
+                        title={index > 0 && step.value > previous ? "Inclui cadastros sem visita registrada (ex.: bloqueador de rastreio)" : undefined}
+                      >
+                        {" "}· {index === 0 ? "100%" : pct(step.value, previous)}
+                      </span>
                     </span>
                   </div>
                 );

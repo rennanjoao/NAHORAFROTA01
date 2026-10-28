@@ -1033,3 +1033,257 @@ BEGIN
   );
 END;
 $$;
+
+
+-- ============================================================================
+-- 17. Funil: cadastro = empresa que iniciou o teste no periodo
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.get_funnel_summary(p_from timestamptz, p_to timestamptz)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  IF NOT public.is_platform_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Acesso restrito ao Super Admin.' USING ERRCODE = '42501';
+  END IF;
+
+  WITH events AS (
+    SELECT *
+    FROM public.funnel_events
+    WHERE created_at >= p_from AND created_at < p_to
+  ),
+  -- So empresas que iniciaram teste no periodo (antes entravam tambem as criadas
+  -- pela equipe e a migracao, e "cadastraram" passava de 100%).
+  signups AS (
+    SELECT *
+    FROM public.tenants
+    WHERE trial_started_at >= p_from AND trial_started_at < p_to
+  ),
+  daily AS (
+    SELECT
+      to_char(date_trunc('day', created_at AT TIME ZONE 'America/Sao_Paulo'), 'YYYY-MM-DD') AS day,
+      COUNT(DISTINCT visitor_id) FILTER (WHERE event = 'page_view') AS visitors,
+      COUNT(DISTINCT visitor_id) FILTER (WHERE event = 'register_started') AS started
+    FROM events
+    GROUP BY 1
+  )
+  SELECT jsonb_build_object(
+    'visitors', (SELECT COUNT(DISTINCT visitor_id) FROM events WHERE event = 'page_view'),
+    'register_views', (SELECT COUNT(DISTINCT visitor_id) FROM events WHERE event = 'register_view'),
+    'register_started', (SELECT COUNT(DISTINCT visitor_id) FROM events WHERE event = 'register_started'),
+    'register_submitted', (SELECT COUNT(DISTINCT visitor_id) FROM events WHERE event = 'register_submitted'),
+    'registered', (SELECT COUNT(*) FROM signups),
+    'trial_active', (
+      SELECT COUNT(*) FROM signups
+      WHERE status = 'trial' AND trial_ends_at > now()
+    ),
+    'trial_expired_not_converted', (
+      SELECT COUNT(*) FROM signups
+      WHERE status = 'trial' AND (trial_ends_at IS NULL OR trial_ends_at <= now()) AND converted_at IS NULL
+    ),
+    'converted', (SELECT COUNT(*) FROM signups WHERE converted_at IS NOT NULL),
+    'abandoned_registrations', (
+      SELECT COUNT(DISTINCT e.visitor_id)
+      FROM events e
+      WHERE e.event = 'register_started'
+        AND NOT EXISTS (
+          SELECT 1 FROM public.tenants t WHERE t.signup_visitor_id = e.visitor_id
+        )
+    ),
+    'daily', COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.day) FROM daily d), '[]'::jsonb)
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$;
+
+-- ============================================================================
+-- 18. Limites do plano no banco iguais aos da tela
+-- ============================================================================
+
+-- Durante o teste gratis a tela libera o plano completo (secao 6), mas os
+-- gatilhos de limite olhavam tenants.plan ("basic", 1 usuario): o login era
+-- criado e o papel recusado, deixando um usuario sem acesso. O gatilho de
+-- usuarios tambem contava quem so estava trocando de papel, e veiculos nao
+-- tinham limite no banco.
+CREATE OR REPLACE FUNCTION public.tenant_effective_plan(p_tenant_id uuid)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN public.tenant_access_state(p_tenant_id) = 'trial' THEN 'total'
+    ELSE COALESCE((SELECT t.plan FROM public.tenants t WHERE t.id = p_tenant_id), 'basic')
+  END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.tenant_effective_plan(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.tenant_effective_plan(uuid) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.check_user_plan_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_max_users int;
+  v_current_count int;
+BEGIN
+  IF NEW.role::text NOT IN ('admin', 'dispatcher', 'fleet_manager') OR NEW.tenant_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Quem ja e usuario do painel so esta trocando de papel.
+  IF EXISTS (
+    SELECT 1 FROM public.user_roles ur
+    WHERE ur.user_id = NEW.user_id
+      AND ur.role::text IN ('admin', 'dispatcher', 'fleet_manager')
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  v_max_users := (public.get_plan_limits(public.tenant_effective_plan(NEW.tenant_id))::jsonb->>'max_users')::int;
+  IF v_max_users = -1 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT count(DISTINCT ur.user_id) INTO v_current_count
+  FROM public.user_roles ur
+  WHERE ur.tenant_id = NEW.tenant_id
+    AND ur.role::text IN ('admin', 'dispatcher', 'fleet_manager');
+
+  IF v_current_count >= v_max_users THEN
+    RAISE EXCEPTION 'Limite de % usuário(s) do painel atingido no plano atual. Faça upgrade.', v_max_users
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.check_driver_plan_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_max_drivers int;
+  v_current_count int;
+BEGIN
+  IF NEW.tenant_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  v_max_drivers := (public.get_plan_limits(public.tenant_effective_plan(NEW.tenant_id))::jsonb->>'max_drivers')::int;
+  IF v_max_drivers = -1 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT count(*) INTO v_current_count FROM public.drivers WHERE tenant_id = NEW.tenant_id;
+
+  IF v_current_count >= v_max_drivers THEN
+    RAISE EXCEPTION 'Limite de % motoristas atingido no plano atual. Faça upgrade.', v_max_drivers
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.check_vehicle_plan_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_max_vehicles int;
+  v_current_count int;
+BEGIN
+  IF NEW.tenant_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  v_max_vehicles := (public.get_plan_limits(public.tenant_effective_plan(NEW.tenant_id))::jsonb->>'max_vehicles')::int;
+  IF v_max_vehicles = -1 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT count(*) INTO v_current_count FROM public.company_vehicles WHERE tenant_id = NEW.tenant_id;
+
+  IF v_current_count >= v_max_vehicles THEN
+    RAISE EXCEPTION 'Limite de % veículos atingido no plano atual. Faça upgrade.', v_max_vehicles
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS enforce_user_plan_limit ON public.user_roles;
+CREATE TRIGGER enforce_user_plan_limit
+  BEFORE INSERT ON public.user_roles
+  FOR EACH ROW EXECUTE FUNCTION public.check_user_plan_limit();
+
+DROP TRIGGER IF EXISTS enforce_driver_plan_limit ON public.drivers;
+CREATE TRIGGER enforce_driver_plan_limit
+  BEFORE INSERT ON public.drivers
+  FOR EACH ROW EXECUTE FUNCTION public.check_driver_plan_limit();
+
+DROP TRIGGER IF EXISTS enforce_vehicle_plan_limit ON public.company_vehicles;
+CREATE TRIGGER enforce_vehicle_plan_limit
+  BEFORE INSERT ON public.company_vehicles
+  FOR EACH ROW EXECUTE FUNCTION public.check_vehicle_plan_limit();
+
+CREATE OR REPLACE FUNCTION public.check_plan_limit(p_tenant_id uuid, p_resource text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_limits json;
+  v_current_count integer;
+  v_max integer;
+BEGIN
+  IF NOT public.can_read_tenant_data(p_tenant_id, auth.uid())
+     AND NOT public.is_platform_admin(auth.uid())
+     AND auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'Acesso negado.' USING ERRCODE = '42501';
+  END IF;
+
+  v_limits := public.get_plan_limits(public.tenant_effective_plan(p_tenant_id));
+
+  IF p_resource = 'users' THEN
+    SELECT COUNT(DISTINCT ur.user_id) INTO v_current_count
+    FROM public.user_roles ur
+    WHERE ur.tenant_id = p_tenant_id
+      AND ur.role::text IN ('admin', 'dispatcher', 'fleet_manager');
+    v_max := (v_limits->>'max_users')::integer;
+  ELSIF p_resource = 'drivers' THEN
+    SELECT COUNT(*) INTO v_current_count FROM public.drivers WHERE tenant_id = p_tenant_id;
+    v_max := (v_limits->>'max_drivers')::integer;
+  ELSIF p_resource = 'vehicles' THEN
+    SELECT COUNT(*) INTO v_current_count FROM public.company_vehicles WHERE tenant_id = p_tenant_id;
+    v_max := (v_limits->>'max_vehicles')::integer;
+  ELSE
+    RETURN json_build_object('allowed', true);
+  END IF;
+
+  IF v_max = -1 THEN
+    RETURN json_build_object('allowed', true, 'current', v_current_count, 'max', -1);
+  END IF;
+
+  RETURN json_build_object('allowed', v_current_count < v_max, 'current', v_current_count, 'max', v_max);
+END;
+$$;

@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -27,8 +35,7 @@ import {
   Users,
   Crown,
   Check,
-  Download,
-  QrCode,
+  Mail,
   Trash2,
   Loader2,
   RefreshCw,
@@ -49,14 +56,6 @@ import { usePlanLimits } from "@/hooks/usePlanLimits";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
-const planFeatures = [
-  "Até 50 motoristas cadastrados",
-  "Rastreamento em tempo real",
-  "Romaneios ilimitados",
-  "Relatórios avançados",
-  "Integração WhatsApp",
-  "Suporte prioritário",
-];
 
 const roleConfig: Record<string, { label: string; className: string }> = {
   admin: { label: "Administrador", className: "bg-destructive text-destructive-foreground" },
@@ -79,12 +78,13 @@ export default function AdminPage() {
     canAddDriver,
     systemUsersCount,
     driversCount,
+    vehiclesCount,
     limits,
     plan,
+    contractedPlan,
     planLabels: pLabels,
     isLoading: planLimitsLoading,
   } = usePlanLimits();
-  const [showQrCode, setShowQrCode] = useState(false);
   const { status: subscriptionStatus, daysRemaining, access } = useSubscriptionStatus();
   const isTrial = subscriptionStatus === "trial";
   const planBadge = isTrial
@@ -113,41 +113,8 @@ export default function AdminPage() {
     await Promise.all([refetch(), fetchDrivers()]);
   };
 
-  const handleGenerateBoleto = () => {
-    toast({
-      title: "📄 Boleto Gerado",
-      description: "O boleto foi gerado e o download iniciará em instantes.",
-    });
-    
-    // Simulate download
-    setTimeout(() => {
-      const content = `BOLETO BANCÁRIO - NA HORA TRANSPORTE
-=====================================
-Valor: R$ 299,00
-Vencimento: ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("pt-BR")}
-Código de Barras: 23793.38128 60000.000003 00000.000400 1 98290000029900
-
-Pague este boleto em qualquer banco ou casa lotérica.`;
-      
-      const blob = new Blob([content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "boleto-nahora.txt";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 500);
-  };
-
-  const handlePayPix = () => {
-    setShowQrCode(true);
-    toast({
-      title: "📱 PIX Gerado",
-      description: "Escaneie o QR Code para realizar o pagamento.",
-    });
-  };
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   const handleDeleteUser = async (userId: string, userName: string) => {
     // Prevent deleting yourself
@@ -173,6 +140,7 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
     }
 
     await deleteUser(userId);
+    setUserToDelete(null);
   };
 
   const handleRoleChange = async (userId: string, newRole: SystemUser['role']) => {
@@ -204,19 +172,21 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
             </TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Plans & Payments */}
+          {/* Tab 1: Plano e cobranca (dados reais da empresa; antes havia boleto,
+              QR Code PIX e formulario de cartao de mentira) */}
           <TabsContent value="plans" className="space-y-6">
-            {/* Current Plan */}
             <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary">
                       <Crown className="h-5 w-5 text-primary-foreground" />
                     </div>
                     <div>
-                      <CardTitle>Plano Profissional</CardTitle>
-                      <CardDescription>Seu plano atual</CardDescription>
+                      <CardTitle>
+                        {isTrial ? "Teste grátis — acesso completo" : `Plano ${pLabels[contractedPlan] || contractedPlan}`}
+                      </CardTitle>
+                      <CardDescription>{access?.razao_social || "Sua empresa"}</CardDescription>
                     </div>
                   </div>
                   <Badge className={planBadge.className}>{planBadge.label}</Badge>
@@ -224,19 +194,43 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-3xl font-bold text-foreground">
-                      R$ 299,00<span className="text-base font-normal text-muted-foreground">/mês</span>
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {billingLine}
-                    </p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">{billingLine}</p>
+                    <div className="space-y-1 text-sm">
+                      <p>
+                        <span className="text-muted-foreground">Usuários do painel: </span>
+                        <span className="font-medium">
+                          {systemUsersCount} / {limits.max_users === -1 ? "ilimitado" : limits.max_users}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Motoristas: </span>
+                        <span className="font-medium">
+                          {driversCount} / {limits.max_drivers === -1 ? "ilimitado" : limits.max_drivers}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Veículos da casa: </span>
+                        <span className="font-medium">
+                          {vehiclesCount} / {limits.max_vehicles === -1 ? "ilimitado" : limits.max_vehicles}
+                        </span>
+                      </p>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    {planFeatures.map((feature, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-success" />
-                        <span>{feature}</span>
+                    {[
+                      { label: "Dashboard e mapa em tempo real", enabled: limits.realtime },
+                      { label: "Importação de XML em lote", enabled: limits.batch_import },
+                      { label: "SLA semanal e histórico", enabled: limits.sla_weekly },
+                      { label: "Detalhamento do SLA por motorista", enabled: limits.sla_drilldown },
+                      { label: "Acerto financeiro e rentabilidade", enabled: limits.financial_dashboard },
+                    ].map((feature) => (
+                      <div
+                        key={feature.label}
+                        className={cn("flex items-center gap-2 text-sm", !feature.enabled && "text-muted-foreground line-through")}
+                      >
+                        <Check className={cn("h-4 w-4", feature.enabled ? "text-success" : "text-muted-foreground/40")} />
+                        <span>{feature.label}</span>
                       </div>
                     ))}
                   </div>
@@ -244,118 +238,30 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
               </CardContent>
             </Card>
 
-            {/* Payment Methods */}
-            <div className="grid md:grid-cols-3 gap-4">
-              {/* Credit Card */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-primary" />
-                    Cartão de Crédito
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cardHolder">Nome no Cartão</Label>
-                    <Input id="cardHolder" placeholder="JOÃO M SILVA" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cardNumber">Número do Cartão</Label>
-                    <Input id="cardNumber" placeholder="0000 0000 0000 0000" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="expiry">Validade</Label>
-                      <Input id="expiry" placeholder="MM/AA" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cvv">CVV</Label>
-                      <Input id="cvv" placeholder="123" type="password" />
-                    </div>
-                  </div>
-                  <Button className="w-full">Salvar Cartão</Button>
-                </CardContent>
-              </Card>
-
-              {/* Boleto */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Download className="h-5 w-5 text-primary" />
-                    Boleto Bancário
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Gere um boleto para pagamento da sua mensalidade. O boleto tem vencimento em 7 dias.
-                  </p>
-                  <div className="p-4 rounded-lg bg-muted/50 text-center">
-                    <p className="text-2xl font-bold text-foreground">R$ 299,00</p>
-                    <p className="text-xs text-muted-foreground">Valor da mensalidade</p>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    className="w-full gap-2"
-                    onClick={handleGenerateBoleto}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Pagamento e contratação
+                </CardTitle>
+                <CardDescription>
+                  As faturas (boleto ou PIX) são emitidas pela equipe NaHora Frota e enviadas para o e-mail da empresa.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-3">
+                <Button asChild className="gap-2">
+                  <a
+                    href={`mailto:suporte@nahorafrota.com.br?subject=${encodeURIComponent(
+                      `${isTrial ? "Contratar plano" : "Fatura / 2ª via"} - ${access?.razao_social || ""}`,
+                    )}`}
                   >
-                    <Download className="h-4 w-4" />
-                    Gerar Boleto
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* PIX */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <QrCode className="h-5 w-5 text-primary" />
-                    PIX
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Pague instantaneamente via PIX escaneando o QR Code.
-                  </p>
-                  
-                  {showQrCode ? (
-                    <div className="p-4 rounded-lg bg-white border text-center">
-                      {/* Mock QR Code */}
-                      <div className="mx-auto w-32 h-32 bg-foreground rounded-lg flex items-center justify-center mb-2 relative overflow-hidden">
-                        <div className="absolute inset-2 bg-white grid grid-cols-8 grid-rows-8 gap-0.5">
-                          {Array.from({ length: 64 }).map((_, i) => (
-                            <div 
-                              key={i} 
-                              className={cn(
-                                "w-full h-full",
-                                Math.random() > 0.5 ? "bg-foreground" : "bg-white"
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Escaneie com seu app de banco
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-lg bg-muted/50 text-center">
-                      <QrCode className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        Clique para gerar o QR Code
-                      </p>
-                    </div>
-                  )}
-                  
-                  <Button 
-                    className="w-full gap-2 bg-[#32BCAD] hover:bg-[#2aa89a]"
-                    onClick={handlePayPix}
-                  >
-                    <QrCode className="h-4 w-4" />
-                    Pagar com PIX
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+                    <Mail className="h-4 w-4" />
+                    {isTrial ? "Contratar um plano" : "Pedir 2ª via ou mudar de plano"}
+                  </a>
+                </Button>
+                <p className="text-xs text-muted-foreground self-center">suporte@nahorafrota.com.br</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Tab 2: User Management */}
@@ -483,7 +389,9 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {Object.entries(roleConfig).map(([value, cfg]) => (
+                                  {Object.entries(roleConfig)
+                                    .filter(([value]) => value !== "viewer")
+                                    .map(([value, cfg]) => (
                                     <SelectItem key={value} value={value}>
                                       <Badge className={cfg.className}>{cfg.label}</Badge>
                                     </SelectItem>
@@ -506,7 +414,7 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
                               <Button 
                                 variant="ghost" 
                                 size="icon"
-                                onClick={() => handleDeleteUser(systemUser.user_id, systemUser.name)}
+                                onClick={() => setUserToDelete({ id: systemUser.user_id, name: systemUser.name })}
                                 disabled={isCurrentUser}
                                 title={isCurrentUser ? "Você não pode remover seu próprio usuário" : "Remover usuário"}
                               >
@@ -647,6 +555,36 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
         onOpenChange={(open) => !open && setEditTarget(null)}
         onSaved={refreshAdminLists}
       />
+      {/* Confirmacao antes de remover (antes apagava no primeiro clique) */}
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && !isDeletingUser && setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover usuário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToDelete?.name} perde o acesso ao painel imediatamente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingUser}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeletingUser}
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!userToDelete) return;
+                setIsDeletingUser(true);
+                try {
+                  await handleDeleteUser(userToDelete.id, userToDelete.name);
+                } finally {
+                  setIsDeletingUser(false);
+                }
+              }}
+            >
+              {isDeletingUser ? "Removendo..." : "Remover"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

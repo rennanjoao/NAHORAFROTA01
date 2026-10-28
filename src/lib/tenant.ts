@@ -24,7 +24,7 @@ export async function getCurrentTenantId(): Promise<string | null> {
 export async function requireCurrentTenantId(): Promise<string> {
   const tenantId = await getCurrentTenantId();
   if (!tenantId) {
-    throw new Error("Usuario sem empresa vinculada. Faca login novamente ou revise o cadastro da empresa.");
+    throw new Error("Usuário sem empresa vinculada. Faça login novamente ou revise o cadastro da empresa.");
   }
 
   return tenantId;

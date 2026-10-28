@@ -11,6 +11,7 @@ import { Mail, Loader2, Copy, Check, Shield, Lock, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
+import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
 
 const ROLES = [
   { value: "dispatcher", label: "Despachante", description: "Importa notas e cria romaneios" },
@@ -70,7 +71,8 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
 
       if (error) {
         console.error("Invite error:", error);
-        toast.error(error.message || "Erro ao convidar usuário");
+        const info = await readEdgeFunctionError(error, "Erro ao convidar usuário");
+        toast.error(info.message);
         return;
       }
 
@@ -80,7 +82,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
       }
 
       setInviteResult({ email: data.user.email, tempPassword: data.tempPassword });
-      toast.success(`Convite criado para ${data.user.email}!`);
+      toast.success(`Acesso criado para ${data.user.email}!`);
       onUserInvited?.();
     } catch (err: any) {
       console.error("Error inviting:", err);
@@ -123,7 +125,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
             Convidar Usuário
           </DialogTitle>
           <DialogDescription>
-            Envie um convite para um colaborador acessar o sistema
+            Gera um acesso com senha temporária para você repassar ao colaborador
           </DialogDescription>
         </DialogHeader>
 
@@ -132,7 +134,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
             <div className="rounded-lg border border-success/30 bg-success/10 p-4 space-y-3">
               <p className="font-semibold text-success flex items-center gap-2">
                 <Check className="h-5 w-5" />
-                Convite criado com sucesso!
+                Acesso criado com sucesso!
               </p>
               <div className="space-y-2 text-sm">
                 <div>
@@ -145,7 +147,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Compartilhe essas credenciais com o usuário convidado. Ele deve trocar a senha no primeiro acesso.
+                Nenhum e-mail é enviado automaticamente: compartilhe essas credenciais com o colaborador. Ele pode trocar a senha em Configurações › Segurança.
               </p>
             </div>
             <Button onClick={handleCopyCredentials} className="w-full gap-2">
@@ -216,12 +218,12 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Convidando...
+                    Gerando...
                   </>
                 ) : (
                   <>
                     <Mail className="h-4 w-4" />
-                    Enviar Convite
+                    Gerar Acesso
                   </>
                 )}
               </Button>

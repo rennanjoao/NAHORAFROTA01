@@ -222,8 +222,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
   const handleSaveAddress = async () => {
     if (!delivery?.dbId) {
       toast({
-        title: "Nao foi possivel editar",
-        description: "Esta nota ainda nao possui identificador no banco.",
+        title: "Não foi possível editar",
+        description: "Esta nota ainda não possui identificador no banco.",
         variant: "destructive",
       });
       return;
@@ -236,8 +236,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
 
     if (!address || !city || !state) {
       toast({
-        title: "Endereco incompleto",
-        description: "Preencha endereco, cidade e UF antes de salvar.",
+        title: "Endereço incompleto",
+        description: "Preencha endereço, cidade e UF antes de salvar.",
         variant: "destructive",
       });
       return;
@@ -266,7 +266,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
       if (error) throw error;
 
       toast({
-        title: "Endereco atualizado",
+        title: "Endereço atualizado",
         description: "As coordenadas antigas foram limpas para recalculo da rota.",
       });
 
@@ -275,8 +275,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     } catch (error: any) {
       console.error("Error updating invoice address:", error);
       toast({
-        title: "Erro ao salvar endereco",
-        description: error.message || "Nao foi possivel atualizar o endereco.",
+        title: "Erro ao salvar endereço",
+        description: error.message || "Não foi possível atualizar o endereço.",
         variant: "destructive",
       });
     } finally {
@@ -354,12 +354,12 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                 {isEditingAddress ? (
                   <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="invoice-address">Endereco</Label>
+                      <Label htmlFor="invoice-address">Endereço</Label>
                       <Input
                         id="invoice-address"
                         value={addressForm.address}
                         onChange={(event) => setAddressForm((current) => ({ ...current, address: event.target.value }))}
-                        placeholder="Rua, avenida, numero e complemento"
+                        placeholder="Rua, avenida, número e complemento"
                       />
                     </div>
                     <div className="grid grid-cols-[1fr_72px] gap-2">
@@ -541,7 +541,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                                 <div className="relative">
                                   <img
                                     src={occurrence.photo_url}
-                                    alt="Foto da ocorrencia"
+                                    alt="Foto da ocorrência"
                                     className="h-40 w-full object-cover"
                                     onError={(event) => {
                                       event.currentTarget.src = "/placeholder.svg";
@@ -555,7 +555,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                             ) : (
                               <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
                                 <ImageIcon className="h-4 w-4" />
-                                Nenhuma foto anexada nesta ocorrencia.
+                                Nenhuma foto anexada nesta ocorrência.
                               </div>
                             )}
                             {occurrence.photo_url && (

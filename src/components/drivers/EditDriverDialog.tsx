@@ -143,7 +143,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     if (!driverDbId) {
       toast({
         title: "Erro ao enviar documento",
-        description: "Nao foi possivel identificar o motorista selecionado.",
+        description: "Não foi possível identificar o motorista selecionado.",
         variant: "destructive",
       });
       return;
@@ -152,7 +152,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "Arquivo muito grande",
-        description: "Envie um arquivo de ate 10MB.",
+        description: "Envie um arquivo de até 10MB.",
         variant: "destructive",
       });
       return;
@@ -200,7 +200,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
       console.error("Driver document upload error:", error);
       toast({
         title: "Erro ao enviar documento",
-        description: error.message || "Nao foi possivel salvar o arquivo.",
+        description: error.message || "Não foi possível salvar o arquivo.",
         variant: "destructive",
       });
     } finally {
@@ -258,7 +258,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     if (!document?.url) {
       toast({
         title: "Documento indisponivel",
-        description: "Nao foi possivel gerar o link para download.",
+        description: "Não foi possível gerar o link para download.",
         variant: "destructive",
       });
       return;

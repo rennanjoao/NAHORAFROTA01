@@ -256,16 +256,22 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
 
       // Avanca um ciclo a partir do vencimento pago (antes contava a partir de hoje
       // e um pagamento atrasado "pulava" o vencimento seguinte).
-      const paidDue = nextDue || (contractStart ? calcNextDueDate(contractStart, cycle) : "");
-      if (paidDue) {
-        const newNextDue = format(addCycle(new Date(paidDue.slice(0, 10) + "T12:00:00"), cycle), "yyyy-MM-dd");
-        setNextDue(newNextDue);
-        setFinancialStatus("current");
-        await supabase.from("tenants").update({
-          next_due_date: newNextDue,
-          financial_status: "current",
-          updated_at: new Date().toISOString(),
-        } as any).eq("id", tenant.id);
+      // Primeiro pagamento (ex.: fim do teste) sem contrato: o contrato comeca hoje.
+      const today = format(new Date(), "yyyy-MM-dd");
+      const startsContract = !contractStart && !nextDue;
+      const paidDue = nextDue || (contractStart ? calcNextDueDate(contractStart, cycle) : today);
+      const newNextDue = format(addCycle(new Date(paidDue.slice(0, 10) + "T12:00:00"), cycle), "yyyy-MM-dd");
+      setNextDue(newNextDue);
+      setFinancialStatus("current");
+      if (startsContract) setContractStart(today);
+      const { error: dueError } = await supabase.from("tenants").update({
+        next_due_date: newNextDue,
+        financial_status: "current",
+        ...(startsContract ? { contract_start_date: today } : {}),
+        updated_at: new Date().toISOString(),
+      } as any).eq("id", tenant.id);
+      if (dueError) {
+        toast({ title: "Pagamento salvo, mas o vencimento não foi atualizado", description: dueError.message, variant: "destructive" });
       }
 
       fetchHistory();

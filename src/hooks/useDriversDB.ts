@@ -225,7 +225,7 @@ export function useDriversDB() {
         title: "Erro ao atualizar",
         description: isPermissionError
           ? DRIVER_ADMIN_PERMISSION_MESSAGE
-          : err.message || "Nao foi possivel atualizar o motorista.",
+          : err.message || "Não foi possível atualizar o motorista.",
         variant: "destructive",
       });
       return null;
@@ -251,7 +251,7 @@ export function useDriversDB() {
       console.error("Error deleting driver:", err);
       toast({
         title: "Erro ao remover",
-        description: err.message || "Nao foi possivel remover o motorista.",
+        description: err.message || "Não foi possível remover o motorista.",
         variant: "destructive",
       });
       return false;

@@ -62,15 +62,15 @@ export function ConfirmDeliveryDialog({
     const newErrors: { name?: string; document?: string } = {};
 
     if (!receiverName.trim()) {
-      newErrors.name = "Nome do recebedor e obrigatorio";
+      newErrors.name = "Nome do recebedor é obrigatório";
     } else if (receiverName.trim().length < 3) {
       newErrors.name = "Nome deve ter pelo menos 3 caracteres";
     }
 
     if (!receiverDocument.trim()) {
-      newErrors.document = "CPF e obrigatorio";
+      newErrors.document = "CPF é obrigatório";
     } else if (!isValidCpf(receiverDocument)) {
-      newErrors.document = "CPF invalido";
+      newErrors.document = "CPF inválido";
     }
 
     setErrors(newErrors);

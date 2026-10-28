@@ -88,7 +88,7 @@ const getVehicleTypeCandidates = (dbValue: string, displayValue: string) =>
   Array.from(new Set([dbValue, displayValue, displayValue.toUpperCase()]));
 
 const getVehicleTypeConstraintMessage = () =>
-  "Tipo de veiculo nao aceito pelo banco de dados. Aplique a migration mais recente de tipos de veiculo e tente novamente.";
+  "Tipo de veículo não aceito pelo banco de dados. Aplique a migration mais recente de tipos de veículo e tente novamente.";
 
 const getDriverSaveErrorMessage = (message?: string | null) => {
   if (isVehicleTypeConstraintError(message)) {
@@ -356,7 +356,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         if (!createdUserId) {
           toast({
             title: "Erro ao criar login",
-            description: "A funcao respondeu, mas nao retornou o ID do usuario criado.",
+            description: "A função respondeu, mas não retornou o ID do usuário criado.",
             variant: "destructive",
           });
           setIsSaving(false);
@@ -424,7 +424,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           lastVehicleTypeError = error;
         }
 
-        throw lastVehicleTypeError || new Error("Tipo de veiculo nao aceito pelo banco de dados");
+        throw lastVehicleTypeError || new Error("Tipo de veículo não aceito pelo banco de dados");
       };
 
       // If login was created, link/create the driver row using the existing RPC.

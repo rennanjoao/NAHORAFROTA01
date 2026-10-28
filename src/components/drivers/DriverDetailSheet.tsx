@@ -60,8 +60,8 @@ interface DriverDocument {
 
 const documentLabels: Record<DriverDocumentType, string> = {
   cnh: "CNH",
-  addressProof: "Comprovante de Endereco",
-  vehicleDoc: "Documento do Veiculo (CRLV)",
+  addressProof: "Comprovante de Endereço",
+  vehicleDoc: "Documento do Veículo (CRLV)",
   trailerDoc: "Documento da Carreta",
 };
 
@@ -129,7 +129,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     if (!document.url) {
       toast({
         title: "Documento indisponivel",
-        description: "Nao foi possivel gerar o link deste arquivo.",
+        description: "Não foi possível gerar o link deste arquivo.",
         variant: "destructive",
       });
       return;

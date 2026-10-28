@@ -1107,7 +1107,7 @@ export default function DeliveriesPage() {
   const startLabel = "Inicio";
   const endLabel = "Fim";
   const untilLabel = "ate";
-  const clearPeriodLabel = "Limpar periodo";
+  const clearPeriodLabel = "Limpar período";
 
   return (
     <AppLayout>
@@ -1471,7 +1471,7 @@ export default function DeliveriesPage() {
                   "shrink-0",
                   hasActiveFilters && "border-primary bg-primary/5 text-primary"
                 )}
-                aria-label="Abrir filtros de periodo"
+                aria-label="Abrir filtros de período"
               >
                 <Filter className="h-4 w-4" />
               </Button>

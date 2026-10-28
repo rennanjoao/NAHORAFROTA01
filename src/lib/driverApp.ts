@@ -79,7 +79,7 @@ export async function getProofStorageOwnerId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
 
   if (error || !data.user?.id) {
-    throw new Error("Sessao expirada. Entre novamente para enviar a foto.");
+    throw new Error("Sessão expirada. Entre novamente para enviar a foto.");
   }
 
   return data.user.id;

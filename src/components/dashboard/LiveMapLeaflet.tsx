@@ -250,7 +250,7 @@ export default function LiveMapLeaflet({
           <div className="absolute inset-0 z-[350] flex items-center justify-center bg-cyber-dark/80 backdrop-blur-sm">
             <div className="text-center p-6">
               <TruckIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-foreground font-medium mb-1">Nenhum veiculo ativo</p>
+              <p className="text-foreground font-medium mb-1">Nenhum veículo ativo</p>
               <p className="text-sm text-muted-foreground">
                 Aguardando motoristas iniciarem o rastreamento GPS
               </p>

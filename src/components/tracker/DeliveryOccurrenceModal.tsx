@@ -24,9 +24,9 @@ interface DeliveryOccurrenceModalProps {
 const OCCURRENCE_TYPES = [
   { value: "cliente_ausente", label: "Cliente Ausente" },
   { value: "recusado", label: "Recusado pelo Cliente" },
-  { value: "endereco_errado", label: "Endereco Errado/Nao Encontrado" },
-  { value: "area_risco", label: "Area de Risco" },
-  { value: "horario_restrito", label: "Fora do Horario de Entrega" },
+  { value: "endereco_errado", label: "Endereço Errado/Não Encontrado" },
+  { value: "area_risco", label: "Área de Risco" },
+  { value: "horario_restrito", label: "Fora do Horário de Entrega" },
   { value: "avaria", label: "Mercadoria Avariada" },
   { value: "extravio", label: "Mercadoria Extraviada" },
   { value: "outros", label: "Outros" },
@@ -89,7 +89,7 @@ export function DeliveryOccurrenceModal({
 
   const handleSubmit = async () => {
     if (!occurrenceType) {
-      toast.error("Selecione o tipo de ocorrencia");
+      toast.error("Selecione o tipo de ocorrência");
       return;
     }
 
@@ -182,7 +182,7 @@ export function DeliveryOccurrenceModal({
 
       if (occurrenceError) {
         console.warn("Occurrence record failed after invoice status update:", occurrenceError);
-        toast.warning("Ocorrencia registrada, mas a foto nao foi salva nos detalhes.");
+        toast.warning("Ocorrência registrada, mas a foto não foi salva nos detalhes.");
       }
 
       const typeLabel = OCCURRENCE_TYPES.find((item) => item.value === occurrenceType)?.label || occurrenceType;
@@ -192,7 +192,7 @@ export function DeliveryOccurrenceModal({
       onSuccess();
     } catch (error: any) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Erro ao registrar ocorrencia");
+      toast.error(error.message || "Erro ao registrar ocorrência");
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +220,7 @@ export function DeliveryOccurrenceModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-orange-600">
             <AlertTriangle className="h-5 w-5" />
-            Registrar Ocorrencia
+            Registrar Ocorrência
           </DialogTitle>
         </DialogHeader>
 
@@ -237,7 +237,7 @@ export function DeliveryOccurrenceModal({
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo de Ocorrencia *</Label>
+            <Label>Tipo de Ocorrência *</Label>
             <Select value={occurrenceType} onValueChange={setOccurrenceType}>
               <SelectTrigger className="h-12">
                 <SelectValue placeholder="Selecione o tipo" />

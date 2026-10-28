@@ -171,7 +171,7 @@ export function DriverCombobox({ value, onSelect, fleetType }: DriverComboboxPro
               <>
                 <CommandEmpty>
                   <div className="py-4 text-center">
-                    <p className="text-sm text-muted-foreground">Nenhum motorista disponivel.</p>
+                    <p className="text-sm text-muted-foreground">Nenhum motorista disponível.</p>
                     {unavailableCount > 0 && (
                       <p className="mt-1 text-xs text-warning">
                         {unavailableCount} motorista(s) com romaneio em aberto
