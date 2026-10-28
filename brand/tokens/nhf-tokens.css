@@ -1,0 +1,46 @@
+/* Na Hora Frota — tokens da marca (v1.0, outubro 2026)
+   Fonte única de cores, fontes e medidas. Importe este arquivo antes do CSS do produto. */
+:root {
+  /* Cores primárias */
+  --nhf-green:        #04E8A4;  /* Verde Na Hora: destaque, status "no prazo", CTA, símbolo */
+  --nhf-ink:          #080808;  /* Preto Asfalto: fundo principal */
+  --nhf-paper:        #FFFFFF;  /* Branco */
+
+  /* Cores secundárias */
+  --nhf-graphite:     #141617;  /* superfícies elevadas sobre o preto */
+  --nhf-lead:         #2A2D30;  /* bordas, divisores, desativado */
+  --nhf-signal:       #8A9199;  /* Cinza Sinal: texto secundário (só sobre preto/grafite) */
+  --nhf-mist:         #F2F4F5;  /* Névoa: fundo claro */
+  --nhf-green-deep:   #0B6B4F;  /* Verde Escuro: o verde como texto em fundo claro (6,5:1) */
+  --nhf-green-tint:   #0F3D30;  /* Verde Tinta: fundo de destaque no modo escuro */
+  --nhf-green-dark:   #00B37E;  /* hover / pressionado do verde */
+
+  /* Cores funcionais (significado fixo) */
+  --nhf-ok:           #04E8A4;  /* no prazo, online, entregue */
+  --nhf-alert:        #FFC53D;  /* atenção, SLA a vencer */
+  --nhf-late:         #FF4D4F;  /* atrasado, ocorrência */
+  --nhf-info:         #3B9CFF;  /* em trânsito, informação */
+  --nhf-idle:         #8A9199;  /* inativo, finalizado */
+
+  /* Tipografia */
+  --nhf-font-display: 'Space Grotesk', system-ui, sans-serif;   /* títulos */
+  --nhf-font-text:    'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; /* texto e interface */
+  --nhf-font-data:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; /* horas, placas, KPIs */
+
+  /* Forma */
+  --nhf-radius:       4px;      /* raio máximo da interface */
+  --nhf-chamfer:      18px;     /* chanfro de 45° em botões e cartões de destaque */
+  --nhf-gutter:       24px;     /* calha da grade de 12 colunas (16px no celular) */
+}
+
+/* Chanfro de 45° (canto superior direito) */
+.nhf-chamfer { clip-path: polygon(0 0, calc(100% - var(--nhf-chamfer)) 0, 100% var(--nhf-chamfer), 100% 100%, 0 100%); }
+
+/* Marcador de hora */
+.nhf-live { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid var(--nhf-green); color: var(--nhf-green); font-family: var(--nhf-font-data); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; background: rgba(4, 232, 164, .06); }
+.nhf-live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--nhf-green); animation: nhf-pulse 1.8s ease-out infinite; }
+@keyframes nhf-pulse { 0% { box-shadow: 0 0 0 0 rgba(4, 232, 164, .55) } 100% { box-shadow: 0 0 0 14px rgba(4, 232, 164, 0) } }
+@media (prefers-reduced-motion: reduce) { .nhf-live::before { animation: none } }
+
+/* Números tabulares em dados */
+.nhf-data { font-family: var(--nhf-font-data); font-variant-numeric: tabular-nums; }

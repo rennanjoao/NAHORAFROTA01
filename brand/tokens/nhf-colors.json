@@ -1,0 +1,27 @@
+{
+  "brand": "Na Hora Frota",
+  "version": "1.0",
+  "primary": {
+    "verde-na-hora": { "hex": "#04E8A4", "rgb": [4, 232, 164], "hsl": [162, 97, 46], "cmyk_approx": [60, 0, 45, 0], "pantone_approx": "3395 C", "role": "destaque, status no prazo, CTA, símbolo" },
+    "preto-asfalto": { "hex": "#080808", "rgb": [8, 8, 8], "hsl": [0, 0, 3], "cmyk": [0, 0, 0, 100], "pantone": "Black 6 C", "role": "fundo principal" },
+    "branco": { "hex": "#FFFFFF", "rgb": [255, 255, 255], "hsl": [0, 0, 100], "cmyk": [0, 0, 0, 0], "role": "texto sobre preto, papelaria, baú" }
+  },
+  "secondary": {
+    "grafite": { "hex": "#141617", "rgb": [20, 22, 23], "role": "superfícies elevadas" },
+    "chumbo": { "hex": "#2A2D30", "rgb": [42, 45, 48], "role": "bordas e divisores" },
+    "cinza-sinal": { "hex": "#8A9199", "rgb": [138, 145, 153], "role": "texto secundário sobre preto" },
+    "nevoa": { "hex": "#F2F4F5", "rgb": [242, 244, 245], "role": "fundo claro" },
+    "verde-escuro": { "hex": "#0B6B4F", "rgb": [11, 107, 79], "role": "verde como texto em fundo claro (contraste 6.5:1)" },
+    "verde-tinta": { "hex": "#0F3D30", "rgb": [15, 61, 48], "role": "fundo de destaque no modo escuro" },
+    "verde-profundo": { "hex": "#00B37E", "rgb": [0, 179, 126], "role": "hover / pressionado" }
+  },
+  "functional": {
+    "ok": "#04E8A4", "alerta": "#FFC53D", "atraso": "#FF4D4F", "info": "#3B9CFF", "inativo": "#8A9199"
+  },
+  "contrast": {
+    "verde-no-preto": 12.5, "preto-no-verde": 12.5, "branco-no-preto": 20.0, "verde-escuro-no-branco": 6.5, "verde-no-verde-tinta": 7.6, "verde-no-branco (proibido)": 1.6
+  },
+  "fonts": {
+    "display": "Space Grotesk 500/700", "text": "Inter 400/500/600", "data": "JetBrains Mono 400/500/700", "wordmark_only": "Chakra Petch 700 (apenas no logo, nunca em texto)"
+  }
+}
