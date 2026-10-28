@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Download, Eye, FileText, MessageCircle, MapPin, Truck, Star, TrendingUp, TrendingDown, Pencil, Trash2, Loader2, AlertTriangle, Power, PowerOff, User } from "lucide-react";
+import { Download, Eye, FileText, MessageCircle, MapPin, Truck, Star, TrendingUp, TrendingDown, Pencil, Trash2, Loader2, AlertTriangle, Power, PowerOff, User, Lock } from "lucide-react";
 import { Driver, useLogistics } from "@/contexts/LogisticsContext";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
 
 interface DriverDetailSheetProps {
   driver: Driver | null;
@@ -71,6 +72,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  const { canViewDocuments } = useDriverDocumentsAccess();
 
   useEffect(() => {
     async function loadDocuments() {
@@ -89,6 +91,12 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
           .order("created_at", { ascending: false });
 
         if (error) throw error;
+
+        // Arquivo so abre para o Super Admin; os demais veem apenas a lista.
+        if (!canViewDocuments) {
+          setDocuments(data || []);
+          return;
+        }
 
         const docsWithUrls = await Promise.all(
           (data || []).map(async (document: DriverDocument) => {
@@ -113,7 +121,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     }
 
     loadDocuments();
-  }, [open, driver]);
+  }, [open, driver, canViewDocuments]);
 
   const openDocument = (document: DriverDocument) => {
     if (!document.url) {
@@ -512,24 +520,31 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
                           Enviado em {new Date(document.created_at).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Abrir documento"
-                          onClick={() => openDocument(document)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Baixar documento"
-                          onClick={() => downloadDocument(document)}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {canViewDocuments ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Abrir documento"
+                            onClick={() => openDocument(document)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Baixar documento"
+                            onClick={() => downloadDocument(document)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] text-muted-foreground" title="Somente o Super Admin pode abrir os documentos do motorista">
+                          <Lock className="h-3 w-3" />
+                          Restrito ao Super Admin
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 ))

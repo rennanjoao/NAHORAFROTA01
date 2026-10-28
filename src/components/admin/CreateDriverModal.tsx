@@ -8,6 +8,7 @@ import { UserPlus, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
 
 function generatePasswordFromCPF(cpf: string): string {
   const cleanCPF = cpf.replace(/\D/g, "");
@@ -63,6 +64,7 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [cpf, setCpf] = useState("");
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleType, setVehicleType] = useState<string>("van");
@@ -73,6 +75,7 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
     setName("");
     setEmail("");
     setPhone("");
+    setContactEmail("");
     setCpf("");
     setVehiclePlate("");
     setVehicleType("van");
@@ -119,6 +122,11 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
 
     if (!validation.success) {
       toast.error(validation.error.errors[0].message);
+      return;
+    }
+
+    if (contactEmail.trim() && !isValidContactEmail(contactEmail)) {
+      toast.error("E-mail do motorista inválido");
       return;
     }
 
@@ -195,6 +203,20 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
           ? `Motorista ${normalizedName} atualizado com sucesso!`
           : `Motorista ${normalizedName} criado com sucesso!`,
       );
+
+      // Dispara o e-mail com os dados de cadastro para o motorista
+      if (contactEmail.trim()) {
+        const emailResult = await sendDriverCredentialsEmail({
+          driverId: edgeData.driver.id,
+          contactEmail,
+          password: normalizedPassword,
+        });
+        const feedback = describeCredentialsEmailResult(emailResult);
+        if (feedback) {
+          const notify = feedback.kind === "success" ? toast.success : feedback.kind === "warning" ? toast.warning : toast.error;
+          notify(feedback.title, { description: feedback.description });
+        }
+      }
 
       resetForm();
       setOpen(false);
@@ -308,6 +330,18 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
                 disabled={isLoading}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contactEmail">E-mail do motorista (recebe os dados de acesso)</Label>
+            <Input
+              id="contactEmail"
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              placeholder="motorista@email.com"
+              disabled={isLoading}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

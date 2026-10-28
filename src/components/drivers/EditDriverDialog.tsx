@@ -17,17 +17,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Pencil, Save, Loader2, User, Car, Landmark, FileText, Upload, X, Eye, Download } from "lucide-react";
+import { Pencil, Save, Loader2, User, Car, Landmark, FileText, Upload, X, Eye, Download, Lock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Driver, VehicleType } from "@/contexts/LogisticsContext";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
 
 interface DriverDocuments {
-  cnh?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-  addressProof?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-  vehicleDoc?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-  trailerDoc?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
+  cnh?: { id?: string; name: string; url?: string; path?: string; uploadedAt: Date };
+  addressProof?: { id?: string; name: string; url?: string; path?: string; uploadedAt: Date };
+  vehicleDoc?: { id?: string; name: string; url?: string; path?: string; uploadedAt: Date };
+  trailerDoc?: { id?: string; name: string; url?: string; path?: string; uploadedAt: Date };
 }
 
 interface EditDriverDialogProps {
@@ -47,6 +48,8 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
   const [activeTab, setActiveTab] = useState("personal");
   const [documents, setDocuments] = useState<DriverDocuments>({});
   const [uploadingDoc, setUploadingDoc] = useState<keyof DriverDocuments | null>(null);
+  // Abrir/baixar arquivo e exclusivo do Super Admin; a empresa so envia/substitui.
+  const { canViewDocuments } = useDriverDocumentsAccess();
   
   // File input refs
   const cnhInputRef = useRef<HTMLInputElement>(null);
@@ -75,10 +78,15 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
         tipo_conta: driverAny.tipo_conta || "",
         chave_pix: driverAny.chave_pix || "",
       });
-      setDocuments({});
-      loadDriverDocuments(driver);
     }
   }, [driver]);
+
+  // Recarrega quando a permissao de abrir documentos termina de carregar.
+  useEffect(() => {
+    if (!driver) return;
+    setDocuments({});
+    loadDriverDocuments(driver);
+  }, [driver, canViewDocuments]);
 
   const getDriverDbId = (driverRecord: Driver | null = driver) => {
     return (driverRecord as any)?._dbId || (typeof driverRecord?.id === "string" ? driverRecord.id : null);
@@ -114,7 +122,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     await Promise.all(
       (data || []).map(async (doc: any) => {
         try {
-          const url = await getSignedUrl(doc.file_path);
+          const url = canViewDocuments ? await getSignedUrl(doc.file_path) : undefined;
           nextDocuments[doc.document_type as keyof DriverDocuments] = {
             id: doc.id,
             name: doc.file_name,
@@ -157,7 +165,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(DRIVER_DOCUMENTS_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type || undefined });
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
 
       if (uploadError) throw uploadError;
 
@@ -179,7 +187,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
 
       if (upsertError) throw upsertError;
 
-      const url = await getSignedUrl(uploadData.path);
+      const url = canViewDocuments ? await getSignedUrl(uploadData.path) : undefined;
       setDocuments(prev => ({
         ...prev,
         [type]: { name: file.name, url, path: uploadData.path, uploadedAt: new Date() }
@@ -479,22 +487,34 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => window.open(documents[docType]?.url, '_blank')}
-                          title="Abrir documento"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDownloadDocument(docType)}
-                          title="Baixar documento"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
+                        {canViewDocuments ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => window.open(documents[docType]?.url, '_blank')}
+                              title="Abrir documento"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDownloadDocument(docType)}
+                              title="Baixar documento"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span
+                            className="flex items-center gap-1 px-2 text-[10px] text-muted-foreground"
+                            title="Somente o Super Admin pode abrir os documentos do motorista"
+                          >
+                            <Lock className="h-3 w-3" />
+                            Restrito
+                          </span>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"

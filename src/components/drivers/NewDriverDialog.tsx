@@ -41,6 +41,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { VehicleType } from "@/contexts/LogisticsContext";
 import { supabase } from "@/integrations/supabase/client";
+import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
 import { requireCurrentTenantId } from "@/lib/tenant";
 
 interface DocumentFile {
@@ -109,6 +110,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     name: "",
     cpf: "",
     phone: "",
+    contactEmail: "",
     cnhNumber: "",
     cnhCategory: "d",
     vehicleType: "",
@@ -222,6 +224,16 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     }
 
     const cpfToSave = formData.cpf.trim();
+
+    if (formData.contactEmail.trim() && !isValidContactEmail(formData.contactEmail)) {
+      toast({
+        title: "⚠️ E-mail inválido",
+        description: "Confira o e-mail do motorista que vai receber os dados de acesso.",
+        variant: "destructive",
+      });
+      setActiveTab("personal");
+      return;
+    }
 
     if (!isOwnFleet && (!formData.vehicleType || !formData.vehiclePlate)) {
       toast({
@@ -552,12 +564,31 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         if (!savedDriver) {
           throw new Error("Falha ao salvar motorista no banco de dados");
         }
+        createdDriverId = savedDriver.id;
       } else {
         // Fallback: save directly via Supabase (no login - insert new driver)
-        await insertDriverDirectly();
+        const savedDriver = await insertDriverDirectly();
+        createdDriverId = savedDriver?.id ?? null;
       }
       
       onSave();
+
+      // Dispara o e-mail com os dados de cadastro para o motorista
+      if (createdDriverId && formData.contactEmail.trim()) {
+        const emailResult = await sendDriverCredentialsEmail({
+          driverId: createdDriverId,
+          contactEmail: formData.contactEmail,
+          password: createLogin ? generatedPassword : null,
+        });
+        const feedback = describeCredentialsEmailResult(emailResult);
+        if (feedback) {
+          toast({
+            title: feedback.title,
+            description: feedback.description,
+            variant: feedback.kind === "error" ? "destructive" : undefined,
+          });
+        }
+      }
       if (createLogin) {
         toast({
           title: loginEmailChanged ? "Motorista cadastrado com login ajustado" : "Motorista cadastrado com login",
@@ -575,6 +606,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         name: "",
         cpf: "",
         phone: "",
+        contactEmail: "",
         cnhNumber: "",
         cnhCategory: "d",
         vehicleType: "",
@@ -681,6 +713,16 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>E-mail do motorista</Label>
+              <Input 
+                type="email"
+                placeholder="motorista@email.com" 
+                value={formData.contactEmail}
+                onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Recebe por e-mail os dados do cadastro e o acesso ao app.</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -852,6 +894,16 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail do motorista</Label>
+                  <Input 
+                    type="email"
+                    placeholder="motorista@email.com" 
+                    value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">Recebe por e-mail os dados do cadastro e o acesso ao app.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
