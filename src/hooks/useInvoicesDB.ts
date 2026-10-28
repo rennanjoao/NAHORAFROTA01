@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { getCurrentTenantId } from '@/lib/tenant';
+import { fetchAllPages } from '@/lib/supabasePaging';
 
 // Storage bucket name for invoice attachments (if any)
 const INVOICE_ATTACHMENTS_BUCKET = 'invoice-attachments';
@@ -70,37 +71,40 @@ export function useInvoicesDB() {
         return;
       }
 
-      // First, fetch invoices
-      let query = supabase
-        .from('invoices')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .order('imported_at', { ascending: false });
+      // First, fetch invoices (paginado: o Supabase devolve no maximo 1000 linhas por vez)
+      const buildQuery = () => {
+        let query = supabase
+          .from('invoices')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('imported_at', { ascending: false })
+          .order('id', { ascending: true });
 
-      // Apply filters
-      if (filters?.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status);
-      }
+        // Apply filters
+        if (filters?.status && filters.status !== 'all') {
+          query = query.eq('status', filters.status);
+        }
 
-      if (filters?.dateFrom) {
-        query = query.gte('imported_at', filters.dateFrom.toISOString());
-      }
+        if (filters?.dateFrom) {
+          query = query.gte('imported_at', filters.dateFrom.toISOString());
+        }
 
-      if (filters?.dateTo) {
-        query = query.lte('imported_at', filters.dateTo.toISOString());
-      }
+        if (filters?.dateTo) {
+          query = query.lte('imported_at', filters.dateTo.toISOString());
+        }
 
-      if (filters?.search) {
-        query = query.or(`recipient_name.ilike.%${filters.search}%,nfe_number.ilike.%${filters.search}%,address_full.ilike.%${filters.search}%`);
-      }
+        if (filters?.search) {
+          query = query.or(`recipient_name.ilike.%${filters.search}%,nfe_number.ilike.%${filters.search}%,address_full.ilike.%${filters.search}%`);
+        }
 
-      if (filters?.regions && filters.regions.length > 0) {
-        query = query.in('regiao_logistica', filters.regions);
-      }
+        if (filters?.regions && filters.regions.length > 0) {
+          query = query.in('regiao_logistica', filters.regions);
+        }
 
-      const { data: invoicesData, error: fetchError } = await query;
+        return query;
+      };
 
-      if (fetchError) throw fetchError;
+      const invoicesData = await fetchAllPages((from, to) => buildQuery().range(from, to));
 
       // Collect unique IDs for batch fetching related data
       const driverIds = [...new Set((invoicesData || []).map(inv => inv.driver_id).filter(Boolean))];

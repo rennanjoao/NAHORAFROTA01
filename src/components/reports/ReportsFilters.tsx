@@ -23,38 +23,21 @@ import { cn } from "@/lib/utils";
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// Mock data for filters
-const clients = [
-  { id: "all", name: "Todos os Clientes" },
-  { id: "1", name: "Magazine Luiza" },
-  { id: "2", name: "Casas Bahia" },
-  { id: "3", name: "Americanas" },
-  { id: "4", name: "Mercado Livre" },
-  { id: "5", name: "Amazon Brasil" },
-];
+export interface ReportFilterOption {
+  id: string;
+  name: string;
+}
 
-const routes = [
-  { id: "all", name: "Todas as Rotas" },
-  { id: "sp-capital", name: "SP Capital" },
-  { id: "sp-interior", name: "SP Interior" },
-  { id: "rj-capital", name: "RJ Capital" },
-  { id: "mg-bh", name: "MG - BH Região" },
-  { id: "pr-ctba", name: "PR - Curitiba" },
-];
+export interface ReportFilterOptions {
+  clients: ReportFilterOption[];
+  routes: ReportFilterOption[];
+  drivers: ReportFilterOption[];
+}
 
-const drivers = [
-  { id: "all", name: "Todos os Motoristas" },
-  { id: "1", name: "Carlos Silva" },
-  { id: "2", name: "Ana Santos" },
-  { id: "3", name: "Pedro Costa" },
-  { id: "4", name: "Maria Oliveira" },
-  { id: "5", name: "João Mendes" },
-];
-
-const operationTypes = [
+const operationTypes: ReportFilterOption[] = [
   { id: "all", name: "Todas as Operações" },
-  { id: "dedicado", name: "Dedicado" },
-  { id: "fracionado", name: "Fracionado" },
+  { id: "own_fleet", name: "Frota Própria" },
+  { id: "third_party", name: "Terceiros (Agregados)" },
 ];
 
 // Quick date range presets
@@ -77,11 +60,16 @@ export interface FilterState {
 
 interface ReportsFiltersProps {
   filters: FilterState;
+  options: ReportFilterOptions;
   onFiltersChange: (filters: FilterState) => void;
   onClearFilters: () => void;
 }
 
-export function ReportsFilters({ filters, onFiltersChange, onClearFilters }: ReportsFiltersProps) {
+export function ReportsFilters({ filters, options, onFiltersChange, onClearFilters }: ReportsFiltersProps) {
+  const clients = [{ id: "all", name: "Todos os Clientes" }, ...options.clients];
+  const routes = [{ id: "all", name: "Todas as Regiões" }, ...options.routes];
+  const drivers = [{ id: "all", name: "Todos os Motoristas" }, ...options.drivers];
+
   const activeFiltersCount = [
     filters.client !== "all",
     filters.route !== "all",
@@ -204,7 +192,7 @@ export function ReportsFilters({ filters, onFiltersChange, onClearFilters }: Rep
             onValueChange={(value) => onFiltersChange({ ...filters, route: value })}
           >
             <SelectTrigger className="w-[160px] h-9 bg-background">
-              <SelectValue placeholder="Rota" />
+              <SelectValue placeholder="Região / Rota" />
             </SelectTrigger>
             <SelectContent className="bg-popover">
               {routes.map((route) => (

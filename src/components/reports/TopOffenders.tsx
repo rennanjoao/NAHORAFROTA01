@@ -14,6 +14,7 @@ interface TopRoute {
   rank: number;
   name: string;
   delays: number;
+  occurrences?: number;
   trend: number;
 }
 
@@ -53,6 +54,10 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
     return colors[rank as keyof typeof colors] || "bg-muted text-muted-foreground";
   };
 
+  const emptyState = (message: string) => (
+    <p className="text-sm text-muted-foreground text-center py-6">{message}</p>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -65,9 +70,13 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
             <MapPin className="h-4 w-4 text-primary" />
-            <h4 className="font-medium">Top 5 Rotas com Atraso</h4>
+            <h4 className="font-medium">Top 5 Regiões com Atraso</h4>
           </div>
+          <p className="text-xs text-muted-foreground -mt-2 mb-3">
+            Regiões da roteirização (ZS, ZN, ZL...) com mais atrasos e ocorrências
+          </p>
           <div className="space-y-3">
+            {data.routes.length === 0 && emptyState("Nenhum atraso ou ocorrência no período")}
             {data.routes.map((route) => (
               <div
                 key={route.rank}
@@ -79,7 +88,10 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
                 </Badge>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{route.name}</p>
-                  <p className="text-xs text-muted-foreground">{route.delays} atrasos</p>
+                  <p className="text-xs text-muted-foreground">
+                    {route.delays} atraso{route.delays === 1 ? "" : "s"}
+                    {typeof route.occurrences === "number" && ` • ${route.occurrences} ocorrência${route.occurrences === 1 ? "" : "s"}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1">
                   {route.trend > 0 ? (
@@ -107,6 +119,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
             <h4 className="font-medium">Top 5 Clientes com Devolução</h4>
           </div>
           <div className="space-y-3">
+            {data.clients.length === 0 && emptyState("Nenhuma devolução no período")}
             {data.clients.map((client) => (
               <div
                 key={client.rank}
@@ -146,6 +159,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
             <h4 className="font-medium">Top 5 Motivos de Ocorrência</h4>
           </div>
           <div className="space-y-3">
+            {data.reasons.length === 0 && emptyState("Nenhuma ocorrência no período")}
             {data.reasons.map((reason) => (
               <div
                 key={reason.rank}

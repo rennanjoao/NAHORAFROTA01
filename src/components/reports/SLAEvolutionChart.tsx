@@ -29,6 +29,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DBInvoice } from "@/hooks/useInvoicesDB";
+import { getInvoiceEventDate, isDeliveredStatus, isReturnedStatus } from "@/lib/reportFilters";
 
 interface SLAEvolutionChartProps {
   invoices: DBInvoice[];
@@ -40,11 +41,10 @@ interface SLAEvolutionChartProps {
 
 /** Calculate SLA for a set of invoices using driver-average method */
 function calculateDriverAverageSLA(invoices: DBInvoice[]): number {
+  // Inclui os status reais do banco ("delivered"/"returned"); antes so os
+  // legados em portugues eram considerados e as entregas ficavam de fora.
   const finalized = invoices.filter(
-    (inv) =>
-      inv.status === "entregue" ||
-      inv.status === "occurrence" ||
-      inv.status === "devolvido"
+    (inv) => isDeliveredStatus(inv.status) || inv.status === "occurrence" || isReturnedStatus(inv.status)
   );
   if (finalized.length === 0) return -1; // no data
 
@@ -63,7 +63,7 @@ function calculateDriverAverageSLA(invoices: DBInvoice[]): number {
     driverInvs.forEach((inv) => {
       const weight = getOccurrenceWeight(
         inv.occurrence_type,
-        inv.status === "entregue" ? "delivered" : "occurrence"
+        isDeliveredStatus(inv.status) ? "delivered" : "occurrence"
       );
       if (weight >= 0) w += weight;
     });
@@ -118,8 +118,9 @@ export function SLAEvolutionChart({
   const monthOptions = useMemo(() => {
     const months = new Set<string>([defaultMonth, format(new Date(), "yyyy-MM")]);
     invoices.forEach((invoice) => {
-      if (invoice.imported_at) {
-        months.add(format(new Date(invoice.imported_at), "yyyy-MM"));
+      const eventDate = getInvoiceEventDate(invoice);
+      if (eventDate) {
+        months.add(format(new Date(eventDate), "yyyy-MM"));
       }
     });
     return Array.from(months).sort((a, b) => b.localeCompare(a));
@@ -155,7 +156,8 @@ export function SLAEvolutionChart({
     // Helper: get invoices for a specific day
     const getInvoicesForDay = (day: Date) =>
       invoices.filter((inv) => {
-        const invDate = new Date(inv.imported_at);
+        // Dia da entrega/ocorrencia, nao o da importacao da NF
+        const invDate = new Date(getInvoiceEventDate(inv));
         return isSameDay(invDate, day);
       });
 
@@ -257,9 +259,9 @@ export function SLAEvolutionChart({
   });
 
   const monthStats = useMemo(() => {
-    const finalizedStatuses = new Set(["entregue", "delivered", "occurrence", "devolvido"]);
+    const finalizedStatuses = new Set(["entregue", "delivered", "occurrence", "devolvido", "returned"]);
     const monthInvoices = invoices.filter((invoice) => {
-      const invoiceDate = new Date(invoice.imported_at);
+      const invoiceDate = new Date(getInvoiceEventDate(invoice));
       return (
         invoiceDate.getMonth() === refDate.getMonth() &&
         invoiceDate.getFullYear() === refDate.getFullYear()

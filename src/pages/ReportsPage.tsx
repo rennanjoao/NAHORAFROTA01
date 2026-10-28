@@ -12,10 +12,9 @@ import {
    DollarSign
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { startOfDay, endOfDay, isWithinInterval } from "date-fns";
 
 // Components
-import { ReportsFilters, FilterState, defaultFilters } from "@/components/reports/ReportsFilters";
+import { ReportsFilters, FilterState, defaultFilters, ReportFilterOptions } from "@/components/reports/ReportsFilters";
 import { InteractiveKPIs } from "@/components/reports/InteractiveKPIs";
 import { KPIDrilldownSheet, DrilldownType } from "@/components/reports/KPIDrilldownSheet";
 import { FinancialImpact } from "@/components/reports/FinancialImpact";
@@ -32,6 +31,49 @@ import { useManifestsDB } from "@/hooks/useManifestsDB";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
 import { getOccurrenceWeight } from "@/hooks/useSLADB";
+import {
+  buildManifestIndex,
+  filterInvoicesByEntity,
+  filterInvoicesForReport,
+  filterManifestsForReport,
+  isDeliveredStatus,
+  isInvoiceLate,
+  isReturnedStatus,
+  previousRange,
+  rankRegionsByDelay,
+  resolveInvoiceRegion,
+} from "@/lib/reportFilters";
+
+const MAX_CLIENT_OPTIONS = 200;
+
+function percentChange(current: number, previous: number): number {
+  if (!previous) return 0;
+  return ((current - previous) / previous) * 100;
+}
+
+/** SLA do periodo: media do SLA individual de cada motorista com NFs finalizadas. */
+function calculatePeriodSLA(list: { status: string; occurrence_type: string | null; driver_id: string | null }[]): number {
+  const finalized = list.filter(inv =>
+    isDeliveredStatus(inv.status) || inv.status === 'occurrence' || isReturnedStatus(inv.status)
+  );
+  if (finalized.length === 0) return 100;
+
+  const byDriver = new Map<string, typeof finalized>();
+  finalized.forEach(inv => {
+    const key = inv.driver_id || '__no_driver__';
+    byDriver.set(key, [...(byDriver.get(key) || []), inv]);
+  });
+
+  let total = 0;
+  byDriver.forEach(driverInvs => {
+    const weight = driverInvs.reduce((sum, inv) => {
+      const w = getOccurrenceWeight(inv.occurrence_type, isDeliveredStatus(inv.status) ? 'delivered' : 'occurrence');
+      return sum + (w >= 0 ? w : 0);
+    }, 0);
+    total += Math.min(100, Math.max(0, (weight / driverInvs.length) * 100));
+  });
+  return Math.min(100, Math.max(0, total / byDriver.size));
+}
 
 // ========== MAIN COMPONENT ==========
 
@@ -59,17 +101,8 @@ export default function ReportsPage() {
   const rentabilidadeAccess = checkFeatureAccess('financial_reports');
 
   // Fetch real invoices and manifests for reports
-  const { invoices, isLoading: invoicesLoading } = useInvoicesDB();
-  const { manifests } = useManifestsDB();
-
-  // Filter helper
-  const isInDateRange = (date: Date) => {
-    if (!filters.dateRange.from || !filters.dateRange.to) return true;
-    return isWithinInterval(date, { 
-      start: startOfDay(filters.dateRange.from), 
-      end: endOfDay(filters.dateRange.to) 
-    });
-  };
+  const { invoices, isLoading: invoicesLoading, refetch: refetchInvoices } = useInvoicesDB();
+  const { manifests, fetchManifests } = useManifestsDB();
 
   // Handle filter changes with simulated loading
   const handleFiltersChange = (newFilters: FilterState) => {
@@ -85,77 +118,77 @@ export default function ReportsPage() {
   };
 
   // ========== FILTERED DATA ==========
-  
-  // Filter delivery data
-  const deliveryData = useMemo(() => {
-    // Use real invoice data from database
-    const filtered = invoices.filter(inv => {
-      const invDate = new Date(inv.imported_at);
-      return isInDateRange(invDate);
+
+  const manifestsById = useMemo(() => buildManifestIndex(manifests), [manifests]);
+
+  // Opcoes reais dos filtros (antes eram listas ficticias que nunca filtravam nada)
+  const filterOptions = useMemo((): ReportFilterOptions => {
+    const clientCounts = new Map<string, number>();
+    const regions = new Set<string>();
+    const drivers = new Map<string, string>();
+
+    invoices.forEach(inv => {
+      if (inv.recipient_name) clientCounts.set(inv.recipient_name, (clientCounts.get(inv.recipient_name) || 0) + 1);
+      regions.add(resolveInvoiceRegion(inv));
+      if (inv.driver_id && inv.driver_name) drivers.set(inv.driver_id, inv.driver_name);
     });
-    
+    manifests.forEach(m => {
+      if (m.driver_id && m.driver_name && !drivers.has(m.driver_id)) drivers.set(m.driver_id, m.driver_name);
+    });
+
     return {
-      entregue: filtered.filter(inv => inv.status === 'entregue' || inv.status === 'delivered').length,
-      devolvido: filtered.filter(inv => inv.status === 'devolvido' || inv.status === 'returned').length,
-      atrasado: filtered.filter(inv => inv.occurrence_type).length,
+      clients: Array.from(clientCounts.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+        .slice(0, MAX_CLIENT_OPTIONS)
+        .map(([name]) => ({ id: name, name })),
+      routes: Array.from(regions).sort((a, b) => a.localeCompare(b, 'pt-BR')).map(name => ({ id: name, name })),
+      drivers: Array.from(drivers.entries())
+        .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'))
+        .map(([id, name]) => ({ id, name })),
     };
-  }, [invoices, filters.dateRange]);
+  }, [invoices, manifests]);
+
+  // Cliente/rota/motorista/operacao aplicados; periodo pela data da entrega/ocorrencia
+  const entityFilteredInvoices = useMemo(
+    () => filterInvoicesByEntity(invoices, manifestsById, filters),
+    [invoices, manifestsById, filters]
+  );
+  const filteredInvoices = useMemo(
+    () => filterInvoicesForReport(invoices, manifestsById, filters),
+    [invoices, manifestsById, filters]
+  );
+  const previousInvoices = useMemo(
+    () => filterInvoicesForReport(invoices, manifestsById, { ...filters, dateRange: previousRange(filters.dateRange) }),
+    [invoices, manifestsById, filters]
+  );
+  const filteredManifests = useMemo(() => filterManifestsForReport(manifests, filters), [manifests, filters]);
+  const previousManifests = useMemo(
+    () => filterManifestsForReport(manifests, { ...filters, dateRange: previousRange(filters.dateRange) }),
+    [manifests, filters]
+  );
+
+  const summarize = (list: typeof filteredInvoices) => ({
+    entregue: list.filter(inv => isDeliveredStatus(inv.status)).length,
+    devolvido: list.filter(inv => isReturnedStatus(inv.status)).length,
+    atrasado: list.filter(inv => isInvoiceLate(inv, manifestsById)).length,
+    total: list.length,
+  });
+
+  const deliveryData = useMemo(() => summarize(filteredInvoices), [filteredInvoices, manifestsById]);
+  const previousDeliveryData = useMemo(() => summarize(previousInvoices), [previousInvoices, manifestsById]);
 
   // SLA chart access check
   const slaEvolutionAccess = checkFeatureAccess('sla_evolution');
 
   // Calculate period SLA as average of individual driver scores
   // Formula: (Sum of each driver's SLA) / (Number of distinct drivers with activity)
-  const periodSLA = useMemo(() => {
-    const filtered = invoices.filter(inv => {
-      const invDate = new Date(inv.imported_at);
-      return isInDateRange(invDate);
-    });
-    
-    const finalized = filtered.filter(inv => 
-      inv.status === 'entregue' || inv.status === 'delivered' || inv.status === 'occurrence' || inv.status === 'devolvido' || inv.status === 'returned'
-    );
-    
-    if (finalized.length === 0) return 100;
-    
-    // Group finalized invoices by driver_id
-    const driverInvoices = new Map<string, typeof finalized>();
-    finalized.forEach(inv => {
-      const driverId = inv.driver_id || '__no_driver__';
-      if (!driverInvoices.has(driverId)) {
-        driverInvoices.set(driverId, []);
-      }
-      driverInvoices.get(driverId)!.push(inv);
-    });
-    
-    // Calculate individual SLA per driver
-    let totalDriverSLA = 0;
-    let driverCount = 0;
-    
-    driverInvoices.forEach((driverInvs) => {
-      let driverWeight = 0;
-      driverInvs.forEach(inv => {
-        const w = getOccurrenceWeight(inv.occurrence_type, (inv.status === 'entregue' || inv.status === 'delivered') ? 'delivered' : 'occurrence');
-        if (w >= 0) driverWeight += w;
-      });
-      const driverSLA = (driverWeight / driverInvs.length) * 100;
-      totalDriverSLA += Math.min(100, Math.max(0, driverSLA));
-      driverCount++;
-    });
-    
-    if (driverCount === 0) return 100;
-    return Math.min(100, Math.max(0, totalDriverSLA / driverCount));
-  }, [invoices, filters.dateRange]);
+  const periodSLA = useMemo(() => calculatePeriodSLA(filteredInvoices), [filteredInvoices]);
+  const previousPeriodSLA = useMemo(() => calculatePeriodSLA(previousInvoices), [previousInvoices]);
 
   // Filter and aggregate occurrences
   const occurrencesData = useMemo(() => {
-    const filtered = invoices.filter(inv => {
-      const invDate = new Date(inv.imported_at);
-      return isInDateRange(invDate) && inv.occurrence_type;
-    });
-    
     const reasonTotals: Record<string, number> = {};
-    filtered.forEach(inv => {
+    filteredInvoices.forEach(inv => {
       if (inv.occurrence_type) {
         reasonTotals[inv.occurrence_type] = (reasonTotals[inv.occurrence_type] || 0) + 1;
       }
@@ -171,36 +204,34 @@ export default function ReportsPage() {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-  }, [invoices, filters.dateRange]);
+  }, [filteredInvoices]);
+
+  // Custo medio = fretes de agregados (nao frota propria) no periodo / entregas realizadas no periodo
+  const avgCostOf = (list: typeof filteredManifests, delivered: number) => {
+    const totalFreight = list.filter(m => !m.is_own_fleet).reduce((sum, m) => sum + (m.freight_value || 0), 0);
+    return delivered > 0 ? totalFreight / delivered : 0;
+  };
 
   // Calculate KPI data using period SLA
   const kpiData = useMemo(() => {
-    const total = deliveryData.entregue + deliveryData.devolvido + deliveryData.atrasado;
+    const avgCost = avgCostOf(filteredManifests, deliveryData.entregue);
+    const previousAvgCost = avgCostOf(previousManifests, previousDeliveryData.entregue);
     
     return {
       sla: periodSLA,
-      slaTrend: 0,
+      slaTrend: previousDeliveryData.total > 0 ? periodSLA - previousPeriodSLA : 0,
       onTime: deliveryData.entregue,
-      onTimeTrend: 0,
+      onTimeTrend: percentChange(deliveryData.entregue, previousDeliveryData.entregue),
       delayed: deliveryData.atrasado,
-      delayedTrend: 0,
+      delayedTrend: percentChange(deliveryData.atrasado, previousDeliveryData.atrasado),
       returns: deliveryData.devolvido,
-      returnsTrend: 0,
-      avgCost: (() => {
-        // Custo médio = soma fretes de agregados (não frota própria) no período / entregas realizadas no período
-        const filteredManifests = manifests.filter(m => {
-          const mDate = new Date(m.scheduled_date);
-          return !m.is_own_fleet && isInDateRange(mDate);
-        });
-        const totalFreight = filteredManifests.reduce((sum, m) => sum + (m.freight_value || 0), 0);
-        const deliveredCount = deliveryData.entregue;
-        return deliveredCount > 0 ? totalFreight / deliveredCount : 0;
-      })(),
-      avgCostTrend: 0,
-      totalVolume: total,
-      volumeTrend: 0,
+      returnsTrend: percentChange(deliveryData.devolvido, previousDeliveryData.devolvido),
+      avgCost,
+      avgCostTrend: percentChange(avgCost, previousAvgCost),
+      totalVolume: deliveryData.total,
+      volumeTrend: percentChange(deliveryData.total, previousDeliveryData.total),
     };
-  }, [periodSLA, deliveryData, manifests, filters.dateRange]);
+  }, [periodSLA, previousPeriodSLA, deliveryData, previousDeliveryData, filteredManifests, previousManifests]);
 
   // Financial impact data
   const financialImpactData = useMemo(() => ({
@@ -208,8 +239,9 @@ export default function ReportsPage() {
     returnCost: 85, // Cost per return
     delayedCount: deliveryData.atrasado,
     delayPenalty: 45, // Penalty per delay
-    reworkPercentage: ((deliveryData.devolvido + deliveryData.atrasado) / 
-      (deliveryData.entregue + deliveryData.devolvido + deliveryData.atrasado)) * 100,
+    reworkPercentage: deliveryData.total > 0
+      ? ((deliveryData.devolvido + deliveryData.atrasado) / deliveryData.total) * 100
+      : 0,
     reworkCost: deliveryData.devolvido * 35 + deliveryData.atrasado * 25,
   }), [deliveryData]);
 
@@ -222,17 +254,46 @@ export default function ReportsPage() {
     improvementOpportunity: { area: invoices.length > 0 ? "Sem dados suficientes" : "-", potential: "R$ 0" },
   }), [invoices.length]);
 
-  // Top offenders data
-  const topOffendersData = useMemo(() => ({
-    routes: [] as { rank: number; name: string; delays: number; trend: number }[],
-    clients: [] as { rank: number; name: string; returns: number; trend: number }[],
-    reasons: occurrencesData.map((d, i) => ({
-      rank: i + 1,
-      reason: d.reason,
-      count: d.count,
-      percentage: d.percentage,
-    })),
-  }), [occurrencesData]);
+  // Top offenders data: regioes da roteirizacao com mais atrasos/ocorrencias e
+  // clientes com mais devolucoes, ambos com tendencia vs periodo anterior
+  const topOffendersData = useMemo(() => {
+    const countReturns = (list: typeof filteredInvoices) => {
+      const counts = new Map<string, number>();
+      list.forEach(inv => {
+        if (isReturnedStatus(inv.status) || inv.status === 'occurrence') {
+          counts.set(inv.recipient_name, (counts.get(inv.recipient_name) || 0) + 1);
+        }
+      });
+      return counts;
+    };
+    const currentReturns = countReturns(filteredInvoices);
+    const previousReturns = countReturns(previousInvoices);
+
+    return {
+      routes: rankRegionsByDelay(filteredInvoices, previousInvoices, manifestsById).map(r => ({
+        rank: r.rank,
+        name: r.region,
+        delays: r.delays,
+        occurrences: r.occurrences,
+        trend: r.trend,
+      })),
+      clients: Array.from(currentReturns.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+        .slice(0, 5)
+        .map(([name, returns], i) => ({
+          rank: i + 1,
+          name,
+          returns,
+          trend: Math.round(percentChange(returns, previousReturns.get(name) || 0)),
+        })),
+      reasons: occurrencesData.map((d, i) => ({
+        rank: i + 1,
+        reason: d.reason,
+        count: d.count,
+        percentage: d.percentage,
+      })),
+    };
+  }, [filteredInvoices, previousInvoices, manifestsById, occurrencesData]);
 
   // Charts data (only issues now, SLA has its own component)
   const chartsIssuesData = useMemo(() => occurrencesData, [occurrencesData]);
@@ -276,12 +337,11 @@ export default function ReportsPage() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 setIsLoading(true);
-                setTimeout(() => {
-                  setIsLoading(false);
-                  toast({ title: "Dados atualizados" });
-                }, 800);
+                await Promise.all([refetchInvoices(), fetchManifests()]);
+                setIsLoading(false);
+                toast({ title: "Dados atualizados" });
               }}
               disabled={isLoading}
             >
@@ -303,6 +363,7 @@ export default function ReportsPage() {
         {/* Sticky Filters */}
         <ReportsFilters
           filters={filters}
+          options={filterOptions}
           onFiltersChange={handleFiltersChange}
           onClearFilters={handleClearFilters}
         />
@@ -350,7 +411,7 @@ export default function ReportsPage() {
 
             {/* SLA Evolution Chart */}
             <SLAEvolutionChart
-              invoices={invoices}
+              invoices={entityFilteredInvoices}
               dateRange={filters.dateRange}
               isLoading={isLoading}
               detailedAllowed={slaAccess.allowed}
@@ -367,15 +428,15 @@ export default function ReportsPage() {
             {/* Top Offenders */}
             <TopOffenders 
               data={topOffendersData}
-              onRouteClick={(route) => toast({ title: `Navegando para rota: ${route}` })}
-              onClientClick={(client) => toast({ title: `Navegando para cliente: ${client}` })}
+              onRouteClick={(route) => handleFiltersChange({ ...filters, route })}
+              onClientClick={(client) => handleFiltersChange({ ...filters, client })}
             />
           </TabsContent>
 
           {/* Regional Efficiency Tab */}
           <TabsContent value="regional" className="mt-0">
             <RegionalEfficiencyDashboard 
-              invoices={invoices.map(inv => ({
+              invoices={filteredInvoices.map(inv => ({
                 id: inv.id,
                 status: inv.status,
                 regiao_logistica: inv.regiao_logistica,
@@ -404,6 +465,7 @@ export default function ReportsPage() {
           open={drilldownOpen}
           onOpenChange={setDrilldownOpen}
           kpiType={drilldownType}
+          invoices={filteredInvoices}
         />
 
         {/* Export Dialog */}

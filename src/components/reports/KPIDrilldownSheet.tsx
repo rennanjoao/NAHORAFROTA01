@@ -21,7 +21,8 @@ import { Download, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
-import { useInvoicesDB } from "@/hooks/useInvoicesDB";
+import type { DBInvoice } from "@/hooks/useInvoicesDB";
+import { hasOccurrence, isDeliveredStatus, isReturnedStatus } from "@/lib/reportFilters";
 import { useEffect, useMemo, useState } from "react";
 
 export type DrilldownType = "sla" | "ontime" | "delayed" | "returns" | "cost" | "volume";
@@ -30,6 +31,8 @@ interface KPIDrilldownSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   kpiType: DrilldownType | null;
+  /** NFs ja filtradas pelos filtros da tela de Relatorios. */
+  invoices: DBInvoice[];
 }
 
 const configs: Record<DrilldownType, { title: string; description: string }> = {
@@ -59,8 +62,7 @@ const configs: Record<DrilldownType, { title: string; description: string }> = {
   },
 };
 
-export function KPIDrilldownSheet({ open, onOpenChange, kpiType }: KPIDrilldownSheetProps) {
-  const { invoices } = useInvoicesDB();
+export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPIDrilldownSheetProps) {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
@@ -73,20 +75,14 @@ export function KPIDrilldownSheet({ open, onOpenChange, kpiType }: KPIDrilldownS
     switch (kpiType) {
       case "sla":
         return invoices.filter(
-          (inv) =>
-            inv.status === "entregue" ||
-            inv.status === "delivered" ||
-            inv.status === "occurrence" ||
-            inv.status === "devolvido"
+          (inv) => isDeliveredStatus(inv.status) || inv.status === "occurrence" || isReturnedStatus(inv.status)
         );
       case "ontime":
-        return invoices.filter(
-          (inv) => inv.status === "entregue" || inv.status === "delivered"
-        );
+        return invoices.filter((inv) => isDeliveredStatus(inv.status));
       case "delayed":
-        return invoices.filter((inv) => !!inv.occurrence_type);
+        return invoices.filter((inv) => hasOccurrence(inv));
       case "returns":
-        return invoices.filter((inv) => inv.status === "devolvido");
+        return invoices.filter((inv) => isReturnedStatus(inv.status));
       case "cost":
       case "volume":
       default:

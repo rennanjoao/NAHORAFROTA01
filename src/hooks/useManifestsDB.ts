@@ -1,6 +1,7 @@
  // Hook for manifest database operations with realtime sync
  import { useState, useEffect, useCallback, useMemo } from "react";
  import { supabase } from "@/integrations/supabase/client";
+ import { fetchAllPages } from "@/lib/supabasePaging";
  import { toast } from "@/hooks/use-toast";
  import { getTodayBrazil } from "@/lib/timezone";
  import { getCurrentTenantId } from "@/lib/tenant";
@@ -80,13 +81,16 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
          return;
        }
 
-       const { data, error: fetchError } = await supabase
-         .from("manifests")
-         .select("*")
-         .eq("tenant_id", tenantId)
-         .order("created_at", { ascending: false });
- 
-       if (fetchError) throw fetchError;
+       // Paginado: o Supabase devolve no maximo 1000 linhas por requisicao
+       const data = await fetchAllPages((from, to) =>
+         supabase
+           .from("manifests")
+           .select("*")
+           .eq("tenant_id", tenantId)
+           .order("created_at", { ascending: false })
+           .order("id", { ascending: true })
+           .range(from, to)
+       );
        setManifests((data as DBManifest[]) || []);
      } catch (err: any) {
        setError(err.message);
