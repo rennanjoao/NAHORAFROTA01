@@ -40,7 +40,8 @@ Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o fronte
 1. Aplique a migration `supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql`
    (trial de 7 dias, funil, avisos de cobranca, chegada por raio, auto-finalizacao de
    romaneio e permissoes). Ela e idempotente.
-2. Publique as edge functions alteradas/novas: `register-tenant` e `send-driver-credentials`.
+2. Publique as edge functions alteradas/novas: `register-tenant`, `create-user` e
+   `send-driver-credentials`.
 3. Configure os segredos das functions (Supabase > Edge Functions > Secrets) para o e-mail
    de dados de acesso do motorista:
    - `RESEND_API_KEY`: chave da API do [Resend](https://resend.com)
@@ -49,6 +50,12 @@ Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o fronte
 
    Sem esses segredos o cadastro do motorista funciona normalmente e o painel avisa que o
    e-mail nao foi enviado.
+
+Para conferir as regras em um Postgres local descartavel (nunca em producao):
+
+```sh
+PGURL=postgres://postgres@localhost:5432/postgres ./supabase/tests/run.sh
+```
 
 Regras de acesso aplicadas pelo banco:
 
