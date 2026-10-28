@@ -1,5 +1,4 @@
 ﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -8,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Palette, Shield, User, Save, Globe, Clock, Building2, Users, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { Bell, Palette, Shield, User, Save, Globe, Clock, Building2, Users, Eye, EyeOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { CompanySettingsTab } from "@/components/settings/CompanySettingsTab";
+import { UserHierarchyTab } from "@/components/settings/UserHierarchyTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -22,7 +22,6 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function SettingsPage() {
-  const navigate = useNavigate();
   const { user, profile: authProfile, roles } = useAuth();
   const [notifications, setNotifications] = useState({
     email: true,
@@ -155,29 +154,9 @@ export default function SettingsPage() {
             <CompanySettingsTab />
           </TabsContent>
 
-          {/* Users Tab */}
+          {/* Users Tab: hierarquia de acesso */}
           <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Gestão de Usuários
-                </CardTitle>
-                <CardDescription>
-                  Gerencie os usuários e permissões da sua empresa na Área Administrativa
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center py-8">
-                <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground mb-4">
-                  A gestão de usuários foi movida para a área Administrativa para maior segurança e isolamento de dados.
-                </p>
-                <Button onClick={() => navigate("/admin")} className="gap-2">
-                  <ExternalLink className="h-4 w-4" />
-                  Ir para Gestão de Usuários
-                </Button>
-              </CardContent>
-            </Card>
+            <UserHierarchyTab />
           </TabsContent>
 
           {/* Profile Tab */}

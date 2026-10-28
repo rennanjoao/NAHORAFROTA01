@@ -4,11 +4,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Save, MapPin, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Building2, Save, MapPin, CheckCircle2, AlertCircle, Loader2, Lock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatCNPJ, validateCNPJ, formatPhone, formatCEP } from "@/lib/cnpjValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantData } from "@/hooks/useTenantData";
+import { useAuth } from "@/contexts/AuthContext";
 
 const UF_OPTIONS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -18,6 +19,9 @@ const UF_OPTIONS = [
 
 export function CompanySettingsTab() {
   const { tenant, isLoading: tenantLoading, updateTenant } = useTenantData();
+  // Somente o Administrador altera os dados da empresa (regra tambem no banco).
+  const { isAdmin } = useAuth();
+  const canEdit = isAdmin();
 
   const [razaoSocial, setRazaoSocial] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -139,7 +143,14 @@ export function CompanySettingsTab() {
           Configure os dados cadastrais e endereço base para roteirização
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent>
+        {!canEdit && (
+          <div className="mb-6 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4 shrink-0" />
+            Somente o Administrador da conta pode alterar os dados da empresa.
+          </div>
+        )}
+        <fieldset disabled={!canEdit} className="space-y-6 min-w-0">
         {/* Dados Cadastrais */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Dados Cadastrais</h4>
@@ -225,10 +236,13 @@ export function CompanySettingsTab() {
           )}
         </div>
 
-        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
-          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {isSaving ? "Salvando..." : "Salvar Dados da Empresa"}
-        </Button>
+        {canEdit && (
+          <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isSaving ? "Salvando..." : "Salvar Dados da Empresa"}
+          </Button>
+        )}
+        </fieldset>
       </CardContent>
     </Card>
   );
