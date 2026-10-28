@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { getTodayBrazil } from "@/lib/timezone";
+import { formatDateOnly, getTodayBrazil, parseDateOnly } from "@/lib/timezone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,21 +111,15 @@ export function ManifestsTabDB() {
 
   // Stats
   const stats = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const todayManifests = manifests.filter((m) => {
-      const d = new Date(m.scheduled_date);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() === today.getTime();
-    });
-
-    const weekStart = new Date(today);
+    const todayStr = getTodayBrazil();
+    const weekStart = parseDateOnly(todayStr)!;
     weekStart.setDate(weekStart.getDate() - 7);
+    const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
 
+    const todayManifests = manifests.filter((m) => m.scheduled_date?.slice(0, 10) === todayStr);
     const weekManifests = manifests.filter((m) => {
-      const d = new Date(m.scheduled_date);
-      return d >= weekStart;
+      const day = m.scheduled_date?.slice(0, 10) || "";
+      return day >= weekStartStr && day <= todayStr;
     });
 
     return {
@@ -150,35 +144,28 @@ export function ManifestsTabDB() {
 
   const handleDelete = async (manifestId: string) => {
     try {
-      // First, unlink all invoices from this manifest
-      await supabase
-        .from("invoices")
-        .update({
-          manifest_id: null,
-          driver_id: null,
-          status: "pending",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("manifest_id", manifestId);
-
-      // Then delete the manifest
-      const { error } = await supabase
-        .from("manifests")
-        .delete()
-        .eq("id", manifestId);
-
+      const { data, error } = await supabase.rpc("delete_manifest", { p_manifest_id: manifestId });
       if (error) throw error;
 
+      const result = data as { success: boolean; error?: string; reopened_count?: number; kept_count?: number } | null;
+      if (!result?.success) throw new Error(result?.error || "Não foi possível excluir o romaneio.");
+
+      const reopened = result.reopened_count ?? 0;
+      const kept = result.kept_count ?? 0;
       toast({
         title: "✅ Romaneio excluído",
-        description: "As NFs voltaram para pendente.",
+        description:
+          kept > 0
+            ? `${reopened} NF(s) voltaram para pendente; ${kept} já finalizada(s) mantiveram o status.`
+            : `${reopened} NF(s) voltaram para pendente.`,
       });
 
       setIsDeleteOpen(false);
       setSelectedManifest(null);
+      void fetchManifests();
     } catch (err: any) {
       toast({
-        title: "Erro",
+        title: "Erro ao excluir",
         description: err.message,
         variant: "destructive",
       });
@@ -363,9 +350,7 @@ export function ManifestsTabDB() {
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">
-                      {new Date(manifest.scheduled_date).toLocaleDateString(
-                        "pt-BR"
-                      )}
+                      {formatDateOnly(manifest.scheduled_date)}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(manifest.created_at).toLocaleTimeString("pt-BR", {
@@ -474,11 +459,13 @@ export function ManifestsTabDB() {
           selectedManifest?.status !== "completed" &&
           selectedManifest?.status !== "paid"
         }
+        hardBlocked={selectedManifest?.status === "paid"}
         blockReason={
-          selectedManifest?.status === "completed" ||
           selectedManifest?.status === "paid"
-            ? "Romaneios finalizados ou pagos não podem ser excluídos."
-            : undefined
+            ? "Romaneio pago não pode ser excluído. Estorne o pagamento no Acerto antes."
+            : selectedManifest?.status === "completed"
+              ? "Romaneios finalizados só podem ser excluídos com a senha de supervisor."
+              : undefined
         }
       />
     </div>

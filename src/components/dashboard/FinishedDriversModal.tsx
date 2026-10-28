@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { FinishedDriverData, DashboardInvoice } from "@/hooks/useDashboardKPIs";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { cn } from "@/lib/utils";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface FinishedDriversModalProps {
   open: boolean;
@@ -43,7 +44,7 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
 
   const handleWhatsApp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    openWhatsApp(cleanPhone);
   };
 
   const handleClose = () => {

@@ -1,7 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueChannelName } from "@/lib/realtime";
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveDriverForUser } from '@/lib/driverIdentity';
+
+const FINISHED_STATUSES = new Set(['delivered', 'returned', 'occurrence']);
+
+function sortByRouteOrder<T extends { status: string; route_sequence?: number | null; nfe_number?: string | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const finishedA = FINISHED_STATUSES.has(a.status) ? 1 : 0;
+    const finishedB = FINISHED_STATUSES.has(b.status) ? 1 : 0;
+    if (finishedA !== finishedB) return finishedA - finishedB;
+    const seqA = a.route_sequence ?? Number.MAX_SAFE_INTEGER;
+    const seqB = b.route_sequence ?? Number.MAX_SAFE_INTEGER;
+    if (seqA !== seqB) return seqA - seqB;
+    return String(a.nfe_number || '').localeCompare(String(b.nfe_number || ''), 'pt-BR', { numeric: true });
+  });
+}
 
 export interface DriverDelivery {
   id: string;
@@ -98,12 +113,11 @@ export function useDriverManifest(): UseDriverManifestReturn {
           supabase
             .from('invoices')
             .select(columns)
-            .eq('manifest_id', manifestData.id)
-            .order('status', { ascending: true }); // Pendentes primeiro
+            .eq('manifest_id', manifestData.id);
 
-        let { data: invoicesData, error: invoicesError } = await fetchInvoices(`${baseColumns}, arrived_at`);
+        let { data: invoicesData, error: invoicesError } = await fetchInvoices(`${baseColumns}, arrived_at, route_sequence`);
 
-        // Banco ainda sem a coluna arrived_at (migration pendente): segue sem ela.
+        // Banco ainda sem arrived_at/route_sequence (migration pendente): segue sem elas.
         if (invoicesError?.code === '42703') {
           ({ data: invoicesData, error: invoicesError } = await fetchInvoices(baseColumns));
         }
@@ -111,9 +125,13 @@ export function useDriverManifest(): UseDriverManifestReturn {
         if (invoicesError) throw invoicesError;
 
         // Show ALL invoices in this manifest - no date or occurrence filtering
+        // Abertas primeiro, na ordem da roteirizacao; finalizadas no fim.
+        // (Antes ordenava por status em ordem alfabetica: "delivered" vinha primeiro.)
         setDeliveries(
-          ((invoicesData || []) as unknown as Array<Omit<DriverDelivery, 'arrived_at'> & { arrived_at?: string | null }>)
-            .map(invoice => ({ ...invoice, arrived_at: invoice.arrived_at ?? null }))
+          sortByRouteOrder(
+            ((invoicesData || []) as unknown as Array<Omit<DriverDelivery, 'arrived_at'> & { arrived_at?: string | null; route_sequence?: number | null }>)
+              .map(invoice => ({ ...invoice, arrived_at: invoice.arrived_at ?? null }))
+          )
         );
       } else {
         setDeliveries([]);
@@ -172,7 +190,7 @@ export function useDriverManifest(): UseDriverManifestReturn {
 
       // Subscribe to manifest changes for this driver
       const channel = supabase
-        .channel('driver-manifest-updates')
+        .channel(uniqueChannelName("driver-manifest-updates"))
         .on(
           'postgres_changes',
           {
@@ -206,7 +224,7 @@ export function useDriverManifest(): UseDriverManifestReturn {
     if (!manifest?.id) return;
 
     const channel = supabase
-      .channel('driver-invoice-changes')
+      .channel(uniqueChannelName("driver-invoice-changes"))
       .on(
         'postgres_changes',
         {

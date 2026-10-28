@@ -125,7 +125,17 @@ export function EditDeliveryDialog({
       lastUpdatedAt: new Date(),
     } as Delivery;
 
-    await onSave(updatedDelivery);
+    try {
+      await onSave(updatedDelivery);
+    } catch (error) {
+      setIsSaving(false);
+      toast({
+        title: "Erro ao salvar",
+        description: error instanceof Error ? error.message : "Não foi possível atualizar a entrega.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSaving(false);
     onOpenChange(false);
 
@@ -139,7 +149,6 @@ export function EditDeliveryDialog({
     if (!delivery) return;
 
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     let updatedDelivery = { ...delivery, ...formData };
 
@@ -197,7 +206,17 @@ export function EditDeliveryDialog({
       };
     }
 
-    await onSave(updatedDelivery as Delivery);
+    try {
+      await onSave(updatedDelivery as Delivery);
+    } catch (error) {
+      setIsSaving(false);
+      toast({
+        title: "Erro ao salvar",
+        description: error instanceof Error ? error.message : "Não foi possível atualizar a entrega.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSaving(false);
     onOpenChange(false);
 
@@ -374,17 +393,6 @@ export function EditDeliveryDialog({
                 placeholder="R$ 0,00"
               />
             </div>
-          </div>
-
-          {/* Scheduled Time */}
-          <div className="space-y-2">
-            <Label htmlFor="scheduledTime">Horário Agendado</Label>
-            <Input
-              id="scheduledTime"
-              type="time"
-              value={formData.scheduledTime || ""}
-              onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
-            />
           </div>
 
           {/* Observation */}

@@ -1,6 +1,7 @@
  // Hook for settlement database operations with realtime sync
  import { useState, useEffect, useCallback, useMemo } from "react";
  import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
  import { toast } from "@/hooks/use-toast";
  import { getCurrentTenantId, requireCurrentTenantId } from "@/lib/tenant";
  
@@ -99,7 +100,7 @@
      fetchSettlements();
  
      const channel = supabase
-       .channel("settlements-realtime")
+       .channel(uniqueChannelName("settlements-realtime"))
        .on(
          "postgres_changes",
          { event: "*", schema: "public", table: "settlements" },

@@ -67,7 +67,7 @@ export function NotificationDropdown() {
       
       <DropdownMenuContent 
         align="end" 
-        className="w-80 bg-popover border border-border shadow-lg z-50"
+        className="w-80 bg-popover border border-border shadow-lg"
         sideOffset={8}
       >
         <DropdownMenuLabel className="flex items-center justify-between py-3">

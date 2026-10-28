@@ -1,7 +1,9 @@
  // Hook for manifest database operations with realtime sync
  import { useState, useEffect, useCallback, useMemo } from "react";
  import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
  import { fetchAllPages } from "@/lib/supabasePaging";
+import { recalculateManifestTotals } from "@/lib/manifestTotals";
  import { toast } from "@/hooks/use-toast";
  import { getTodayBrazil } from "@/lib/timezone";
  import { getCurrentTenantId } from "@/lib/tenant";
@@ -104,7 +106,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
      fetchManifests();
  
      const channel = supabase
-       .channel("manifests-realtime")
+       .channel(uniqueChannelName("manifests-realtime"))
        .on(
          "postgres_changes",
          { event: "*", schema: "public", table: "manifests" },
@@ -127,6 +129,12 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
      };
    }, [fetchManifests]);
  
+  const fetchManifestById = async (manifestId: string): Promise<DBManifest | null> => {
+    const { data, error: fetchError } = await supabase.from("manifests").select("*").eq("id", manifestId).maybeSingle();
+    if (fetchError) throw fetchError;
+    return (data as DBManifest | null) ?? null;
+  };
+
   // Create new manifest using transactional RPC function
   // This ensures atomicity: either everything succeeds or nothing changes
   const createManifest = async (input: CreateManifestInput, invoiceIds: string[]): Promise<DBManifest | null> => {
@@ -272,7 +280,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
   ): Promise<boolean> => {
     try {
       // 1. Get current manifest data
-      const manifest = manifests.find((m) => m.id === manifestId);
+      const manifest = manifests.find((m) => m.id === manifestId) ?? (await fetchManifestById(manifestId));
       if (!manifest) throw new Error("Romaneio não encontrado");
 
       // 2. Get invoice data for audit log
@@ -302,31 +310,10 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
 
       if (invoiceError) throw invoiceError;
 
-      // 5. Get remaining invoices to recalculate totals
-      const { data: remainingInvoices, error: fetchError } = await supabase
-        .from("invoices")
-        .select("total_value, total_weight")
-        .eq("manifest_id", manifestId);
-
-      if (fetchError) throw fetchError;
-
-      // 6. Calculate new totals
-      const newDeliveriesCount = remainingInvoices?.length || 0;
-      const newTotalValue = remainingInvoices?.reduce((sum, inv) => sum + (inv.total_value || 0), 0) || 0;
-      const newTotalWeight = remainingInvoices?.reduce((sum, inv) => sum + (inv.total_weight || 0), 0) || 0;
-
-      // 7. Update manifest totals
-      const { error: manifestError } = await supabase
-        .from("manifests")
-        .update({
-          deliveries_count: newDeliveriesCount,
-          total_value: newTotalValue,
-          total_weight: newTotalWeight,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", manifestId);
-
-      if (manifestError) throw manifestError;
+      // 5-7. Recalculate manifest totals from the invoices still linked
+      if (!(await updateManifestTotals(manifestId))) {
+        throw new Error("NF removida, mas os totais do romaneio não foram recalculados.");
+      }
 
       // 8. Create audit log entry with user's full name and reason
       const removalReason = reason || "Remoção manual do romaneio";
@@ -359,6 +346,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
         description: `A nota foi desvinculada e voltou para pendente.`,
       });
 
+      void fetchManifests();
       return true;
     } catch (err: any) {
       toast({
@@ -370,39 +358,8 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
     }
   };
 
-  // Update manifest totals (called when invoices change)
-  const updateManifestTotals = async (manifestId: string): Promise<boolean> => {
-    try {
-      // Get all invoices linked to this manifest
-      const { data: invoices, error: fetchError } = await supabase
-        .from("invoices")
-        .select("total_value, total_weight")
-        .eq("manifest_id", manifestId);
-
-      if (fetchError) throw fetchError;
-
-      const deliveriesCount = invoices?.length || 0;
-      const totalValue = invoices?.reduce((sum, inv) => sum + (inv.total_value || 0), 0) || 0;
-      const totalWeight = invoices?.reduce((sum, inv) => sum + (inv.total_weight || 0), 0) || 0;
-
-      const { error: updateError } = await supabase
-        .from("manifests")
-        .update({
-          deliveries_count: deliveriesCount,
-          total_value: totalValue,
-          total_weight: totalWeight,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", manifestId);
-
-      if (updateError) throw updateError;
-
-      return true;
-    } catch (err: any) {
-      console.error("Error updating manifest totals:", err);
-      return false;
-    }
-  };
+  // Recalcula quantidade, valor e peso (e o frete fixo por NF) pelas NFs vinculadas.
+  const updateManifestTotals = (manifestId: string): Promise<boolean> => recalculateManifestTotals(manifestId);
 
   // Get current user's full name from profiles
   const getCurrentUserFullName = async (): Promise<string> => {
@@ -429,8 +386,9 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
     invoiceId: string
   ): Promise<boolean> => {
     try {
-      // 1. Verify manifest exists and is in an active status
-      const manifest = manifests.find((m) => m.id === manifestId);
+      // 1. Verify manifest exists and is in an active status (status atual do banco:
+      // o romaneio pode ter sido finalizado sozinho depois que a lista carregou)
+      const manifest = await fetchManifestById(manifestId);
       if (!manifest) {
         throw new Error("Romaneio não encontrado");
       }
@@ -472,21 +430,10 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       if (updateError) throw updateError;
 
       // 5. Update manifest totals
-      const newDeliveriesCount = manifest.deliveries_count + 1;
-      const newTotalValue = (manifest.total_value || 0) + (invoice.total_value || 0);
-      const newTotalWeight = (manifest.total_weight || 0) + (invoice.total_weight || 0);
-
-      const { error: manifestError } = await supabase
-        .from("manifests")
-        .update({
-          deliveries_count: newDeliveriesCount,
-          total_value: newTotalValue,
-          total_weight: newTotalWeight,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", manifestId);
-
-      if (manifestError) throw manifestError;
+      if (!(await updateManifestTotals(manifestId))) {
+        throw new Error("NF vinculada, mas os totais do romaneio não foram recalculados.");
+      }
+      const newTotalValue = (Number(manifest.total_value) || 0) + (invoice.total_value || 0);
 
       // 6. Create audit log entry with user's full name
       const manifestDisplayNumber = formatManifestNumber(manifest);
@@ -520,6 +467,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
         description: `A nota foi vinculada ao Romaneio nº ${manifestDisplayNumber}.`,
       });
 
+      void fetchManifests();
       return true;
     } catch (err: any) {
       toast({

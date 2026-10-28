@@ -138,7 +138,16 @@ BEGIN
   LIMIT 1;
 
   IF NOT public.is_platform_admin(v_caller) THEN
-    IF v_tenant_id IS NULL OR NOT public.can_admin_tenant(v_tenant_id, v_caller) THEN
+    -- Login do app (sem papel de equipe): o Gestor de Frota tambem pode remover,
+    -- como faz com o cadastro do motorista.
+    IF v_tenant_id IS NULL OR NOT (
+      public.can_admin_tenant(v_tenant_id, v_caller)
+      OR (
+        NOT public.is_staff_role(p_user_id)
+        AND public.can_manage_tenant(v_tenant_id, v_caller)
+        AND public.has_role(v_caller, 'fleet_manager'::public.app_role)
+      )
+    ) THEN
       RETURN json_build_object('success', false, 'error', 'Apenas o Administrador da empresa pode remover usuarios.');
     END IF;
     IF public.is_platform_admin(p_user_id) THEN
@@ -464,3 +473,298 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.set_user_role(uuid, public.app_role) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.set_user_role(uuid, public.app_role) TO authenticated, service_role;
+
+-- ============================================================================
+-- 8. Textos importados do XML gravados com entidades HTML ("&amp;")
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION pg_temp.decode_html_entities(p text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT replace(replace(replace(replace(replace(replace(p,
+    '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&#39;', ''''), '&apos;', ''''), '&amp;', '&')
+$$;
+
+-- Correcao de texto nao conta como alteracao da NF (updated_at e a data da ocorrencia nos relatorios).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'public.invoices'::regclass AND tgname = 'update_invoices_updated_at') THEN
+    ALTER TABLE public.invoices DISABLE TRIGGER update_invoices_updated_at;
+  END IF;
+END $$;
+
+UPDATE public.invoices
+SET recipient_name = pg_temp.decode_html_entities(recipient_name),
+    address_street = pg_temp.decode_html_entities(address_street),
+    address_neighborhood = pg_temp.decode_html_entities(address_neighborhood),
+    address_city = pg_temp.decode_html_entities(address_city),
+    address_full = pg_temp.decode_html_entities(address_full)
+WHERE recipient_name ~ '&(amp|lt|gt|quot|apos|#39);'
+   OR address_street ~ '&(amp|lt|gt|quot|apos|#39);'
+   OR address_neighborhood ~ '&(amp|lt|gt|quot|apos|#39);'
+   OR address_city ~ '&(amp|lt|gt|quot|apos|#39);'
+   OR address_full ~ '&(amp|lt|gt|quot|apos|#39);';
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'public.invoices'::regclass AND tgname = 'update_invoices_updated_at') THEN
+    ALTER TABLE public.invoices ENABLE TRIGGER update_invoices_updated_at;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- 9. driver_documents com as colunas que o painel grava
+-- ============================================================================
+
+-- Bancos criados antes de 20260428103000 completa tinham a tabela sem estas
+-- colunas e o envio do documento falhava (PGRST204).
+DO $$
+BEGIN
+  IF to_regclass('public.driver_documents') IS NOT NULL THEN
+    ALTER TABLE public.driver_documents
+      ADD COLUMN IF NOT EXISTS mime_type text,
+      ADD COLUMN IF NOT EXISTS file_size bigint,
+      ADD COLUMN IF NOT EXISTS uploaded_by uuid DEFAULT auth.uid(),
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'public.driver_documents'::regclass
+        AND contype = 'u'
+        AND pg_get_constraintdef(oid) = 'UNIQUE (driver_id, document_type)'
+    ) THEN
+      DELETE FROM public.driver_documents a
+      USING public.driver_documents b
+      WHERE a.driver_id = b.driver_id
+        AND a.document_type = b.document_type
+        AND a.created_at < b.created_at;
+      ALTER TABLE public.driver_documents
+        ADD CONSTRAINT driver_documents_driver_id_document_type_key UNIQUE (driver_id, document_type);
+    END IF;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- 10. Ordem das paradas calculada na roteirizacao
+-- ============================================================================
+
+-- A roteirizacao calculava a melhor sequencia, mas ela nao era gravada: o app do
+-- motorista e a impressao mostravam as NFs em outra ordem.
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS route_sequence integer;
+
+CREATE OR REPLACE FUNCTION public.set_manifest_route_order(p_manifest_id uuid, p_invoice_ids uuid[])
+RETURNS integer
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  WITH ordered AS (
+    SELECT t.id, t.ord::integer AS ord
+    FROM unnest(p_invoice_ids) WITH ORDINALITY AS t(id, ord)
+  ),
+  updated AS (
+    UPDATE public.invoices i
+    SET route_sequence = o.ord
+    FROM ordered o
+    WHERE i.id = o.id
+      AND i.manifest_id = p_manifest_id
+    RETURNING 1
+  )
+  SELECT count(*)::integer FROM updated
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_manifest_route_order(uuid, uuid[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.set_manifest_route_order(uuid, uuid[]) TO authenticated, service_role;
+
+-- ============================================================================
+-- 11. Finalizar romaneio pelo painel em uma unica operacao, com checagens
+-- ============================================================================
+
+-- Antes o painel atualizava tudo direto e sem conferir o estado atual: podia
+-- "finalizar" romaneio ja pago, deixar NFs em rota presas num romaneio fechado e
+-- liberar motorista que ainda tinha outro romaneio aberto.
+CREATE OR REPLACE FUNCTION public.finalize_manifest(p_manifest_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_manifest public.manifests%ROWTYPE;
+  v_open integer;
+  v_delivered integer;
+  v_returned integer;
+BEGIN
+  SELECT * INTO v_manifest
+  FROM public.manifests
+  WHERE id = p_manifest_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'Romaneio nao encontrado.');
+  END IF;
+
+  IF NOT (public.can_manage_tenant(v_manifest.tenant_id, auth.uid()) OR public.is_platform_admin(auth.uid())) THEN
+    RETURN json_build_object('success', false, 'error', 'Sem permissao para finalizar este romaneio.');
+  END IF;
+
+  IF v_manifest.status IN ('paid', 'cancelled') THEN
+    RETURN json_build_object('success', false, 'error',
+      CASE WHEN v_manifest.status = 'paid' THEN 'Romaneio ja pago no acerto.' ELSE 'Romaneio cancelado.' END);
+  END IF;
+
+  IF v_manifest.status = 'completed' THEN
+    RETURN json_build_object('success', true, 'already_completed', true);
+  END IF;
+
+  SELECT
+    COUNT(*) FILTER (WHERE status IN ('pending', 'in_transit', 'delayed', 'returning')),
+    COUNT(*) FILTER (WHERE status = 'delivered')
+  INTO v_open, v_delivered
+  FROM public.invoices
+  WHERE manifest_id = p_manifest_id;
+
+  IF v_open > 0 THEN
+    RETURN json_build_object('success', false, 'error',
+      v_open || ' NF(s) ainda em rota. Registre a entrega ou a ocorrencia antes de finalizar.',
+      'open_count', v_open);
+  END IF;
+
+  -- NFs com ocorrencia voltam para a roteirizacao como "Devolvido".
+  WITH returned AS (
+    UPDATE public.invoices
+    SET status = 'returned',
+        manifest_id = NULL,
+        driver_id = NULL,
+        route_sequence = NULL,
+        updated_at = now()
+    WHERE manifest_id = p_manifest_id
+      AND status IN ('occurrence', 'returned')
+    RETURNING 1
+  )
+  SELECT COUNT(*) INTO v_returned FROM returned;
+
+  UPDATE public.manifests
+  SET status = 'completed',
+      had_occurrence = had_occurrence OR v_returned > 0,
+      updated_at = now()
+  WHERE id = p_manifest_id;
+
+  IF v_manifest.driver_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.manifests m
+    WHERE m.driver_id = v_manifest.driver_id
+      AND m.id <> p_manifest_id
+      AND m.status NOT IN ('completed', 'paid', 'cancelled')
+  ) THEN
+    UPDATE public.drivers
+    SET status = 'active', updated_at = now()
+    WHERE id = v_manifest.driver_id
+      AND status = 'in_route';
+  END IF;
+
+  IF v_manifest.company_vehicle_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.manifests m
+    WHERE m.company_vehicle_id = v_manifest.company_vehicle_id
+      AND m.id <> p_manifest_id
+      AND m.status NOT IN ('completed', 'paid', 'cancelled')
+  ) THEN
+    UPDATE public.company_vehicles
+    SET status = 'available', updated_at = now()
+    WHERE id = v_manifest.company_vehicle_id;
+  END IF;
+
+  RETURN json_build_object('success', true, 'delivered_count', v_delivered, 'returned_count', v_returned);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.finalize_manifest(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.finalize_manifest(uuid) TO authenticated, service_role;
+
+-- ============================================================================
+-- 12. Excluir romaneio sem desfazer entregas ja feitas
+-- ============================================================================
+
+-- Antes todas as NFs voltavam para "pendente" (inclusive as entregues) e o
+-- motorista/veiculo ficavam presos como "em rota". Romaneio pago nao se exclui:
+-- o pagamento precisa ser estornado no Acerto antes.
+CREATE OR REPLACE FUNCTION public.delete_manifest(p_manifest_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_manifest public.manifests%ROWTYPE;
+  v_reopened integer;
+  v_kept integer;
+BEGIN
+  SELECT * INTO v_manifest FROM public.manifests WHERE id = p_manifest_id FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'Romaneio nao encontrado.');
+  END IF;
+
+  IF NOT (public.can_manage_tenant(v_manifest.tenant_id, auth.uid()) OR public.is_platform_admin(auth.uid())) THEN
+    RETURN json_build_object('success', false, 'error', 'Sem permissao para excluir este romaneio.');
+  END IF;
+
+  IF v_manifest.status = 'paid' THEN
+    RETURN json_build_object('success', false, 'error', 'Romaneio pago nao pode ser excluido. Estorne o pagamento no Acerto antes.');
+  END IF;
+
+  -- NFs ainda abertas voltam para a roteirizacao.
+  WITH reopened AS (
+    UPDATE public.invoices
+    SET status = 'pending',
+        manifest_id = NULL,
+        driver_id = NULL,
+        route_sequence = NULL,
+        updated_at = now()
+    WHERE manifest_id = p_manifest_id
+      AND status NOT IN ('delivered', 'returned')
+    RETURNING 1
+  )
+  SELECT COUNT(*) INTO v_reopened FROM reopened;
+
+  -- Entregues/devolvidas mantem status e motorista (historico e SLA).
+  WITH kept AS (
+    UPDATE public.invoices
+    SET manifest_id = NULL,
+        route_sequence = NULL,
+        updated_at = now()
+    WHERE manifest_id = p_manifest_id
+    RETURNING 1
+  )
+  SELECT COUNT(*) INTO v_kept FROM kept;
+
+  DELETE FROM public.manifests WHERE id = p_manifest_id;
+
+  IF v_manifest.driver_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.manifests m
+    WHERE m.driver_id = v_manifest.driver_id
+      AND m.status NOT IN ('completed', 'paid', 'cancelled')
+  ) THEN
+    UPDATE public.drivers
+    SET status = 'active', updated_at = now()
+    WHERE id = v_manifest.driver_id
+      AND status = 'in_route';
+  END IF;
+
+  IF v_manifest.company_vehicle_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.manifests m
+    WHERE m.company_vehicle_id = v_manifest.company_vehicle_id
+      AND m.status NOT IN ('completed', 'paid', 'cancelled')
+  ) THEN
+    UPDATE public.company_vehicles
+    SET status = 'available', updated_at = now()
+    WHERE id = v_manifest.company_vehicle_id;
+  END IF;
+
+  RETURN json_build_object('success', true, 'reopened_count', v_reopened, 'kept_count', v_kept);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.delete_manifest(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_manifest(uuid) TO authenticated, service_role;

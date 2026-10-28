@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 
 interface Invoice {
   id: string;
@@ -104,7 +105,7 @@ export function DeliveryStatus() {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel('delivery-status')
+      .channel(uniqueChannelName("delivery-status"))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'invoices' },

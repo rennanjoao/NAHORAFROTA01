@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { endOfDay, format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useInvoicesDB } from "@/hooks/useInvoicesDB";
+import { getInvoiceEventDate } from "@/lib/reportFilters";
 import { useManifestsDB, DBManifest } from "@/hooks/useManifestsDB";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -97,7 +98,8 @@ import { ManifestsTabDB } from "@/components/deliveries/ManifestsTabDB";
 import { DeliveryDetailSheet } from "@/components/deliveries/DeliveryDetailSheet";
 import { XMLImportDialog } from "@/components/deliveries/XMLImportDialog";
 import { ManifestRecord, manifestStore } from "@/stores/manifestStore";
-import { formatCurrency } from "@/lib/formatCurrency";
+import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
+import { buildFullAddress } from "@/lib/nfeXmlParser";
 import { RegionFilter } from "@/components/deliveries/RegionFilter";
 import { calculateRegiaoLogistica, getRegionColor } from "@/lib/cepRegionMapping";
 import { DeleteInvoiceDialog } from "@/components/deliveries/DeleteInvoiceDialog";
@@ -141,14 +143,16 @@ interface Delivery {
   receivedBy?: string; // Nome do recebedor
   receivedAt?: Date; // Data/hora da entrega
   receiverDocument?: string; // Documento do recebedor
+  eventDate?: Date; // Entrega/ocorrencia finalizada ou importacao
+  dbId?: string; // UUID da NF no banco
+  manifestUuid?: string; // UUID do romaneio
+  addressStreet?: string; // Logradouro sem numero (edicao)
+  addressNumber?: string;
+  regiao_logistica?: string;
 }
 
-const today = new Date();
-const getRandomDate = (daysBack: number) => {
-  const date = new Date(today);
-  date.setDate(date.getDate() - Math.floor(Math.random() * daysBack));
-  return date;
-};
+// NFs ainda em operacao aparecem em qualquer periodo rapido.
+const OPEN_STATUSES = new Set<string>(["pending", "in_transit", "delayed", "occurrence", "returning"]);
 
 // Empty initial state - all data comes from database
 const initialDeliveries: Delivery[] = [];
@@ -176,8 +180,6 @@ export default function DeliveriesPage() {
   const [search, setSearch] = useState("");
   const [isXmlDialogOpen, setIsXmlDialogOpen] = useState(false);
   const [isFreightDialogOpen, setIsFreightDialogOpen] = useState(false);
-  const [stagingData, setStagingData] = useState<Delivery[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
   const [periodFilter, setPeriodFilter] = useState<{ from?: Date; to?: Date }>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -240,6 +242,7 @@ export default function DeliveriesPage() {
     assignToManifest: dbAssignToManifest,
     refetch: refetchInvoices,
     deleteInvoice: dbDeleteInvoice,
+    updateInvoice: dbUpdateInvoice,
     updateInvoiceStatus: dbUpdateInvoiceStatus
   } = useInvoicesDB();
   const { 
@@ -254,11 +257,14 @@ export default function DeliveriesPage() {
   const urlFilter = searchParams.get('filter');
   const urlStatus = searchParams.get('status');
 
+  // "?filter=unrouted" (atalho do dashboard): guarda o filtro na tela. Antes o
+  // parametro era apagado na hora e o filtro nunca chegava a ser aplicado.
+  const [unroutedOnly, setUnroutedOnly] = useState(urlFilter === 'unrouted');
+
   // Apply filters from URL on mount
   useEffect(() => {
     if (urlFilter === 'unrouted') {
-      // Set time filter to monthly to show more items
-      setTimeFilter('monthly');
+      setUnroutedOnly(true);
       // Clear only the filter param
       const newParams = new URLSearchParams(searchParams);
       newParams.delete('filter');
@@ -281,6 +287,19 @@ export default function DeliveriesPage() {
     setSearchParams(newParams, { replace: true });
   };
 
+  // Id numerico estavel por NF: antes era a posicao na lista, e uma recarga em
+  // segundo plano (realtime) podia fazer uma acao cair em outra NF.
+  const stableIdsRef = useRef<Map<string, number>>(new Map());
+  const getStableId = (dbId: string) => {
+    const ids = stableIdsRef.current;
+    let id = ids.get(dbId);
+    if (id === undefined) {
+      id = 10000 + ids.size;
+      ids.set(dbId, id);
+    }
+    return id;
+  };
+
   // Convert DB invoices to Delivery format for unified display
   const dbDeliveries: Delivery[] = useMemo(() => {
     return dbInvoices.map((inv, idx) => {
@@ -293,18 +312,22 @@ export default function DeliveriesPage() {
         : inv.manifest_id;
       
       return {
-        id: idx + 10000, // Offset to avoid collision with mock IDs
+        id: getStableId(inv.id),
         dbId: inv.id, // Store actual UUID
         nfe: inv.nfe_number || inv.access_key?.slice(-8) || `DB-${idx}`,
         recipient: inv.recipient_name,
-        address: inv.address_street || inv.address_full?.split(',')[0] || '',
+        address: inv.address_street
+          ? [inv.address_street, inv.address_number].filter(Boolean).join(', ')
+          : inv.address_full?.split(' - ')[0] || '',
+        addressStreet: inv.address_street || '',
+        addressNumber: inv.address_number || '',
         city: inv.address_city || '',
         state: inv.address_state || '',
         zipCode: inv.address_zip || '',
         phone: inv.recipient_phone || undefined,
         driver: inv.driver_name || (inv.manifest_driver_name || (inv.driver_id ? 'Atribuído' : null)),
         status: inv.status as Delivery["status"],
-        scheduledTime: "08:00",
+        scheduledTime: format(new Date(getInvoiceEventDate(inv)), "dd/MM HH:mm"),
         scheduledDate: new Date(inv.imported_at),
         weight: inv.total_weight ? `${inv.total_weight}kg` : '-',
         value: formatCurrency(inv.total_value),
@@ -318,6 +341,7 @@ export default function DeliveriesPage() {
         receivedBy: inv.receiver_name || undefined,
         receivedAt: inv.delivered_at ? new Date(inv.delivered_at) : undefined,
         receiverDocument: inv.receiver_document || undefined,
+        eventDate: new Date(getInvoiceEventDate(inv)),
       };
     }) as any[];
   }, [dbInvoices, selectedDbIds]);
@@ -339,28 +363,27 @@ export default function DeliveriesPage() {
     }
   };
 
-  // Filter by time period
-  const filterByTime = (delivery: Delivery) => {
-    const deliveryDate = new Date(delivery.scheduledDate);
-    const diffTime = Math.abs(today.getTime() - deliveryDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const hasPeriodRange = !!periodFilter.from || !!periodFilter.to;
 
-    switch (timeFilter) {
-      case "daily":
-        return diffDays <= 1;
-      case "weekly":
-        return diffDays <= 7;
-      case "monthly":
-        return diffDays <= 30;
-      default:
-        return true;
-    }
+  // Periodo rapido (Diario/Semanal/Mensal), contado a partir de agora. Fica de
+  // lado quando ha um intervalo de datas escolhido.
+  const filterByTime = (delivery: Delivery) => {
+    if (hasPeriodRange) return true;
+    if (OPEN_STATUSES.has(delivery.status)) return true;
+
+    const eventDate = delivery.eventDate ?? new Date(delivery.scheduledDate);
+    const now = new Date();
+    const since =
+      timeFilter === "daily"
+        ? startOfDay(now)
+        : startOfDay(new Date(now.getTime() - (timeFilter === "weekly" ? 6 : 29) * 24 * 60 * 60 * 1000));
+    return eventDate >= since;
   };
 
   const filterByPeriod = (delivery: Delivery) => {
-    if (!periodFilter.from && !periodFilter.to) return true;
+    if (!hasPeriodRange) return true;
 
-    const deliveryDate = new Date(delivery.scheduledDate);
+    const deliveryDate = delivery.eventDate ?? new Date(delivery.scheduledDate);
 
     if (periodFilter.from && deliveryDate < startOfDay(periodFilter.from)) {
       return false;
@@ -371,6 +394,11 @@ export default function DeliveriesPage() {
     }
 
     return true;
+  };
+
+  const selectQuickPeriod = (value: TimeFilter) => {
+    setTimeFilter(value);
+    setPeriodFilter({});
   };
 
   // Filter by status
@@ -388,7 +416,7 @@ export default function DeliveriesPage() {
 
   // Filter for unrouted items (from URL param)
   const filterByUnrouted = (delivery: any) => {
-    if (urlFilter !== 'unrouted') return true;
+    if (!unroutedOnly) return true;
     // Unrouted = (pending OR returned) AND no manifest
     return (delivery.status === 'pending' || delivery.status === 'returned') && !delivery.manifestId;
   };
@@ -405,7 +433,7 @@ export default function DeliveriesPage() {
         d.nfe.toLowerCase().includes(search.toLowerCase()) ||
         d.address.toLowerCase().includes(search.toLowerCase())
       );
-  }, [deliveries, search, timeFilter, periodFilter, statusFilter, selectedRegions, urlFilter]);
+  }, [deliveries, search, timeFilter, periodFilter, statusFilter, selectedRegions, unroutedOnly]);
 
   // Count only selected items that are currently visible (filtered)
   const filteredIds = useMemo(() => new Set(filteredDeliveries.map(d => d.id)), [filteredDeliveries]);
@@ -422,7 +450,7 @@ export default function DeliveriesPage() {
       ? "indeterminate"
       : false;
   const hasActiveFilters =
-    statusFilter !== "all" || selectedRegions.length > 0 || !!periodFilter.from || !!periodFilter.to;
+    statusFilter !== "all" || selectedRegions.length > 0 || !!periodFilter.from || !!periodFilter.to || unroutedOnly;
 
   // Stats for current filter
   const filteredStats = useMemo(() => {
@@ -435,7 +463,7 @@ export default function DeliveriesPage() {
       acc[key as Delivery["status"]] = filtered.filter(d => d.status === key).length;
       return acc;
     }, {} as Record<Delivery["status"], number>);
-  }, [deliveries, timeFilter, periodFilter, selectedRegions, urlFilter]);
+  }, [deliveries, timeFilter, periodFilter, selectedRegions, unroutedOnly]);
 
   const pendingDeliveries = filteredStats.pending + filteredStats.in_transit;
 
@@ -583,10 +611,10 @@ export default function DeliveriesPage() {
   };
 
   const handleFreightConfirm = (freightData: FreightData, manifest: ManifestRecord, dbManifest?: DBManifest | null) => {
-    // Open print preview with the created manifest
+    // Guarda o romaneio criado; a impressao abre pelo botao do dialogo de sucesso
+    // (antes abria junto e ficava por cima dele).
     setManifestForPreview(manifest);
     setDbManifestForPreview(dbManifest || null);
-    setIsPrintPreviewOpen(true);
     
     // Clear selections
     if (dbInvoices.length > 0) {
@@ -616,47 +644,35 @@ export default function DeliveriesPage() {
     setIsReRouteDialogOpen(true);
   };
 
-  // Handler to confirm re-route - saves history before clearing
-  const handleConfirmReRoute = () => {
+  // Volta a NF para pendente, fora do romaneio, para poder ser romaneada de novo.
+  const handleConfirmReRoute = async () => {
     if (!deliveryForReRoute) return;
-    
-    // Get reason based on current status
+
     const statusReasons: Record<string, string> = {
       occurrence: "Ocorrência registrada",
       returning: "Em processo de devolução",
       returned: "Devolvido ao estoque",
     };
     const reason = statusReasons[deliveryForReRoute.status] || "Re-romaneamento solicitado";
-    
-    setDeliveries(deliveries.map(d => {
-      if (d.id === deliveryForReRoute.id) {
-        // Save current manifest to history before clearing
-        const historyEntry: ManifestHistoryEntry = {
-          manifestId: d.manifestId || "N/A",
-          driverName: d.driver || "Não atribuído",
-          vehicleType: "—", // We don't have this info locally
-          date: new Date(),
-          reason: reason,
-        };
-        
-        const existingHistory = d.manifestHistory || [];
-        
-        return { 
-          ...d, 
-          manifestId: undefined, 
-          status: "pending" as const, 
-          driver: null,
-          manifestHistory: [...existingHistory, historyEntry],
-        };
-      }
-      return d;
-    }));
-    
+    const dbId = deliveryForReRoute.dbId;
+    const manifestUuid = deliveryForReRoute.manifestUuid;
+
+    if (!dbId || !manifestUuid) {
+      toast({ title: "NF sem romaneio", description: "Esta NF já está disponível para romaneamento.", variant: "destructive" });
+      setIsReRouteDialogOpen(false);
+      setDeliveryForReRoute(null);
+      return;
+    }
+
+    const success = await dbRemoveInvoiceFromManifest(manifestUuid, dbId, `Voltar para romaneamento: ${reason}`);
+    if (!success) return;
+
+    await refetchInvoices();
     toast({
       title: "✅ NF liberada para romaneamento",
       description: `NF ${deliveryForReRoute.nfe} pode ser romaneada novamente.`,
     });
-    
+
     setIsReRouteDialogOpen(false);
     setDeliveryForReRoute(null);
   };
@@ -738,49 +754,18 @@ export default function DeliveriesPage() {
   // Handler to confirm removal from manifest
   const handleConfirmRemoveManifest = async (reason: string) => {
     if (!deliveryForRemove) return;
-    
-    // Try to find matching DB invoice by NFe number
-    const dbInvoice = dbInvoices.find(inv => 
-      inv.nfe_number === deliveryForRemove.nfe.replace('NF-', '')
-    );
-    
-    // If we have a DB invoice with a manifest, remove it properly from DB
-    if (dbInvoice?.manifest_id) {
-      await dbRemoveInvoiceFromManifest(dbInvoice.manifest_id, dbInvoice.id, reason);
-      refetchInvoices();
+
+    const dbId = deliveryForRemove.dbId;
+    const manifestUuid = deliveryForRemove.manifestUuid;
+    if (!dbId || !manifestUuid) {
+      toast({ title: "NF sem romaneio", description: "Esta NF não está em nenhum romaneio.", variant: "destructive" });
+      return;
     }
-    
-    setDeliveries(deliveries.map(d => {
-      if (d.id === deliveryForRemove.id) {
-        // Save to history before clearing
-        const historyEntry: ManifestHistoryEntry = {
-          manifestId: d.manifestId || "N/A",
-          driverName: d.driver || "Não atribuído",
-          vehicleType: "—",
-          date: new Date(),
-          reason: `Removido por ${currentUser}: ${reason}`,
-        };
-        
-        const existingHistory = d.manifestHistory || [];
-        
-        return {
-          ...d,
-          manifestId: undefined,
-          status: "pending" as const,
-          driver: null,
-          manifestHistory: [...existingHistory, historyEntry],
-          lastUpdatedBy: currentUser,
-          lastUpdatedAt: new Date(),
-        };
-      }
-      return d;
-    }));
-    
-    toast({
-      title: "✅ NF removida do romaneio",
-      description: `NF ${deliveryForRemove.nfe} foi removida e voltou para pendente.`,
-    });
-    
+
+    const success = await dbRemoveInvoiceFromManifest(manifestUuid, dbId, reason);
+    if (!success) return;
+
+    await refetchInvoices();
     setIsRemoveManifestDialogOpen(false);
     setDeliveryForRemove(null);
   };
@@ -820,13 +805,13 @@ export default function DeliveriesPage() {
       setDbManifestForPreview(manifest);
       setIsPrintPreviewOpen(true);
     } else if (action === "resend" && manifest) {
-      const timeStr = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       toast({
-        title: "✅ Romaneio reenviado",
-        description: `${manifest.driver_name} será notificado pelo app às ${timeStr}.`,
+        title: "✅ Romaneio atualizado no app",
+        description: `A NF já aparece na lista de entregas de ${manifest.driver_name} no app do motorista.`,
       });
     }
-    
+
+    await refetchInvoices();
     setIsAddToManifestDialogOpen(false);
     setDeliveryForAddToManifest(null);
   };
@@ -859,9 +844,15 @@ export default function DeliveriesPage() {
 
     setIsDeleting(true);
     try {
-      await dbDeleteInvoice(dbId);
-      setIsDeleteDialogOpen(false);
-      setDeliveryForDelete(null);
+      if (await dbDeleteInvoice(dbId)) {
+        setSelectedDbIds((prev) => {
+          const next = new Set(prev);
+          next.delete(dbId);
+          return next;
+        });
+        setIsDeleteDialogOpen(false);
+        setDeliveryForDelete(null);
+      }
     } catch (error) {
       console.error("Error deleting invoice:", error);
     } finally {
@@ -964,10 +955,12 @@ export default function DeliveriesPage() {
     setIsObservationDialogOpen(true);
   };
 
-  const handleSaveObservation = (deliveryId: number, observation: string) => {
-    setDeliveries(deliveries.map(d => 
-      d.id === deliveryId ? { ...d, observation } : d
-    ));
+  const handleSaveObservation = async (deliveryId: number, observation: string): Promise<boolean> => {
+    const dbId = deliveries.find((d) => d.id === deliveryId)?.dbId;
+    if (!dbId) return false;
+    const success = await dbUpdateInvoice(dbId, { observation: observation.trim() || null }, { silent: true });
+    if (success) await refetchInvoices();
+    return success;
   };
 
   const handleOpenEditDelivery = (delivery: Delivery) => {
@@ -976,95 +969,126 @@ export default function DeliveriesPage() {
   };
 
   const handleSaveDelivery = async (updatedDelivery: Delivery) => {
-    const dbId = (updatedDelivery as any)?.dbId;
+    const dbId = updatedDelivery.dbId;
+    if (!dbId) throw new Error("ID da nota fiscal não encontrado.");
 
-    if (dbId) {
-      const invoiceUpdates: Record<string, any> = {
-        nfe_number: updatedDelivery.nfe,
-        recipient_name: updatedDelivery.recipient,
-        recipient_phone: updatedDelivery.phone || null,
-        address_street: updatedDelivery.address,
-        address_city: updatedDelivery.city,
-        address_state: updatedDelivery.state,
-        address_zip: updatedDelivery.zipCode,
-        observation: updatedDelivery.observation || null,
-        status: updatedDelivery.status,
-        updated_at: new Date().toISOString(),
-      };
+    const original = deliveries.find((d) => d.dbId === dbId);
+    const invoice = dbInvoices.find((inv) => inv.id === dbId);
 
-      if (updatedDelivery.status === "delivered") {
-        invoiceUpdates.receiver_name = (updatedDelivery as any).receiverName || updatedDelivery.receivedBy || null;
-        invoiceUpdates.receiver_document = (updatedDelivery as any).receiverDocument || updatedDelivery.receiverDocument || null;
-        invoiceUpdates.delivered_at =
-          ((updatedDelivery as any).deliveredAt as Date | undefined)?.toISOString() ||
-          updatedDelivery.receivedAt?.toISOString() ||
-          new Date().toISOString();
-        invoiceUpdates.occurrence_type = null;
-      } else if (updatedDelivery.status === "returned") {
-        invoiceUpdates.occurrence_type = null;
-        invoiceUpdates.receiver_name = null;
-        invoiceUpdates.receiver_document = null;
-        invoiceUpdates.delivered_at = null;
+    const invoiceUpdates: Record<string, any> = {
+      nfe_number: updatedDelivery.nfe,
+      recipient_name: updatedDelivery.recipient,
+      recipient_phone: updatedDelivery.phone || null,
+      address_city: updatedDelivery.city,
+      address_state: updatedDelivery.state,
+      address_zip: updatedDelivery.zipCode,
+      observation: updatedDelivery.observation || null,
+      status: updatedDelivery.status,
+      updated_at: new Date().toISOString(),
+    };
+
+    const weight = parseDecimalInput(updatedDelivery.weight);
+    if (updatedDelivery.weight !== original?.weight && weight !== null) invoiceUpdates.total_weight = weight;
+    const value = parseDecimalInput(updatedDelivery.value);
+    if (updatedDelivery.value !== original?.value && value !== null) invoiceUpdates.total_value = value;
+
+    // Endereco exibido = "logradouro, numero"; so regrava (e pede nova geolocalizacao)
+    // quando algo do endereco mudou.
+    const addressChanged =
+      updatedDelivery.address !== original?.address ||
+      updatedDelivery.city !== original?.city ||
+      updatedDelivery.state !== original?.state ||
+      updatedDelivery.zipCode !== original?.zipCode;
+    if (addressChanged) {
+      let street = updatedDelivery.address.trim();
+      let number = "";
+      if (updatedDelivery.address === original?.address) {
+        street = original?.addressStreet || street;
+        number = original?.addressNumber || "";
+      } else {
+        const match = street.match(/^(.*),\s*([^,]{1,10})$/);
+        if (match && /\d|s\/?n/i.test(match[2])) {
+          street = match[1].trim();
+          number = match[2].trim();
+        }
       }
-
-      const { error } = await supabase
-        .from("invoices")
-        .update(invoiceUpdates)
-        .eq("id", dbId);
-
-      if (error) {
-        throw error;
-      }
-
-      await refetchInvoices();
-      return;
+      invoiceUpdates.address_street = street;
+      invoiceUpdates.address_number = number || null;
+      invoiceUpdates.address_full = buildFullAddress(
+        street,
+        number,
+        invoice?.address_neighborhood || "",
+        updatedDelivery.city,
+        updatedDelivery.state,
+        updatedDelivery.zipCode,
+      );
+      invoiceUpdates.latitude = null;
+      invoiceUpdates.longitude = null;
     }
 
-    setDeliveries(deliveries.map(d => 
-      d.id === updatedDelivery.id ? updatedDelivery : d
-    ));
+    if (updatedDelivery.status === "delivered") {
+      invoiceUpdates.receiver_name = (updatedDelivery as any).receiverName || updatedDelivery.receivedBy || null;
+      invoiceUpdates.receiver_document = (updatedDelivery as any).receiverDocument || updatedDelivery.receiverDocument || null;
+      invoiceUpdates.delivered_at =
+        ((updatedDelivery as any).deliveredAt as Date | undefined)?.toISOString() ||
+        updatedDelivery.receivedAt?.toISOString() ||
+        new Date().toISOString();
+      invoiceUpdates.occurrence_type = null;
+    } else if (updatedDelivery.status === "returned") {
+      invoiceUpdates.occurrence_type = null;
+      invoiceUpdates.receiver_name = null;
+      invoiceUpdates.receiver_document = null;
+      invoiceUpdates.delivered_at = null;
+    }
+
+    const { error } = await supabase
+      .from("invoices")
+      .update(invoiceUpdates)
+      .eq("id", dbId);
+
+    if (error) throw error;
+
+    if (invoice?.manifest_id && ("total_weight" in invoiceUpdates || "total_value" in invoiceUpdates)) {
+      await dbUpdateManifestTotals(invoice.manifest_id);
+    }
+
+    await refetchInvoices();
   };
 
-  const handleConfirmReturn = (id: number) => {
-    setDeliveries(deliveries.map(d => 
-      d.id === id ? { ...d, status: "returned" as const } : d
-    ));
+  // Mercadoria voltou ao galpao: fica "Devolvido" no romaneio (historico) e pode
+  // ser liberada para outro romaneio em "Voltar para romaneamento".
+  const handleConfirmReturn = async (id: number) => {
+    const delivery = deliveries.find((d) => d.id === id);
+    if (!delivery?.dbId) return;
+
+    const success = await dbUpdateInvoiceStatus(delivery.dbId, "returned");
+    if (!success) return;
+
+    if (delivery.manifestUuid) {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name")
+        .eq("id", userData.user?.id || "")
+        .maybeSingle();
+      const userFullName = profile?.name || userData.user?.email?.split("@")[0] || "Sistema";
+      const { error: auditError } = await supabase.from("manifest_audit_logs").insert({
+        manifest_id: delivery.manifestUuid,
+        invoice_id: delivery.dbId,
+        action_type: "returned_to_warehouse",
+        performed_by: userData.user?.id || null,
+        performed_by_name: userFullName,
+        user_full_name: userFullName,
+        notes: `${userFullName} confirmou o retorno ao galpão da NF ${delivery.nfe}`,
+        details: { nfe_number: delivery.nfe },
+      });
+      if (auditError) console.error("Error creating return audit log:", auditError);
+    }
+
+    await refetchInvoices();
     toast({
       title: "✅ Retorno Confirmado",
-      description: "Item marcado como devolvido ao estoque.",
-    });
-  };
-
-  const handleFileDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    const xmlFile = files.find(f => f.name.endsWith('.xml'));
-    
-    if (xmlFile) {
-      // Simulate XML parsing
-      const mockParsedData: Delivery[] = [
-        { id: 100, nfe: "NF-002001", recipient: "Empresa ABC Ltda", address: "Rua Nova, 100", city: "São Paulo", state: "SP", zipCode: "01310-000", phone: "(11) 3456-7890", driver: null, status: "pending", scheduledTime: "09:00", scheduledDate: today, weight: "10.5kg", value: "R$ 1.200,00" },
-        { id: 101, nfe: "NF-002002", recipient: "Comércio XYZ", address: "Av. Central, 500", city: "São Paulo", state: "SP", zipCode: "01320-000", phone: "(11) 2345-6789", driver: null, status: "pending", scheduledTime: "10:30", scheduledDate: today, weight: "7.2kg", value: "R$ 890,00" },
-        { id: 102, nfe: "NF-002003", recipient: "Loja 123", address: "Rua Sul, 250", city: "São Paulo", state: "SP", zipCode: "01330-000", phone: "(11) 1234-5678", driver: null, status: "pending", scheduledTime: "14:00", scheduledDate: today, weight: "3.8kg", value: "R$ 450,00" },
-      ];
-      setStagingData(mockParsedData);
-      toast({
-        title: "📂 XML Processado",
-        description: `${mockParsedData.length} notas fiscais encontradas.`,
-      });
-    }
-  };
-
-  const handleImportStaging = () => {
-    const newDeliveries = stagingData.map((d, idx) => ({ ...d, id: deliveries.length + idx + 1 }));
-    setDeliveries([...deliveries, ...newDeliveries]);
-    setStagingData([]);
-    setIsXmlDialogOpen(false);
-    toast({
-      title: "✅ Importação Concluída",
-      description: `${newDeliveries.length} entregas adicionadas ao sistema.`,
+      description: `NF ${delivery.nfe} marcada como devolvida ao galpão.`,
     });
   };
 
@@ -1123,10 +1147,10 @@ export default function DeliveriesPage() {
                   return (
                     <button
                       key={option.value}
-                      onClick={() => setTimeFilter(option.value as TimeFilter)}
+                      onClick={() => selectQuickPeriod(option.value as TimeFilter)}
                       className={cn(
                         "inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                        timeFilter === option.value
+                        timeFilter === option.value && !hasPeriodRange
                           ? "bg-background text-foreground shadow-sm"
                           : "text-muted-foreground hover:text-foreground"
                       )}
@@ -1251,6 +1275,7 @@ export default function DeliveriesPage() {
                   title: "Importação concluída",
                   description: `${imported} NFs importadas, ${duplicates} ignoradas por duplicidade.`,
                 });
+                void refetchInvoices();
               }}
             />
 
@@ -1263,7 +1288,7 @@ export default function DeliveriesPage() {
               return (
                 <button
                   key={option.value}
-                  onClick={() => setTimeFilter(option.value as TimeFilter)}
+                  onClick={() => selectQuickPeriod(option.value as TimeFilter)}
                   className={cn(
                     "inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                     timeFilter === option.value
@@ -1362,8 +1387,16 @@ export default function DeliveriesPage() {
         />
 
         {/* Active Filter Indicator */}
-        {(statusFilter !== "all" || selectedRegions.length > 0 || periodFilter.from || periodFilter.to) && (
+        {(statusFilter !== "all" || selectedRegions.length > 0 || periodFilter.from || periodFilter.to || unroutedOnly) && (
           <div className="flex items-center gap-2 flex-wrap">
+            {unroutedOnly && (
+              <Badge variant="secondary" className="gap-1">
+                Só não roteirizadas
+                <button onClick={() => setUnroutedOnly(false)} className="ml-1 hover:text-destructive" aria-label="Remover filtro">
+                  ✕
+                </button>
+              </Badge>
+            )}
             {statusFilter !== "all" && (
               <Badge variant="secondary" className="gap-1">
                 Status: {statusConfig[statusFilter as keyof typeof statusConfig]?.label || statusFilter}
@@ -1471,7 +1504,7 @@ export default function DeliveriesPage() {
                   <span className="text-xs font-medium text-muted-foreground">Período rápido:</span>
                   {timeFilterOptions.map((option) => {
                     const Icon = option.icon;
-                    const isActive = timeFilter === option.value;
+                    const isActive = timeFilter === option.value && !hasPeriodRange;
                     return (
                       <Button
                         key={option.value}
@@ -1479,7 +1512,7 @@ export default function DeliveriesPage() {
                         variant={isActive ? "default" : "outline"}
                         size="sm"
                         className="gap-2"
-                        onClick={() => setTimeFilter(option.value as TimeFilter)}
+                        onClick={() => selectQuickPeriod(option.value as TimeFilter)}
                       >
                         <Icon className="h-4 w-4" />
                         {timeFilterLabels[option.value as TimeFilter]}
@@ -1563,7 +1596,7 @@ export default function DeliveriesPage() {
                 <TableHead>Destinatário</TableHead>
                 <TableHead>Endereço</TableHead>
                 <TableHead>Motorista</TableHead>
-                <TableHead>Horário</TableHead>
+                <TableHead title="Entrega/ocorrência ou, se ainda aberta, a importação">Data/Hora</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -1783,6 +1816,7 @@ export default function DeliveriesPage() {
       <FreightDialog
         open={isFreightDialogOpen}
         onOpenChange={setIsFreightDialogOpen}
+        onPrint={() => setIsPrintPreviewOpen(true)}
         selectedCount={selectedCount}
         selectedDeliveryIds={
           dbInvoices.length > 0 

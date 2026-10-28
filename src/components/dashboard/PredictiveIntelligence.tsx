@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { formatSLA } from "@/lib/formatSLA";
 import { useSLADB, OCCURRENCE_LABELS, getSLAColorScheme, isSLACritical, SLA_THRESHOLDS } from "@/hooks/useSLADB";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -22,6 +23,7 @@ import {
   type PeriodSLA,
   type SLAPeriodDays,
 } from "@/lib/slaRanking";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface PeriodRank {
   rank: number | null;
@@ -144,7 +146,7 @@ function DriverAttentionCard({
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
     const cleanPhone = driver.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    openWhatsApp(cleanPhone);
   };
 
   return (
@@ -480,7 +482,7 @@ export function PredictiveIntelligence() {
 
     // Subscribe to driver status changes
     const channel = supabase
-      .channel("predictive-drivers")
+      .channel(uniqueChannelName("predictive-drivers"))
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "drivers" },

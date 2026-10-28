@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Navigation, Radio, Truck as TruckIcon, MapPin, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueChannelName } from "@/lib/realtime";
 import { Button } from '@/components/ui/button';
 import { getCurrentTenantId } from '@/lib/tenant';
 
@@ -292,7 +293,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
 
     // Subscribe to driver changes to keep map info updated
     const driversChannel = supabase
-      .channel('drivers-map-sync')
+      .channel(uniqueChannelName("drivers-map-sync"))
       .on(
         'postgres_changes',
         {

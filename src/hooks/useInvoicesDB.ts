@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueChannelName } from "@/lib/realtime";
 import { toast } from '@/hooks/use-toast';
 import { getCurrentTenantId } from '@/lib/tenant';
 import { fetchAllPages } from '@/lib/supabasePaging';
@@ -21,6 +22,15 @@ const INVOICE_COLUMNS = [
 // Lotes para os filtros .in(): milhares de ids numa unica URL estouram o
 // tamanho maximo da requisicao e o limite de 1000 linhas do PostgREST.
 const ID_CHUNK_SIZE = 200;
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendente',
+  in_transit: 'Em Rota',
+  delivered: 'Entregue',
+  occurrence: 'Ocorrência',
+  returning: 'Em Devolução',
+  returned: 'Devolvido',
+};
 const REALTIME_REFETCH_DEBOUNCE_MS = 1500;
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -182,7 +192,7 @@ export function useInvoicesDB() {
     // Rajadas de eventos (ex.: varias baixas seguidas) viram uma unica recarga.
     let refetchTimer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
-      .channel('invoices-changes')
+      .channel(uniqueChannelName("invoices-changes"))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'invoices' },
@@ -200,7 +210,7 @@ export function useInvoicesDB() {
     };
   }, [fetchInvoices]);
 
-  const updateInvoice = async (id: string, updates: Partial<DBInvoice>) => {
+  const updateInvoice = async (id: string, updates: Partial<DBInvoice>, options: { silent?: boolean } = {}): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('invoices')
@@ -212,10 +222,13 @@ export function useInvoicesDB() {
 
       if (error) throw error;
 
-      toast({
-        title: '✅ NF atualizada',
-        description: 'Nota fiscal atualizada com sucesso.',
-      });
+      if (!options.silent) {
+        toast({
+          title: '✅ NF atualizada',
+          description: 'Nota fiscal atualizada com sucesso.',
+        });
+      }
+      return true;
     } catch (err: any) {
       console.error('Error updating invoice:', err);
       toast({
@@ -223,10 +236,11 @@ export function useInvoicesDB() {
         description: err.message,
         variant: 'destructive',
       });
+      return false;
     }
   };
 
-  const updateInvoiceStatus = async (id: string, status: string, occurrenceType?: string, observation?: string) => {
+  const updateInvoiceStatus = async (id: string, status: string, occurrenceType?: string, observation?: string): Promise<boolean> => {
     try {
       const updates: Partial<DBInvoice> = {
         status,
@@ -245,8 +259,9 @@ export function useInvoicesDB() {
 
       toast({
         title: '✅ Status atualizado',
-        description: `NF alterada para ${status}.`,
+        description: `NF alterada para ${STATUS_LABELS[status] || status}.`,
       });
+      return true;
     } catch (err: any) {
       console.error('Error updating status:', err);
       toast({
@@ -254,6 +269,7 @@ export function useInvoicesDB() {
         description: err.message,
         variant: 'destructive',
       });
+      return false;
     }
   };
 
@@ -313,7 +329,7 @@ export function useInvoicesDB() {
     }
   };
 
-  const deleteInvoice = async (id: string) => {
+  const deleteInvoice = async (id: string): Promise<boolean> => {
     try {
       // First, get the invoice to check for any attachments
       const invoiceToDelete = invoices.find(inv => inv.id === id);
@@ -348,10 +364,12 @@ export function useInvoicesDB() {
 
       if (error) throw error;
 
+      setInvoices((prev) => prev.filter((inv) => inv.id !== id));
       toast({
         title: '🗑️ NF removida',
         description: 'Nota fiscal excluída com sucesso.',
       });
+      return true;
     } catch (err: any) {
       console.error('Error deleting invoice:', err);
       toast({
@@ -359,6 +377,7 @@ export function useInvoicesDB() {
         description: err.message,
         variant: 'destructive',
       });
+      return false;
     }
   };
 

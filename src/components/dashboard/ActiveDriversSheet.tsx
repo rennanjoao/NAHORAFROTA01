@@ -20,6 +20,7 @@ import { DriverProfileModal } from "./DriverProfileModal";
 import { DriverActivityFeed } from "./DriverActivityFeed";
 import { Users, Search, Phone, MessageCircle, Truck, Navigation, MapPin, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface ActiveDriversSheetProps {
   open: boolean;
@@ -110,7 +111,7 @@ export function ActiveDriversSheet({ open, onOpenChange }: ActiveDriversSheetPro
   const handleWhatsApp = (phone: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const cleanPhone = phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    openWhatsApp(cleanPhone);
   };
 
   const getSLAColor = (sla: number) => {

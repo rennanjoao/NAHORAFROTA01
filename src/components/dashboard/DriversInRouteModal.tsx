@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { DriversInRouteData } from "@/hooks/useDashboardKPIs";
 import { cn } from "@/lib/utils";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface DriversInRouteModalProps {
   open: boolean;
@@ -32,7 +33,7 @@ interface DriversInRouteModalProps {
 export function DriversInRouteModal({ open, onOpenChange, data, invoicesInTransitCount, onShowInvoices }: DriversInRouteModalProps) {
   const handleWhatsApp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    openWhatsApp(cleanPhone);
   };
 
   return (

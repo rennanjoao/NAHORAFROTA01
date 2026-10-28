@@ -793,6 +793,7 @@ export type Database = {
           recipient_name: string
           recipient_phone: string | null
           regiao_logistica: string | null
+          route_sequence: number | null
           status: string
           tenant_id: string | null
           total_value: number
@@ -829,6 +830,7 @@ export type Database = {
           recipient_name: string
           recipient_phone?: string | null
           regiao_logistica?: string | null
+          route_sequence?: number | null
           status?: string
           tenant_id?: string | null
           total_value?: number
@@ -865,6 +867,7 @@ export type Database = {
           recipient_name?: string
           recipient_phone?: string | null
           regiao_logistica?: string | null
+          route_sequence?: number | null
           status?: string
           tenant_id?: string | null
           total_value?: number
@@ -1980,6 +1983,12 @@ export type Database = {
           p_radius_m?: number
         }
         Returns: Json
+      }
+      delete_manifest: { Args: { p_manifest_id: string }; Returns: Json }
+      finalize_manifest: { Args: { p_manifest_id: string }; Returns: Json }
+      set_manifest_route_order: {
+        Args: { p_invoice_ids: string[]; p_manifest_id: string }
+        Returns: number
       }
       set_user_role: {
         Args: {

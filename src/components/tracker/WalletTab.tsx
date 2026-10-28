@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Wallet, DollarSign, Clock, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
+import { formatDateOnly } from "@/lib/timezone";
 
 interface WalletItem {
   id: string;
@@ -113,7 +114,7 @@ export function WalletTab({ driverId }: WalletTabProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.description}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(item.date).toLocaleDateString("pt-BR")}
+                        {formatDateOnly(item.date)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-2">

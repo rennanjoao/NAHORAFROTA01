@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getIndividualSLAColor, vehicleLabels, DriverBase } from "@/lib/driverUtils";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface DriverProfileModalProps {
   driver: DriverBase | null;
@@ -20,8 +21,7 @@ export function DriverProfileModal({ driver, open, onOpenChange }: DriverProfile
   if (!driver) return null;
 
   const handleWhatsApp = () => {
-    const phone = driver.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/${phone}`, "_blank");
+    openWhatsApp(driver.phone);
   };
 
   return (

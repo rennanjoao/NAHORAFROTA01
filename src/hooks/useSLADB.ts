@@ -22,6 +22,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { formatSLA } from "@/lib/formatSLA";
 import { getSLAColorScheme, isSLAHealthy, isSLACritical, isSLAAttention, isSLAGood, SLA_THRESHOLDS } from "@/lib/slaThresholds";
 import { getDayBoundsUTC, getTodayBrazil } from "@/lib/timezone";
@@ -484,7 +485,7 @@ export function useSLADB() {
   // Subscribe to realtime changes on invoices
   useEffect(() => {
     const channel = supabase
-      .channel("sla-invoices-changes")
+      .channel(uniqueChannelName("sla-invoices-changes"))
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "invoices" },

@@ -1,6 +1,7 @@
 // Hook for driver database operations with realtime sync
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { toast } from "@/hooks/use-toast";
 import { getCurrentTenantId, requireCurrentTenantId } from "@/lib/tenant";
 
@@ -118,7 +119,7 @@ export function useDriversDB() {
     fetchDrivers();
 
     const channel = supabase
-      .channel("drivers-realtime-sync")
+      .channel(uniqueChannelName("drivers-realtime-sync"))
       .on(
         "postgres_changes",
         {

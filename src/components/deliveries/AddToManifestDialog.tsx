@@ -24,6 +24,7 @@ import {
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { cn } from "@/lib/utils";
+import { formatDateOnly } from "@/lib/timezone";
 
 interface AddToManifestDialogProps {
   open: boolean;
@@ -218,7 +219,7 @@ export function AddToManifestDialog({
                             <Calendar className="h-3 w-3" />
                             <span>Criado: {formatDate(manifest.created_at)}</span>
                             <span className="mx-1">•</span>
-                            <span>Agendado: {new Date(manifest.scheduled_date).toLocaleDateString("pt-BR")}</span>
+                            <span>Agendado: {formatDateOnly(manifest.scheduled_date)}</span>
                           </div>
                           <div className="text-xs text-muted-foreground font-mono mt-1">
                             {manifest.manifest_code}

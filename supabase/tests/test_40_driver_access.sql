@@ -119,4 +119,50 @@ RESET role;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 SELECT pg_temp.check((public.set_user_role('00000000-0000-0000-0000-0000000000a3','admin')->>'success')::boolean = false, 'outra empresa nao altera papel');
 RESET role;
+
+-- Gestor de frota remove login do app (sem papel de equipe), mas nao usuario do painel
+INSERT INTO auth.users (id, email) VALUES ('00000000-0000-0000-0000-0000000000d3','driver.c@driver.nahorafrota.app');
+INSERT INTO public.tenant_memberships (tenant_id, user_id, role) VALUES ('10000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-0000000000d3','member');
+INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES ('00000000-0000-0000-0000-0000000000d3','viewer','10000000-0000-0000-0000-00000000000a');
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000a3');
+SELECT pg_temp.check((public.delete_user_complete('00000000-0000-0000-0000-0000000000d3')->>'success')::boolean, 'gestor remove login do app');
+SELECT pg_temp.check((public.delete_user_complete('00000000-0000-0000-0000-0000000000a1')->>'success')::boolean = false, 'gestor nao remove usuario do painel');
+RESET role;
+
+-- finalize_manifest: bloqueia NF em rota, devolve ocorrencias, nao libera motorista com outro romaneio
+INSERT INTO public.manifests (id, driver_id, driver_name, status, tenant_id, created_at, scheduled_date) VALUES
+ ('50000000-0000-0000-0000-000000000040','20000000-0000-0000-0000-00000000000a','Motorista A','in_progress','10000000-0000-0000-0000-00000000000a', now(), current_date),
+ ('50000000-0000-0000-0000-000000000041','20000000-0000-0000-0000-00000000000a','Motorista A','paid','10000000-0000-0000-0000-00000000000a', now(), current_date);
+INSERT INTO public.invoices (id, access_key, address_full, recipient_name, status, tenant_id, manifest_id, driver_id, total_value) VALUES
+ ('33000000-0000-0000-0000-000000000001','kf1','Rua F1','Cli F1','delivered','10000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-000000000040','20000000-0000-0000-0000-00000000000a',10),
+ ('33000000-0000-0000-0000-000000000002','kf2','Rua F2','Cli F2','in_transit','10000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-000000000040','20000000-0000-0000-0000-00000000000a',10);
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000040')->>'success')::boolean = false, 'nao finaliza com NF em rota');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000041')->>'success')::boolean = false, 'nao mexe em romaneio pago');
+RESET role;
+UPDATE public.invoices SET status = 'occurrence', occurrence_type = 'ausente' WHERE id = '33000000-0000-0000-0000-000000000002';
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000040')->>'success')::boolean = false, 'outra empresa nao finaliza');
+RESET role;
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000040')->>'returned_count')::int = 1, 'ocorrencia volta para roteirizacao');
+RESET role;
+SELECT pg_temp.check((SELECT status FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000040') = 'completed', 'romaneio finalizado');
+SELECT pg_temp.check((SELECT status = 'returned' AND manifest_id IS NULL FROM public.invoices WHERE id = '33000000-0000-0000-0000-000000000002'), 'NF devolvida sem romaneio');
+SELECT pg_temp.check((SELECT status FROM public.drivers WHERE id = '20000000-0000-0000-0000-00000000000a') = 'in_route', 'motorista com outro romaneio aberto continua em rota');
+
+-- delete_manifest: entregues ficam entregues; abertas voltam a pendente; pago bloqueado
+INSERT INTO public.manifests (id, driver_id, driver_name, status, tenant_id, created_at, scheduled_date) VALUES
+ ('50000000-0000-0000-0000-000000000050','20000000-0000-0000-0000-00000000000c','Fantasma A','in_progress','10000000-0000-0000-0000-00000000000a', now(), current_date);
+UPDATE public.drivers SET status = 'in_route' WHERE id = '20000000-0000-0000-0000-00000000000c';
+INSERT INTO public.invoices (id, access_key, address_full, recipient_name, status, tenant_id, manifest_id, driver_id, total_value) VALUES
+ ('34000000-0000-0000-0000-000000000001','kg1','Rua G1','Cli G1','delivered','10000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-000000000050','20000000-0000-0000-0000-00000000000c',10),
+ ('34000000-0000-0000-0000-000000000002','kg2','Rua G2','Cli G2','in_transit','10000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-000000000050','20000000-0000-0000-0000-00000000000c',10);
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+SELECT pg_temp.check((public.delete_manifest('50000000-0000-0000-0000-000000000041')->>'success')::boolean = false, 'romaneio pago nao e excluido');
+SELECT pg_temp.check((public.delete_manifest('50000000-0000-0000-0000-000000000050')->>'reopened_count')::int = 1, 'so a NF aberta volta a pendente');
+RESET role;
+SELECT pg_temp.check((SELECT status FROM public.invoices WHERE id = '34000000-0000-0000-0000-000000000001') = 'delivered', 'entrega feita nao e desfeita');
+SELECT pg_temp.check((SELECT status = 'pending' AND driver_id IS NULL FROM public.invoices WHERE id = '34000000-0000-0000-0000-000000000002'), 'NF em rota volta a pendente');
+SELECT pg_temp.check((SELECT status FROM public.drivers WHERE id = '20000000-0000-0000-0000-00000000000c') = 'active', 'motorista liberado ao excluir o romaneio');
 \echo ALL_DRIVER_ACCESS_TESTS_PASSED

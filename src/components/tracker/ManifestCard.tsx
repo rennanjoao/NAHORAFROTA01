@@ -4,6 +4,7 @@ import { Package, Truck, Calendar, MapPin } from 'lucide-react';
 import { DriverManifest } from '@/hooks/useDriverManifest';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { parseDateOnly } from "@/lib/timezone";
 
 interface ManifestCardProps {
   manifest: DriverManifest;
@@ -57,7 +58,7 @@ export function ManifestCard({ manifest, completedCount, totalCount }: ManifestC
         <div className="flex flex-col items-center p-2 bg-background/50 rounded-lg">
           <Calendar className="h-4 w-4 text-muted-foreground mb-1" />
           <span className="text-xs font-medium">
-            {format(new Date(manifest.scheduled_date), 'dd/MM', { locale: ptBR })}
+            {format(parseDateOnly(manifest.scheduled_date) ?? new Date(), 'dd/MM', { locale: ptBR })}
           </span>
           <span className="text-[10px] text-muted-foreground">Data</span>
         </div>

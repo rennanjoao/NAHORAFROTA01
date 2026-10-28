@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { DriverProfileModal } from "./DriverProfileModal";
 import { getFinishedStatusConfig, FinishedRouteStatus, DriverBase } from "@/lib/driverUtils";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 const statusConfig = {
   finalizada: {
@@ -114,7 +116,7 @@ export function RecentDeliveries() {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel('recent-deliveries')
+      .channel(uniqueChannelName("recent-deliveries"))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'drivers' },
@@ -134,8 +136,7 @@ export function RecentDeliveries() {
 
   const handleWhatsApp = (e: React.MouseEvent, phone: string) => {
     e.stopPropagation();
-    const cleanPhone = phone.replace(/\D/g, "");
-    window.open(`https://wa.me/${cleanPhone}`, "_blank");
+    openWhatsApp(phone);
   };
 
   if (loading) {

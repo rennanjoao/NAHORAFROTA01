@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { getTodayBrazil, isOnBrazilDate } from "@/lib/timezone";
 import { getCurrentTenantId } from "@/lib/tenant";
 
@@ -141,17 +142,17 @@ export function useDashboardKPIs() {
     fetchData(true);
 
     const manifestsChannel = supabase
-      .channel("dashboard-manifests")
+      .channel(uniqueChannelName("dashboard-manifests"))
       .on("postgres_changes", { event: "*", schema: "public", table: "manifests" }, fetchData)
       .subscribe();
 
     const invoicesChannel = supabase
-      .channel("dashboard-invoices")
+      .channel(uniqueChannelName("dashboard-invoices"))
       .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, fetchData)
       .subscribe();
 
     const driversChannel = supabase
-      .channel("dashboard-drivers")
+      .channel(uniqueChannelName("dashboard-drivers"))
       .on("postgres_changes", { event: "*", schema: "public", table: "drivers" }, fetchData)
       .subscribe();
 

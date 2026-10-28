@@ -25,6 +25,8 @@ interface DeleteManifestDialogProps {
   canDelete: boolean;
   blockReason?: string;
   completedCount?: number;
+  /** Bloqueio que nem o supervisor libera (ex.: romaneio pago). */
+  hardBlocked?: boolean;
 }
 
 export function DeleteManifestDialog({
@@ -35,6 +37,7 @@ export function DeleteManifestDialog({
   canDelete,
   blockReason,
   completedCount,
+  hardBlocked = false,
 }: DeleteManifestDialogProps) {
   const [supervisorPassword, setSupervisorPassword] = useState("");
   const [isPasswordValid, setIsPasswordValid] = useState(false);
@@ -92,7 +95,7 @@ export function DeleteManifestDialog({
   };
 
   const handleConfirm = async () => {
-    if (!manifest) return;
+    if (!manifest || hardBlocked) return;
     
     if (!canDelete) {
       const isValid = await validateSupervisorPassword();
@@ -156,7 +159,7 @@ export function DeleteManifestDialog({
                   <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
                     <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
                     <p className="text-xs text-warning-foreground">
-                      Todas as <strong>{manifest.deliveriesCount}</strong> notas fiscais deste romaneio voltarão para a lista de pendentes.
+                      As notas ainda não entregues voltam para a lista de pendentes. As já entregues continuam entregues.
                     </p>
                   </div>
                 </div>
@@ -175,6 +178,7 @@ export function DeleteManifestDialog({
                     </div>
                   </div>
 
+                  {!hardBlocked && (
                   <div className="space-y-2">
                     <Label htmlFor="supervisor-password" className="text-sm font-medium">
                       Senha de Supervisor
@@ -201,6 +205,7 @@ export function DeleteManifestDialog({
                       <p className="text-xs text-success">✓ Senha válida</p>
                     )}
                   </div>
+                  )}
                 </div>
               )}
             </div>
@@ -210,10 +215,10 @@ export function DeleteManifestDialog({
           <AlertDialogCancel disabled={isValidating}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
-            disabled={isValidating || (!canDelete && !supervisorPassword.trim())}
+            disabled={hardBlocked || isValidating || (!canDelete && !supervisorPassword.trim())}
             className={cn(
               "gap-2",
-              canDelete || supervisorPassword.trim()
+              !hardBlocked && (canDelete || supervisorPassword.trim())
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 : "opacity-50 cursor-not-allowed"
             )}

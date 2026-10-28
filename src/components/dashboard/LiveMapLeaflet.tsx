@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Navigation, Radio, RefreshCw, Truck as TruckIcon } from 'lucide-react';
+import { whatsappNumber } from "@/lib/whatsapp";
 
 interface FleetPosition {
   id: string;
@@ -50,7 +51,7 @@ function escapeHtml(value: unknown) {
 }
 
 function buildPopup(position: FleetPosition) {
-  const phone = position.phone?.replace(/\D/g, '');
+  const phone = whatsappNumber(position.phone);
   const updatedAt = position.last_update
     ? new Date(position.last_update).toLocaleTimeString('pt-BR')
     : 'Desconhecido';

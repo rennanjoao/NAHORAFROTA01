@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Navigation, MapPin, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -100,7 +101,7 @@ export function DriverActivityFeed({ driverId, maxHeight = "200px" }: DriverActi
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel(`driver-activity-${driverId}`)
+      .channel(uniqueChannelName(`driver-activity-${driverId}`))
       .on(
         "postgres_changes",
         {

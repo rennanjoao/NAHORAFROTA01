@@ -3,6 +3,7 @@ import Map, { Marker, NavigationControl, FullscreenControl } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Navigation, Radio, RefreshCw, Truck as TruckIcon, MessageCircle, Gauge, Battery, MapPin, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface FleetPosition {
   id: string;
@@ -131,8 +132,7 @@ export default function LiveMapMapbox({
 
   const handleWhatsApp = (phone?: string) => {
     if (!phone) return;
-    const cleanPhone = phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    openWhatsApp(phone);
   };
 
   const onTimeCount = positions.filter(p => !p.gpsStale && (!p.current_delay || p.current_delay === 0)).length;

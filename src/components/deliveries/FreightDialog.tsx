@@ -45,6 +45,8 @@ interface FreightDialogProps {
   selectedDeliveryIds: number[];
   dbInvoiceIds?: string[]; // Optional: UUIDs from database for DB persistence
   onConfirm: (freightData: FreightData, manifest: ManifestRecord, dbManifest?: DBManifest | null) => void;
+  /** Abre a impressao do romaneio recem-criado (botao do dialogo de sucesso). */
+  onPrint?: () => void;
 }
 
 export interface FreightData {
@@ -180,7 +182,7 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
   return <div ref={mapContainerRef} className="h-full w-full" />;
 }
 
-export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliveryIds, dbInvoiceIds, onConfirm }: FreightDialogProps) {
+export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliveryIds, dbInvoiceIds, onConfirm, onPrint }: FreightDialogProps) {
   // NEW ORDER: fleet_type → route → freight (skip if own_fleet) → driver → preview
   const [step, setStep] = useState<StepType>("fleet_type");
   const [fleetType, setFleetType] = useState<FleetType | null>(null);
@@ -192,6 +194,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   const [selectedVehicle, setSelectedVehicle] = useState<CompanyVehicle | null>(null);
   const [returnToBase, setReturnToBase] = useState(true);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successDriverPhone, setSuccessDriverPhone] = useState<string | null>(null);
   const [createdManifest, setCreatedManifest] = useState<DBManifest | null>(null);
   const [optimizedRoute, setOptimizedRoute] = useState<ReturnType<typeof optimizeRouteNearestNeighbor> | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -839,9 +842,14 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       }
 
       if (deliveryWaypoints.length === 0) {
+        // Sem nenhuma NF localizada no mapa o romaneio ainda pode ser gerado
+        // (antes o assistente travava em "Aguarde o cálculo da rota").
+        setOptimizedRoute({ waypoints: [], totalDistance: 0, totalDuration: 0 });
+        setRouteDistanceSource("estimated");
+        setHasCalculatedRoute(true);
         toast({
-          title: "Sem coordenadas para calcular",
-          description: "Nenhuma nota fiscal possui coordenadas GPS válidas.",
+          title: "Rota sem coordenadas",
+          description: "Nenhuma NF pôde ser localizada no mapa. Dá para gerar o romaneio, mas sem distância (frete por KM indisponível).",
           variant: "destructive",
         });
         return;
@@ -921,9 +929,12 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       });
     } catch (error) {
       console.error("Route optimization error:", error);
+      setRouteCalculationError("Não foi possível calcular a rota. Tente recalcular ou siga sem a distância.");
+      setOptimizedRoute({ waypoints: [], totalDistance: 0, totalDuration: 0 });
+      setHasCalculatedRoute(true);
       toast({
         title: "Erro na roteirização",
-        description: "Não foi possível calcular a rota.",
+        description: "Não foi possível calcular a rota. Dá para seguir sem a distância.",
         variant: "destructive",
       });
     } finally {
@@ -983,6 +994,14 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       }
       if (freightType === "per_km" && !perKmValue) {
         toast({ title: "Informe o valor por KM", variant: "destructive" });
+        return;
+      }
+      if (freightType === "per_km" && estimatedDistance <= 0) {
+        toast({
+          title: "Distância indisponível",
+          description: "A rota não tem distância calculada. Use frete fixo por NF ou valor fechado.",
+          variant: "destructive",
+        });
         return;
       }
       setStep("driver");
@@ -1079,6 +1098,17 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         return;
       }
       
+      // Grava a sequencia de paradas calculada (NFs sem coordenada vao para o fim).
+      const routeIds = (optimizedRoute?.waypoints || [])
+        .map((waypoint) => String(waypoint.id))
+        .filter((id) => dbInvoiceIds.includes(id));
+      const orderedIds = [...new Set([...routeIds, ...dbInvoiceIds])];
+      const { error: orderError } = await supabase.rpc("set_manifest_route_order", {
+        p_manifest_id: dbManifest.id,
+        p_invoice_ids: orderedIds,
+      });
+      if (orderError) console.warn("Nao foi possivel gravar a ordem das paradas:", orderError);
+
       // Use DB manifest for success dialog
       setCreatedManifest(dbManifest);
     }
@@ -1108,6 +1138,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       companyVehicleStore.assignToDriver(selectedVehicle.id, selectedDriver.id, selectedDriver.name);
     }
 
+    setSuccessDriverPhone(selectedDriver.phone || null);
     setShowSuccessDialog(true);
     onConfirm(freightData, manifest, dbManifest);
   };
@@ -1858,6 +1889,15 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         open={showSuccessDialog}
         onOpenChange={handleSuccessClose}
         manifest={createdManifest}
+        driverPhone={successDriverPhone}
+        onPrint={
+          onPrint
+            ? () => {
+                handleSuccessClose(false);
+                onPrint();
+              }
+            : undefined
+        }
       />
     </Dialog>
   );

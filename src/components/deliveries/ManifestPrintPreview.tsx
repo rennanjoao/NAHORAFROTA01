@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { X, Printer, FileText, Loader2 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { formatCNPJ } from "@/lib/cnpjValidation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import {
 import { ManifestRecord } from "@/stores/manifestStore";
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { useCompanyStore } from "@/stores/companyStore";
+import { useTenantData } from "@/hooks/useTenantData";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DeliveryItem {
@@ -78,7 +79,20 @@ export function ManifestPrintPreview({
   dbManifest
 }: ManifestPrintPreviewProps) {
   const printRef = useRef<HTMLDivElement>(null);
-  const { company } = useCompanyStore();
+  // Dados da empresa vem do banco (o store local ficava vazio ou com outra empresa).
+  const { tenant } = useTenantData();
+  const company = tenant
+    ? {
+        razaoSocial: tenant.razao_social,
+        cnpj: tenant.cnpj,
+        logradouro: tenant.logradouro,
+        numero: tenant.numero,
+        bairro: tenant.bairro,
+        cidade: tenant.cidade,
+        uf: tenant.uf,
+        telefone: tenant.telefone,
+      }
+    : null;
   const [dbDeliveries, setDbDeliveries] = useState<DeliveryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -96,7 +110,12 @@ export function ManifestPrintPreview({
         
         if (error) throw error;
         
-        const items: DeliveryItem[] = (data || []).map(inv => {
+        // Ordem das paradas da roteirizacao (route_sequence), depois numero da NF.
+        const ordered = [...(data || [])].sort((a, b) =>
+          (a.route_sequence ?? Number.MAX_SAFE_INTEGER) - (b.route_sequence ?? Number.MAX_SAFE_INTEGER) ||
+          String(a.nfe_number || '').localeCompare(String(b.nfe_number || ''), 'pt-BR', { numeric: true }),
+        );
+        const items: DeliveryItem[] = ordered.map(inv => {
           // Format phone for print display
           const rawPhone = inv.recipient_phone?.replace(/\D/g, '') || '';
           const hasPhone = rawPhone.length >= 10;
@@ -110,7 +129,9 @@ export function ManifestPrintPreview({
             id: inv.id,
             nfe: inv.nfe_number || inv.access_key?.slice(-8) || '-',
             recipient: inv.recipient_name,
-            address: inv.address_street || inv.address_full?.split(',')[0] || '',
+            address: inv.address_street
+              ? [inv.address_street, inv.address_number].filter(Boolean).join(', ')
+              : inv.address_full?.split(' - ')[0] || '',
             city: inv.address_city || '',
             state: inv.address_state || '',
             zipCode: inv.address_zip || '',
@@ -236,6 +257,8 @@ export function ManifestPrintPreview({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogTitle className="sr-only">Romaneio para impressão</DialogTitle>
+        <DialogDescription className="sr-only">Visualização do romaneio antes de imprimir ou salvar em PDF.</DialogDescription>
         {/* Toolbar */}
         <div className="sticky top-0 z-10 bg-background border-b p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -269,7 +292,7 @@ export function ManifestPrintPreview({
                   {company?.razaoSocial || "NaHoraFrota"}
                 </div>
                 {company?.cnpj && (
-                  <div className="logo-sub text-xs text-muted-foreground">CNPJ: {company.cnpj}</div>
+                  <div className="logo-sub text-xs text-muted-foreground">CNPJ: {formatCNPJ(company.cnpj)}</div>
                 )}
                 {company?.logradouro && (
                   <div className="logo-sub text-xs text-muted-foreground mt-1">
@@ -372,7 +395,7 @@ export function ManifestPrintPreview({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{delivery.phone || "Não informado"}</TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{delivery.phone || "Não informado"}</TableCell>
                       <TableCell className="text-right text-xs">{delivery.weight}</TableCell>
                       <TableCell className="text-right text-xs">{delivery.value}</TableCell>
                       <TableCell className="text-center text-xs">

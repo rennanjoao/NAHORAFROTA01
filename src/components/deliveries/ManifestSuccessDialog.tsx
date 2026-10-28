@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { CheckCircle2, Download, MessageCircle } from "lucide-react";
+import { CheckCircle2, MessageCircle, Printer } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,11 +14,16 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { DBManifest } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface ManifestSuccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   manifest: DBManifest | null;
+  /** Telefone do motorista para abrir a conversa direto no WhatsApp. */
+  driverPhone?: string | null;
+  /** Abre a impressao do romaneio (de onde o navegador tambem salva em PDF). */
+  onPrint?: () => void;
 }
 
 const vehicleTypeLabels: Record<string, string> = {
@@ -33,10 +38,12 @@ const freightTypeLabels: Record<string, string> = {
   per_km: "Frete por KM",
 };
 
-export function ManifestSuccessDialog({ 
-  open, 
-  onOpenChange, 
-  manifest 
+export function ManifestSuccessDialog({
+  open,
+  onOpenChange,
+  manifest,
+  driverPhone,
+  onPrint,
 }: ManifestSuccessDialogProps) {
   // iOS Fix: Bloquear scroll do body quando dialog abre
   useEffect(() => {
@@ -61,80 +68,23 @@ export function ManifestSuccessDialog({
 
   if (!manifest) return null;
 
-  const handleDownloadPDF = () => {
-    toast({
-      title: "📄 Gerando PDF...",
-      description: "O download iniciará em instantes.",
-    });
-    
-    const createdDate = new Date(manifest.created_at);
-    const content = `
-ROMANEIO DE ENTREGAS
-====================
-Código: ${manifest.manifest_code}
-Data: ${createdDate.toLocaleDateString("pt-BR")}
-
-MOTORISTA
----------
-Nome: ${manifest.driver_name}
-CPF: ${manifest.driver_cpf || "-"}
-Veículo: ${vehicleTypeLabels[manifest.vehicle_type || ""] || manifest.vehicle_type || "-"}
-Placa: ${manifest.vehicle_plate || "-"}
-
-FRETE
------
-Tipo: ${freightTypeLabels[manifest.freight_type] || manifest.freight_type}
-Valor Frete: ${formatCurrency(manifest.freight_value)}
-Valor Mercadorias: ${formatCurrency(manifest.total_value || 0)}
-Entregas: ${manifest.deliveries_count}
-${manifest.estimated_distance ? `Distância: ${manifest.estimated_distance.toFixed(1)} km` : ''}
-
----
-Documento gerado automaticamente pelo Sistema Na Hora Transporte
-    `;
-    
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `romaneio-${manifest.manifest_code}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    setTimeout(() => {
-      toast({
-        title: "✅ Arquivo Baixado",
-        description: `Romaneio ${manifest.manifest_code} salvo com sucesso.`,
-      });
-    }, 500);
-  };
-
   const handleSendWhatsApp = () => {
-    const message = encodeURIComponent(
-      `Olá ${manifest.driver_name}! 🚚\n\n` +
+    const message =
+      `Olá ${manifest.driver_name}!\n\n` +
       `Seu romaneio foi gerado:\n` +
-      `📋 Código: ${manifest.manifest_code}\n` +
-      `📦 Entregas: ${manifest.deliveries_count}\n` +
-      `💰 Frete: ${formatCurrency(manifest.freight_value)}\n\n` +
-      `Boas entregas! 🎯`
-    );
-    
-    const safeMessage = encodeURIComponent(
-      `Ola ${manifest.driver_name}!\n\n` +
-      `Seu romaneio foi gerado:\n` +
-      `- Codigo: ${manifest.manifest_code}\n` +
+      `- Código: ${manifest.manifest_code}\n` +
       `- Entregas: ${manifest.deliveries_count}\n` +
       `- Frete: ${formatCurrency(manifest.freight_value)}\n\n` +
-      `Boas entregas!`
-    );
+      `As entregas já estão no app do motorista. Boas entregas!`;
 
-    window.open(`https://wa.me/?text=${safeMessage}`, "_blank");
-    
+    const hasPhone = openWhatsApp(driverPhone, message);
+    if (!hasPhone) openWhatsApp(null, message);
+
     toast({
-      title: "📱 WhatsApp Aberto",
-      description: "Selecione o contato do motorista para enviar.",
+      title: "📱 WhatsApp aberto",
+      description: hasPhone
+        ? `Conversa com ${manifest.driver_name} pronta para enviar.`
+        : "Telefone do motorista não cadastrado: selecione o contato para enviar.",
     });
   };
 
@@ -203,17 +153,19 @@ Documento gerado automaticamente pelo Sistema Na Hora Transporte
         </Card>
 
         <div className="flex flex-col gap-3 pt-2">
-          <Button 
-            type="button"
-            onClick={handleDownloadPDF} 
-            variant="outline" 
-            className="w-full gap-2"
-            style={{ fontSize: '16px' }}
-          >
-            <Download className="h-4 w-4" />
-            Baixar PDF
-          </Button>
-          
+          {onPrint && (
+            <Button
+              type="button"
+              onClick={onPrint}
+              variant="outline"
+              className="w-full gap-2"
+              style={{ fontSize: '16px' }}
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir / Salvar PDF
+            </Button>
+          )}
+
           <Button 
             type="button"
             onClick={handleSendWhatsApp} 

@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { getSLAStatus, getIndividualSLAColor, vehicleLabels } from "@/lib/driverUtils";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface Driver {
   id: string;
@@ -71,7 +73,7 @@ export function DriverSheet({ driver, open, onOpenChange }: DriverSheetProps) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel(`telemetry-${driver.id}`)
+      .channel(uniqueChannelName(`telemetry-${driver.id}`))
       .on(
         'postgres_changes',
         {
@@ -100,8 +102,7 @@ export function DriverSheet({ driver, open, onOpenChange }: DriverSheetProps) {
   const slaStatus = getSLAStatus(driver.individual_sla);
 
   const handleWhatsApp = () => {
-    const phone = driver.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/${phone}`, "_blank");
+    openWhatsApp(driver.phone);
   };
 
   const handleCall = () => {

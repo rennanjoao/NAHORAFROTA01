@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SLADrilldownModal } from "./SLADrilldownModal";
 import { rankBySLA } from "@/lib/slaRanking";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 function RankBadge({ rank }: { rank: number | null }) {
   if (rank === null) {
@@ -95,7 +96,7 @@ function DriverOccurrenceCard({
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
     const cleanPhone = driver.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    openWhatsApp(cleanPhone);
   };
 
   return (

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UserPlus, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError";
 import { z } from "zod";
 import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
 
@@ -60,7 +61,6 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [edgeErrorDetails, setEdgeErrorDetails] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -79,7 +79,6 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
     setCpf("");
     setVehiclePlate("");
     setVehicleType("van");
-    setEdgeErrorDetails(null);
     setShowPassword(false);
   };
 
@@ -96,7 +95,7 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
       return;
     }
 
-    const nameParts = name.trim().toLowerCase().split(" ").filter(Boolean);
+    const nameParts = name.trim().split(/\s+/).map(toEmailLocalPart).filter(Boolean);
     const firstName = nameParts[0] || "motorista";
     const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
     const autoEmail = lastName
@@ -108,8 +107,6 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
-
-    setEdgeErrorDetails(null);
 
     const validation = createDriverSchema.safeParse({
       name,
@@ -163,27 +160,13 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
       });
 
       if (edgeError) {
-        const anyErr = edgeError as {
-          context?: { status?: number; body?: string; response?: string };
-          status?: number;
-          message?: string;
-        };
-
-        const statusCode = anyErr?.context?.status ?? anyErr?.status ?? "unknown";
-        const body =
-          typeof anyErr?.context?.body === "string"
-            ? anyErr.context.body
-            : typeof anyErr?.context?.response === "string"
-              ? anyErr.context.response
-              : null;
-
-        setEdgeErrorDetails(`status: ${statusCode}\n${body ? `body: ${body}` : "(sem body)"}`);
-        toast.error(edgeError.message || "Erro ao salvar motorista");
+        const info = await readEdgeFunctionError(edgeError, "Erro ao salvar motorista");
+        console.error("create-driver error:", info, edgeError);
+        toast.error(info.message);
         return;
       }
 
       if (!edgeData?.success) {
-        setEdgeErrorDetails(`status: 400\nbody: ${JSON.stringify(edgeData, null, 2)}`);
         toast.error(edgeData?.error || "Erro ao salvar motorista");
         return;
       }
@@ -245,15 +228,6 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
             Criar Novo Motorista
           </DialogTitle>
         </DialogHeader>
-
-        {edgeErrorDetails && (
-          <div className="rounded-md border p-3 text-sm">
-            <p className="font-medium">Detalhes do erro (para debug)</p>
-            <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground">
-              {edgeErrorDetails}
-            </pre>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div className="space-y-2">

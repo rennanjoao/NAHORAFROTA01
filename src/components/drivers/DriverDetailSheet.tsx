@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Download, Eye, FileText, MessageCircle, MapPin, Truck, Star, TrendingUp, TrendingDown, Pencil, Trash2, Loader2, AlertTriangle, Power, PowerOff, User, Lock } from "lucide-react";
-import { Driver, useLogistics } from "@/contexts/LogisticsContext";
+import { Driver } from "@/contexts/LogisticsContext";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface DriverDetailSheetProps {
   driver: Driver | null;
@@ -66,7 +67,6 @@ const documentLabels: Record<DriverDocumentType, string> = {
 
 export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, onDeleteDriver, onStatusChanged }: DriverDetailSheetProps) {
   const navigate = useNavigate();
-  const { getDriverSLA } = useLogistics();
   const { roles } = useAuth();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -158,13 +158,14 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
 
   const canManageDriver = roles.includes("admin") || roles.includes("fleet_manager");
   const status = statusConfig[driver.status] || statusConfig.inactive;
-  const driverSLA = getDriverSLA(driver.id);
+  const driverSLA = driver.sla ?? null;
   const isInRoute = driver.status === "in_route";
   const isInactive = driver.status === "inactive";
 
   const handleWhatsApp = () => {
-    const cleanPhone = driver.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    if (!openWhatsApp(driver.phone)) {
+      toast({ title: "Telefone inválido", description: "Cadastre o telefone do motorista com DDD.", variant: "destructive" });
+    }
   };
 
   const handleLocateOnMap = () => {
@@ -423,33 +424,29 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
             </h3>
             <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">SLA Atual</span>
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "font-mono font-bold text-lg",
-                    driverSLA >= 95 ? "text-success" :
-                    driverSLA >= 85 ? "text-warning" : "text-destructive"
-                  )}>
-                    {formatSLA(driverSLA)}%
-                  </span>
-                  {driverSLA >= 95 && <TrendingUp className="h-4 w-4 text-success" />}
-                  {driverSLA < 85 && <TrendingDown className="h-4 w-4 text-destructive" />}
-                </div>
+                <span className="text-muted-foreground">SLA (6 meses)</span>
+                {driverSLA === null ? (
+                  <span className="text-sm text-muted-foreground">Sem entregas finalizadas</span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "font-mono font-bold text-lg",
+                      driverSLA >= 95 ? "text-success" :
+                      driverSLA >= 85 ? "text-warning" : "text-destructive"
+                    )}>
+                      {formatSLA(driverSLA)}%
+                    </span>
+                    {driverSLA >= 95 && <TrendingUp className="h-4 w-4 text-success" />}
+                    {driverSLA < 85 && <TrendingDown className="h-4 w-4 text-destructive" />}
+                  </div>
+                )}
               </div>
               <Separator />
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Entregas Completas</span>
+                <span className="text-muted-foreground">Entregues / finalizadas (6 meses)</span>
                 <span className="font-medium font-mono">
                   {driver.successfulDeliveries}/{driver.totalDeliveries}
                 </span>
-              </div>
-              <Separator />
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Avaliação</span>
-                <div className="flex items-center gap-1">
-                  <Star className="h-4 w-4 text-warning fill-warning" />
-                  <span className="font-medium font-mono">{driver.rating.toFixed(1)}</span>
-                </div>
               </div>
             </div>
           </div>

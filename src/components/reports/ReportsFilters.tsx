@@ -108,7 +108,7 @@ export function ReportsFilters({ filters, options, onFiltersChange, onClearFilte
                   {filters.dateRange.from ? format(filters.dateRange.from, "dd/MM/yy", { locale: ptBR }) : "Início"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-popover z-50" align="start">
+              <PopoverContent className="w-auto p-0 bg-popover" align="start">
                 <Calendar
                   mode="single"
                   selected={filters.dateRange.from}
@@ -137,7 +137,7 @@ export function ReportsFilters({ filters, options, onFiltersChange, onClearFilte
                   {filters.dateRange.to ? format(filters.dateRange.to, "dd/MM/yy", { locale: ptBR }) : "Fim"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-popover z-50" align="start">
+              <PopoverContent className="w-auto p-0 bg-popover" align="start">
                 <Calendar
                   mode="single"
                   selected={filters.dateRange.to}

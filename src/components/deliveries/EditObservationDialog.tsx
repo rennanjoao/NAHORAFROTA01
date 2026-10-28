@@ -19,7 +19,7 @@ interface EditObservationDialogProps {
   deliveryId: number;
   deliveryNfe: string;
   currentObservation?: string;
-  onSave: (deliveryId: number, observation: string) => void;
+  onSave: (deliveryId: number, observation: string) => Promise<boolean> | boolean | void;
 }
 
 export function EditObservationDialog({
@@ -31,6 +31,12 @@ export function EditObservationDialog({
   onSave,
 }: EditObservationDialogProps) {
   const [observation, setObservation] = useState(currentObservation);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Recarrega o texto ao abrir para outra NF.
+  useEffect(() => {
+    if (open) setObservation(currentObservation);
+  }, [open, currentObservation, deliveryId]);
 
   // iOS Fix: Bloquear scroll do body quando dialog abre
   useEffect(() => {
@@ -53,13 +59,26 @@ export function EditObservationDialog({
     };
   }, [open]);
 
-  const handleSave = () => {
-    onSave(deliveryId, observation);
-    toast({
-      title: "✅ Observação salva",
-      description: `Observação atualizada para ${deliveryNfe}.`,
-    });
-    onOpenChange(false);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const result = await onSave(deliveryId, observation);
+      if (result === false) {
+        toast({
+          title: "Erro ao salvar observação",
+          description: "A observação não foi gravada. Tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "✅ Observação salva",
+        description: `Observação atualizada para ${deliveryNfe}.`,
+      });
+      onOpenChange(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -100,8 +119,8 @@ export function EditObservationDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} style={{ fontSize: '16px' }}>
             Cancelar
           </Button>
-          <Button type="button" onClick={handleSave} style={{ fontSize: '16px' }}>
-            Salvar Observação
+          <Button type="button" onClick={handleSave} disabled={isSaving} style={{ fontSize: '16px' }}>
+            {isSaving ? "Salvando..." : "Salvar Observação"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { DeliveryDetailSheet, DeliveryWithHistory } from "@/components/deliveries/DeliveryDetailSheet";
+import { openWhatsApp } from "@/lib/whatsapp";
 
 interface SLADrilldownModalProps {
   open: boolean;
@@ -106,7 +107,7 @@ export function SLADrilldownModal({
   const handleWhatsApp = (e: React.MouseEvent, phone: string) => {
     e.stopPropagation();
     const cleanPhone = phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
+    openWhatsApp(cleanPhone);
   };
 
   const handleClose = () => {

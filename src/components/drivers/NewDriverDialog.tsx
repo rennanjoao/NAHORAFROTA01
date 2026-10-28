@@ -43,11 +43,14 @@ import { VehicleType } from "@/contexts/LogisticsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
 import { requireCurrentTenantId } from "@/lib/tenant";
+import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError";
+import { MAX_DRIVER_DOCUMENT_BYTES, uploadDriverDocument, type DriverDocumentType } from "@/lib/driverDocuments";
 
 interface DocumentFile {
   name: string;
   url: string;
   uploadedAt: Date;
+  file: File;
 }
 
 interface DriverDocuments {
@@ -144,14 +147,22 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   };
 
   const handleFileUpload = (type: keyof DriverDocuments, file: File) => {
+    if (file.size > MAX_DRIVER_DOCUMENT_BYTES) {
+      toast({
+        title: "Arquivo muito grande",
+        description: "Envie um arquivo de até 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
     const url = URL.createObjectURL(file);
     setDocuments(prev => ({
       ...prev,
-      [type]: { name: file.name, url, uploadedAt: new Date() }
+      [type]: { name: file.name, url, uploadedAt: new Date(), file }
     }));
     toast({
-      title: "📄 Documento carregado",
-      description: `${file.name} foi adicionado com sucesso.`,
+      title: "📄 Documento anexado",
+      description: `${file.name} será enviado ao salvar o motorista.`,
     });
   };
 
@@ -166,9 +177,9 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   // Auto-generate email and password from name and CPF
   const generateDriverEmail = (name: string, cpf: string): string => {
     if (!name.trim()) return "";
-    const parts = name.trim().split(/\s+/);
-    const firstName = parts[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const lastInitial = parts.length > 1 ? parts[parts.length - 1][0].toLowerCase() : "";
+    const parts = name.trim().split(/\s+/).map(toEmailLocalPart).filter(Boolean);
+    const firstName = parts[0] || "motorista";
+    const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
     const cpfDigits = cpf.replace(/\D/g, "");
     const cpfSuffix = cpfDigits.length >= 4 ? cpfDigits.slice(-4) : "";
     return `${firstName}${lastInitial}${cpfSuffix}@driver.nahorafrota.app`;
@@ -314,78 +325,18 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
         // Check for function invocation error (non-2xx responses)
         if (error) {
-          const anyErr = error as any;
-
-          // Extract status code and response body
-          const statusCode = anyErr?.status || anyErr?.context?.status || "unknown";
-          const contextBody =
-            typeof anyErr?.context?.body === "string"
-              ? anyErr.context.body
-              : typeof anyErr?.context?.response === "string"
-                ? anyErr.context.response
-                : null;
-
-          let bodyMessage: string | null = null;
-          let errorCode: string | null = null;
-          if (contextBody) {
-            try {
-              const parsed = JSON.parse(contextBody);
-              bodyMessage = parsed?.error ? String(parsed.error) : contextBody;
-              errorCode = parsed?.code || null;
-            } catch {
-              bodyMessage = contextBody;
-            }
-          }
-
-          const errMsg = bodyMessage || error.message || String(error);
-
-          if (errorCode === "cpf_already_exists" || statusCode === 409) {
-            toast({
-              title: "CPF ja cadastrado",
-              description: "Este CPF ja esta vinculado a outro motorista. Verifique se o motorista ja existe na lista ou use um CPF diferente.",
-              variant: "destructive",
-            });
-            setIsSaving(false);
-            return;
-          }
-
-          // Handle specific error codes with friendly messages
-          if (errorCode === "cpf_already_exists" || statusCode === 409) {
-            toast({
-              title: "⚠️ CPF já cadastrado",
-              description: errMsg || "Este CPF já está vinculado a outro motorista. Verifique os dados ou use um CPF diferente.",
-              variant: "destructive",
-            });
-            setIsSaving(false);
-            return;
-          }
-
-          if (errMsg.includes("Failed to send a request to the Edge Function")) {
-            toast({
-              title: "Login nao criado",
-              description: "Nao foi possivel chamar a funcao create-user. Verifique se ela esta ativa e tente novamente.",
-              variant: "destructive",
-            });
-            console.error("Edge function request failed:", error);
-            setIsSaving(false);
-            return;
-          } else {
-          // Show detailed error with status code
+          const info = await readEdgeFunctionError(error, "Não foi possível criar o login do motorista.");
+          const cpfTaken = info.code === "cpf_already_exists" || /cpf/i.test(info.message);
           toast({
-            title: `❌ Erro ao criar login (${statusCode})`,
-            description: errMsg,
+            title: cpfTaken ? "CPF já cadastrado" : info.status === 409 ? "Login já existe" : "Erro ao criar login",
+            description: cpfTaken
+              ? "Este CPF já está vinculado a outro motorista. Verifique se o motorista já existe na lista."
+              : info.message,
             variant: "destructive",
           });
-          
-          console.error("Edge function error:", {
-            statusCode,
-            message: errMsg,
-            fullError: error
-          });
-
+          console.error("Edge function error:", info, error);
           setIsSaving(false);
           return;
-          }
         }
 
         // Store the created user ID so the driver can be linked below.
@@ -571,6 +522,27 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         createdDriverId = savedDriver?.id ?? null;
       }
       
+      // Documentos anexados no cadastro (antes eram descartados ao salvar)
+      const pendingDocuments = Object.entries(documents) as Array<[DriverDocumentType, DocumentFile]>;
+      if (createdDriverId && pendingDocuments.length > 0) {
+        const failed: string[] = [];
+        for (const [type, doc] of pendingDocuments) {
+          try {
+            await uploadDriverDocument({ driverId: createdDriverId, tenantId, type, file: doc.file });
+          } catch (uploadError) {
+            console.error("Driver document upload error:", uploadError);
+            failed.push(documentLabels[type]);
+          }
+        }
+        if (failed.length > 0) {
+          toast({
+            title: "Documentos não enviados",
+            description: `Motorista salvo, mas falhou o envio de: ${failed.join(", ")}. Envie novamente em Editar motorista.`,
+            variant: "destructive",
+          });
+        }
+      }
+
       onSave();
 
       // Dispara o e-mail com os dados de cadastro para o motorista
@@ -624,6 +596,16 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       setCreateLogin(false);
     } catch (err: any) {
       console.error("Error saving driver:", err);
+      // Login criado mas cadastro do motorista falhou: remove o login para nao
+      // deixar um acesso solto (e liberar o e-mail para a proxima tentativa).
+      if (createdUserId && !createdDriverId) {
+        const { data: rollback, error: rollbackError } = await supabase.rpc("delete_user_complete", {
+          p_user_id: createdUserId,
+        });
+        if (rollbackError || !(rollback as { success?: boolean } | null)?.success) {
+          console.error("Rollback do login do motorista falhou:", rollbackError || rollback);
+        }
+      }
       const errorMessage = getDriverSaveErrorMessage(err?.message);
       if (isVehicleTypeConstraintError(err?.message)) {
         setActiveTab("vehicle");

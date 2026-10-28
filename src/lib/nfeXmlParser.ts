@@ -243,7 +243,7 @@ function formatCep(cep: string): string {
 }
 
 // Build full address
-function buildFullAddress(
+export function buildFullAddress(
   street: string,
   number: string,
   neighborhood: string,

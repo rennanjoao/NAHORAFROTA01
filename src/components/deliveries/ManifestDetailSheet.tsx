@@ -75,6 +75,8 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ManifestPrintPreview } from "./ManifestPrintPreview";
 import { DeliveryProofViewer } from "./DeliveryProofViewer";
+import { whatsappUrl } from "@/lib/whatsapp";
+import { recalculateManifestTotals } from "@/lib/manifestTotals";
 
 interface ManifestDetailSheetProps {
   open: boolean;
@@ -139,6 +141,10 @@ export function ManifestDetailSheet({
   const [removeReason, setRemoveReason] = useState("");
 
   const [finalizeDialog, setFinalizeDialog] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  // Status atual do romaneio (o recebido por props e uma foto de quando a lista carregou;
+  // ele pode ter sido finalizado sozinho depois da ultima entrega).
+  const [currentStatus, setCurrentStatus] = useState<DBManifest["status"] | null>(null);
 
   // Proof viewer state
   const [proofViewerInvoice, setProofViewerInvoice] = useState<ManifestInvoice | null>(null);
@@ -155,16 +161,23 @@ export function ManifestDetailSheet({
     if (!manifest) return;
     setIsLoading(true);
 
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("manifest_id", manifest.id)
-      .order("recipient_name", { ascending: true });
+    const [{ data, error }, { data: freshManifest }] = await Promise.all([
+      supabase.from("invoices").select("*").eq("manifest_id", manifest.id),
+      supabase.from("manifests").select("status").eq("id", manifest.id).maybeSingle(),
+    ]);
+    setCurrentStatus((freshManifest?.status as DBManifest["status"] | undefined) ?? manifest.status);
 
     if (error) {
       console.error("Error fetching invoices:", error);
     } else {
-      setInvoices((data as ManifestInvoice[]) || []);
+      // Ordem das paradas da roteirizacao, depois destinatario.
+      const ordered = [...((data as ManifestInvoice[]) || [])].sort(
+        (a, b) =>
+          ((a as { route_sequence?: number | null }).route_sequence ?? Number.MAX_SAFE_INTEGER) -
+            ((b as { route_sequence?: number | null }).route_sequence ?? Number.MAX_SAFE_INTEGER) ||
+          (a.recipient_name || "").localeCompare(b.recipient_name || "", "pt-BR"),
+      );
+      setInvoices(ordered);
     }
     setIsLoading(false);
   };
@@ -408,31 +421,7 @@ export function ManifestDetailSheet({
   // Update manifest totals
   const updateManifestTotals = async () => {
     if (!manifest) return;
-
-    const { data: remainingInvoices } = await supabase
-      .from("invoices")
-      .select("total_value, total_weight")
-      .eq("manifest_id", manifest.id);
-
-    const count = remainingInvoices?.length || 0;
-    const totalValue =
-      remainingInvoices?.reduce((sum, inv) => sum + (inv.total_value || 0), 0) ||
-      0;
-    const totalWeight =
-      remainingInvoices?.reduce(
-        (sum, inv) => sum + (inv.total_weight || 0),
-        0
-      ) || 0;
-
-    await supabase
-      .from("manifests")
-      .update({
-        deliveries_count: count,
-        total_value: totalValue,
-        total_weight: totalWeight,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", manifest.id);
+    await recalculateManifestTotals(manifest.id);
   };
 
   // Finalize manifest
@@ -454,73 +443,59 @@ export function ManifestDetailSheet({
   };
 
   const executeFinalization = async () => {
-    if (!manifest) return;
+    if (!manifest || isFinalizing) return;
+    setIsFinalizing(true);
+    try {
+      const { data, error } = await supabase.rpc("finalize_manifest", { p_manifest_id: manifest.id });
+      if (error) throw error;
 
-    // Get invoices with occurrence - set them back to pending (returned)
-    const occurrenceInvoices = invoices.filter(
-      (inv) => inv.status === "occurrence"
-    );
-    const deliveredInvoices = invoices.filter(
-      (inv) => inv.status === "delivered"
-    );
+      const result = data as {
+        success: boolean;
+        error?: string;
+        already_completed?: boolean;
+        delivered_count?: number;
+        returned_count?: number;
+      } | null;
 
-    // Update occurrence invoices to "returned" status
-    if (occurrenceInvoices.length > 0) {
-      const occurrenceIds = occurrenceInvoices.map((inv) => inv.id);
-      await supabase
-        .from("invoices")
-        .update({
-          status: "returned",
-          manifest_id: null,
-          driver_id: null,
-          updated_at: new Date().toISOString(),
-        })
-        .in("id", occurrenceIds);
+      if (!result?.success) {
+        toast({
+          title: "Não foi possível finalizar",
+          description: result?.error || "Tente novamente.",
+          variant: "destructive",
+        });
+        await fetchInvoices();
+        return;
+      }
+
+      if (result.already_completed) {
+        toast({ title: "Romaneio já finalizado", description: "Ele foi concluído automaticamente ou por outro usuário." });
+      } else {
+        const delivered = result.delivered_count ?? 0;
+        const returned = result.returned_count ?? 0;
+        await logAudit(
+          "finalized",
+          null,
+          { delivered_count: delivered, occurrence_count: returned },
+          `Romaneio finalizado - ${delivered} entregas, ${returned} ocorrências`
+        );
+        toast({
+          title: "✅ Romaneio Finalizado",
+          description: `${delivered} entrega(s) concluída(s), ${returned} NF(s) retornaram para roteirização.`,
+        });
+      }
+
+      setFinalizeDialog(false);
+      onRefresh();
+      onOpenChange(false);
+    } catch (err) {
+      toast({
+        title: "Erro ao finalizar",
+        description: err instanceof Error ? err.message : "Não foi possível finalizar o romaneio.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFinalizing(false);
     }
-
-    // Update manifest status to completed
-    await supabase
-      .from("manifests")
-      .update({
-        status: "completed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", manifest.id);
-
-    // Update driver status to available (for ALL driver types - CLT and third-party)
-    if (manifest.driver_id) {
-      await supabase
-        .from("drivers")
-        .update({ status: "active", updated_at: new Date().toISOString() })
-        .eq("id", manifest.driver_id);
-    }
-
-    // Update vehicle status to available (if own fleet)
-    if (manifest.company_vehicle_id) {
-      await supabase
-        .from("company_vehicles")
-        .update({ status: "available", updated_at: new Date().toISOString() })
-        .eq("id", manifest.company_vehicle_id);
-    }
-
-    await logAudit(
-      "finalized",
-      null,
-      {
-        delivered_count: deliveredInvoices.length,
-        occurrence_count: occurrenceInvoices.length,
-      },
-      `Romaneio finalizado - ${deliveredInvoices.length} entregas, ${occurrenceInvoices.length} ocorrências`
-    );
-
-    toast({
-      title: "✅ Romaneio Finalizado",
-      description: `${deliveredInvoices.length} entrega(s) concluída(s), ${occurrenceInvoices.length} NF(s) retornaram para roteirização.`,
-    });
-
-    setFinalizeDialog(false);
-    onRefresh();
-    onOpenChange(false);
   };
 
   // Stats
@@ -675,12 +650,12 @@ export function ManifestDetailSheet({
                   <Printer className="h-4 w-4" />
                   Reimprimir
                 </Button>
-                {manifest.status !== "completed" &&
-                  manifest.status !== "paid" && (
+                {!["completed", "paid", "cancelled"].includes(currentStatus ?? manifest.status) && (
                     <Button
                       size="sm"
                       className="bg-success hover:bg-success/90 text-success-foreground gap-2"
                       onClick={handleFinalizeManifest}
+                      disabled={isFinalizing}
                     >
                       <Flag className="h-4 w-4" />
                       Finalizar Romaneio
@@ -710,7 +685,7 @@ export function ManifestDetailSheet({
                         ? `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2, 7)}-${rawPhone.slice(7)}`
                         : `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2, 6)}-${rawPhone.slice(6)}`
                       : null;
-                    const whatsappLink = hasPhone ? `https://wa.me/55${rawPhone}` : null;
+                    const whatsappLink = hasPhone ? whatsappUrl(rawPhone) : null;
 
                     return (
                       <div

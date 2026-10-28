@@ -52,11 +52,13 @@ import { EditDriverDialog } from "@/components/drivers/EditDriverDialog";
 import { NewDriverDialog } from "@/components/drivers/NewDriverDialog";
 import { formatSLA } from "@/lib/formatSLA";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { useLogistics, Driver, VehicleType } from "@/contexts/LogisticsContext";
+import { Driver, VehicleType } from "@/contexts/LogisticsContext";
+import { useSLADB } from "@/hooks/useSLADB";
 import { useDriversDB, DBDriver } from "@/hooks/useDriversDB";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 
 // Status config with correct values matching database
 // active = Disponível (verde), in_route = Em Rota (azul), inactive = Inativo (cinza)
@@ -103,7 +105,12 @@ const normalizeVehicleTypeForDisplay = (value?: string | null): VehicleType => {
 };
 
 export default function DriversPage() {
-  const { getDriverSLA, getDriverBalance, activeDrivers, driversOnRoute } = useLogistics();
+  const { driverStats: slaDriverStats } = useSLADB();
+  const performanceByDriver = useMemo(
+    () => new Map(slaDriverStats.map((stat) => [stat.driver_id, stat.periodStats[180]])),
+    [slaDriverStats],
+  );
+  const [driverBalances, setDriverBalances] = useState<Map<string, number>>(new Map());
   const { drivers: dbDrivers, isLoading: isLoadingDrivers, fetchDrivers, addDriver, updateDriver } = useDriversDB();
   const { canAddDriver, driversCount, limits, plan, planLabels, refresh: refreshPlan } = usePlanLimits();
   const [openManifestDriverIds, setOpenManifestDriverIds] = useState<Set<string>>(new Set());
@@ -121,26 +128,38 @@ export default function DriversPage() {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Romaneios ainda nao pagos: definem quem esta em rota e o saldo a receber
+  // (mesma regra do Acerto: pendente, em andamento ou concluido).
   const fetchOpenManifestDrivers = useCallback(async () => {
     const { data, error } = await supabase
       .from("manifests")
-      .select("driver_id")
+      .select("driver_id, status, freight_value, is_own_fleet")
       .not("driver_id", "is", null)
-      .not("status", "in", '("completed","cancelled","paid")');
+      .not("status", "in", '("cancelled","paid")');
 
     if (error) {
       console.warn("Error fetching open manifest drivers:", error);
       return;
     }
 
-    setOpenManifestDriverIds(new Set((data || []).map((manifest) => manifest.driver_id).filter(Boolean) as string[]));
+    const open = new Set<string>();
+    const balances = new Map<string, number>();
+    for (const manifest of data || []) {
+      if (!manifest.driver_id) continue;
+      if (manifest.status !== "completed") open.add(manifest.driver_id);
+      if (!manifest.is_own_fleet) {
+        balances.set(manifest.driver_id, (balances.get(manifest.driver_id) || 0) + (Number(manifest.freight_value) || 0));
+      }
+    }
+    setOpenManifestDriverIds(open);
+    setDriverBalances(balances);
   }, []);
 
   useEffect(() => {
     fetchOpenManifestDrivers();
 
     const manifestsChannel = supabase
-      .channel("drivers-page-open-manifests")
+      .channel(uniqueChannelName("drivers-page-open-manifests"))
       .on("postgres_changes", { event: "*", schema: "public", table: "manifests" }, fetchOpenManifestDrivers)
       .subscribe();
 
@@ -153,6 +172,7 @@ export default function DriversPage() {
   const drivers: Driver[] = useMemo(() => {
     return dbDrivers.map((d, index) => {
       const hasOpenManifest = openManifestDriverIds.has(d.id);
+      const performance = performanceByDriver.get(d.id);
       const displayStatus = hasOpenManifest
         ? "in_route"
         : d.status === "in_route"
@@ -165,14 +185,16 @@ export default function DriversPage() {
         cpf: d.cpf,
         phone: d.phone,
         email: "",
-        photo: d.avatar || d.photo || "https://randomuser.me/api/portraits/men/1.jpg",
+        photo: d.avatar || d.photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(d.name || "Motorista")}`,
         vehiclePlate: d.vehicle_plate,
         vehicleType: normalizeVehicleTypeForDisplay(d.vehicle_type),
         status: displayStatus as any,
-        rating: 4.5,
-        totalDeliveries: d.total_deliveries || 0,
-        successfulDeliveries: d.deliveries_completed || 0,
-        failedDeliveries: 0,
+        rating: 0,
+        totalDeliveries: performance?.total ?? 0,
+        successfulDeliveries: performance?.delivered ?? 0,
+        failedDeliveries: performance?.occurrences ?? 0,
+        sla: performance && performance.total > 0 ? performance.sla : null,
+        balance: driverBalances.get(d.id) || 0,
         region: "SP",
         joinedAt: new Date(d.created_at),
         isOwnFleet: d.is_own_fleet || false,
@@ -187,7 +209,7 @@ export default function DriversPage() {
         chave_pix: d.chave_pix,
       };
     });
-  }, [dbDrivers, openManifestDriverIds]);
+  }, [dbDrivers, openManifestDriverIds, driverBalances, performanceByDriver]);
 
   // Filter drivers from context
   const filteredDrivers = useMemo(() => {
@@ -471,17 +493,16 @@ export default function DriversPage() {
                   <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Motorista</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Veículo</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Entregas</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Rating</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">SLA Calculado</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">Saldo</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground" title="Entregues / NFs finalizadas nos últimos 6 meses">Entregas (6m)</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground" title="SLA dos últimos 6 meses">SLA (6m)</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground" title="Frete de romaneios ainda não pagos">A receber</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {paginatedDrivers.map((driver) => {
                   const status = statusConfig[driver.status] || statusConfig.inactive;
-                  const driverSLA = getDriverSLA(driver.id);
-                  const driverBalance = getDriverBalance(driver.id);
+                  const driverSLA = driver.sla ?? null;
+                  const driverBalance = driver.balance ?? 0;
                   const completionRate = driver.totalDeliveries > 0 
                     ? (driver.successfulDeliveries / driver.totalDeliveries) * 100 
                     : 0;
@@ -535,23 +556,21 @@ export default function DriversPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-4 w-4 text-warning fill-warning" />
-                          <span className="font-medium font-mono">{driver.rating.toFixed(1)}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "font-medium font-mono",
-                            driverSLA >= 95 ? "text-success" :
-                            driverSLA >= 85 ? "text-warning" : "text-destructive"
-                          )}>
-                            {formatSLA(driverSLA)}%
-                          </span>
-                          {driverSLA >= 95 && <TrendingUp className="h-4 w-4 text-success" />}
-                          {driverSLA < 85 && <TrendingDown className="h-4 w-4 text-destructive" />}
-                        </div>
+                        {driverSLA === null ? (
+                          <span className="text-xs text-muted-foreground">Sem entregas</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "font-medium font-mono",
+                              driverSLA >= 95 ? "text-success" :
+                              driverSLA >= 85 ? "text-warning" : "text-destructive"
+                            )}>
+                              {formatSLA(driverSLA)}%
+                            </span>
+                            {driverSLA >= 95 && <TrendingUp className="h-4 w-4 text-success" />}
+                            {driverSLA < 85 && <TrendingDown className="h-4 w-4 text-destructive" />}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-4">
                         {driver.isOwnFleet ? (
