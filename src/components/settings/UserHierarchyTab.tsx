@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Check, ExternalLink, Loader2, Minus, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemUsers, type SystemUser } from "@/hooks/useSystemUsers";
-import { ROLE_HIERARCHY, ROLE_PERMISSIONS, getHighestRole, getRoleLabel } from "@/lib/roles";
+import { PANEL_ROLES, ROLE_HIERARCHY, ROLE_PERMISSIONS, getHighestRole, getRoleLabel } from "@/lib/roles";
 
 /** Lista de usuarios da empresa com troca de nivel de acesso (somente admin). */
 function TenantUsersRoles() {
@@ -60,7 +60,7 @@ function TenantUsersRoles() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE_HIERARCHY.map((role) => (
+                    {PANEL_ROLES.map((role) => (
                       <SelectItem key={role.role} value={role.role}>
                         {role.label}
                       </SelectItem>

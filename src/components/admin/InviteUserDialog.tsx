@@ -13,9 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
 
 const ROLES = [
-  { value: "dispatcher", label: "Lançador", description: "Importa notas e cria romaneios" },
+  { value: "dispatcher", label: "Despachante", description: "Importa notas e cria romaneios" },
   { value: "fleet_manager", label: "Gestor de Frota", description: "Gerencia motoristas e frota" },
-  { value: "viewer", label: "Visualizador", description: "Apenas visualiza dados" },
   { value: "admin", label: "Administrador", description: "Acesso total ao sistema" },
 ] as const;
 

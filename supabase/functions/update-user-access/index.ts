@@ -177,17 +177,48 @@ serve(async (req) => {
       });
     }
 
-    if (normalizedEmail) {
-      const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-      const duplicated = existingUsers?.users?.find(
-        (user) => user.id !== targetUserId && user.email?.trim().toLowerCase() === normalizedEmail,
-      );
+    if (body.role) {
+      if (targetUserId === callerUserId) {
+        const { data: callerIsStillAdmin } = await adminClient
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", callerUserId)
+          .eq("role", body.role)
+          .maybeSingle();
+        if (!callerIsStillAdmin) {
+          return new Response(JSON.stringify({ error: "Voce nao pode alterar o proprio nivel de acesso" }), {
+            status: 400,
+            headers: jsonHeaders,
+          });
+        }
+      }
 
-      if (duplicated) {
-        return new Response(JSON.stringify({ error: "Este e-mail ja esta em uso" }), {
-          status: 409,
-          headers: jsonHeaders,
-        });
+      const { data: targetIsAdmin } = await adminClient
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", targetUserId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (targetIsAdmin && body.role !== "admin") {
+        const { data: tenantMembers } = await adminClient
+          .from("tenant_memberships")
+          .select("user_id")
+          .eq("tenant_id", callerTenantId);
+        const otherMemberIds = (tenantMembers || []).map((m) => m.user_id).filter((id) => id !== targetUserId);
+        const { count: otherAdmins } = otherMemberIds.length
+          ? await adminClient
+              .from("user_roles")
+              .select("id", { count: "exact", head: true })
+              .eq("role", "admin")
+              .in("user_id", otherMemberIds)
+          : { count: 0 };
+        if (!otherAdmins) {
+          return new Response(JSON.stringify({ error: "A empresa precisa de pelo menos um Administrador" }), {
+            status: 400,
+            headers: jsonHeaders,
+          });
+        }
       }
     }
 
@@ -202,8 +233,11 @@ serve(async (req) => {
     if (Object.keys(authUpdates).length > 0) {
       const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(targetUserId, authUpdates);
       if (authUpdateError) {
-        return new Response(JSON.stringify({ error: authUpdateError.message }), {
-          status: 400,
+        const message = String(authUpdateError.message || "");
+        const duplicated =
+          (authUpdateError as { code?: string }).code === "email_exists" || /already (been )?registered|already exists/i.test(message);
+        return new Response(JSON.stringify({ error: duplicated ? "Este e-mail ja esta em uso" : message }), {
+          status: duplicated ? 409 : 400,
           headers: jsonHeaders,
         });
       }
@@ -225,12 +259,18 @@ serve(async (req) => {
     }
 
     if (body.role) {
-      await adminClient.from("user_roles").delete().eq("user_id", targetUserId);
-      await adminClient.from("user_roles").insert({
-        user_id: targetUserId,
-        role: body.role,
-        tenant_id: callerTenantId,
-      });
+      // Grava o novo papel antes de apagar os outros: se falhar, o usuario nao fica sem acesso.
+      const { error: roleError } = await adminClient.from("user_roles").upsert(
+        { user_id: targetUserId, role: body.role, tenant_id: callerTenantId },
+        { onConflict: "user_id,role" },
+      );
+      if (roleError) {
+        return new Response(JSON.stringify({ error: roleError.message }), {
+          status: 400,
+          headers: jsonHeaders,
+        });
+      }
+      await adminClient.from("user_roles").delete().eq("user_id", targetUserId).neq("role", body.role);
     }
 
     if (!targetMembership) {

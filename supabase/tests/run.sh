@@ -1,6 +1,7 @@
 #!/bin/bash
 # Testes de comportamento (RLS, triggers e RPCs) da migration
-# 20261028120000_trial_billing_funnel_and_ops.sql em um Postgres local.
+# 20261028120000_trial_billing_funnel_and_ops.sql e 20261028130000_fix_driver_access_rpcs_and_realtime.sql
+# em um Postgres local.
 #
 # Uso: PGURL=postgres://postgres@localhost:5432/postgres ./supabase/tests/run.sh
 # O banco "nahora_rls_tests" e recriado a cada execucao (nunca aponte para producao).
@@ -34,7 +35,8 @@ sed -n '/^CREATE OR REPLACE FUNCTION public.has_role/,$p' \
 for f in "$TESTS/00_supabase_stubs.sql" "$TMP/01_schema.sql" "$TESTS/02_extras.sql" "$TMP/03_bootstrap_functions.sql" \
   "$ROOT/supabase/migrations/20260527100000_enforce_tenant_isolation.sql" \
   "$ROOT/supabase/migrations/20260527103000_plan_limits_status_rpc.sql" \
-  "$ROOT/supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql"; do
+  "$ROOT/supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql" \
+  "$ROOT/supabase/migrations/20261028130000_fix_driver_access_rpcs_and_realtime.sql"; do
   psql "$PGURL" -q -v ON_ERROR_STOP=1 -c "\\connect $DB" -f "$f" > /dev/null 2>&1 || { echo "Falhou ao aplicar $f"; exit 1; }
 done
 

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { listAllUserEmails } from "../_shared/authUsers.ts";
 
 interface InviteUserRequest {
   email: string;
@@ -83,8 +84,7 @@ serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     // Check if email already exists
-    const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-    const emailExists = existingUsers?.users?.some((u) => u.email?.toLowerCase() === email.toLowerCase());
+    const emailExists = (await listAllUserEmails(adminClient)).has(email.toLowerCase().trim());
 
     if (emailExists) {
       return new Response(JSON.stringify({ error: "Este e-mail já está cadastrado no sistema" }), { status: 409, headers: jsonHeaders });

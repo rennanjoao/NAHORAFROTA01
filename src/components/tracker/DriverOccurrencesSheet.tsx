@@ -19,6 +19,7 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -72,7 +73,7 @@ export function DriverOccurrencesSheet({
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setOccurrences(data || []);
+      setOccurrences(await withFreshProofPhotos((data || []) as DriverOccurrence[], ["photo_url"]));
     } catch (err) {
       console.error("Error fetching occurrences:", err);
     } finally {

@@ -1383,7 +1383,7 @@ export default function DeliveriesPage() {
                   onClick={() => setPeriodFilter({})}
                   className="ml-1 hover:text-destructive"
                 >
-                  âœ•
+                  ✕
                 </button>
               </Badge>
             )}
@@ -1449,7 +1449,7 @@ export default function DeliveriesPage() {
                   <div>
                     <h3 className="text-sm font-semibold">Filtrar entregas</h3>
                     <p className="text-xs text-muted-foreground">
-                      Escolha um perÃ­odo especÃ­fico para atualizar a lista.
+                      Escolha um período específico para atualizar a lista.
                     </p>
                   </div>
                   {hasActiveFilters && (
@@ -1468,7 +1468,7 @@ export default function DeliveriesPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">PerÃ­odo rÃ¡pido:</span>
+                  <span className="text-xs font-medium text-muted-foreground">Período rápido:</span>
                   {timeFilterOptions.map((option) => {
                     const Icon = option.icon;
                     const isActive = timeFilter === option.value;

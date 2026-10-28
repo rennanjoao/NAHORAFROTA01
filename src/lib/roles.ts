@@ -28,10 +28,13 @@ export const ROLE_HIERARCHY: RoleDefinition[] = [
   },
   {
     role: "viewer",
-    label: "Visualizador",
-    description: "Perfil sem acesso aos dados da operação (usado pelo app do motorista).",
+    label: "Motorista (app)",
+    description: "Login do app do motorista: vê apenas as próprias entregas.",
   },
 ];
+
+/** Niveis que podem ser atribuidos a usuarios do painel ("viewer" e o login do app do motorista). */
+export const PANEL_ROLES = ROLE_HIERARCHY.filter((r) => r.role !== "viewer");
 
 export interface PermissionDefinition {
   label: string;

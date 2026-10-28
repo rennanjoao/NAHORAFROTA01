@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -98,7 +99,7 @@ export function DeliveryProofViewer({
         .eq("invoice_id", invoiceId)
         .order("delivered_at", { ascending: false });
 
-      setProofs(proofsData || []);
+      setProofs(await withFreshProofPhotos((proofsData || []) as DeliveryProof[], ["photo_url", "signature_url"]));
 
       const { data: linkedDeliveries } = await supabase
         .from("deliveries")
@@ -107,36 +108,45 @@ export function DeliveryProofViewer({
 
       const deliveryIds = (linkedDeliveries || []).map((delivery) => delivery.id);
       let occurrencesData: DeliveryOccurrence[] = [];
+      const occurrenceColumns = "id, occurrence_type, description, created_at, photo_url";
+      const toOccurrences = (rows: Array<{ id: string; occurrence_type: string; description: string | null; created_at: string | null; photo_url: string | null }>) =>
+        rows.map((row) => ({
+          id: row.id,
+          type: row.occurrence_type,
+          description: row.description,
+          created_at: row.created_at || "",
+          photo_url: row.photo_url,
+        }));
 
       if (deliveryIds.length > 0) {
         const { data, error } = await supabase
           .from("delivery_occurrences")
-          .select("id, type, description, created_at, photo_url")
+          .select(occurrenceColumns)
           .in("delivery_id", deliveryIds)
           .order("created_at", { ascending: false });
 
         if (error) {
           console.warn("Error fetching occurrences by delivery_id:", error);
         } else {
-          occurrencesData = data || [];
+          occurrencesData = toOccurrences(data || []);
         }
       }
 
       if (occurrencesData.length === 0) {
         const { data, error } = await supabase
           .from("delivery_occurrences")
-          .select("id, type, description, created_at, photo_url")
+          .select(occurrenceColumns)
           .eq("invoice_id", invoiceId)
           .order("created_at", { ascending: false });
 
         if (error) {
           console.warn("Error fetching occurrences by invoice_id:", error);
         } else {
-          occurrencesData = data || [];
+          occurrencesData = toOccurrences(data || []);
         }
       }
 
-      setOccurrences(occurrencesData);
+      setOccurrences(await withFreshProofPhotos(occurrencesData, ["photo_url"]));
     } catch (err) {
       console.error("Error fetching delivery data:", err);
     } finally {
@@ -329,7 +339,7 @@ export function DeliveryProofViewer({
                             >
                               <img
                                 src={occ.photo_url}
-                                alt="Foto da ocorrÃªncia"
+                                alt="Foto da ocorrência"
                                 className="w-full h-40 object-cover rounded-lg border"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).src = "/placeholder.svg";

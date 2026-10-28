@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import {
   Package,
   User,
@@ -693,14 +694,29 @@ function getOccurrenceLabel(type: string): string {
 }
 
 async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurrenceEntry[]> {
+  const columns = "id, occurrence_type, description, photo_url, created_at";
+  type Row = { id: string; occurrence_type: string; description: string | null; photo_url: string | null; created_at: string | null };
+  const toEntries = async (rows: Row[]) =>
+    withFreshProofPhotos(
+      rows.map((row) => ({
+        id: row.id,
+        type: row.occurrence_type,
+        description: row.description,
+        photo_url: row.photo_url,
+        created_at: row.created_at || "",
+      })),
+      ["photo_url"],
+    );
+
   const { data: byInvoice, error: byInvoiceError } = await supabase
     .from("delivery_occurrences")
-    .select("id, type, description, photo_url, created_at")
+    .select(columns)
     .eq("invoice_id", invoiceId)
     .order("created_at", { ascending: false });
 
+  if (byInvoiceError) console.warn("Error fetching delivery occurrences:", byInvoiceError);
   if (!byInvoiceError && byInvoice && byInvoice.length > 0) {
-    return byInvoice as DeliveryOccurrenceEntry[];
+    return toEntries(byInvoice as Row[]);
   }
 
   const { data: deliveries } = await supabase
@@ -713,7 +729,7 @@ async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurr
 
   const { data: byDelivery, error: byDeliveryError } = await supabase
     .from("delivery_occurrences")
-    .select("id, type, description, photo_url, created_at")
+    .select(columns)
     .in("delivery_id", deliveryIds)
     .order("created_at", { ascending: false });
 
@@ -722,5 +738,5 @@ async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurr
     return [];
   }
 
-  return (byDelivery || []) as DeliveryOccurrenceEntry[];
+  return toEntries((byDelivery || []) as Row[]);
 }

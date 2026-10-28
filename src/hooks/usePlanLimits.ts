@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -13,17 +13,17 @@ interface PlanLimits {
   financial_dashboard: boolean;
 }
 
-interface PlanStatus {
+interface PlanPayload {
+  tenantId: string | null;
+  /** Plano em vigor (no teste gratis = "total"). */
   plan: string;
+  /** Plano gravado na empresa (o que sera cobrado). */
+  contractedPlan: string;
+  isTrial: boolean;
   limits: PlanLimits;
   systemUsersCount: number;
   driversCount: number;
   vehiclesCount: number;
-  canAddUser: boolean;
-  canAddDriver: boolean;
-  canAddVehicle: boolean;
-  isLoading: boolean;
-  tenantId: string | null;
 }
 
 const DEFAULT_LIMITS: PlanLimits = {
@@ -43,69 +43,66 @@ const planLabels: Record<string, string> = {
   total: 'Controle Total',
 };
 
+export const PLAN_STATUS_QUERY_KEY = 'plan-status';
+
+/** Recarrega limites e contagens depois de cadastrar/remover usuario, motorista ou veiculo. */
+export function invalidatePlanStatus(queryClient: QueryClient) {
+  return queryClient.invalidateQueries({ queryKey: [PLAN_STATUS_QUERY_KEY] });
+}
+
+async function fetchPlanStatus(): Promise<PlanPayload> {
+  const { data, error } = await (supabase as any).rpc('get_current_plan_status');
+  if (error) throw error;
+
+  const payload = typeof data === 'string' ? JSON.parse(data) : data;
+  const plan = payload?.plan || 'basic';
+  return {
+    tenantId: payload?.tenant_id ?? null,
+    plan,
+    contractedPlan: payload?.contracted_plan || plan,
+    isTrial: payload?.is_trial === true,
+    limits: { ...DEFAULT_LIMITS, ...(payload?.limits || {}) },
+    systemUsersCount: payload?.system_users_count || 0,
+    driversCount: payload?.drivers_count || 0,
+    vehiclesCount: payload?.vehicles_count || 0,
+  };
+}
+
 export function usePlanLimits() {
   const { user } = useAuth();
-  const [status, setStatus] = useState<PlanStatus>({
-    plan: 'basic',
-    limits: DEFAULT_LIMITS,
-    systemUsersCount: 0,
-    driversCount: 0,
-    vehiclesCount: 0,
-    canAddUser: true,
-    canAddDriver: true,
-    canAddVehicle: true,
-    isLoading: true,
-    tenantId: null,
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: [PLAN_STATUS_QUERY_KEY, user?.id],
+    queryFn: fetchPlanStatus,
+    enabled: !!user,
+    staleTime: 30 * 1000,
+    retry: 1,
   });
 
-  const refresh = useCallback(async () => {
-    if (!user) {
-      setStatus(prev => ({ ...prev, isLoading: false }));
-      return;
-    }
+  if (query.error) console.error('Error checking plan limits:', query.error);
 
-    try {
-      setStatus(prev => ({ ...prev, isLoading: true }));
+  const data = query.data;
+  const limits = data?.limits ?? DEFAULT_LIMITS;
+  const systemUsersCount = data?.systemUsersCount ?? 0;
+  const driversCount = data?.driversCount ?? 0;
+  const vehiclesCount = data?.vehiclesCount ?? 0;
 
-      const { data, error: statusError } = await (supabase as any).rpc('get_current_plan_status');
-
-      if (statusError) {
-        throw statusError;
-      }
-
-      const payload = typeof data === 'string' ? JSON.parse(data) : data;
-      const tenantId = payload?.tenant_id ?? null;
-      const plan = payload?.plan || 'basic';
-      const limits: PlanLimits = payload?.limits || DEFAULT_LIMITS;
-      const systemUsersCount = payload?.system_users_count || 0;
-      const driversCount = payload?.drivers_count || 0;
-      const vehiclesCount = payload?.vehicles_count || 0;
-
-      const canAddUser = limits.max_users === -1 || systemUsersCount < limits.max_users;
-      const canAddDriver = limits.max_drivers === -1 || driversCount < limits.max_drivers;
-      const canAddVehicle = limits.max_vehicles === -1 || vehiclesCount < limits.max_vehicles;
-
-      setStatus({
-        plan,
-        limits,
-        systemUsersCount,
-        driversCount,
-        vehiclesCount,
-        canAddUser,
-        canAddDriver,
-        canAddVehicle,
-        isLoading: false,
-        tenantId,
-      });
-    } catch (err) {
-      console.error('Error checking plan limits:', err);
-      setStatus(prev => ({ ...prev, isLoading: false }));
-    }
-  }, [user]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { ...status, refresh, planLabels };
+  return {
+    plan: data?.plan ?? 'basic',
+    contractedPlan: data?.contractedPlan ?? 'basic',
+    isTrial: data?.isTrial ?? false,
+    limits,
+    systemUsersCount,
+    driversCount,
+    vehiclesCount,
+    // Sem dados ainda: nao bloqueia o botao (o banco valida de novo no cadastro).
+    canAddUser: !data || limits.max_users === -1 || systemUsersCount < limits.max_users,
+    canAddDriver: !data || limits.max_drivers === -1 || driversCount < limits.max_drivers,
+    canAddVehicle: !data || limits.max_vehicles === -1 || vehiclesCount < limits.max_vehicles,
+    isLoading: !!user && query.isLoading,
+    tenantId: data?.tenantId ?? null,
+    refresh: () => invalidatePlanStatus(queryClient),
+    planLabels,
+  };
 }

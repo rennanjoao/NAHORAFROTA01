@@ -108,7 +108,7 @@ export default function SettingsPage() {
 
   const handleSavePreferences = () => {
     toast({
-      title: "âœ… Preferências Salvas",
+      title: "✅ Preferências Salvas",
       description: "Suas preferências do sistema foram atualizadas.",
     });
   };
@@ -388,7 +388,7 @@ export default function SettingsPage() {
 
                 <Button onClick={handleSavePreferences} className="gap-2">
                   <Save className="h-4 w-4" />
-                  Salvar PreferÃªncias
+                  Salvar Preferências
                 </Button>
               </CardContent>
             </Card>

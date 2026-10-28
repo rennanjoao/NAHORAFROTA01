@@ -1,0 +1,466 @@
+-- Correcoes de problemas existentes encontrados na revisao do sistema:
+-- 1. O app do motorista estava bloqueado pelo RLS (motoristas tem papel
+--    "viewer", fora de is_staff_role): GPS, comprovantes, ocorrencias e carteira.
+-- 2. RPCs SECURITY DEFINER sem checagem de empresa/papel (exclusoes e limpeza).
+-- 3. Fotos de comprovante/ocorrencia inacessiveis para a equipe da empresa.
+-- 4. Tabelas fora da publicacao do realtime (telas nao atualizavam sozinhas).
+-- 5. Papel "viewer" duplicado em usuarios do painel (handle_new_user).
+-- Idempotente.
+
+-- ============================================================================
+-- 1. Acesso do motorista aos proprios registros
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.current_driver_ids(p_user_id uuid DEFAULT auth.uid())
+RETURNS SETOF uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT d.id FROM public.drivers d WHERE d.user_id = p_user_id
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.current_driver_ids(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.current_driver_ids(uuid) TO authenticated, service_role;
+
+-- Posicao GPS (upsert por driver_id): ler, inserir e atualizar a propria.
+DROP POLICY IF EXISTS "driver_manage_own_position" ON public.fleet_positions;
+CREATE POLICY "driver_manage_own_position"
+ON public.fleet_positions
+FOR ALL TO authenticated
+USING (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()))
+WITH CHECK (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()));
+
+-- Entregas (baixa): o motorista cria/atualiza a propria e le as das suas NFs.
+DROP POLICY IF EXISTS "driver_manage_own_deliveries" ON public.deliveries;
+CREATE POLICY "driver_manage_own_deliveries"
+ON public.deliveries
+FOR ALL TO authenticated
+USING (
+  public.can_access_tenant(tenant_id, auth.uid())
+  AND (
+    driver_id IN (SELECT public.current_driver_ids())
+    OR invoice_id IN (
+      SELECT i.id FROM public.invoices i WHERE i.driver_id IN (SELECT public.current_driver_ids())
+    )
+  )
+)
+WITH CHECK (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()));
+
+DROP POLICY IF EXISTS "driver_manage_own_delivery_proofs" ON public.delivery_proofs;
+CREATE POLICY "driver_manage_own_delivery_proofs"
+ON public.delivery_proofs
+FOR ALL TO authenticated
+USING (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()))
+WITH CHECK (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()));
+
+DROP POLICY IF EXISTS "driver_manage_own_delivery_occurrences" ON public.delivery_occurrences;
+CREATE POLICY "driver_manage_own_delivery_occurrences"
+ON public.delivery_occurrences
+FOR ALL TO authenticated
+USING (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()))
+WITH CHECK (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()));
+
+DROP POLICY IF EXISTS "driver_manage_own_occurrences" ON public.driver_occurrences;
+CREATE POLICY "driver_manage_own_occurrences"
+ON public.driver_occurrences
+FOR ALL TO authenticated
+USING (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()))
+WITH CHECK (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()));
+
+-- Carteira: somente leitura para o motorista.
+DROP POLICY IF EXISTS "driver_read_own_wallet" ON public.driver_wallet;
+CREATE POLICY "driver_read_own_wallet"
+ON public.driver_wallet
+FOR SELECT TO authenticated
+USING (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()));
+
+DO $$
+BEGIN
+  IF to_regclass('public.driver_activity_logs') IS NOT NULL THEN
+    EXECUTE 'DROP POLICY IF EXISTS "driver_manage_own_activity_logs" ON public.driver_activity_logs';
+    EXECUTE $p$
+      CREATE POLICY "driver_manage_own_activity_logs"
+      ON public.driver_activity_logs
+      FOR ALL TO authenticated
+      USING (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()))
+      WITH CHECK (driver_id IN (SELECT public.current_driver_ids()) AND public.can_access_tenant(tenant_id, auth.uid()))
+    $p$;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- 2. Fotos de comprovante/ocorrencia: a equipe da empresa tambem pode abrir
+-- ============================================================================
+
+-- Os arquivos ficam em <user_id do motorista>/...; antes so o proprio motorista
+-- (ou o Super Admin) conseguia abrir, e o painel exibia links assinados que expiram.
+DROP POLICY IF EXISTS "delivery_proofs_tenant_read" ON storage.objects;
+CREATE POLICY "delivery_proofs_tenant_read"
+ON storage.objects
+FOR SELECT TO authenticated
+USING (
+  bucket_id = 'delivery-proofs'
+  AND EXISTS (
+    SELECT 1
+    FROM public.drivers d
+    WHERE d.user_id::text = (storage.foldername(storage.objects.name))[1]
+      AND public.can_read_tenant_data(d.tenant_id, auth.uid())
+  )
+);
+
+-- ============================================================================
+-- 3. RPCs com checagem de empresa e papel
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.delete_user_complete(p_user_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_caller uuid := auth.uid();
+  v_tenant_id uuid;
+BEGIN
+  IF v_caller IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Sessao invalida.');
+  END IF;
+
+  IF p_user_id = v_caller THEN
+    RETURN json_build_object('success', false, 'error', 'Voce nao pode remover o proprio usuario.');
+  END IF;
+
+  SELECT tm.tenant_id INTO v_tenant_id
+  FROM public.tenant_memberships tm
+  WHERE tm.user_id = p_user_id
+  LIMIT 1;
+
+  IF NOT public.is_platform_admin(v_caller) THEN
+    IF v_tenant_id IS NULL OR NOT public.can_admin_tenant(v_tenant_id, v_caller) THEN
+      RETURN json_build_object('success', false, 'error', 'Apenas o Administrador da empresa pode remover usuarios.');
+    END IF;
+    IF public.is_platform_admin(p_user_id) THEN
+      RETURN json_build_object('success', false, 'error', 'Usuario nao pode ser removido.');
+    END IF;
+  END IF;
+
+  IF public.has_role(p_user_id, 'admin'::public.app_role) AND NOT EXISTS (
+    SELECT 1
+    FROM public.user_roles ur
+    JOIN public.tenant_memberships tm ON tm.user_id = ur.user_id
+    WHERE ur.role = 'admin'
+      AND tm.tenant_id = v_tenant_id
+      AND ur.user_id <> p_user_id
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'A empresa precisa de pelo menos um Administrador.');
+  END IF;
+
+  DELETE FROM public.tenant_memberships WHERE user_id = p_user_id;
+  DELETE FROM public.user_roles WHERE user_id = p_user_id;
+  DELETE FROM public.profiles WHERE id = p_user_id;
+
+  -- Remove o login para o e-mail poder ser cadastrado de novo.
+  BEGIN
+    DELETE FROM auth.users WHERE id = p_user_id;
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  RETURN json_build_object('success', true);
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.delete_driver_complete(p_driver_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_driver_name text;
+  v_tenant_id uuid;
+  v_user_id uuid;
+  v_caller uuid := auth.uid();
+BEGIN
+  SELECT name, tenant_id, user_id INTO v_driver_name, v_tenant_id, v_user_id
+  FROM public.drivers
+  WHERE id = p_driver_id;
+
+  IF v_driver_name IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Motorista nao encontrado.');
+  END IF;
+
+  IF v_caller IS NOT NULL AND NOT public.is_platform_admin(v_caller) AND NOT (
+    public.can_manage_tenant(v_tenant_id, v_caller)
+    AND (public.has_role(v_caller, 'admin'::public.app_role) OR public.has_role(v_caller, 'fleet_manager'::public.app_role))
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'Apenas Administrador ou Gestor de Frota da empresa pode remover motoristas.');
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.manifests m
+    WHERE m.driver_id = p_driver_id
+      AND m.status NOT IN ('completed', 'paid', 'cancelled')
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'Motorista com romaneio em andamento. Finalize ou cancele o romaneio antes de remover.');
+  END IF;
+
+  -- Storage files are removed by the Storage API from the frontend when needed.
+  -- SQL cannot delete directly from storage.objects in hosted Supabase.
+  DELETE FROM public.driver_documents WHERE driver_id = p_driver_id;
+  DELETE FROM public.fleet_positions WHERE driver_id = p_driver_id;
+  IF to_regclass('public.driver_activity_logs') IS NOT NULL THEN
+    DELETE FROM public.driver_activity_logs WHERE driver_id = p_driver_id;
+  END IF;
+  DELETE FROM public.driver_wallet WHERE driver_id = p_driver_id;
+
+  UPDATE public.company_vehicles
+  SET current_driver_id = NULL,
+      current_driver_name = NULL,
+      status = CASE WHEN status = 'in_use' THEN 'available' ELSE status END,
+      updated_at = now()
+  WHERE current_driver_id = p_driver_id;
+
+  UPDATE public.invoices SET driver_id = NULL, updated_at = now() WHERE driver_id = p_driver_id;
+  UPDATE public.delivery_proofs SET driver_id = NULL WHERE driver_id = p_driver_id;
+  UPDATE public.driver_occurrences SET driver_id = NULL WHERE driver_id = p_driver_id;
+  UPDATE public.deliveries SET driver_id = NULL WHERE driver_id = p_driver_id;
+  UPDATE public.delivery_occurrences SET driver_id = NULL WHERE driver_id = p_driver_id;
+  UPDATE public.manifests SET driver_id = NULL, updated_at = now() WHERE driver_id = p_driver_id;
+
+  DELETE FROM public.drivers WHERE id = p_driver_id;
+
+  -- Remove tambem o login do app (somente se o usuario nao for da equipe do painel).
+  IF v_user_id IS NOT NULL AND NOT public.is_staff_role(v_user_id) AND NOT public.is_platform_admin(v_user_id) THEN
+    DELETE FROM public.tenant_memberships WHERE user_id = v_user_id;
+    DELETE FROM public.user_roles WHERE user_id = v_user_id;
+    DELETE FROM public.profiles WHERE id = v_user_id;
+    BEGIN
+      DELETE FROM auth.users WHERE id = v_user_id;
+    EXCEPTION WHEN insufficient_privilege THEN
+      NULL;
+    END;
+  END IF;
+
+  RETURN json_build_object('success', true, 'message', 'Motorista removido com sucesso.', 'driver_name', v_driver_name);
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+-- "Fantasma" = motorista marcado em rota sem nenhum romaneio aberto, somente na
+-- empresa de quem chama. Antes zerava motoristas em rota de todas as empresas,
+-- porque total_deliveries nunca e atualizado.
+CREATE OR REPLACE FUNCTION public.cleanup_ghost_drivers()
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  UPDATE public.drivers d
+  SET status = 'active',
+      updated_at = now()
+  WHERE d.status = 'in_route'
+    AND d.tenant_id = public.get_user_tenant_id(auth.uid())
+    AND public.can_manage_tenant(d.tenant_id, auth.uid())
+    AND NOT EXISTS (
+      SELECT 1 FROM public.manifests m
+      WHERE m.driver_id = d.id
+        AND m.status NOT IN ('completed', 'paid', 'cancelled')
+    )
+$$;
+
+DO $$
+DECLARE
+  f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY[
+    'public.delete_user_complete(uuid)',
+    'public.delete_driver_complete(uuid)',
+    'public.cleanup_ghost_drivers()'
+  ]
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon', f);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated, service_role', f);
+  END LOOP;
+END $$;
+
+-- ============================================================================
+-- 4. Realtime: tabelas que as telas escutam
+-- ============================================================================
+
+DO $$
+DECLARE
+  t text;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime' AND NOT puballtables) THEN
+    FOREACH t IN ARRAY ARRAY['invoices', 'manifests', 'drivers', 'fleet_positions', 'delivery_occurrences', 'driver_occurrences']
+    LOOP
+      IF to_regclass(format('public.%I', t)) IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = t
+      ) THEN
+        EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+      END IF;
+    END LOOP;
+  END IF;
+END $$;
+
+-- ============================================================================
+-- 5. Papel "viewer" sobrando em usuarios do painel
+-- ============================================================================
+
+-- handle_new_user cria "viewer" (sem empresa) para todo usuario novo; quem tambem
+-- tem papel de equipe ficava com dois papeis e telas que esperam um so falhavam.
+DELETE FROM public.user_roles v
+WHERE v.role = 'viewer'
+  AND EXISTS (
+    SELECT 1 FROM public.user_roles s
+    WHERE s.user_id = v.user_id
+      AND s.role IN ('admin', 'fleet_manager', 'dispatcher')
+  );
+
+-- ============================================================================
+-- 6. Teste gratis com acesso completo
+-- ============================================================================
+
+-- Durante o teste a empresa usa todos os recursos (relatorios, acerto, SLA), sem
+-- mudar o plano contratado gravado em tenants.plan.
+CREATE OR REPLACE FUNCTION public.get_current_plan_status()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_tenant_id uuid;
+  v_plan text;
+  v_effective_plan text;
+  v_is_trial boolean := false;
+  v_system_users_count integer := 0;
+  v_drivers_count integer := 0;
+  v_vehicles_count integer := 0;
+BEGIN
+  IF v_user_id IS NOT NULL THEN
+    v_tenant_id := public.get_user_tenant_id(v_user_id);
+  END IF;
+
+  IF v_tenant_id IS NULL THEN
+    RETURN jsonb_build_object(
+      'tenant_id', NULL,
+      'plan', 'basic',
+      'contracted_plan', 'basic',
+      'is_trial', false,
+      'limits', public.get_plan_limits('basic'),
+      'system_users_count', 0,
+      'drivers_count', 0,
+      'vehicles_count', 0
+    );
+  END IF;
+
+  SELECT COALESCE(t.plan, 'basic') INTO v_plan
+  FROM public.tenants t
+  WHERE t.id = v_tenant_id;
+
+  v_plan := COALESCE(v_plan, 'basic');
+  v_is_trial := public.tenant_access_state(v_tenant_id) = 'trial';
+  v_effective_plan := CASE WHEN v_is_trial THEN 'total' ELSE v_plan END;
+
+  SELECT COUNT(DISTINCT ur.user_id) INTO v_system_users_count
+  FROM public.user_roles ur
+  WHERE ur.tenant_id = v_tenant_id
+    AND ur.role::text = ANY (ARRAY['admin', 'dispatcher', 'fleet_manager', 'manager', 'owner']);
+
+  SELECT COUNT(*) INTO v_drivers_count
+  FROM public.drivers d
+  WHERE d.tenant_id = v_tenant_id;
+
+  SELECT COUNT(*) INTO v_vehicles_count
+  FROM public.company_vehicles cv
+  WHERE cv.tenant_id = v_tenant_id;
+
+  RETURN jsonb_build_object(
+    'tenant_id', v_tenant_id,
+    'plan', v_effective_plan,
+    'contracted_plan', v_plan,
+    'is_trial', v_is_trial,
+    'limits', public.get_plan_limits(v_effective_plan),
+    'system_users_count', COALESCE(v_system_users_count, 0),
+    'drivers_count', COALESCE(v_drivers_count, 0),
+    'vehicles_count', COALESCE(v_vehicles_count, 0)
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_current_plan_status() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_current_plan_status() TO authenticated, service_role;
+
+-- ============================================================================
+-- 7. Troca de nivel de acesso em uma unica operacao
+-- ============================================================================
+
+-- Antes o painel fazia UPDATE em user_roles: com dois papeis (viewer + admin) a
+-- troca falhava pela chave unica, e o admin podia rebaixar a si mesmo ou o ultimo
+-- administrador da empresa.
+CREATE OR REPLACE FUNCTION public.set_user_role(p_user_id uuid, p_role public.app_role)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_caller uuid := auth.uid();
+  v_tenant_id uuid;
+BEGIN
+  IF v_caller IS NULL THEN
+    RETURN json_build_object('success', false, 'error', 'Sessao invalida.');
+  END IF;
+
+  IF p_role::text NOT IN ('admin', 'fleet_manager', 'dispatcher') THEN
+    RETURN json_build_object('success', false, 'error', 'Nivel de acesso invalido para usuario do painel.');
+  END IF;
+
+  IF p_user_id = v_caller THEN
+    RETURN json_build_object('success', false, 'error', 'Voce nao pode alterar o proprio nivel de acesso.');
+  END IF;
+
+  SELECT tm.tenant_id INTO v_tenant_id
+  FROM public.tenant_memberships tm
+  WHERE tm.user_id = p_user_id
+  LIMIT 1;
+
+  IF v_tenant_id IS NULL OR NOT (public.can_admin_tenant(v_tenant_id, v_caller) OR public.is_platform_admin(v_caller)) THEN
+    RETURN json_build_object('success', false, 'error', 'Apenas o Administrador da empresa pode alterar niveis de acesso.');
+  END IF;
+
+  IF p_role::text <> 'admin' AND public.has_role(p_user_id, 'admin'::public.app_role) AND NOT EXISTS (
+    SELECT 1
+    FROM public.user_roles ur
+    JOIN public.tenant_memberships tm ON tm.user_id = ur.user_id
+    WHERE ur.role = 'admin'
+      AND tm.tenant_id = v_tenant_id
+      AND ur.user_id <> p_user_id
+  ) THEN
+    RETURN json_build_object('success', false, 'error', 'A empresa precisa de pelo menos um Administrador.');
+  END IF;
+
+  INSERT INTO public.user_roles (user_id, role, tenant_id)
+  VALUES (p_user_id, p_role, v_tenant_id)
+  ON CONFLICT (user_id, role) DO UPDATE SET tenant_id = EXCLUDED.tenant_id;
+
+  DELETE FROM public.user_roles
+  WHERE user_id = p_user_id
+    AND role <> p_role;
+
+  RETURN json_build_object('success', true);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_user_role(uuid, public.app_role) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.set_user_role(uuid, public.app_role) TO authenticated, service_role;

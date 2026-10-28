@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { listAllUserEmails } from "../_shared/authUsers.ts";
 import { detectDocumentType, isValidCnpj, onlyDigits } from "../_shared/documents.ts";
 
 const TRIAL_DAYS = 7;
@@ -104,14 +105,15 @@ serve(async (req) => {
       );
     }
 
-    const { data: existingUsers, error: existingUsersError } = await adminClient.auth.admin.listUsers();
-    if (existingUsersError) {
+    let existingEmails: Set<string>;
+    try {
+      existingEmails = await listAllUserEmails(adminClient);
+    } catch (existingUsersError) {
       console.error("Auth users lookup error:", existingUsersError);
       return jsonResponse({ error: "Nao foi possivel validar o e-mail" }, 500, jsonHeaders);
     }
 
-    const emailExists = existingUsers?.users?.some((user) => user.email?.toLowerCase() === email);
-    if (emailExists) {
+    if (existingEmails.has(email)) {
       return jsonResponse({ error: "E-mail ja cadastrado no sistema" }, 409, jsonHeaders);
     }
 
@@ -202,6 +204,9 @@ serve(async (req) => {
       await rollback();
       return jsonResponse({ error: roleError.message || "Erro ao criar permissao do administrador" }, 500, jsonHeaders);
     }
+
+    // handle_new_user cria um papel "viewer" para todo login novo; o administrador fica so com "admin".
+    await adminClient.from("user_roles").delete().eq("user_id", userId).eq("role", "viewer");
 
     const { error: membershipError } = await adminClient.from("tenant_memberships").upsert(
       {

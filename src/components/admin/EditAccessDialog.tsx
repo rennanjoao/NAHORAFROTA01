@@ -32,7 +32,6 @@ const ROLES = [
   { value: "admin", label: "Administrador" },
   { value: "fleet_manager", label: "Gestor de Frota" },
   { value: "dispatcher", label: "Despachante" },
-  { value: "viewer", label: "Visualizador" },
 ] as const;
 
 const DRIVER_STATUS = [

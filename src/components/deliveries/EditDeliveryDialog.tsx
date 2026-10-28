@@ -157,7 +157,7 @@ export function EditDeliveryDialog({
 
       if (!receiverDocument.trim()) {
         toast({
-          title: "CPF obrigatÃ³rio",
+          title: "CPF obrigatório",
           description: "Informe o CPF do recebedor para confirmar a entrega.",
           variant: "destructive",
         });
@@ -167,8 +167,8 @@ export function EditDeliveryDialog({
 
       if (!isValidCpf(receiverDocument)) {
         toast({
-          title: "CPF invÃ¡lido",
-          description: "Digite um CPF vÃ¡lido no formato 000.000.000-00.",
+          title: "CPF inválido",
+          description: "Digite um CPF válido no formato 000.000.000-00.",
           variant: "destructive",
         });
         setIsSaving(false);

@@ -557,7 +557,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
                         {result.fileName}
                       </TableCell>
                       <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                        {result.error || "NÃ£o foi possÃ­vel processar este XML."}
+                        {result.error || "Não foi possível processar este XML."}
                       </TableCell>
                       <TableCell>
                         <Badge variant="destructive">Erro</Badge>

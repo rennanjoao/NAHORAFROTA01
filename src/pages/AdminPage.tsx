@@ -565,7 +565,7 @@ Pague este boleto em qualquer banco ou casa lotérica.`;
                           <TableHead>Veículo</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Criado em</TableHead>
-                          <TableHead className="text-right">AÃ§Ãµes</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

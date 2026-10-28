@@ -31,6 +31,8 @@ interface DriverDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onEditDriver?: (driver: Driver) => void;
   onDeleteDriver?: (driverId: number) => void;
+  /** Chamado depois de inativar/reativar, para a lista recarregar. */
+  onStatusChanged?: () => void;
 }
 
 // Status config matching database values: active = Disponível, in_route = Em Rota, inactive = Inativo
@@ -62,7 +64,7 @@ const documentLabels: Record<DriverDocumentType, string> = {
   trailerDoc: "Documento da Carreta",
 };
 
-export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, onDeleteDriver }: DriverDetailSheetProps) {
+export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, onDeleteDriver, onStatusChanged }: DriverDetailSheetProps) {
   const navigate = useNavigate();
   const { getDriverSLA } = useLogistics();
   const { roles } = useAuth();
@@ -221,6 +223,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
       });
 
       setIsInactivateDialogOpen(false);
+      onStatusChanged?.();
       onOpenChange(false);
     } catch (err: any) {
       console.error("Error toggling driver status:", err);

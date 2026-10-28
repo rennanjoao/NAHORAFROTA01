@@ -1981,6 +1981,13 @@ export type Database = {
         }
         Returns: Json
       }
+      set_user_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: Json
+      }
       tenant_access_state: { Args: { p_tenant_id: string }; Returns: string }
       tenant_has_access: { Args: { p_tenant_id: string }; Returns: boolean }
       track_funnel_event: {

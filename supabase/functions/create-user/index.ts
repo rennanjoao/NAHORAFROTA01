@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { listAllUserEmails } from "../_shared/authUsers.ts";
 
 interface CreateUserRequest {
   email: string;
@@ -25,8 +26,7 @@ async function findUniqueEmail(
   baseEmail: string
 ): Promise<{ email: string; attempts: number }> {
   // First try the base email
-  const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-  const existingEmails = new Set(existingUsers?.users?.map((u) => u.email?.toLowerCase()) || []);
+  const existingEmails = await listAllUserEmails(adminClient);
 
   if (!existingEmails.has(baseEmail.toLowerCase())) {
     return { email: baseEmail, attempts: 0 };

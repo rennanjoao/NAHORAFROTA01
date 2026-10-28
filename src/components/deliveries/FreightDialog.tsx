@@ -733,7 +733,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
             }));
           
           const withoutCoords = invoices.filter(inv => !inv.latitude || !inv.longitude);
-          if (geocodedCount > 0) {
+          if (withoutCoords.length > 0) {
             toast({
               title: `⚠️ ${withoutCoords.length} NF(s) sem coordenadas`,
               description: "Essas notas não foram incluídas no cálculo de distância. Geocodifique-as para maior precisão.",

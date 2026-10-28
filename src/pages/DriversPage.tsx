@@ -105,7 +105,7 @@ const normalizeVehicleTypeForDisplay = (value?: string | null): VehicleType => {
 export default function DriversPage() {
   const { getDriverSLA, getDriverBalance, activeDrivers, driversOnRoute } = useLogistics();
   const { drivers: dbDrivers, isLoading: isLoadingDrivers, fetchDrivers, addDriver, updateDriver } = useDriversDB();
-  const { canAddDriver, driversCount, limits, plan, planLabels } = usePlanLimits();
+  const { canAddDriver, driversCount, limits, plan, planLabels, refresh: refreshPlan } = usePlanLimits();
   const [openManifestDriverIds, setOpenManifestDriverIds] = useState<Set<string>>(new Set());
   
   const [isNewDriverDialogOpen, setIsNewDriverDialogOpen] = useState(false);
@@ -643,13 +643,13 @@ export default function DriversPage() {
           setDriverToEdit(driver);
           setIsEditDriverDialogOpen(true);
         }}
-        onDeleteDriver={(driverId) => {
-          // Close the detail sheet and show success
+        onDeleteDriver={() => {
           setSelectedDriver(null);
-          toast({
-            title: "✅ Motorista removido",
-            description: "O registro foi excluído do sistema.",
-          });
+          void fetchDrivers();
+          void refreshPlan();
+        }}
+        onStatusChanged={() => {
+          void fetchDrivers();
         }}
       />
 
@@ -664,7 +664,7 @@ export default function DriversPage() {
           if (!driverDbId) {
             toast({
               title: "âŒ Erro ao atualizar",
-              description: "NÃ£o foi possÃ­vel identificar o motorista selecionado.",
+              description: "Não foi possível identificar o motorista selecionado.",
               variant: "destructive",
             });
             return false;

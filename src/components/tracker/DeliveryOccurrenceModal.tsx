@@ -173,10 +173,9 @@ export function DeliveryOccurrenceModal({
         invoice_id: invoiceId,
         delivery_id: deliveryId,
         driver_id: driverId,
-        type: occurrenceType,
+        occurrence_type: occurrenceType,
         description: description.trim() || null,
         photo_url: photoUrl,
-        status: "open",
       };
 
       const { error: occurrenceError } = await supabase.from("delivery_occurrences").insert(occurrencePayload);
