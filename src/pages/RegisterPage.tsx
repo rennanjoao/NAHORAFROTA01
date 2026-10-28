@@ -231,7 +231,7 @@ export default function RegisterPage() {
             <p className="text-sm text-muted-foreground">
               Preencha os dados para criar sua conta
             </p>
-            <div className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <div className="mt-2 inline-flex self-center items-center justify-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <Gift className="h-3.5 w-3.5" />
               {TRIAL_DAYS} dias grátis, sem cartão de crédito
             </div>
