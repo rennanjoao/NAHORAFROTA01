@@ -1691,7 +1691,7 @@ export default function DeliveriesPage() {
                         {delivery.address}
                       </TableCell>
                       <TableCell>{delivery.driver || <span className="text-muted-foreground">—</span>}</TableCell>
-                      <TableCell>{delivery.scheduledTime}</TableCell>
+                      <TableCell className="whitespace-nowrap">{delivery.scheduledTime}</TableCell>
                       <TableCell>
                         <Badge className={cn("gap-1", config.color)}>
                           <Icon className="h-3 w-3" />

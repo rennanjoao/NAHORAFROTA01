@@ -63,7 +63,7 @@ export function SettingsTab({ driverName }: SettingsTabProps) {
         <h3 className="font-semibold mb-3">Sobre o App</h3>
         <div className="space-y-2 text-sm text-muted-foreground">
           <p>Versão: 1.0.0</p>
-          <p>© 2024 Na Hora Transporte</p>
+          <p>© {new Date().getFullYear()} Na Hora Transporte</p>
         </div>
       </Card>
 

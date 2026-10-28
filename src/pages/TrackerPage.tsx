@@ -204,6 +204,34 @@ export default function TrackerPage() {
     }
   }, [driverInfo, batteryLevel]);
 
+  // O watchPosition guarda o callback do momento em que foi criado; pelo ref ele
+  // sempre usa a versao atual (bateria e motorista atualizados).
+  const sendPositionRef = useRef(sendPosition);
+  useEffect(() => {
+    sendPositionRef.current = sendPosition;
+  }, [sendPosition]);
+
+  const clearGpsWatch = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    isStartingTrackingRef.current = false;
+  }, []);
+
+  // So a permissao negada bloqueia o app (politica de GPS obrigatorio). Sinal fraco
+  // ou demora do GPS so mostram aviso: antes qualquer erro trocava o app inteiro
+  // pela tela vermelha e o motorista nao conseguia finalizar entregas.
+  const handleGeoError = useCallback((err: GeolocationPositionError) => {
+    if (err.code === err.PERMISSION_DENIED) {
+      clearGpsWatch();
+      setGpsError('Permissão de localização negada. Libere a localização para o app nas configurações do celular.');
+      setGpsBlocked(true);
+      return;
+    }
+    setGpsError(err.code === err.TIMEOUT ? 'Sinal de GPS fraco: tentando de novo...' : 'Localização indisponível no momento.');
+  }, [clearGpsWatch]);
+
   // Ao abrir (ou voltar para) o app, sempre busca a localizacao atual e
   // atualiza o mapa, mesmo que o rastreamento continuo esteja pausado.
   const refreshLocationOnce = useCallback(() => {
@@ -339,19 +367,14 @@ export default function TrackerPage() {
         };
 
         setPosition(gpsPos);
-        sendPosition(gpsPos);
+        sendPositionRef.current(gpsPos);
         toast.success('GPS Ativado', {
           description: 'Rastreamento em tempo real',
           duration: 2000,
         });
       },
-      (err) => {
-        setGpsError(err.message);
-        setGpsBlocked(true);
-        setIsTracking(false);
-        isStartingTrackingRef.current = false;
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      handleGeoError,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
     // Watch position continuously
@@ -366,18 +389,15 @@ export default function TrackerPage() {
         };
 
         setPosition(gpsPos);
-        sendPosition(gpsPos);
+        sendPositionRef.current(gpsPos);
+        setGpsError(null);
         setGpsBlocked(false);
       },
-      (err) => {
-        setGpsError(err.message);
-        setGpsBlocked(true);
-        isStartingTrackingRef.current = false;
-      },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      handleGeoError,
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
     isStartingTrackingRef.current = false;
-  }, [driverInfo, sendPosition, wakeLock]);
+  }, [driverInfo, wakeLock, handleGeoError]);
 
   // Auto-start GPS tracking when driver info is available
   useEffect(() => {
@@ -440,11 +460,7 @@ export default function TrackerPage() {
     setGpsShouldStayActive(false);
     writeGpsTrackingPreference('paused');
 
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    isStartingTrackingRef.current = false;
+    clearGpsWatch();
 
     setIsTracking(false);
 
@@ -531,7 +547,10 @@ export default function TrackerPage() {
       <GPSEnforcer
         error={gpsError || 'Permissão de localização negada'}
         onRetry={() => {
+          // Recria o watch: o anterior morreu com a permissao negada.
+          clearGpsWatch();
           setGpsBlocked(false);
+          setGpsError(null);
           startTracking();
         }}
       />
@@ -618,6 +637,9 @@ export default function TrackerPage() {
                       <p className="text-xs text-muted-foreground">
                         {position.speed.toFixed(0)} km/h • ±{position.accuracy.toFixed(0)}m
                       </p>
+                    )}
+                    {gpsError && !gpsBlocked && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">{gpsError}</p>
                     )}
                   </div>
                 </div>

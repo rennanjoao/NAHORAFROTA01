@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Save, Loader2, Truck, FileText } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { formatCurrency } from "@/lib/formatCurrency";
+import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
@@ -22,7 +22,7 @@ interface EditManifestDialogProps {
   manifest: DBManifest | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (manifestId: string, newValue: number, observation: string) => void;
+  onSave: (manifestId: string, newValue: number, observation: string) => Promise<boolean> | boolean | void;
 }
 
 export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: EditManifestDialogProps) {
@@ -56,13 +56,16 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
       return;
     }
 
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const numericValue = parseDecimalInput(value);
+    if (numericValue === null || numericValue < 0) {
+      toast({ title: "Valor inválido", description: "Informe um valor válido.", variant: "destructive" });
+      return;
+    }
 
-    const numericValue = parseFloat(value);
-    onSave(manifest.id, numericValue, observation);
-    
+    setIsSaving(true);
+    const saved = await onSave(manifest.id, numericValue, observation);
     setIsSaving(false);
+    if (saved === false) return;
     onOpenChange(false);
 
     toast({
@@ -74,7 +77,7 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
   if (!manifest) return null;
 
   const originalValue = manifest.freight_value;
-  const newValue = parseFloat(value) || 0;
+  const newValue = parseDecimalInput(value) ?? 0;
   const difference = newValue - originalValue;
 
   return (

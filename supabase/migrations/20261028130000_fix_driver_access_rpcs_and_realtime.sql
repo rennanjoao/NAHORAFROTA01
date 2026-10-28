@@ -768,3 +768,144 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.delete_manifest(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.delete_manifest(uuid) TO authenticated, service_role;
+
+-- ============================================================================
+-- 13. Romaneio passa para "Em Rota" na primeira acao do motorista
+-- ============================================================================
+
+-- Nenhuma parte do sistema mudava o status para in_progress: o romaneio ficava
+-- "Pendente" ate ser finalizado, mesmo com o motorista entregando.
+CREATE OR REPLACE FUNCTION public.mark_manifest_in_progress()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.manifest_id IS NOT NULL AND (
+    (NEW.status IN ('delivered', 'occurrence', 'returned') AND OLD.status IS DISTINCT FROM NEW.status)
+    OR (NEW.arrived_at IS NOT NULL AND OLD.arrived_at IS NULL)
+  ) THEN
+    UPDATE public.manifests
+    SET status = 'in_progress',
+        updated_at = now()
+    WHERE id = NEW.manifest_id
+      AND status = 'pending';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.mark_manifest_in_progress() FROM PUBLIC, anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'arrived_at'
+  ) THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_mark_manifest_in_progress ON public.invoices';
+    -- Nome depois de trg_auto_finalize...: se a entrega finalizar o romaneio, ele nao volta para "Em Rota".
+    EXECUTE 'CREATE TRIGGER trg_mark_manifest_in_progress
+      AFTER UPDATE OF status, arrived_at ON public.invoices
+      FOR EACH ROW EXECUTE FUNCTION public.mark_manifest_in_progress()';
+  END IF;
+END $$;
+
+-- Romaneios em andamento que ficaram como "Pendente".
+UPDATE public.manifests m
+SET status = 'in_progress', updated_at = now()
+WHERE m.status = 'pending'
+  AND EXISTS (
+    SELECT 1 FROM public.invoices i
+    WHERE i.manifest_id = m.id
+      AND (i.status IN ('delivered', 'occurrence', 'returned') OR i.arrived_at IS NOT NULL)
+  );
+
+-- ============================================================================
+-- 14. Carteira do motorista: frete de cada romaneio de agregado
+-- ============================================================================
+
+-- driver_wallet nunca era gravada: a aba Carteira do app ficava vazia. Agora cada
+-- romaneio de agregado tem uma linha de frete (pendente/pago acompanhando o
+-- romaneio) e o Acerto grava ali os creditos/debitos avulsos.
+ALTER TABLE public.driver_wallet ADD COLUMN IF NOT EXISTS type text DEFAULT 'credit';
+ALTER TABLE public.driver_wallet ADD COLUMN IF NOT EXISTS manifest_id uuid REFERENCES public.manifests(id) ON DELETE SET NULL;
+-- Lancamentos avulsos do Acerto (credito/debito): categoria e observacao.
+ALTER TABLE public.driver_wallet ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE public.driver_wallet ADD COLUMN IF NOT EXISTS observation text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS driver_wallet_freight_manifest_key
+  ON public.driver_wallet (manifest_id)
+  WHERE type = 'freight';
+
+CREATE OR REPLACE FUNCTION public.sync_driver_wallet_freight()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.driver_wallet WHERE manifest_id = OLD.id AND type = 'freight';
+    RETURN OLD;
+  END IF;
+
+  IF NEW.driver_id IS NULL OR COALESCE(NEW.is_own_fleet, false) OR NEW.status = 'cancelled' THEN
+    DELETE FROM public.driver_wallet WHERE manifest_id = NEW.id AND type = 'freight';
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.driver_wallet (driver_id, tenant_id, manifest_id, type, amount, description, date, status)
+  VALUES (
+    NEW.driver_id,
+    NEW.tenant_id,
+    NEW.id,
+    'freight',
+    COALESCE(NEW.freight_value, 0),
+    'Frete do romaneio nº ' || COALESCE(NEW.manifest_number::text || '/' || to_char(NEW.created_at, 'YYYY'), NEW.manifest_code),
+    COALESCE(NEW.scheduled_date::text, to_char(NEW.created_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')),
+    CASE WHEN NEW.status = 'paid' THEN 'paid' ELSE 'pending' END
+  )
+  ON CONFLICT (manifest_id) WHERE type = 'freight'
+  DO UPDATE SET
+    driver_id = EXCLUDED.driver_id,
+    amount = EXCLUDED.amount,
+    description = EXCLUDED.description,
+    date = EXCLUDED.date,
+    status = EXCLUDED.status,
+    updated_at = now();
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.sync_driver_wallet_freight() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_sync_driver_wallet_freight ON public.manifests;
+CREATE TRIGGER trg_sync_driver_wallet_freight
+AFTER INSERT OR UPDATE OF status, freight_value, driver_id, is_own_fleet ON public.manifests
+FOR EACH ROW EXECUTE FUNCTION public.sync_driver_wallet_freight();
+
+-- Antes do DELETE: depois a FK ja teria zerado o manifest_id da carteira.
+DROP TRIGGER IF EXISTS trg_sync_driver_wallet_freight_delete ON public.manifests;
+CREATE TRIGGER trg_sync_driver_wallet_freight_delete
+BEFORE DELETE ON public.manifests
+FOR EACH ROW EXECUTE FUNCTION public.sync_driver_wallet_freight();
+
+-- Romaneios ja existentes.
+INSERT INTO public.driver_wallet (driver_id, tenant_id, manifest_id, type, amount, description, date, status)
+SELECT
+  m.driver_id,
+  m.tenant_id,
+  m.id,
+  'freight',
+  COALESCE(m.freight_value, 0),
+  'Frete do romaneio nº ' || COALESCE(m.manifest_number::text || '/' || to_char(m.created_at, 'YYYY'), m.manifest_code),
+  COALESCE(m.scheduled_date::text, to_char(m.created_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')),
+  CASE WHEN m.status = 'paid' THEN 'paid' ELSE 'pending' END
+FROM public.manifests m
+WHERE m.driver_id IS NOT NULL
+  AND NOT COALESCE(m.is_own_fleet, false)
+  AND m.status <> 'cancelled'
+ON CONFLICT (manifest_id) WHERE type = 'freight' DO NOTHING;

@@ -151,6 +151,7 @@ export function useDriverManifest(): UseDriverManifestReturn {
         .from('invoices')
         .update({ 
           status: 'delivered',
+          occurrence_type: null,
           delivered_at: new Date().toISOString()
         })
         .eq('id', deliveryId);
@@ -209,10 +210,20 @@ export function useDriverManifest(): UseDriverManifestReturn {
       return channel;
     };
 
+    // Se o efeito for desfeito antes da assinatura ficar pronta, remove o canal
+    // assim que ele chegar (antes ficava aberto para sempre).
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    setupManifestSubscription().then(ch => { channel = ch; });
+    let cancelled = false;
+    setupManifestSubscription().then(ch => {
+      if (cancelled) {
+        if (ch) supabase.removeChannel(ch);
+        return;
+      }
+      channel = ch;
+    });
 
     return () => {
+      cancelled = true;
       if (channel) {
         supabase.removeChannel(channel);
       }

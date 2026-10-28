@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface ReversalPasswordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<boolean | void> | boolean | void;
   settlementId?: string;
   manifestCode?: string;
   driverName?: string;
@@ -82,12 +82,13 @@ export function ReversalPasswordDialog({
         notes: `Estorno autorizado para ${driverName || "motorista"} - Romaneio: ${manifestCode || "N/A"}`,
       });
 
+      const reverted = await onConfirm();
+      if (reverted === false) return;
+
       toast({
         title: "✅ Estorno Autorizado",
         description: "O valor foi revertido para 'A Pagar'. Ação registrada no log de auditoria.",
       });
-
-      onConfirm();
       onOpenChange(false);
       setPassword("");
       setRemainingAttempts(null);

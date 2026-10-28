@@ -172,6 +172,7 @@ export function FinishDeliveryModal({
         .from("invoices")
         .update({
           status: "delivered",
+          occurrence_type: null,
           receiver_name: receiverName.trim(),
           receiver_document: receiverDocument.trim() || null,
           delivered_at: deliveryTimestamp,

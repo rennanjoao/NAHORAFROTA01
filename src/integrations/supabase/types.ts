@@ -473,38 +473,50 @@ export type Database = {
       driver_wallet: {
         Row: {
           amount: number
+          category: string | null
           created_at: string
           date: string
           description: string
           driver_id: string
           id: string
+          manifest_id: string | null
+          observation: string | null
           route_id: string | null
           status: string
           tenant_id: string | null
+          type: string | null
           updated_at: string
         }
         Insert: {
           amount?: number
+          category?: string | null
           created_at?: string
           date?: string
           description: string
           driver_id: string
           id?: string
+          manifest_id?: string | null
+          observation?: string | null
           route_id?: string | null
           status?: string
           tenant_id?: string | null
+          type?: string | null
           updated_at?: string
         }
         Update: {
           amount?: number
+          category?: string | null
           created_at?: string
           date?: string
           description?: string
           driver_id?: string
           id?: string
+          manifest_id?: string | null
+          observation?: string | null
           route_id?: string | null
           status?: string
           tenant_id?: string | null
+          type?: string | null
           updated_at?: string
         }
         Relationships: [

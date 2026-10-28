@@ -75,7 +75,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { formatCurrency } from "@/lib/formatCurrency";
+import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
+import { getTodayBrazil, parseDateOnly } from "@/lib/timezone";
+import { requireCurrentTenantId } from "@/lib/tenant";
 import { formatSLA } from "@/lib/formatSLA";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -101,6 +103,34 @@ interface LocalAdjustment {
   type: "credit" | "debit";
   category?: "discount" | "bonus" | "unloading" | "toll" | "fuel" | "other";
   observation?: string;
+  /** pending = entra no saldo a pagar; paid = ja quitado. */
+  status?: string;
+}
+
+interface WalletAdjustmentRow {
+  id: string;
+  date: string;
+  created_at: string | null;
+  description: string;
+  amount: number;
+  type: string | null;
+  category: string | null;
+  observation: string | null;
+  status: string;
+}
+
+function toAdjustment(row: WalletAdjustmentRow): LocalAdjustment {
+  const type = row.type === "credit" ? "credit" : "debit";
+  return {
+    id: row.id,
+    date: row.created_at ? new Date(row.created_at) : parseDateOnly(row.date) ?? new Date(),
+    description: row.description,
+    value: Number(row.amount) || 0,
+    type,
+    category: (row.category as LocalAdjustment["category"]) || "other",
+    observation: row.observation || undefined,
+    status: row.status,
+  };
 }
 
 type AdjustmentCategory = "discount" | "bonus" | "unloading" | "toll" | "fuel" | "other";
@@ -146,7 +176,7 @@ export default function SettlementPage() {
 
   // Database hooks
   const { drivers, isLoading: driversLoading } = useDBDrivers();
-  const { manifests, isLoading: manifestsLoading } = useManifestsDB();
+  const { manifests, isLoading: manifestsLoading, fetchManifests } = useManifestsDB();
   const { 
     settlements, 
     openSettlements, 
@@ -158,7 +188,9 @@ export default function SettlementPage() {
   
   const [selectedDriver, setSelectedDriver] = useState<DBDriver | null>(null);
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
+  // Creditos/debitos avulsos do motorista (driver_wallet). Antes ficavam so na tela.
   const [localAdjustments, setLocalAdjustments] = useState<LocalAdjustment[]>([]);
+  const [isSavingAdjustment, setIsSavingAdjustment] = useState(false);
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
   const [adjustmentDescription, setAdjustmentDescription] = useState("");
   const [adjustmentValue, setAdjustmentValue] = useState("");
@@ -280,8 +312,10 @@ export default function SettlementPage() {
       .filter(m => m.status !== "paid" && m.status !== "cancelled")
       .reduce((sum, m) => sum + (m.freight_value || 0), 0);
     
-    // Add local adjustments
-    const adjustmentTotal = localAdjustments.reduce((sum, a) => sum + a.value, 0);
+    // Lancamentos avulsos ainda nao pagos
+    const adjustmentTotal = localAdjustments
+      .filter((a) => a.status !== "paid")
+      .reduce((sum, a) => sum + a.value, 0);
     
     return {
       paid,
@@ -290,16 +324,40 @@ export default function SettlementPage() {
     };
   }, [selectedDriver, manifests, activePeriod, localAdjustments]);
 
+  const fetchAdjustments = useCallback(async (driverId: string) => {
+    const { data, error } = await supabase
+      .from("driver_wallet")
+      .select("id, date, created_at, description, amount, type, category, observation, status")
+      .eq("driver_id", driverId)
+      .in("type", ["credit", "debit"])
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Error loading adjustments:", error);
+      toast({ title: "Erro ao carregar lançamentos", description: error.message, variant: "destructive" });
+      return;
+    }
+    setLocalAdjustments(((data || []) as WalletAdjustmentRow[]).map(toAdjustment));
+  }, []);
+
   const handleSelectDriver = useCallback((driver: DBDriver) => {
     setSelectedDriver(driver);
     setDriverSearchOpen(false);
     setLocalAdjustments([]);
-  }, []);
+    void fetchAdjustments(driver.id);
+  }, [fetchAdjustments]);
 
-  const handleSelectPendingDriver = useCallback((driverId: string) => {
+  // Motorista com pendencia pode nao estar na lista (ex.: inativo): busca direto.
+  const handleSelectPendingDriver = useCallback(async (driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
     if (driver) {
       handleSelectDriver(driver);
+      return;
+    }
+    const { data } = await supabase.from("drivers").select("*").eq("id", driverId).maybeSingle();
+    if (data) {
+      handleSelectDriver(data as unknown as DBDriver);
+    } else {
+      toast({ title: "Motorista não encontrado", description: "O cadastro deste motorista foi removido.", variant: "destructive" });
     }
   }, [drivers, handleSelectDriver]);
 
@@ -313,19 +371,33 @@ export default function SettlementPage() {
       return;
     }
 
-    const value = parseFloat(adjustmentValue);
-    const newAdjustment: LocalAdjustment = {
-      id: `ADJ-${selectedDriver.id}-${Date.now()}`,
-      date: new Date(),
-      description: adjustmentDescription,
-      value: adjustmentType === "credit" ? Math.abs(value) : -Math.abs(value),
+    const value = parseDecimalInput(adjustmentValue);
+    if (value === null || value === 0) {
+      toast({ title: "Valor inválido", description: "Informe um valor maior que zero.", variant: "destructive" });
+      return;
+    }
+
+    setIsSavingAdjustment(true);
+    const signedValue = adjustmentType === "credit" ? Math.abs(value) : -Math.abs(value);
+    const { error } = await supabase.from("driver_wallet").insert({
+      driver_id: selectedDriver.id,
+      tenant_id: await requireCurrentTenantId(),
       type: adjustmentType,
       category: adjustmentCategory,
-      observation: adjustmentObservation || undefined,
-    };
+      description: adjustmentDescription.trim(),
+      observation: adjustmentObservation.trim() || null,
+      amount: signedValue,
+      date: getTodayBrazil(),
+      status: "pending",
+    });
+    setIsSavingAdjustment(false);
 
-    setLocalAdjustments([newAdjustment, ...localAdjustments]);
+    if (error) {
+      toast({ title: "Erro ao registrar lançamento", description: error.message, variant: "destructive" });
+      return;
+    }
 
+    await fetchAdjustments(selectedDriver.id);
     setIsAdjustmentDialogOpen(false);
     setAdjustmentDescription("");
     setAdjustmentValue("");
@@ -339,8 +411,13 @@ export default function SettlementPage() {
     });
   };
 
-  const handleRemoveAdjustment = (adjustmentId: string) => {
-    setLocalAdjustments(localAdjustments.filter(a => a.id !== adjustmentId));
+  const handleRemoveAdjustment = async (adjustmentId: string) => {
+    const { error } = await supabase.from("driver_wallet").delete().eq("id", adjustmentId);
+    if (error) {
+      toast({ title: "Erro ao excluir lançamento", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (selectedDriver) await fetchAdjustments(selectedDriver.id);
     toast({
       title: "🗑️ Ajuste removido",
       description: "O lançamento foi excluído com sucesso.",
@@ -352,21 +429,63 @@ export default function SettlementPage() {
     setIsEditTransactionDialogOpen(true);
   };
 
-  const handleSaveEditedAdjustment = (updatedAdjustment: LocalAdjustment) => {
-    setLocalAdjustments(localAdjustments.map(a => 
-      a.id === updatedAdjustment.id ? updatedAdjustment : a
-    ));
+  const handleSaveEditedAdjustment = async (updatedAdjustment: LocalAdjustment): Promise<boolean> => {
+    const { error } = await supabase
+      .from("driver_wallet")
+      .update({
+        description: updatedAdjustment.description,
+        amount: updatedAdjustment.type === "credit" ? Math.abs(updatedAdjustment.value) : -Math.abs(updatedAdjustment.value),
+        type: updatedAdjustment.type,
+        category: updatedAdjustment.category || "other",
+        observation: updatedAdjustment.observation || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", updatedAdjustment.id);
+    if (error) {
+      toast({ title: "Erro ao salvar lançamento", description: error.message, variant: "destructive" });
+      return false;
+    }
+    if (selectedDriver) await fetchAdjustments(selectedDriver.id);
+    return true;
+  };
+
+  const handleSetAdjustmentPaid = async (adjustment: LocalAdjustment, paid: boolean) => {
+    const { error } = await supabase
+      .from("driver_wallet")
+      .update({ status: paid ? "paid" : "pending", updated_at: new Date().toISOString() })
+      .eq("id", adjustment.id);
+    if (error) {
+      toast({ title: "Erro ao atualizar lançamento", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (selectedDriver) await fetchAdjustments(selectedDriver.id);
+    toast({
+      title: paid ? "✅ Lançamento quitado" : "🔄 Lançamento reaberto",
+      description: `${adjustment.description}: ${formatCurrency(adjustment.value)}`,
+    });
   };
 
   const handleMarkAsPaid = async (manifestId: string) => {
-    // Update manifest status to paid
-    const { error } = await supabase
+    // So romaneio finalizado vai para pago (o filtro evita pagar um que ainda esta na rua).
+    const { data: updated, error } = await supabase
       .from("manifests")
       .update({ 
         status: "paid", 
         paid_at: new Date().toISOString() 
       })
-      .eq("id", manifestId);
+      .eq("id", manifestId)
+      .eq("status", "completed")
+      .select("id");
+
+    if (!error && (!updated || updated.length === 0)) {
+      toast({
+        title: "Romaneio ainda não finalizado",
+        description: "Finalize o romaneio (todas as entregas baixadas) antes de registrar o pagamento.",
+        variant: "destructive",
+      });
+      await fetchManifests();
+      return;
+    }
 
     if (error) {
       toast({
@@ -377,6 +496,7 @@ export default function SettlementPage() {
       return;
     }
 
+    await fetchManifests();
     toast({
       title: "✅ Pagamento registrado",
       description: `Romaneio marcado como pago.`,
@@ -388,7 +508,7 @@ export default function SettlementPage() {
     setIsEditManifestDialogOpen(true);
   };
 
-  const handleSaveManifest = async (manifestId: string, newValue: number, observation: string) => {
+  const handleSaveManifest = async (manifestId: string, newValue: number, observation: string): Promise<boolean> => {
     const { error } = await supabase
       .from("manifests")
       .update({ 
@@ -404,7 +524,10 @@ export default function SettlementPage() {
         description: error.message,
         variant: "destructive",
       });
+      return false;
     }
+    await fetchManifests();
+    return true;
   };
 
   const handleReverseToPending = (manifest: DBManifest) => {
@@ -412,13 +535,14 @@ export default function SettlementPage() {
     setIsReversalDialogOpen(true);
   };
 
-  const confirmReversal = async () => {
-    if (manifestToReverse) {
-      // Revert manifest status back to pending
+  const confirmReversal = async (): Promise<boolean> => {
+    if (!manifestToReverse) return false;
+    {
+      // Estorno volta para "finalizado" (era o status antes do pagamento)
       const { error } = await supabase
         .from("manifests")
         .update({ 
-          status: "pending", 
+          status: "completed", 
           paid_at: null 
         })
         .eq("id", manifestToReverse.id);
@@ -429,14 +553,12 @@ export default function SettlementPage() {
           description: error.message,
           variant: "destructive",
         });
-        return;
+        return false;
       }
 
-      toast({
-        title: "🔄 Estorno Realizado",
-        description: `Romaneio voltou para status 'Pendente'.`,
-      });
+      await fetchManifests();
       setManifestToReverse(null);
+      return true;
     }
   };
 
@@ -572,7 +694,7 @@ export default function SettlementPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pendingDrivers.slice(0, 10).map((driver) => (
+                  {pendingDrivers.map((driver) => (
                     <TableRow key={driver.driverId}>
                       <TableCell className="font-medium truncate max-w-[200px]">{driver.driverName}</TableCell>
                       <TableCell className="font-mono text-sm">{driver.driverCpf}</TableCell>
@@ -630,7 +752,7 @@ export default function SettlementPage() {
                   <CommandList>
                     <CommandEmpty>Nenhum motorista encontrado.</CommandEmpty>
                     <CommandGroup>
-                      {drivers.slice(0, 20).map((driver) => (
+                      {drivers.map((driver) => (
                         <CommandItem
                           key={driver.id}
                           value={`${driver.name} ${driver.cpf}`}
@@ -852,15 +974,33 @@ export default function SettlementPage() {
                                 </Tooltip>
                               </TooltipProvider>
                               {activeTab === "pending" && (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline"
-                                  className="gap-1 text-success border-success/30 hover:bg-success/10"
-                                  onClick={() => handleMarkAsPaid(manifest.id)}
-                                >
-                                  <CheckCircle2 className="h-4 w-4" />
-                                  Pagar
-                                </Button>
+                                manifest.status === "completed" ? (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    className="gap-1 text-success border-success/30 hover:bg-success/10"
+                                    onClick={() => handleMarkAsPaid(manifest.id)}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Pagar
+                                  </Button>
+                                ) : (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span>
+                                          <Button size="sm" variant="outline" className="gap-1" disabled>
+                                            <Clock className="h-4 w-4" />
+                                            {manifest.status === "in_progress" ? "Em rota" : "Aguardando"}
+                                          </Button>
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>O pagamento libera quando o romaneio é finalizado</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
                               )}
                               {activeTab === "paid" && (
                                 <TooltipProvider>
@@ -905,11 +1045,11 @@ export default function SettlementPage() {
               </CardContent>
             </Card>
 
-            {/* Local Adjustments */}
+            {/* Lancamentos avulsos (gravados na carteira do motorista) */}
             {localAdjustments.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Ajustes do Período</CardTitle>
+                  <CardTitle className="text-base">Créditos e Débitos</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
@@ -917,15 +1057,27 @@ export default function SettlementPage() {
                       <TableRow>
                         <TableHead>Descrição</TableHead>
                         <TableHead>Data</TableHead>
+                        <TableHead>Situação</TableHead>
                         <TableHead className="text-right">Valor</TableHead>
                         <TableHead className="text-right">Ação</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {localAdjustments.map((adj) => (
+                      {localAdjustments.map((adj) => {
+                        const isPaid = adj.status === "paid";
+                        return (
                         <TableRow key={adj.id}>
-                          <TableCell>{adj.description}</TableCell>
+                          <TableCell>
+                            <p>{adj.description}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {categoryLabels[(adj.category || "other") as AdjustmentCategory]}
+                              {adj.observation ? ` • ${adj.observation}` : ""}
+                            </p>
+                          </TableCell>
                           <TableCell>{format(adj.date, "dd/MM/yyyy HH:mm", { locale: ptBR })}</TableCell>
+                          <TableCell>
+                            <Badge variant={isPaid ? "secondary" : "outline"}>{isPaid ? "Pago" : "A pagar"}</Badge>
+                          </TableCell>
                           <TableCell className={cn(
                             "text-right font-semibold font-mono",
                             adj.type === "credit" ? "text-success" : "text-destructive"
@@ -934,25 +1086,41 @@ export default function SettlementPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button 
-                                size="sm" 
-                                variant="ghost"
-                                onClick={() => handleEditAdjustment(adj)}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className={cn("gap-1", isPaid ? "text-warning border-warning/30" : "text-success border-success/30")}
+                                onClick={() => handleSetAdjustmentPaid(adj, !isPaid)}
                               >
-                                <Pencil className="h-4 w-4" />
+                                {isPaid ? <RotateCcw className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                                {isPaid ? "Reabrir" : "Quitar"}
                               </Button>
-                              <Button 
-                                size="sm" 
-                                variant="ghost"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleRemoveAdjustment(adj.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {!isPaid && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Editar lançamento"
+                                    onClick={() => handleEditAdjustment(adj)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Excluir lançamento"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => handleRemoveAdjustment(adj.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -1038,9 +1206,9 @@ export default function SettlementPage() {
             <Button variant="outline" onClick={() => setIsAdjustmentDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleAddAdjustment}>
+            <Button onClick={handleAddAdjustment} disabled={isSavingAdjustment}>
               <Plus className="h-4 w-4 mr-2" />
-              Adicionar Lançamento
+              {isSavingAdjustment ? "Salvando..." : "Adicionar Lançamento"}
             </Button>
           </DialogFooter>
         </DialogContent>

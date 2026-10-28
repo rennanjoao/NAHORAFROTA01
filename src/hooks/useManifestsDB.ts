@@ -304,6 +304,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
           manifest_id: null,
           driver_id: null,
           status: "pending",
+          route_sequence: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", invoiceId);
@@ -416,13 +417,22 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       // 3. Get current user's full name for audit
       const userFullName = await getCurrentUserFullName();
 
-      // 4. Update the invoice with manifest_id and driver_id
+      // 4. Update the invoice with manifest_id and driver_id (vai para o fim da rota)
+      const { data: lastStop } = await supabase
+        .from("invoices")
+        .select("route_sequence")
+        .eq("manifest_id", manifestId)
+        .not("route_sequence", "is", null)
+        .order("route_sequence", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       const { error: updateError } = await supabase
         .from("invoices")
         .update({
           manifest_id: manifestId,
           driver_id: manifest.driver_id,
           status: "in_transit",
+          route_sequence: (lastStop?.route_sequence ?? 0) + 1,
           updated_at: new Date().toISOString(),
         })
         .eq("id", invoiceId);

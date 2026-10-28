@@ -373,6 +373,7 @@ export function ManifestDetailSheet({
         manifest_id: null,
         driver_id: null,
         status: "pending",
+        route_sequence: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", invoice.id);

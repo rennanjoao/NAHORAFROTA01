@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Pencil, Save, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { parseDecimalInput } from "@/lib/formatCurrency";
 
 interface LocalAdjustment {
   id: string;
@@ -35,7 +36,7 @@ interface EditTransactionDialogProps {
   transaction: LocalAdjustment | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (transaction: LocalAdjustment) => void;
+  onSave: (transaction: LocalAdjustment) => Promise<boolean> | boolean | void;
 }
 
 const categoryLabels: Record<string, string> = {
@@ -75,10 +76,13 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
       return;
     }
 
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const numericValue = parseDecimalInput(value);
+    if (numericValue === null || numericValue === 0) {
+      toast({ title: "Valor inválido", description: "Informe um valor maior que zero.", variant: "destructive" });
+      return;
+    }
 
-    const numericValue = parseFloat(value);
+    setIsSaving(true);
     const updatedTransaction: LocalAdjustment = {
       ...transaction,
       description,
@@ -88,8 +92,9 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
       observation,
     };
 
-    onSave(updatedTransaction);
+    const saved = await onSave(updatedTransaction);
     setIsSaving(false);
+    if (saved === false) return;
     onOpenChange(false);
 
     toast({

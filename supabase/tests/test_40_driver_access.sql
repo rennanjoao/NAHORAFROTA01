@@ -165,4 +165,24 @@ RESET role;
 SELECT pg_temp.check((SELECT status FROM public.invoices WHERE id = '34000000-0000-0000-0000-000000000001') = 'delivered', 'entrega feita nao e desfeita');
 SELECT pg_temp.check((SELECT status = 'pending' AND driver_id IS NULL FROM public.invoices WHERE id = '34000000-0000-0000-0000-000000000002'), 'NF em rota volta a pendente');
 SELECT pg_temp.check((SELECT status FROM public.drivers WHERE id = '20000000-0000-0000-0000-00000000000c') = 'active', 'motorista liberado ao excluir o romaneio');
+
+-- Romaneio vai para "Em Rota" na primeira entrega e conclui na ultima
+INSERT INTO public.manifests (id, driver_id, driver_name, status, tenant_id, created_at, scheduled_date) VALUES
+ ('50000000-0000-0000-0000-000000000060','20000000-0000-0000-0000-00000000000c','Fantasma A','pending','10000000-0000-0000-0000-00000000000a', now(), current_date);
+INSERT INTO public.invoices (id, access_key, address_full, recipient_name, status, tenant_id, manifest_id, driver_id, total_value) VALUES
+ ('35000000-0000-0000-0000-000000000001','kh1','Rua H1','Cli H1','in_transit','10000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-000000000060','20000000-0000-0000-0000-00000000000c',10),
+ ('35000000-0000-0000-0000-000000000002','kh2','Rua H2','Cli H2','in_transit','10000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-000000000060','20000000-0000-0000-0000-00000000000c',10);
+UPDATE public.invoices SET status = 'delivered' WHERE id = '35000000-0000-0000-0000-000000000001';
+SELECT pg_temp.check((SELECT status FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000060') = 'in_progress', 'primeira entrega coloca o romaneio em rota');
+UPDATE public.invoices SET status = 'delivered' WHERE id = '35000000-0000-0000-0000-000000000002';
+SELECT pg_temp.check((SELECT status FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000060') = 'completed', 'ultima entrega conclui o romaneio');
+
+-- Carteira: frete do romaneio de agregado acompanha o romaneio
+INSERT INTO public.manifests (id, driver_id, driver_name, status, tenant_id, created_at, scheduled_date, freight_value, is_own_fleet, manifest_code) VALUES
+ ('50000000-0000-0000-0000-000000000070','20000000-0000-0000-0000-00000000000c','Fantasma A','pending','10000000-0000-0000-0000-00000000000a', now(), current_date, 120, false, 'ROM-W1');
+SELECT pg_temp.check((SELECT amount FROM public.driver_wallet WHERE manifest_id = '50000000-0000-0000-0000-000000000070' AND type = 'freight') = 120, 'romaneio gera frete na carteira');
+UPDATE public.manifests SET status = 'paid', freight_value = 130 WHERE id = '50000000-0000-0000-0000-000000000070';
+SELECT pg_temp.check((SELECT status || ':' || amount FROM public.driver_wallet WHERE manifest_id = '50000000-0000-0000-0000-000000000070' AND type = 'freight') = 'paid:130', 'pagamento e valor refletem na carteira');
+DELETE FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000070';
+SELECT pg_temp.check(NOT EXISTS (SELECT 1 FROM public.driver_wallet WHERE description LIKE '%ROM-W1%'), 'romaneio excluido sai da carteira');
 \echo ALL_DRIVER_ACCESS_TESTS_PASSED

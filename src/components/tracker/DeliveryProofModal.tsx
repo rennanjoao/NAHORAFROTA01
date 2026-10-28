@@ -180,7 +180,17 @@ export function DeliveryProofModal({
       });
       if (dbError) throw dbError;
 
-      await supabase.from("invoices").update({ status: "delivered" }).eq("id", invoiceId);
+      const { error: invoiceError } = await supabase
+        .from("invoices")
+        .update({
+          status: "delivered",
+          occurrence_type: null,
+          receiver_name: receiverName || null,
+          receiver_document: receiverDocument || null,
+          delivered_at: new Date().toISOString(),
+        })
+        .eq("id", invoiceId);
+      if (invoiceError) throw invoiceError;
 
       localStorage.removeItem(DRAFT_KEY(invoiceId));
       toast.success("Entrega confirmada com sucesso!");

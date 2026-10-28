@@ -394,7 +394,7 @@ export default function RegisterPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © 2024 Na Hora Transporte. Todos os direitos reservados.
+          © {new Date().getFullYear()} Na Hora Transporte. Todos os direitos reservados.
         </p>
       </div>
     </div>

@@ -6,3 +6,19 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+# Manifesto do app instalavel (PWA)
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
+
+# Service worker e index.html nunca em cache: senao o app instalado demora a
+# receber a versao nova. Os arquivos de /assets tem hash no nome e podem ficar.
+<IfModule mod_headers.c>
+  <FilesMatch "^(sw\.js|registerSW\.js|index\.html|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(js|css|woff2?|png|svg|ico)$">
+    Header append Vary "Accept-Encoding"
+  </FilesMatch>
+</IfModule>

@@ -14,7 +14,7 @@ export function GPSEnforcer({ error, onRetry }: GPSEnforcerProps) {
       </div>
       
       <h1 className="text-3xl font-bold text-center mb-4 font-space-grotesk">
-        Sinal GPS Perdido
+        Localização necessária
       </h1>
       
       <p className="text-xl text-center mb-2 opacity-90">
