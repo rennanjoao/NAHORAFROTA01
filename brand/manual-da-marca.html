@@ -284,6 +284,23 @@ pre{margin:0;padding:18px;background:var(--graphite);color:#DDE2E6;font-family:v
 .m4{background:radial-gradient(60% 50% at 70% 30%,rgba(4,232,164,.35) 0%,#080808 70%)}
 .mood>div::before{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(8,8,8,.85),transparent 60%)}
 .mood>div>*{position:relative}
+/* Impressão / PDF: uma página A4 paisagem por bloco, sem cortar componentes */
+@media print{
+  @page{size:A4 landscape;margin:0}
+  html,body{background:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .top,body::before{display:none!important}
+  .band{break-before:page;padding-block:40px 48px}
+  .hero,#sumario{break-before:auto}
+  .hero{padding-top:56px}
+  .swatches .sw,.tile,.mock,.dont,.chip,.pair,.phase,.pillars>div,.toc a,.spec,.el,.figure,.two>*,.cols>*,table,.card,.phone,.post,.story,.sig,.slide,.web,.badge,.sticker,.sign,.check,.heads p,.vs .ex,.words>div,.status div,.mood>div,.scale>div,pre{break-inside:avoid}
+  .stack{gap:40px}
+  .chap{margin-bottom:32px}
+  .lockups,.tiles,.mocks,.donts{gap:14px}
+  a{text-decoration:none}
+  .live i{animation:none}
+  h1,h2,h3,p{orphans:3;widows:3}
+  .chap,h2,h3,.eyebrow{break-after:avoid}
+}
 
 </style>
 </head>

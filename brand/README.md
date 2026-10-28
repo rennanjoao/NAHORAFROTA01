@@ -7,6 +7,7 @@ Pasta oficial da marca. Tudo que está aqui segue o **Manual da Marca** (`manual
 | Pasta / arquivo | Conteúdo |
 |---|---|
 | `manual-da-marca.html` | Manual completo: estratégia, logo, cores, tipografia, elementos, voz, aplicações e linha de criação. |
+| `manual-da-marca.pdf` | O mesmo manual em PDF (A4 paisagem), para enviar e imprimir. Regenere com `node brand/build/export_pdf.cjs brand/manual-da-marca.html brand/manual-da-marca.pdf`. |
 | `logo/svg/` | Logos em vetor com o texto convertido em curvas (abre em Illustrator, Figma, Corel, Inkscape). |
 | `logo/png/` | Os mesmos logos em PNG com fundo transparente (1x e 2x). |
 | `icones/` | Ícone de app (escuro, verde, claro, maskable), avatar e favicon. |
