@@ -59,6 +59,19 @@ Direção geral em toda cena: operação real de transporte no Brasil, madrugada
 **Placa de pátio**
 > Fotografia de placa de sinalização preta com moldura cinza em parede de galpão logístico, luz fria de madrugada, vista frontal, superfície lisa para aplicar texto e símbolo, sem texto, proporção 3:1.
 
+## Aplicar a arte com precisão (script)
+
+Depois de gerar a cena limpa, o script `brand/build/compose_mockup.py` encaixa a arte em perspectiva e mescla com a superfície:
+
+```bash
+python3 brand/build/compose_mockup.py cena.png brand/mockups/artes/camiseta-peito-simbolo-verde-60mm.png saida.png \
+  --quad 820,640 1010,650 1010,760 820,750 --blend screen --opacity 0.95
+```
+
+- `--quad`: os 4 cantos (superior-esquerdo, superior-direito, inferior-direito, inferior-esquerdo) em pixels da cena. A arte é deformada para caber ali sem perder a proporção.
+- `--blend`: `multiply` em superfícies claras (baú branco, cartão branco), `screen` para arte clara em tecido escuro, `normal` para sobrepor sem mesclar.
+- Precisa de Python 3 com `pillow` e `numpy`.
+
 ## Checklist antes de aprovar o mockup
 
 - Logo na versão certa para o fundo (branco + verde no preto; preto + verde no branco; nunca verde sobre branco).
