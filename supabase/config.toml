@@ -1,0 +1,19 @@
+project_id = "mhnzhwqroyyxpbxrylax"
+
+[functions.geocode-address]
+verify_jwt = false
+
+[functions.validate-supervisor]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.validate-reversal]
+verify_jwt = false
+
+[functions.register-tenant]
+verify_jwt = false
+
+[functions.invite-user]
+verify_jwt = false

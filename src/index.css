@@ -1,0 +1,375 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Lato:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   iOS/Safari Compatibility Fixes
+   ============================================ */
+
+/* Prevenir zoom automático em inputs no iOS */
+input,
+select,
+textarea,
+button {
+  font-size: 16px !important;
+}
+
+/* Scroll suave em dispositivos touch */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevenir bounce scroll */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Fix para Dialogs/Modals no iOS */
+[role="dialog"],
+[data-radix-dialog-content] {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+/* Overlay do Dialog */
+[data-radix-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000 !important;
+}
+
+/* Bloquear scroll do body quando modal está aberto */
+body.dialog-open {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Botões clicáveis no iOS */
+button,
+[role="button"],
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Fix específico para iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  [role="dialog"] {
+    transform: translate3d(-50%, -50%, 0) !important;
+  }
+}
+
+@layer base {
+  :root {
+    /* Na Hora Transporte - Cyber-Logistics Theme */
+    --background: 0 0% 98%;
+    --foreground: 228 50% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 228 50% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 228 50% 8%;
+
+    /* Neon Red Primary (#FF1F1F = 0 100% 56%) */
+    --primary: 0 100% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Cyber Dark Secondary (#0F1219 = 228 50% 8%) */
+    --secondary: 228 50% 96%;
+    --secondary-foreground: 228 50% 8%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 0 100% 56%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 100% 56%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 228 50% 8%;
+
+    /* Cyber Cyan for data highlights */
+    --info: 187 92% 48%;
+    --info-foreground: 228 50% 8%;
+
+    /* Neon Red accent */
+    --neon-red: 0 100% 56%;
+    --neon-red-foreground: 0 0% 100%;
+
+    /* Cyber accent for data emphasis */
+    --cyber: 187 92% 48%;
+    --cyber-foreground: 228 50% 8%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 0 100% 56%;
+
+    --radius: 0.5rem;
+
+    /* Dark Sidebar - Cyber Dark #0F1219 */
+    --sidebar-background: 228 50% 8%;
+    --sidebar-foreground: 220 9% 70%;
+    --sidebar-primary: 0 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 228 50% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 228 50% 15%;
+    --sidebar-ring: 0 100% 56%;
+
+    /* Shadows for light mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    /* Na Hora Transporte - Enterprise Dark Theme */
+    --background: 222 47% 6%;
+    --foreground: 220 9% 94%;
+
+    --card: 222 47% 9%;
+    --card-foreground: 220 9% 94%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 220 9% 94%;
+
+    /* Red Primary stays the same for brand consistency */
+    --primary: 0 84% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 47% 14%;
+    --secondary-foreground: 220 9% 94%;
+
+    --muted: 222 47% 14%;
+    --muted-foreground: 220 9% 60%;
+
+    --accent: 0 84% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    /* Cyber Cyan for data highlights */
+    --info: 187 92% 55%;
+    --info-foreground: 222 47% 11%;
+
+    --cyber: 187 92% 55%;
+    --cyber-foreground: 222 47% 11%;
+
+    --border: 222 47% 18%;
+    --input: 222 47% 18%;
+    --ring: 0 84% 55%;
+
+    /* Dark Sidebar - slightly darker than background */
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 220 9% 70%;
+    --sidebar-primary: 0 84% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 10%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 222 47% 12%;
+    --sidebar-ring: 0 84% 55%;
+
+    /* Shadows for dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Lato', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card border border-border shadow-sm;
+  }
+
+  .card-danger {
+    @apply bg-destructive/5 border-destructive/30;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-destructive;
+  }
+
+  /* Cyber accent for data highlights */
+  .cyber-text {
+    @apply text-info;
+  }
+
+  .cyber-glow {
+    text-shadow: 0 0 10px hsl(var(--info) / 0.5);
+  }
+
+  /* Neon Red glow effect */
+  .neon-glow {
+    text-shadow: 0 0 10px hsl(0 100% 56% / 0.8), 0 0 20px hsl(0 100% 56% / 0.6), 0 0 30px hsl(0 100% 56% / 0.4);
+  }
+
+  .shadow-neon {
+    box-shadow: 0 0 15px hsl(0 100% 56% / 0.5), 0 0 30px hsl(0 100% 56% / 0.3);
+  }
+
+  .shadow-neon-sm {
+    box-shadow: 0 0 8px hsl(0 100% 56% / 0.4), 0 0 16px hsl(0 100% 56% / 0.2);
+  }
+
+  /* Neon divider line */
+  .neon-divider {
+    background: linear-gradient(90deg, transparent, hsl(0 100% 56% / 0.7), transparent);
+    box-shadow: 0 0 8px hsl(0 100% 56% / 0.5);
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .status-dot {
+    @apply w-2 h-2 rounded-full animate-pulse;
+  }
+
+  .status-dot-success {
+    @apply bg-success;
+    box-shadow: 0 0 8px hsl(142 76% 36% / 0.6);
+  }
+
+  .status-dot-warning {
+    @apply bg-warning;
+    box-shadow: 0 0 8px hsl(38 92% 50% / 0.6);
+  }
+
+  .status-dot-danger {
+    @apply bg-destructive;
+    box-shadow: 0 0 8px hsl(0 100% 56% / 0.6);
+  }
+
+  .status-dot-info {
+    @apply bg-info;
+    box-shadow: 0 0 8px hsl(187 92% 48% / 0.6);
+  }
+
+  .metric-card {
+    @apply glass-card rounded-xl p-5 transition-all duration-300 hover:shadow-md hover:border-primary/30;
+  }
+
+  /* Monospace numbers for financial data */
+  .font-data {
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+  }
+
+  /* Truncate with ellipsis for long text */
+  .truncate-safe {
+    @apply truncate max-w-full;
+  }
+
+  /* Button neon hover effect */
+  .btn-neon {
+    @apply transition-all duration-300;
+  }
+
+  .btn-neon:hover {
+    @apply shadow-neon;
+  }
+}
+
+/* Leaflet Custom Styles */
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
+  z-index: 0;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  min-width: 250px;
+}
+
+.leaflet-popup-tip {
+  background: white;
+}
+
+.custom-truck-marker {
+  background: transparent;
+  border: none;
+}
+
+.custom-destination-marker {
+  background: transparent;
+  border: none;
+}
+
+/* Hide default Leaflet marker shadow */
+.leaflet-marker-shadow {
+  display: none;
+}
+
+.route-marker {
+  background: transparent;
+  border: 0;
+}
+
+.route-marker__pin {
+  align-items: center;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  border-radius: 9999px;
+  box-shadow: 0 6px 16px hsl(var(--foreground) / 0.22);
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}

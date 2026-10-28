@@ -1,0 +1,207 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+export interface TenantData {
+  id: string;
+  razao_social: string;
+  cnpj: string;
+  plan: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  plan_started_at: string | null;
+  contract_start_date?: string | null;
+  payment_cycle?: string | null;
+  next_due_date?: string | null;
+  financial_status?: string | null;
+  auto_block_days?: number | null;
+  members_count?: number;
+  system_users_count?: number;
+  drivers_count?: number;
+  admin_name?: string;
+  admin_email?: string;
+}
+
+export function usePlatformAdmin() {
+  const { user } = useAuth();
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [tenants, setTenants] = useState<TenantData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [checking, setChecking] = useState(true);
+
+  // Check if user is platform admin
+  useEffect(() => {
+    const check = async () => {
+      if (!user) { setChecking(false); return; }
+      const { data } = await supabase
+        .from('platform_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setIsPlatformAdmin(!!data);
+      setChecking(false);
+    };
+    check();
+  }, [user]);
+
+  const fetchTenants = useCallback(async () => {
+    if (!isPlatformAdmin) return;
+    setIsLoading(true);
+    try {
+      const { data: tenantsData, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Enrich with member count and admin info
+      const enriched: TenantData[] = await Promise.all(
+        (tenantsData || []).map(async (t) => {
+          const { count } = await supabase
+            .from('tenant_memberships')
+            .select('*', { count: 'exact', head: true })
+            .eq('tenant_id', t.id);
+
+          // Count drivers for this tenant
+          const { count: driversCount } = await supabase
+            .from('drivers')
+            .select('*', { count: 'exact', head: true })
+            .eq('tenant_id', t.id);
+
+          // Count system users (non-driver roles)
+          const { data: membersList } = await supabase
+            .from('tenant_memberships')
+            .select('user_id')
+            .eq('tenant_id', t.id);
+
+          let systemUsersCount = 0;
+          if (membersList && membersList.length > 0) {
+            const userIds = membersList.map(m => m.user_id);
+            const { data: roles } = await supabase
+              .from('user_roles')
+              .select('user_id, role')
+              .in('user_id', userIds);
+            
+            const systemRoles = new Set(['admin', 'dispatcher', 'fleet_manager', 'manager', 'owner']);
+            const systemUserIds = new Set<string>();
+            (roles || []).forEach(r => {
+              if (systemRoles.has(r.role as string)) {
+                systemUserIds.add(r.user_id);
+              }
+            });
+            systemUsersCount = systemUserIds.size;
+          }
+
+          // Get admin member
+          const { data: adminMember } = await supabase
+            .from('tenant_memberships')
+            .select('user_id')
+            .eq('tenant_id', t.id)
+            .eq('role', 'admin')
+            .limit(1)
+            .maybeSingle();
+
+          let admin_name = '';
+          let admin_email = '';
+          if (adminMember) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('name, email')
+              .eq('id', adminMember.user_id)
+              .maybeSingle();
+            admin_name = profile?.name || '';
+            admin_email = profile?.email || '';
+          }
+
+          return {
+            ...t,
+            members_count: count || 0,
+            system_users_count: systemUsersCount,
+            drivers_count: driversCount || 0,
+            admin_name,
+            admin_email,
+          };
+        })
+      );
+
+      setTenants(enriched);
+    } catch (err) {
+      console.error('Error fetching tenants:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isPlatformAdmin]);
+
+  useEffect(() => {
+    if (isPlatformAdmin) fetchTenants();
+  }, [isPlatformAdmin, fetchTenants]);
+
+  const updateTenantStatus = async (tenantId: string, status: string) => {
+    const { error } = await supabase
+      .from('tenants')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', tenantId);
+    
+    // When activating a tenant, ensure all members have user_roles
+    if (!error && status === 'active') {
+      try {
+        // Get all members of this tenant
+        const { data: members } = await supabase
+          .from('tenant_memberships')
+          .select('user_id, role')
+          .eq('tenant_id', tenantId);
+
+        if (members && members.length > 0) {
+          // Check which members already have user_roles
+          const userIds = members.map(m => m.user_id);
+          const { data: existingRoles } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .in('user_id', userIds);
+
+          const usersWithRoles = new Set((existingRoles || []).map(r => r.user_id));
+
+          // Create missing user_roles
+          const missingRoles = members
+            .filter(m => !usersWithRoles.has(m.user_id))
+            .map(m => ({
+              user_id: m.user_id,
+              role: (m.role === 'admin' ? 'admin' : 'viewer') as 'admin' | 'fleet_manager' | 'dispatcher' | 'viewer',
+              tenant_id: tenantId,
+            }));
+
+          if (missingRoles.length > 0) {
+            await supabase.from('user_roles').insert(missingRoles);
+            console.log(`[MASTER] Auto-assigned roles for ${missingRoles.length} user(s) in tenant ${tenantId}`);
+          }
+        }
+      } catch (roleErr) {
+        console.error('[MASTER] Error auto-assigning roles:', roleErr);
+      }
+    }
+
+    if (!error) fetchTenants();
+    return { error };
+  };
+
+  const updateTenantPlan = async (tenantId: string, plan: string) => {
+    const { error } = await supabase
+      .from('tenants')
+      .update({ plan, plan_started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', tenantId);
+    if (!error) fetchTenants();
+    return { error };
+  };
+
+  return {
+    isPlatformAdmin,
+    checking,
+    tenants,
+    isLoading,
+    fetchTenants,
+    updateTenantStatus,
+    updateTenantPlan,
+  };
+}
