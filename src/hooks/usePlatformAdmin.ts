@@ -16,11 +16,29 @@ export interface TenantData {
   next_due_date?: string | null;
   financial_status?: string | null;
   auto_block_days?: number | null;
+  trial_started_at?: string | null;
+  trial_ends_at?: string | null;
+  trial_extensions?: number | null;
+  converted_at?: string | null;
+  billing_document?: string | null;
+  billing_document_type?: string | null;
+  telefone?: string | null;
+  last_billing_notice?: BillingNoticeSummary | null;
   members_count?: number;
   system_users_count?: number;
   drivers_count?: number;
   admin_name?: string;
   admin_email?: string;
+}
+
+export interface BillingNoticeSummary {
+  notice_type: string;
+  reference_date: string;
+  channel: string;
+  shown_at: string;
+  acknowledged_at: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export function usePlatformAdmin() {
@@ -55,6 +73,17 @@ export function usePlatformAdmin() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+
+      // Latest billing notice per tenant ("cobranca avisada")
+      const { data: noticesData } = await supabase
+        .from('billing_notices')
+        .select('tenant_id, notice_type, reference_date, channel, shown_at, acknowledged_at, notes, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      const latestNoticeByTenant = new Map<string, BillingNoticeSummary>();
+      (noticesData || []).forEach((notice) => {
+        if (!latestNoticeByTenant.has(notice.tenant_id)) latestNoticeByTenant.set(notice.tenant_id, notice);
+      });
 
       // Enrich with member count and admin info
       const enriched: TenantData[] = await Promise.all(
@@ -117,6 +146,7 @@ export function usePlatformAdmin() {
 
           return {
             ...t,
+            last_billing_notice: latestNoticeByTenant.get(t.id) || null,
             members_count: count || 0,
             system_users_count: systemUsersCount,
             drivers_count: driversCount || 0,
@@ -195,6 +225,12 @@ export function usePlatformAdmin() {
     return { error };
   };
 
+  const extendTrial = async (tenantId: string, days = 7) => {
+    const { error } = await supabase.rpc('extend_tenant_trial', { p_tenant_id: tenantId, p_days: days });
+    if (!error) fetchTenants();
+    return { error };
+  };
+
   return {
     isPlatformAdmin,
     checking,
@@ -203,5 +239,6 @@ export function usePlatformAdmin() {
     fetchTenants,
     updateTenantStatus,
     updateTenantPlan,
+    extendTrial,
   };
 }

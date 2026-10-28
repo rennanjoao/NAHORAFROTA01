@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import nahoraFrotaLogo from "@/assets/nahora-frota-logo.png";
+import { trackFunnelEvent } from "@/lib/funnel";
 
 // Validation schema
 const loginSchema = z.object({
@@ -30,6 +31,10 @@ export default function LoginPage() {
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
+  useEffect(() => {
+    trackFunnelEvent("page_view");
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {

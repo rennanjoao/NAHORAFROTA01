@@ -1,44 +1,44 @@
-import { AlertCircle, Clock, ShieldAlert } from "lucide-react";
+import { AlertCircle, Clock, Gift, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useTenantData } from "@/hooks/useTenantData";
-import { differenceInDays } from "date-fns";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 
 export function NotificationBanner() {
-  const { tenant, isLoading } = useTenantData();
+  const { status, daysRemaining, isLoading, access } = useSubscriptionStatus();
 
-  if (isLoading || !tenant) return null;
-
-  // Read next_due_date from tenant (set by Super Admin)
-  const nextDueDate = (tenant as any).next_due_date as string | null;
-  if (!nextDueDate) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(nextDueDate + "T12:00:00");
-  const diff = differenceInDays(due, today);
-
-  // Only show if within 5 days or overdue
-  if (diff > 5) return null;
+  if (isLoading || !access) return null;
 
   let icon = Clock;
   let message = "";
   let style = "";
 
-  if (diff < 0) {
+  if (status === "trial") {
+    // Teste gratis: contagem regressiva sempre visivel durante o periodo.
+    icon = Gift;
+    const until = access.trial_ends_at ? new Date(access.trial_ends_at).toLocaleDateString("pt-BR") : "";
+    const remaining =
+      daysRemaining <= 0 ? "termina hoje" : `${daysRemaining} dia${daysRemaining > 1 ? "s" : ""} restante${daysRemaining > 1 ? "s" : ""}`;
+    message = `Teste grátis: ${remaining}${until ? ` (até ${until})` : ""}. Fale com a equipe NaHora Frota para contratar.`;
+    style =
+      daysRemaining <= 1
+        ? "bg-destructive/10 border-destructive/20 text-destructive"
+        : "bg-primary/10 border-primary/20 text-primary";
+  } else if (status === "expired") {
     // Post-expiration — should be blocked at ProtectedRoute level,
     // but show banner as fallback
     icon = ShieldAlert;
     message = "Acesso Suspenso. Entre em contato com o suporte para renovação.";
     style = "bg-destructive/15 border-destructive/30 text-destructive";
-  } else if (diff === 0) {
+  } else if (status === "due_today") {
     icon = AlertCircle;
     message = "Sua assinatura vence hoje. Regularize para evitar interrupções.";
     style = "bg-destructive/10 border-destructive/20 text-destructive";
-  } else {
+  } else if (status === "warning") {
     // 1-5 days remaining
     icon = Clock;
-    message = `Sua assinatura vence em ${diff} dia${diff > 1 ? "s" : ""}. Regularize para evitar interrupções.`;
+    message = `Sua assinatura vence em ${daysRemaining} dia${daysRemaining > 1 ? "s" : ""}. Regularize para evitar interrupções.`;
     style = "bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400";
+  } else {
+    return null;
   }
 
   const Icon = icon;

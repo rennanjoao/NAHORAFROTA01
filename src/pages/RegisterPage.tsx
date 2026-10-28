@@ -1,32 +1,18 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Building2, User, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, CheckCircle } from "lucide-react";
+import { Building2, User, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, CheckCircle, Receipt, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import nahoraFrotaLogo from "@/assets/nahora-frota-logo.png";
-
-// CNPJ validation
-function isValidCNPJ(cnpj: string): boolean {
-  const cleaned = cnpj.replace(/\D/g, "");
-  if (cleaned.length !== 14) return false;
-  if (/^(\d)\1+$/.test(cleaned)) return false;
-
-  const calc = (digits: string, weights: number[]) =>
-    digits.split("").reduce((sum, d, i) => sum + Number(d) * weights[i], 0);
-
-  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-
-  const d1 = ((r) => (r < 2 ? 0 : 11 - r))(calc(cleaned.slice(0, 12), w1) % 11);
-  const d2 = ((r) => (r < 2 ? 0 : 11 - r))(calc(cleaned.slice(0, 13), w2) % 11);
-
-  return Number(cleaned[12]) === d1 && Number(cleaned[13]) === d2;
-}
+import { detectDocumentType, formatDocument, isValidCNPJ, onlyDigits } from "@/lib/documentValidation";
+import { TRIAL_DAYS } from "@/lib/billingStatus";
+import { getVisitorId, trackFunnelEvent } from "@/lib/funnel";
 
 function formatCNPJ(value: string): string {
   const cleaned = value.replace(/\D/g, "").slice(0, 14);
@@ -55,6 +41,9 @@ async function getFunctionErrorMessage(error: any): Promise<string> {
 
   try {
     const payload = await response.clone().json();
+    if (payload?.code === "trial_already_used") {
+      return "Este CNPJ/CPF já utilizou o teste grátis. Fale com a equipe NaHora Frota para contratar um plano.";
+    }
     return payload?.error || payload?.message || fallback;
   } catch {
     try {
@@ -77,12 +66,39 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [useOtherBillingDocument, setUseOtherBillingDocument] = useState(false);
+  const [billingDocument, setBillingDocument] = useState("");
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const startedTrackingRef = useRef(false);
+
+  useEffect(() => {
+    trackFunnelEvent("page_view");
+    trackFunnelEvent("register_view");
+  }, []);
+
+  // Primeira interacao com o formulario conta como "iniciou cadastro".
+  const markStarted = () => {
+    if (startedTrackingRef.current) return;
+    startedTrackingRef.current = true;
+    trackFunnelEvent("register_started");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     const cleanCnpj = cnpj.replace(/\D/g, "");
+    const cleanBillingDocument = useOtherBillingDocument ? onlyDigits(billingDocument) : cleanCnpj;
+
+    if (useOtherBillingDocument && !detectDocumentType(cleanBillingDocument)) {
+      toast({
+        title: "Erro de validação",
+        description: "Informe um CPF ou CNPJ de cobrança válido.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
 
     const validation = registerSchema.safeParse({
       cnpj: cleanCnpj,
@@ -102,6 +118,8 @@ export default function RegisterPage() {
       return;
     }
 
+    trackFunnelEvent("register_submitted", { billing_document_type: detectDocumentType(cleanBillingDocument) || "" });
+
     try {
       const { data, error } = await supabase.functions.invoke("register-tenant", {
         body: {
@@ -110,6 +128,8 @@ export default function RegisterPage() {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           password: password.trim(),
+          billing_document: cleanBillingDocument,
+          visitor_id: getVisitorId(),
         },
       });
 
@@ -133,6 +153,23 @@ export default function RegisterPage() {
         return;
       }
 
+      setTrialEndsAt(data?.trial_ends_at ?? null);
+
+      // O teste comeca na hora: entra direto no sistema.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      });
+
+      if (!signInError) {
+        toast({
+          title: `🎉 Teste grátis de ${TRIAL_DAYS} dias liberado`,
+          description: "Bem-vindo ao NaHora Frota! Explore à vontade.",
+        });
+        navigate("/", { replace: true });
+        return;
+      }
+
       setSuccess(true);
     } catch (err: any) {
       toast({
@@ -151,16 +188,17 @@ export default function RegisterPage() {
         <Card className="w-full max-w-md border-border/50 shadow-xl">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-            <h2 className="text-xl font-semibold">Cadastro Enviado!</h2>
+            <h2 className="text-xl font-semibold">Teste grátis liberado!</h2>
             <p className="text-muted-foreground text-sm">
-              Sua empresa foi registrada com sucesso. O acesso será liberado após
-              aprovação pela equipe Na Hora Frota.
+              Sua empresa foi cadastrada e você já pode usar o NaHora Frota por {TRIAL_DAYS} dias sem custo.
             </p>
-            <p className="text-muted-foreground text-xs">
-              Você receberá uma notificação quando sua conta for ativada.
-            </p>
+            {trialEndsAt && (
+              <p className="text-muted-foreground text-xs">
+                Seu teste vai até {new Date(trialEndsAt).toLocaleDateString("pt-BR")}.
+              </p>
+            )}
             <Button onClick={() => navigate("/login")} className="w-full mt-4">
-              Voltar ao Login
+              Entrar agora
             </Button>
           </CardContent>
         </Card>
@@ -193,10 +231,14 @@ export default function RegisterPage() {
             <p className="text-sm text-muted-foreground">
               Preencha os dados para criar sua conta
             </p>
+            <div className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <Gift className="h-3.5 w-3.5" />
+              {TRIAL_DAYS} dias grátis, sem cartão de crédito
+            </div>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} onChange={markStarted} className="space-y-4">
               {/* CNPJ */}
               <div className="space-y-1.5">
                 <Label htmlFor="cnpj">CNPJ</Label>
@@ -213,6 +255,41 @@ export default function RegisterPage() {
                     maxLength={18}
                   />
                 </div>
+              </div>
+
+              {/* Documento de cobrança */}
+              <div className="space-y-2 rounded-lg border border-border/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="other-billing" className="flex items-center gap-2 text-sm font-normal">
+                    <Receipt className="h-4 w-4 text-muted-foreground" />
+                    Cobrar em outro CNPJ/CPF
+                  </Label>
+                  <Switch
+                    id="other-billing"
+                    checked={useOtherBillingDocument}
+                    onCheckedChange={(checked) => {
+                      markStarted();
+                      setUseOtherBillingDocument(checked);
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+                {useOtherBillingDocument ? (
+                  <Input
+                    id="billing-document"
+                    placeholder="CPF ou CNPJ de cobrança"
+                    value={billingDocument}
+                    onChange={(e) => setBillingDocument(formatDocument(e.target.value))}
+                    disabled={isLoading}
+                    maxLength={18}
+                    required
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">A cobrança será feita no CNPJ da empresa.</p>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  O teste grátis é liberado uma única vez por CNPJ/CPF.
+                </p>
               </div>
 
               {/* Razão Social */}
@@ -295,7 +372,7 @@ export default function RegisterPage() {
                 ) : (
                   <ArrowRight className="h-4 w-4" />
                 )}
-                {isLoading ? "Cadastrando..." : "Cadastrar Empresa"}
+                {isLoading ? "Cadastrando..." : `Começar teste grátis de ${TRIAL_DAYS} dias`}
               </Button>
             </form>
 

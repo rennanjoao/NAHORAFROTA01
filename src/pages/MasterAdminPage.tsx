@@ -7,6 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -18,6 +19,7 @@ import {
 import {
   Crown, Building2, Users, ShieldAlert, CheckCircle2, XCircle,
   Loader2, RefreshCw, Ban, Monitor, Truck, DollarSign, AlertTriangle, Bell,
+  Gift, CalendarPlus, Filter,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { usePlatformAdmin, TenantData } from "@/hooks/usePlatformAdmin";
@@ -25,11 +27,16 @@ import { Navigate } from "react-router-dom";
 import { BillingDialog } from "@/components/master/BillingDialog";
 import { DueDateIndicator, getDueSoonCount, getOverdueCount } from "@/components/master/DueDateIndicator";
 import { PlatformAdminsCard } from "@/components/master/PlatformAdminsCard";
+import { TrialIndicator, BillingNoticeBadge } from "@/components/master/TrialIndicator";
+import { isTrialExpired } from "@/lib/billingStatus";
+import { FunnelAnalytics } from "@/components/master/FunnelAnalytics";
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
   active: { label: "Ativo", icon: <CheckCircle2 className="h-3 w-3" />, className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
   inactive: { label: "Aguardando", icon: <Loader2 className="h-3 w-3" />, className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
   blocked: { label: "Bloqueado", icon: <Ban className="h-3 w-3" />, className: "bg-destructive/20 text-destructive border-destructive/30" },
+  trial: { label: "Em teste", icon: <Gift className="h-3 w-3" />, className: "bg-sky-500/20 text-sky-400 border-sky-500/30" },
+  trial_expired: { label: "Teste expirado", icon: <Gift className="h-3 w-3" />, className: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
 };
 
 const planConfig: Record<string, { label: string; className: string }> = {
@@ -45,8 +52,9 @@ const planLimitsMap: Record<string, { max_users: number; max_drivers: number }> 
 };
 
 export default function MasterAdminPage() {
-  const { isPlatformAdmin, checking, tenants, isLoading, fetchTenants, updateTenantStatus, updateTenantPlan } = usePlatformAdmin();
+  const { isPlatformAdmin, checking, tenants, isLoading, fetchTenants, updateTenantStatus, updateTenantPlan, extendTrial } = usePlatformAdmin();
   const [billingTenant, setBillingTenant] = useState<TenantData | null>(null);
+  const [extendingTenantId, setExtendingTenantId] = useState<string | null>(null);
 
   if (checking) {
     return (
@@ -64,6 +72,8 @@ export default function MasterAdminPage() {
 
   const activeTenants = tenants.filter(t => t.status === 'active').length;
   const pendingTenants = tenants.filter(t => t.status === 'inactive').length;
+  const trialTenants = tenants.filter(t => t.status === 'trial' && !isTrialExpired(t)).length;
+  const expiredTrialTenants = tenants.filter(t => isTrialExpired(t)).length;
   const totalUsers = tenants.reduce((acc, t) => acc + (t.members_count || 0), 0);
   const dueSoonCount = getDueSoonCount(tenants, 5);
   const overdueCount = getOverdueCount(tenants);
@@ -74,6 +84,17 @@ export default function MasterAdminPage() {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "✅ Status atualizado", description: `${tenant.razao_social} agora está ${statusConfig[newStatus]?.label || newStatus}.` });
+    }
+  };
+
+  const handleExtendTrial = async (tenant: TenantData) => {
+    setExtendingTenantId(tenant.id);
+    const { error } = await extendTrial(tenant.id, 7);
+    setExtendingTenantId(null);
+    if (error) {
+      toast({ title: "Erro ao estender teste", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "✅ Teste estendido", description: `${tenant.razao_social} ganhou mais 7 dias de teste grátis.` });
     }
   };
 
@@ -119,7 +140,7 @@ export default function MasterAdminPage() {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -138,6 +159,19 @@ export default function MasterAdminPage() {
                 <div>
                   <p className="text-2xl font-bold">{activeTenants}</p>
                   <p className="text-xs text-muted-foreground">Ativos</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Gift className="h-8 w-8 text-sky-400" />
+                <div>
+                  <p className="text-2xl font-bold">{trialTenants}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Em teste{expiredTrialTenants > 0 ? ` • ${expiredTrialTenants} expirado(s)` : ""}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -177,6 +211,19 @@ export default function MasterAdminPage() {
           </Card>
         </div>
 
+        <Tabs defaultValue="clients" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="clients" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Clientes
+            </TabsTrigger>
+            <TabsTrigger value="funnel" className="gap-2">
+              <Filter className="h-4 w-4" />
+              Funil de Aquisição
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="clients" className="mt-0">
         {/* Tenants Table */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -212,7 +259,8 @@ export default function MasterAdminPage() {
                   </TableHeader>
                   <TableBody>
                     {tenants.map((tenant) => {
-                      const sc = statusConfig[tenant.status] || statusConfig.inactive;
+                      const sc = statusConfig[isTrialExpired(tenant) ? 'trial_expired' : tenant.status] || statusConfig.inactive;
+                      const isTrial = tenant.status === 'trial';
                       const pc = planConfig[tenant.plan] || planConfig.basic;
                       return (
                         <TableRow key={tenant.id}>
@@ -287,13 +335,18 @@ export default function MasterAdminPage() {
                           <TableCell>
                             <TooltipProvider>
                               <div
-                                className="cursor-pointer"
+                                className="cursor-pointer flex flex-col items-start gap-1"
                                 onClick={() => setBillingTenant(tenant)}
                               >
-                                <DueDateIndicator
-                                  nextDueDate={tenant.next_due_date || null}
-                                  financialStatus={tenant.financial_status || null}
-                                />
+                                {isTrial ? (
+                                  <TrialIndicator trialEndsAt={tenant.trial_ends_at} extensions={tenant.trial_extensions} />
+                                ) : (
+                                  <DueDateIndicator
+                                    nextDueDate={tenant.next_due_date || null}
+                                    financialStatus={tenant.financial_status || null}
+                                  />
+                                )}
+                                <BillingNoticeBadge notice={tenant.last_billing_notice} />
                               </div>
                             </TooltipProvider>
                           </TableCell>
@@ -310,6 +363,34 @@ export default function MasterAdminPage() {
                               >
                                 <DollarSign className="h-4 w-4" />
                               </Button>
+                              {(isTrial || tenant.status === 'inactive') && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-sky-400 border-sky-500/30 hover:bg-sky-500/10"
+                                  disabled={extendingTenantId === tenant.id}
+                                  onClick={() => handleExtendTrial(tenant)}
+                                  title="Estender o teste grátis por mais 7 dias"
+                                >
+                                  {extendingTenantId === tenant.id ? (
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <CalendarPlus className="h-4 w-4 mr-1" />
+                                  )}
+                                  +7 dias
+                                </Button>
+                              )}
+                              {isTrial && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                                  onClick={() => handleStatusChange(tenant, 'active')}
+                                  title="Cliente contratou: encerra o teste e ativa a assinatura"
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" /> Ativar
+                                </Button>
+                              )}
                               {tenant.status === 'inactive' && (
                                 <Button
                                   size="sm"
@@ -320,7 +401,7 @@ export default function MasterAdminPage() {
                                   <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
                                 </Button>
                               )}
-                              {tenant.status === 'active' && (
+                              {(tenant.status === 'active' || isTrial) && (
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10">
@@ -367,6 +448,13 @@ export default function MasterAdminPage() {
             )}
           </CardContent>
         </Card>
+
+          </TabsContent>
+
+          <TabsContent value="funnel" className="mt-0">
+            <FunnelAnalytics tenants={tenants} onExtendTrial={handleExtendTrial} extendingTenantId={extendingTenantId} />
+          </TabsContent>
+        </Tabs>
 
         {/* Platform Admins Management */}
         <PlatformAdminsCard />

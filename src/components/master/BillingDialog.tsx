@@ -11,7 +11,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarDays, DollarSign, History, Save, Plus } from "lucide-react";
+import { CalendarDays, DollarSign, History, Save, Plus, BellRing } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format, addMonths, addDays } from "date-fns";
@@ -26,6 +26,33 @@ interface PaymentRecord {
   notes: string | null;
   created_at: string;
 }
+
+interface BillingNoticeRecord {
+  id: string;
+  notice_type: string;
+  reference_date: string;
+  channel: string;
+  shown_at: string;
+  acknowledged_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+const noticeTypeLabels: Record<string, string> = {
+  trial_ending: "Fim do teste",
+  trial_expired: "Teste expirado",
+  due_soon: "Vencimento próximo",
+  due_today: "Vence hoje",
+  overdue: "Em atraso",
+  manual: "Contato da equipe",
+};
+
+const channelLabels: Record<string, string> = {
+  in_app: "Pop-up no sistema",
+  email: "E-mail",
+  whatsapp: "WhatsApp",
+  phone: "Telefone",
+};
 
 interface BillingDialogProps {
   open: boolean;
@@ -87,6 +114,12 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
   const [newAmount, setNewAmount] = useState("");
   const [newNotes, setNewNotes] = useState("");
 
+  // Billing notices ("cobranca avisada")
+  const [notices, setNotices] = useState<BillingNoticeRecord[]>([]);
+  const [noticeChannel, setNoticeChannel] = useState("whatsapp");
+  const [noticeNotes, setNoticeNotes] = useState("");
+  const [savingNotice, setSavingNotice] = useState(false);
+
   useEffect(() => {
     if (tenant && open) {
       setContractStart(tenant.contract_start_date || "");
@@ -116,7 +149,38 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       .order("payment_date", { ascending: false })
       .limit(20);
     setHistory((data as any as PaymentRecord[]) || []);
+
+    const { data: noticesData } = await supabase
+      .from("billing_notices")
+      .select("id, notice_type, reference_date, channel, shown_at, acknowledged_at, notes, created_at")
+      .eq("tenant_id", tenant.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    setNotices(noticesData || []);
     setLoadingHistory(false);
+  };
+
+  const handleRegisterNotice = async () => {
+    if (!tenant) return;
+    setSavingNotice(true);
+    const { error } = await supabase.from("billing_notices").insert({
+      tenant_id: tenant.id,
+      notice_type: "manual",
+      reference_date: nextDue || new Date().toISOString().split("T")[0],
+      channel: noticeChannel,
+      notes: noticeNotes.trim() || null,
+      user_id: (await supabase.auth.getUser()).data.user?.id,
+    });
+    setSavingNotice(false);
+
+    if (error) {
+      toast({ title: "Erro ao registrar aviso", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "✅ Cobrança marcada como avisada" });
+    setNoticeNotes("");
+    fetchHistory();
+    onSaved();
   };
 
   const handleSave = async () => {
@@ -331,6 +395,74 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
                       {h.cycle && (
                         <Badge variant="outline" className="text-[10px]">
                           {cycleLabels[h.cycle] || h.cycle}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Billing notices */}
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+              <BellRing className="h-4 w-4" />
+              Cobrança Avisada
+            </h3>
+
+            <div className="border rounded-lg p-3 space-y-2 mb-3 bg-muted/30">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Canal</Label>
+                  <Select value={noticeChannel} onValueChange={setNoticeChannel}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="email">E-mail</SelectItem>
+                      <SelectItem value="phone">Telefone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Observação</Label>
+                  <Input
+                    value={noticeNotes}
+                    onChange={(e) => setNoticeNotes(e.target.value)}
+                    placeholder="Ex.: falou com o financeiro"
+                  />
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleRegisterNotice} disabled={savingNotice} className="w-full">
+                {savingNotice ? "Registrando..." : "Marcar cobrança como avisada"}
+              </Button>
+            </div>
+
+            {notices.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-2">Nenhum aviso registrado</p>
+            ) : (
+              <div className="space-y-2 max-h-[180px] overflow-y-auto">
+                {notices.map((n) => (
+                  <div key={n.id} className="flex items-center justify-between border rounded-md p-2 text-sm">
+                    <div>
+                      <p className="font-medium">{noticeTypeLabels[n.notice_type] || n.notice_type}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {channelLabels[n.channel] || n.channel}
+                        {n.notes ? ` • ${n.notes}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs">{new Date(n.created_at).toLocaleDateString("pt-BR")}</p>
+                      {n.channel === "in_app" && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${n.acknowledged_at ? "bg-emerald-500/20 text-emerald-400" : ""}`}
+                        >
+                          {n.acknowledged_at ? "Cliente ciente" : "Exibido"}
                         </Badge>
                       )}
                     </div>

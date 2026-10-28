@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
+import { BillingReminderDialog } from "./BillingReminderDialog";
 import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
@@ -38,6 +39,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         />
         <main className="p-3 md:p-6">{children}</main>
       </div>
+
+      <BillingReminderDialog />
     </div>
   );
 }

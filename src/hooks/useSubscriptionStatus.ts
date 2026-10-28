@@ -1,24 +1,17 @@
-import { useTenantData } from "@/hooks/useTenantData";
-import { differenceInDays } from "date-fns";
+import { useTenantAccess } from "@/hooks/useTenantAccess";
+import { getSubscriptionStatus, type SubscriptionStatus } from "@/lib/billingStatus";
 
-export type SubscriptionStatus = "active" | "warning" | "due_today" | "expired" | "loading" | "no_date";
+export type { SubscriptionStatus };
 
 export function useSubscriptionStatus() {
-  const { tenant, isLoading } = useTenantData();
+  const { access, isLoading, error } = useTenantAccess();
 
-  if (isLoading) return { status: "loading" as const, daysRemaining: 0, isLoading: true };
-  if (!tenant?.next_due_date) return { status: "no_date" as const, daysRemaining: 999, isLoading: false };
+  if (isLoading) return { status: "loading" as const, daysRemaining: 0, isLoading: true, access: null };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(tenant.next_due_date + "T12:00:00");
-  const diff = differenceInDays(due, today);
+  // Se a RPC falhar (ex.: migration ainda nao aplicada), nao bloqueia a interface;
+  // o banco continua sendo a barreira real de acesso.
+  if (error) return { status: "no_date" as const, daysRemaining: 999, isLoading: false, access: null };
 
-  let status: SubscriptionStatus;
-  if (diff < 0) status = "expired";
-  else if (diff === 0) status = "due_today";
-  else if (diff <= 5) status = "warning";
-  else status = "active";
-
-  return { status, daysRemaining: diff, isLoading: false };
+  const { status, daysRemaining } = getSubscriptionStatus(access);
+  return { status, daysRemaining, isLoading: false, access };
 }

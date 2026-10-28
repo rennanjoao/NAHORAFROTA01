@@ -29,6 +29,45 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_notices: {
+        Row: {
+          acknowledged_at: string | null
+          channel: string
+          created_at: string
+          id: string
+          notes: string | null
+          notice_type: string
+          reference_date: string
+          shown_at: string
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          notice_type: string
+          reference_date: string
+          shown_at?: string
+          tenant_id: string
+          user_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          notice_type?: string
+          reference_date?: string
+          shown_at?: string
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       company_vehicles: {
         Row: {
           brand: string
@@ -518,6 +557,7 @@ export type Database = {
           vehicle_document_url: string | null
           vehicle_plate: string
           vehicle_type: string
+          contact_email: string | null
         }
         Insert: {
           address?: string | null
@@ -558,6 +598,7 @@ export type Database = {
           vehicle_document_url?: string | null
           vehicle_plate: string
           vehicle_type: string
+          contact_email?: string | null
         }
         Update: {
           address?: string | null
@@ -598,6 +639,7 @@ export type Database = {
           vehicle_document_url?: string | null
           vehicle_plate?: string
           vehicle_type?: string
+          contact_email?: string | null
         }
         Relationships: [
           {
@@ -689,6 +731,39 @@ export type Database = {
           },
         ]
       }
+      funnel_events: {
+        Row: {
+          created_at: string
+          event: string
+          id: number
+          metadata: Json
+          path: string | null
+          tenant_id: string | null
+          user_id: string | null
+          visitor_id: string
+        }
+        Insert: {
+          created_at?: string
+          event: string
+          id?: number
+          metadata?: Json
+          path?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+          visitor_id: string
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          id?: number
+          metadata?: Json
+          path?: string | null
+          tenant_id?: string | null
+          user_id?: string | null
+          visitor_id?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           access_key: string
@@ -723,6 +798,8 @@ export type Database = {
           updated_by: string | null
           volume_quantity: number | null
           xml_raw: string | null
+          arrival_distance_m: number | null
+          arrived_at: string | null
         }
         Insert: {
           access_key: string
@@ -757,6 +834,8 @@ export type Database = {
           updated_by?: string | null
           volume_quantity?: number | null
           xml_raw?: string | null
+          arrival_distance_m?: number | null
+          arrived_at?: string | null
         }
         Update: {
           access_key?: string
@@ -791,6 +870,8 @@ export type Database = {
           updated_by?: string | null
           volume_quantity?: number | null
           xml_raw?: string | null
+          arrival_distance_m?: number | null
+          arrived_at?: string | null
         }
         Relationships: [
           {
@@ -1492,6 +1573,13 @@ export type Database = {
           telefone: string | null
           uf: string | null
           updated_at: string
+          billing_document: string | null
+          billing_document_type: string | null
+          converted_at: string | null
+          signup_visitor_id: string | null
+          trial_ends_at: string | null
+          trial_extensions: number
+          trial_started_at: string | null
         }
         Insert: {
           auto_block_days?: number | null
@@ -1516,6 +1604,13 @@ export type Database = {
           telefone?: string | null
           uf?: string | null
           updated_at?: string
+          billing_document?: string | null
+          billing_document_type?: string | null
+          converted_at?: string | null
+          signup_visitor_id?: string | null
+          trial_ends_at?: string | null
+          trial_extensions?: number
+          trial_started_at?: string | null
         }
         Update: {
           auto_block_days?: number | null
@@ -1540,6 +1635,37 @@ export type Database = {
           telefone?: string | null
           uf?: string | null
           updated_at?: string
+          billing_document?: string | null
+          billing_document_type?: string | null
+          converted_at?: string | null
+          signup_visitor_id?: string | null
+          trial_ends_at?: string | null
+          trial_extensions?: number
+          trial_started_at?: string | null
+        }
+        Relationships: []
+      }
+      trial_registrations: {
+        Row: {
+          created_at: string
+          document: string
+          document_type: string
+          email: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          document: string
+          document_type: string
+          email?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          document?: string
+          document_type?: string
+          email?: string | null
+          tenant_id?: string | null
         }
         Relationships: []
       }
@@ -1818,6 +1944,48 @@ export type Database = {
       }
     }
     Functions: {
+      can_admin_tenant: {
+        Args: { p_tenant_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      can_view_driver_documents: { Args: { p_user_id?: string }; Returns: boolean }
+      extend_tenant_trial: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
+      get_funnel_summary: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      get_my_tenant_access: { Args: never; Returns: Json }
+      record_billing_notice: {
+        Args: {
+          p_acknowledged?: boolean
+          p_notice_type: string
+          p_reference_date: string
+        }
+        Returns: undefined
+      }
+      register_driver_arrival: {
+        Args: {
+          p_invoice_id: string
+          p_latitude: number
+          p_longitude: number
+          p_radius_m?: number
+        }
+        Returns: Json
+      }
+      tenant_access_state: { Args: { p_tenant_id: string }; Returns: string }
+      tenant_has_access: { Args: { p_tenant_id: string }; Returns: boolean }
+      track_funnel_event: {
+        Args: {
+          p_event: string
+          p_metadata?: Json
+          p_path?: string
+          p_visitor_id: string
+        }
+        Returns: undefined
+      }
       calculate_regiao_logistica: {
         Args: { cep_input: string }
         Returns: string

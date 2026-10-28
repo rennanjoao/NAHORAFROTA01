@@ -3,7 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
-import { SubscriptionBlockScreen } from "@/components/auth/SubscriptionBlockScreen";
+import { SubscriptionBlockScreen, type BlockReason } from "@/components/auth/SubscriptionBlockScreen";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -28,6 +28,9 @@ const ADMIN_ROUTES = [
 
 const DRIVER_EMAIL_DOMAIN = "@driver.nahorafrota.app";
 
+// Situacoes em que a empresa perde o acesso ao sistema.
+const BLOCKING_STATUSES: readonly string[] = ["expired", "trial_expired", "blocked", "pending"];
+
 // Helper function to check if email follows the driver pattern
 const isDriverEmail = (email: string | undefined): boolean => {
   if (!email) return false;
@@ -37,7 +40,9 @@ const isDriverEmail = (email: string | undefined): boolean => {
 export function ProtectedRoute({ children, requiredRole, allowDrivers = false }: ProtectedRouteProps) {
   const { session, user, loading, rolesLoading, roles, hasRole, isAdmin } = useAuth();
   const location = useLocation();
-  const { status: subscriptionStatus, isLoading: subLoading } = useSubscriptionStatus();
+  const { status: subscriptionStatus, isLoading: subLoading, access } = useSubscriptionStatus();
+  const isBlockedBySubscription =
+    !subLoading && !access?.is_platform_admin && BLOCKING_STATUSES.includes(subscriptionStatus);
 
   // Get email from authenticated user
   const userEmail = user?.email;
@@ -87,8 +92,11 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
       console.log("[SECURITY] Driver email detected, blocking admin route access:", userEmail);
       return <Navigate to="/tracker" replace />;
     }
-    // Driver accessing tracker - allowed
+    // Driver accessing tracker - allowed while the company has access
     if (isTrackerRoute) {
+      if (isBlockedBySubscription) {
+        return <SubscriptionBlockScreen reason={subscriptionStatus as BlockReason} forDriver />;
+      }
       return <>{children}</>;
     }
     // Driver accessing unknown route - redirect to tracker
@@ -114,9 +122,10 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
       return <Navigate to="/" replace />;
     }
     
-    // SUBSCRIPTION CHECK: Block access if expired (skip for /master route — platform admins)
-    if (location.pathname !== "/master" && !subLoading && subscriptionStatus === "expired") {
-      return <SubscriptionBlockScreen />;
+    // SUBSCRIPTION CHECK: block when the trial ended, the subscription expired or the
+    // company was blocked (skip for /master route and platform admins)
+    if (location.pathname !== "/master" && isBlockedBySubscription) {
+      return <SubscriptionBlockScreen reason={subscriptionStatus as BlockReason} />;
     }
     
     // User has proper roles, allow access

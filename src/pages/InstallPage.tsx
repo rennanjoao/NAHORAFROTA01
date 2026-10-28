@@ -16,6 +16,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { trackFunnelEvent } from '@/lib/funnel';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -27,6 +28,10 @@ export default function InstallPage() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    trackFunnelEvent('page_view');
+  }, []);
 
   useEffect(() => {
     // Check if already installed
