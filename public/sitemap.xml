@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://nahorafrota.tech/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://nahorafrota.tech/comprar/basic</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://nahorafrota.tech/comprar/control</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nahorafrota.tech/comprar/total</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://nahorafrota.tech/login</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://nahorafrota.tech/install</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://nahorafrota.tech/termos</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://nahorafrota.tech/privacidade</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
+</urlset>

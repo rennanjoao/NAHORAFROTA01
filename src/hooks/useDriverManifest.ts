@@ -1,0 +1,228 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { resolveDriverForUser } from '@/lib/driverIdentity';
+
+export interface DriverDelivery {
+  id: string;
+  recipient_name: string;
+  address_full: string;
+  address_street: string | null;
+  address_number: string | null;
+  address_city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: string;
+  nfe_number: string | null;
+}
+
+export interface DriverManifest {
+  id: string;
+  manifest_code: string;
+  manifest_number: number | null;
+  status: string;
+  deliveries_count: number;
+  total_value: number | null;
+  total_weight: number | null;
+  scheduled_date: string;
+  driver_name: string;
+  vehicle_plate: string | null;
+}
+
+interface UseDriverManifestReturn {
+  manifest: DriverManifest | null;
+  deliveries: DriverDelivery[];
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+  markDelivered: (deliveryId: string) => Promise<void>;
+}
+
+export function useDriverManifest(): UseDriverManifestReturn {
+  const { user } = useAuth();
+  const [manifest, setManifest] = useState<DriverManifest | null>(null);
+  const [deliveries, setDeliveries] = useState<DriverDelivery[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchManifestAndDeliveries = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const driverData = await resolveDriverForUser(user);
+      if (!driverData?.id) {
+        setManifest(null);
+        setDeliveries([]);
+        return;
+      }
+      const driverId = driverData.id;
+
+      // Fetch active manifest for this driver
+      const { data: manifestData, error: manifestError } = await supabase
+        .from('manifests')
+        .select(`
+          id,
+          manifest_code,
+          manifest_number,
+          status,
+          deliveries_count,
+          total_value,
+          total_weight,
+          scheduled_date,
+          driver_name,
+          vehicle_plate
+        `)
+        .eq('driver_id', driverId)
+        .not('status', 'in', '("completed","paid","cancelled")')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (manifestError) throw manifestError;
+
+      setManifest(manifestData);
+
+      // If we have a manifest, fetch ALL its invoices (including those with occurrences)
+      // Only exclude "delivered" with success - show everything else
+      if (manifestData?.id) {
+        const { data: invoicesData, error: invoicesError } = await supabase
+          .from('invoices')
+          .select(`
+            id,
+            recipient_name,
+            address_full,
+            address_street,
+            address_number,
+            address_city,
+            latitude,
+            longitude,
+            status,
+            nfe_number
+          `)
+          .eq('manifest_id', manifestData.id)
+          .order('status', { ascending: true }); // Pendentes primeiro
+
+        if (invoicesError) throw invoicesError;
+
+        // Show ALL invoices in this manifest - no date or occurrence filtering
+        setDeliveries(invoicesData || []);
+      } else {
+        setDeliveries([]);
+      }
+    } catch (err: any) {
+      console.error('Erro ao buscar romaneio:', err);
+      setError(err.message || 'Erro ao carregar dados');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // Mark a delivery as delivered
+  const markDelivered = useCallback(async (deliveryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ 
+          status: 'delivered',
+          delivered_at: new Date().toISOString()
+        })
+        .eq('id', deliveryId);
+
+      if (error) throw error;
+
+      // Update local state
+      setDeliveries(prev => 
+        prev.map(d => d.id === deliveryId ? { ...d, status: 'delivered' } : d)
+      );
+    } catch (err: any) {
+      console.error('Erro ao marcar entrega:', err);
+      throw err;
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchManifestAndDeliveries();
+  }, [fetchManifestAndDeliveries]);
+
+  // Subscribe to realtime changes for manifests (new manifest assigned to driver)
+  useEffect(() => {
+    if (!user) return;
+
+    // Get the driver_id for this user
+    const setupManifestSubscription = async () => {
+      const driverData = await resolveDriverForUser(user);
+      if (!driverData?.id) return null;
+      const driverId = driverData.id;
+
+      // Subscribe to manifest changes for this driver
+      const channel = supabase
+        .channel('driver-manifest-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'manifests',
+            filter: `driver_id=eq.${driverId}`,
+          },
+          () => {
+            console.log('[Realtime] Manifest updated, refreshing...');
+            fetchManifestAndDeliveries();
+          }
+        )
+        .subscribe();
+
+      return channel;
+    };
+
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    setupManifestSubscription().then(ch => { channel = ch; });
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [user, fetchManifestAndDeliveries]);
+
+  // Subscribe to realtime changes for invoices (delivery status updates)
+  useEffect(() => {
+    if (!manifest?.id) return;
+
+    const channel = supabase
+      .channel('driver-invoice-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'invoices',
+          filter: `manifest_id=eq.${manifest.id}`,
+        },
+        () => {
+          console.log('[Realtime] Invoice updated, refreshing...');
+          fetchManifestAndDeliveries();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [manifest?.id, fetchManifestAndDeliveries]);
+
+  return {
+    manifest,
+    deliveries,
+    isLoading,
+    error,
+    refetch: fetchManifestAndDeliveries,
+    markDelivered,
+  };
+}

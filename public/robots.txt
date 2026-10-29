@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /checkout/
+Disallow: /comprar/sucesso
+
+Sitemap: https://nahorafrota.tech/sitemap.xml

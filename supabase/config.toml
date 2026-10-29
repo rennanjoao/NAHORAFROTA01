@@ -1,0 +1,37 @@
+project_id = "mhnzhwqroyyxpbxrylax"
+
+[functions.geocode-address]
+verify_jwt = false
+
+[functions.validate-supervisor]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
+
+[functions.validate-reversal]
+verify_jwt = false
+
+[functions.register-tenant]
+verify_jwt = false
+
+[functions.invite-user]
+verify_jwt = false
+
+# Checkout público (sem JWT: o pedido é protegido por token próprio)
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.get-order]
+verify_jwt = false
+
+[functions.confirm-sandbox-payment]
+verify_jwt = false
+
+# Chamado pelo Stripe (assinatura verificada no código)
+[functions.stripe-webhook]
+verify_jwt = false
+
+# Reenvio de acesso (JWT verificado no código, só admin da plataforma)
+[functions.resend-access]
+verify_jwt = false

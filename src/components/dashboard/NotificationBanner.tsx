@@ -1,0 +1,54 @@
+import { AlertCircle, Clock, ShieldAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useTenantData } from "@/hooks/useTenantData";
+import { differenceInDays } from "date-fns";
+
+export function NotificationBanner() {
+  const { tenant, isLoading } = useTenantData();
+
+  if (isLoading || !tenant) return null;
+
+  // Read next_due_date from tenant (set by Super Admin)
+  const nextDueDate = (tenant as any).next_due_date as string | null;
+  if (!nextDueDate) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(nextDueDate + "T12:00:00");
+  const diff = differenceInDays(due, today);
+
+  // Only show if within 5 days or overdue
+  if (diff > 5) return null;
+
+  let icon = Clock;
+  let message = "";
+  let style = "";
+
+  if (diff < 0) {
+    // Post-expiration — should be blocked at ProtectedRoute level,
+    // but show banner as fallback
+    icon = ShieldAlert;
+    message = "Acesso Suspenso. Entre em contato com o suporte para renovação.";
+    style = "bg-destructive/15 border-destructive/30 text-destructive";
+  } else if (diff === 0) {
+    icon = AlertCircle;
+    message = "Sua assinatura vence hoje. Regularize para evitar interrupções.";
+    style = "bg-destructive/10 border-destructive/20 text-destructive";
+  } else {
+    // 1-5 days remaining
+    icon = Clock;
+    message = `Sua assinatura vence em ${diff} dia${diff > 1 ? "s" : ""}. Regularize para evitar interrupções.`;
+    style = "bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400";
+  }
+
+  const Icon = icon;
+
+  return (
+    <div className="mb-6">
+      <div className={cn("flex items-center gap-3 px-4 py-3 rounded-lg border", style)}>
+        <Icon className="h-5 w-5 flex-shrink-0" />
+        <p className="flex-1 text-sm font-medium">{message}</p>
+      </div>
+    </div>
+  );
+}

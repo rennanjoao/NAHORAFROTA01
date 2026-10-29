@@ -26,17 +26,17 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'favicon-32x32.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
       manifest: {
-        name: 'Na Hora Frota - Ops Watch Go',
+        name: 'Na Hora Frota',
         short_name: 'NaHoraFrota',
-        description: 'Sistema de gestão de entregas e monitoramento de frota em tempo real',
-        theme_color: '#00D4AA',
-        background_color: '#0a0a0a',
+        description: 'Gestão de entregas e frota em tempo real: romaneio, mapa ao vivo, SLA e acerto.',
+        theme_color: '#080808',
+        background_color: '#080808',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
-        start_url: '/tracker',
+        start_url: '/',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -61,8 +61,10 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         skipWaiting: false,
         clientsClaim: false,
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: ['**/Hero3D-*.js', '**/*.jpg'],
+        navigateFallbackDenylist: [/^\/checkout\//, /^\/comprar\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.mapbox\.com\/.*/i,

@@ -1,0 +1,394 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Na Hora Frota — tema (v2, outubro 2026)
+   Fonte única: brand/tokens/nhf-tokens.css
+   Verde Na Hora #04E8A4 · Preto Asfalto #080808 · Névoa #F2F4F5
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Tokens crus da marca (hex) */
+    --nhf-green: #04E8A4;
+    --nhf-green-deep: #0B6B4F;
+    --nhf-green-tint: #0F3D30;
+    --nhf-green-dark: #00B37E;
+    --nhf-ink: #080808;
+    --nhf-graphite: #141617;
+    --nhf-lead: #2A2D30;
+    --nhf-signal: #8A9199;
+    --nhf-mist: #F2F4F5;
+    --nhf-alert: #FFC53D;
+    --nhf-late: #FF4D4F;
+    --nhf-info: #3B9CFF;
+    --nhf-chamfer: 18px;
+
+    /* ---------- Modo claro (documentos, relatórios, leitura) ---------- */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3%;
+
+    --primary: 162 97% 46%;          /* Verde Na Hora: sempre com texto preto por cima */
+    --primary-foreground: 0 0% 3%;
+
+    --secondary: 200 13% 95%;        /* Névoa */
+    --secondary-foreground: 0 0% 3%;
+
+    --muted: 200 13% 95%;
+    --muted-foreground: 210 7% 38%;
+
+    --accent: 200 13% 93%;
+    --accent-foreground: 0 0% 3%;
+
+    --destructive: 359 85% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 162 81% 23%;          /* Verde Escuro: o verde como texto no claro */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 100% 40%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 211 90% 42%;
+    --info-foreground: 0 0% 100%;
+
+    /* Verde quando usado como TEXTO (nunca verde claro sobre branco) */
+    --brand-text: 162 81% 23%;
+    /* Verde quando usado como PREENCHIMENTO/LINHA */
+    --brand: 162 97% 46%;
+    --brand-soft: 162 70% 92%;
+    /* Vermelho (atraso) e amarelo (atenção) como TEXTO: escurecidos no claro para passar no contraste */
+    --late-text: 359 72% 42%;
+    --alert-text: 36 100% 29%;
+
+    /* Compatibilidade com classes antigas */
+    --cyber: 211 90% 42%;
+    --cyber-foreground: 0 0% 100%;
+    --neon-red: 359 85% 50%;
+    --neon-red-foreground: 0 0% 100%;
+
+    --border: 200 8% 88%;
+    --input: 200 8% 88%;
+    --ring: 162 81% 23%;
+
+    --radius: 0.25rem;
+
+    /* Barra lateral do app: sempre preta (casa da marca) */
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 212 7% 65%;
+    --sidebar-primary: 162 97% 46%;
+    --sidebar-primary-foreground: 0 0% 3%;
+    --sidebar-accent: 200 7% 10%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 7% 14%;
+    --sidebar-ring: 162 97% 46%;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+  }
+
+  .dark {
+    /* ---------- Modo escuro (padrão da marca) ---------- */
+    --background: 0 0% 3%;           /* #080808 Preto Asfalto */
+    --foreground: 0 0% 100%;
+
+    --card: 200 7% 8%;               /* #141617 Grafite */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 200 7% 8%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 162 97% 46%;
+    --primary-foreground: 0 0% 3%;
+
+    --secondary: 210 7% 18%;         /* #2A2D30 Chumbo */
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 7% 13%;
+    --muted-foreground: 212 7% 64%;
+
+    --accent: 162 40% 11%;
+    --accent-foreground: 162 97% 46%;
+
+    --destructive: 359 100% 65%;     /* #FF4D4F */
+    --destructive-foreground: 0 0% 3%;
+
+    --success: 162 97% 46%;
+    --success-foreground: 0 0% 3%;
+
+    --warning: 42 100% 62%;          /* #FFC53D */
+    --warning-foreground: 0 0% 3%;
+
+    --info: 211 100% 62%;            /* #3B9CFF */
+    --info-foreground: 0 0% 3%;
+
+    --brand-text: 162 97% 46%;
+    --brand: 162 97% 46%;
+    --brand-soft: 162 61% 15%;       /* Verde Tinta */
+    --late-text: 359 100% 65%;       /* #FF4D4F */
+    --alert-text: 42 100% 62%;       /* #FFC53D */
+
+    --cyber: 211 100% 62%;
+    --cyber-foreground: 0 0% 3%;
+    --neon-red: 359 100% 65%;
+    --neon-red-foreground: 0 0% 3%;
+
+    --border: 210 7% 18%;
+    --input: 210 7% 18%;
+    --ring: 162 97% 46%;
+
+    --sidebar-background: 0 0% 3%;
+    --sidebar-foreground: 212 7% 65%;
+    --sidebar-primary: 162 97% 46%;
+    --sidebar-primary-foreground: 0 0% 3%;
+    --sidebar-accent: 200 7% 10%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 7% 14%;
+    --sidebar-ring: 162 97% 46%;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-padding-top: 88px;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  html.dark { color-scheme: dark; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    overscroll-behavior-y: none;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background: var(--nhf-green);
+    color: var(--nhf-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* iOS: evita zoom automático ao focar campos (só em telas de toque) */
+  @media (hover: none) and (pointer: coarse) {
+    input, select, textarea { font-size: 16px; }
+  }
+
+  * { -webkit-overflow-scrolling: touch; }
+
+  button, [role="button"], a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+}
+
+/* ============================================
+   Correções de Dialog/Modal no iOS (app)
+   ============================================ */
+[data-radix-dialog-content] {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+[data-radix-dialog-overlay] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1000 !important;
+}
+body.dialog-open {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+@supports (-webkit-touch-callout: none) {
+  [data-radix-dialog-content] { transform: translate3d(-50%, -50%, 0) !important; }
+}
+
+@layer utilities {
+  /* ---------- Tipografia de dados: horas, placas, KPIs ---------- */
+  .font-data {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+  }
+  .label-caps {
+    @apply font-data uppercase tracking-[0.08em] text-xs;
+  }
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+
+  /* ---------- Verde como texto, com contraste certo em cada modo ---------- */
+  .text-brand { color: hsl(var(--brand-text)); }
+  .text-late { color: hsl(var(--late-text)); }
+  .text-alert { color: hsl(var(--alert-text)); }
+  .bg-brand { background-color: hsl(var(--brand)); }
+  .bg-brand-soft { background-color: hsl(var(--brand-soft)); }
+  .border-brand { border-color: hsl(var(--brand)); }
+
+  /* ---------- Chanfro de 45° (canto superior direito) ---------- */
+  .nhf-chamfer {
+    clip-path: polygon(0 0, calc(100% - var(--nhf-chamfer)) 0, 100% var(--nhf-chamfer), 100% 100%, 0 100%);
+  }
+  .nhf-chamfer-sm { --nhf-chamfer: 10px; }
+  .nhf-chamfer-lg { --nhf-chamfer: 28px; }
+
+  /* ---------- Marcador de hora (AO VIVO) ---------- */
+  .nhf-live {
+    @apply inline-flex items-center gap-2.5 border px-3.5 py-2 font-data text-[13px] uppercase tracking-[0.06em];
+    border-color: hsl(var(--brand));
+    color: hsl(var(--brand-text));
+    background: hsl(var(--brand) / 0.06);
+  }
+  .nhf-live::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: hsl(var(--brand));
+    animation: nhf-pulse 1.8s ease-out infinite;
+  }
+  @keyframes nhf-pulse {
+    0%   { box-shadow: 0 0 0 0 hsl(var(--brand) / 0.55); }
+    100% { box-shadow: 0 0 0 14px hsl(var(--brand) / 0); }
+  }
+
+  /* ---------- Fundos: linhas de rota e grade ---------- */
+  .bg-routes {
+    background-image:
+      repeating-linear-gradient(135deg, hsl(var(--brand) / 0.09) 0 1px, transparent 1px 160px),
+      repeating-linear-gradient(0deg, hsl(var(--brand) / 0.06) 0 1px, transparent 1px 120px);
+  }
+  .bg-grid-fine {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .mask-fade-b { -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent); mask-image: linear-gradient(to bottom, #000 60%, transparent); }
+  .mask-fade-x { -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
+
+  /* ---------- Brilho verde ---------- */
+  .glow-brand { box-shadow: 0 0 0 1px hsl(var(--brand) / 0.35), 0 20px 60px -20px hsl(var(--brand) / 0.45); }
+  .glow-brand-sm { box-shadow: 0 0 24px -6px hsl(var(--brand) / 0.5); }
+  .shadow-neon { box-shadow: 0 0 15px hsl(var(--brand) / 0.45), 0 0 30px hsl(var(--brand) / 0.25); }
+  .shadow-neon-sm { box-shadow: 0 0 8px hsl(var(--brand) / 0.4), 0 0 16px hsl(var(--brand) / 0.2); }
+  .btn-neon { @apply transition-all duration-300; }
+  .btn-neon:hover { @apply shadow-neon; }
+  .neon-divider {
+    background: linear-gradient(90deg, transparent, hsl(var(--brand) / 0.7), transparent);
+  }
+  .cyber-text { @apply text-info; }
+  .cyber-glow { text-shadow: 0 0 10px hsl(var(--info) / 0.5); }
+  .neon-glow { text-shadow: 0 0 12px hsl(var(--brand) / 0.6); }
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, hsl(var(--foreground)), hsl(var(--brand-text)));
+  }
+
+  /* ---------- 3D ---------- */
+  .perspective-1000 { perspective: 1000px; }
+  .perspective-1600 { perspective: 1600px; }
+  .preserve-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; }
+
+  /* ---------- Cartões do app (compat) ---------- */
+  .glass-card { @apply bg-card border border-border shadow-sm; }
+  .card-danger { @apply bg-destructive/5 border-destructive/30; }
+  .metric-card { @apply glass-card rounded p-5 transition-all duration-300 hover:shadow-md hover:border-primary/40; }
+  .status-dot { @apply w-2 h-2 rounded-full animate-pulse; }
+  .status-dot-success { @apply bg-success; box-shadow: 0 0 8px hsl(var(--success) / 0.6); }
+  .status-dot-warning { @apply bg-warning; box-shadow: 0 0 8px hsl(var(--warning) / 0.6); }
+  .status-dot-danger { @apply bg-destructive; box-shadow: 0 0 8px hsl(var(--destructive) / 0.6); }
+  .status-dot-info { @apply bg-info; box-shadow: 0 0 8px hsl(var(--info) / 0.6); }
+  .truncate-safe { @apply truncate max-w-full; }
+  .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .animate-float { animation: float 6s ease-in-out infinite; }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* ---------- Marquee ---------- */
+  .marquee-track { animation: marquee var(--marquee-duration, 40s) linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* ---------- Linha desenhada ---------- */
+  .draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 2.4s cubic-bezier(.65,0,.35,1) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* ---------- Scroll suave de seções ---------- */
+  .scroll-mt-nav { scroll-margin-top: 88px; }
+
+  /* ---------- Acessibilidade ---------- */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:font-medium;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .nhf-live::before { animation: none; }
+}
+
+/* ============================================
+   Leaflet (mapa ao vivo do app)
+   ============================================ */
+.leaflet-container { font-family: 'Inter', sans-serif; z-index: 0; }
+.leaflet-popup-content-wrapper { border-radius: 4px; padding: 0; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25); }
+.leaflet-popup-content { margin: 0; min-width: 250px; }
+.leaflet-popup-tip { background: white; }
+.custom-truck-marker, .custom-destination-marker, .route-marker { background: transparent; border: none; }
+.leaflet-marker-shadow { display: none; }
+.route-marker__pin {
+  align-items: center;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  border-radius: 9999px;
+  box-shadow: 0 6px 16px hsl(var(--foreground) / 0.22);
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}

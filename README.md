@@ -1,6 +1,11 @@
-# NaHoraFrota
+# Na Hora Frota
 
-Aplicacao web em React + Vite com Supabase para autenticacao, banco, realtime e storage.
+Site público + painel de gestão de entregas e frota. React + Vite + Tailwind no frontend, Supabase (auth, banco, realtime, storage, Edge Functions) no backend, Stripe para a assinatura e Resend para o e-mail de acesso.
+
+- **Site** (`/`): landing com 11 seções, dark/light, planos (Básico R$ 197 · Controle R$ 370 · Controle Total R$ 550) e checkout self-service. Código em `src/site/`.
+- **Checkout → acesso na hora**: veja [docs/CHECKOUT.md](docs/CHECKOUT.md) (fluxo, deploy das funções, Stripe, Resend, testes).
+- **Identidade visual**: `brand/` (manual, logos, tokens). Tema em `src/index.css`.
+- **Painel** (`/dashboard`, `/deliveries`, …): app autenticado; `/` mostra o painel para quem já está logado.
 
 ## Rodando localmente
 
@@ -17,6 +22,14 @@ npm install
 ```sh
 npm run dev
 ```
+
+4. Para o checkout sem Supabase/Stripe (funções em memória + caixa de e-mails):
+
+```sh
+deno run --allow-net --allow-env scripts/dev-backend/server.ts
+```
+
+Testes: `npm test` (frontend), `deno test --allow-env supabase/functions/_shared/handlers.test.ts` (funções) e `node scripts/e2e-checkout.cjs` (compra inteira no navegador, com os dois servidores no ar).
 
 ## Variaveis de ambiente
 
