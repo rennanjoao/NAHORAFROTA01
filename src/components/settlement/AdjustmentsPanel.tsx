@@ -48,7 +48,7 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
   const actions = (adj: LocalAdjustment, full?: boolean) => {
     const isPaid = adj.status === "paid";
     return (
-      <div className={full ? "flex items-center gap-2" : "flex items-center justify-end gap-1.5"}>
+      <div className={full ? "mt-auto flex items-center gap-2" : "flex items-center justify-end gap-1.5"}>
         {!isPaid && (
           <>
             <Tooltip>
@@ -129,7 +129,7 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
       ) : (
         <>
           {/* Computador */}
-          <Card className="hidden overflow-hidden md:block">
+          <Card className="hidden overflow-hidden lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -173,11 +173,11 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
             </Table>
           </Card>
 
-          {/* Celular */}
-          <ul className="stagger space-y-3 md:hidden">
+          {/* Celular e tablet */}
+          <ul className="stagger grid gap-3 sm:grid-cols-2 lg:hidden">
             {adjustments.map((adj) => (
               <li key={adj.id}>
-                <Card className="space-y-3 p-4">
+                <Card className="flex h-full flex-col gap-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium text-foreground">{adj.description}</p>

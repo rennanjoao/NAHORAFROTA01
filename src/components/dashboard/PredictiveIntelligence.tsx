@@ -81,7 +81,7 @@ const periodPhrase = (days: SLAPeriodDays) => `nos últimos ${PERIOD_LABEL[days]
 function RankLabel({ rank }: { rank: PeriodRank }) {
   if (rank.rank === null) return <span className="text-muted-foreground">sem ranking</span>;
   return (
-    <span>
+    <span className="whitespace-nowrap">
       <span className="font-semibold text-foreground">{rank.rank}º</span> de {rank.of}
     </span>
   );
@@ -295,7 +295,7 @@ function DriverDetailSheet({
                   <p className="truncate font-data text-sm font-semibold text-foreground">
                     {delivery.nfNumber.startsWith("NF") ? delivery.nfNumber : `NF ${delivery.nfNumber}`}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{delivery.recipient}</p>
+                  <p className="break-words text-xs text-muted-foreground">{delivery.recipient}</p>
                 </div>
                 <StatusBadge tone={DELIVERY_TONE[delivery.status]}>
                   {delivery.status === "occurrence" ? getOccurrenceLabel(delivery.occurrenceType) : DELIVERY_LABEL[delivery.status]}

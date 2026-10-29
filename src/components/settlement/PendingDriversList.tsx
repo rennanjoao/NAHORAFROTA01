@@ -19,7 +19,7 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
   return (
     <>
       {/* Computador */}
-      <Card className="hidden overflow-hidden md:block">
+      <Card className="hidden overflow-hidden lg:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -62,11 +62,11 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
         </Table>
       </Card>
 
-      {/* Celular */}
-      <ul className="stagger space-y-3 md:hidden">
+      {/* Celular e tablet */}
+      <ul className="stagger grid gap-3 sm:grid-cols-2 lg:hidden">
         {drivers.map((driver) => (
           <li key={driver.driverId}>
-            <Card className="space-y-4 p-4">
+            <Card className="flex h-full flex-col gap-4 p-4">
               <div className="flex items-start gap-3">
                 <DriverAvatar name={driver.driverName} className="h-10 w-10" />
                 <div className="min-w-0 flex-1">
@@ -83,7 +83,7 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
                 <p className="text-xs text-muted-foreground">A pagar · {manifestsLabel(driver.manifestCount)}</p>
                 <p className="font-data text-xl font-semibold text-foreground">{formatCurrency(driver.totalValue)}</p>
               </div>
-              <Button variant="outline" className="w-full" onClick={() => onSelect(driver.driverId)}>
+              <Button variant="outline" className="mt-auto w-full" onClick={() => onSelect(driver.driverId)}>
                 Realizar acerto
                 <ArrowRight aria-hidden="true" />
               </Button>

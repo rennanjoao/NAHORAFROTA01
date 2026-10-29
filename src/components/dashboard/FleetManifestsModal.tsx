@@ -60,7 +60,7 @@ export function FleetManifestsModal({ open, onOpenChange, data, type }: FleetMan
                     <span className="font-data text-sm font-semibold text-foreground">{manifest.manifest_code}</span>
                     <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                   </div>
-                  <p className="truncate text-sm text-foreground">{manifest.driver_name}</p>
+                  <p className="break-words text-sm text-foreground">{manifest.driver_name}</p>
                   <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Truck className="h-3 w-3" aria-hidden="true" />

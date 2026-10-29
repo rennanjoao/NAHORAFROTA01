@@ -4,6 +4,8 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, CalendarClock, Mail } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { SUPPORT_EMAIL } from "@/config/navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
@@ -56,6 +58,7 @@ export function BillingReminderDialog() {
   const { access } = useTenantAccess();
   const [open, setOpen] = useState(false);
   const recordedRef = useRef<string | null>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
 
   const canSeeBilling = roles.includes("admin");
   const alert = useMemo(() => (canSeeBilling ? getBillingAlert(access) : null), [access, canSeeBilling]);
@@ -86,11 +89,18 @@ export function BillingReminderDialog() {
 
   return (
     <AlertDialog open={open} onOpenChange={(next) => { if (!next) handleAcknowledge(); }}>
-      <AlertDialogContent>
+      <AlertDialogContent
+        // Sem botao "Cancelar" o Radix nao focava nada: o foco ficava fora da janela.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          confirmRef.current?.focus();
+        }}
+      >
         <AlertDialogHeader>
           <div
+            aria-hidden="true"
             className={cn(
-              "mx-auto sm:mx-0 h-12 w-12 rounded-full flex items-center justify-center",
+              "flex h-12 w-12 items-center justify-center rounded-full",
               critical ? "bg-destructive/10" : "bg-warning/10",
             )}
           >
@@ -104,15 +114,17 @@ export function BillingReminderDialog() {
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <a
-          href="mailto:suporte@nahorafrota.com.br?subject=Assinatura%20Na%20Hora%20Frota"
-          className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
-        >
-          <Mail className="h-4 w-4" />
-          Falar com o financeiro
-        </a>
         <AlertDialogFooter>
-          <AlertDialogAction onClick={handleAcknowledge}>Entendi</AlertDialogAction>
+          <a
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Assinatura Na Hora Frota")}`}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            <Mail aria-hidden="true" />
+            Falar com o financeiro
+          </a>
+          <AlertDialogAction ref={confirmRef} onClick={handleAcknowledge}>
+            Entendi
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

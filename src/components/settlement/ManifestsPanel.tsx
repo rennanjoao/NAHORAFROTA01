@@ -73,7 +73,7 @@ export function ManifestsPanel({
   const actions = (manifest: DBManifest, full?: boolean) => {
     const number = formatManifestNumber(manifest);
     return (
-      <div className={full ? "flex items-center gap-2" : "flex items-center justify-end gap-1.5"}>
+      <div className={full ? "mt-auto flex items-center gap-2" : "flex items-center justify-end gap-1.5"}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -134,13 +134,13 @@ export function ManifestsPanel({
     ) : (
       <>
         {/* Computador */}
-        <Card className="hidden overflow-hidden md:block">
+        <Card className="hidden overflow-hidden lg:block">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Romaneio</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Tipo de frete</TableHead>
+                {/* Data e tipo de frete juntos: uma coluna a menos (cabe com texto "Maior" em 1024px). */}
+                <TableHead>Data e frete</TableHead>
                 <TableHead className="text-center">Entregas</TableHead>
                 <TableHead>Situação</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
@@ -158,9 +158,9 @@ export function ManifestsPanel({
                       {manifest.is_own_fleet && ownFleetBadge}
                     </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(manifest.created_at)}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {freightTypeLabels[manifest.freight_type] || manifest.freight_type}
+                    <span className="block whitespace-nowrap font-data text-foreground">{formatDate(manifest.created_at)}</span>
+                    <span className="block text-xs">{freightTypeLabels[manifest.freight_type] || manifest.freight_type}</span>
                   </TableCell>
                   <TableCell className="text-center font-data">{manifest.deliveries_count}</TableCell>
                   <TableCell>
@@ -178,7 +178,7 @@ export function ManifestsPanel({
             </TableBody>
             <TableFooter>
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={5} className="font-semibold">
+                <TableCell colSpan={4} className="font-semibold">
                   Total {activeTab === "pending" ? "pendente" : "pago"}
                 </TableCell>
                 <TableCell className="text-right font-data text-base font-semibold">{formatCurrency(total)}</TableCell>
@@ -188,12 +188,12 @@ export function ManifestsPanel({
           </Table>
         </Card>
 
-        {/* Celular */}
-        <div className="space-y-3 md:hidden">
-          <ul className="stagger space-y-3">
+        {/* Celular e tablet */}
+        <div className="space-y-3 lg:hidden">
+          <ul className="stagger grid gap-3 sm:grid-cols-2">
             {manifests.map((manifest) => (
               <li key={manifest.id}>
-                <Card className="space-y-3 p-4">
+                <Card className="flex h-full flex-col gap-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 font-data font-semibold text-foreground">

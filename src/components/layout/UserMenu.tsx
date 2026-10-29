@@ -89,8 +89,9 @@ export function UserMenu({ variant = "avatar", side = "bottom", align = "end" }:
         <DropdownMenuLabel className="flex items-center gap-3 py-2 text-foreground">
           <UserAvatar name={profile?.name} className="h-9 w-9" />
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">{name}</span>
-            <span className="block truncate text-xs font-normal text-muted-foreground">{profile?.email}</span>
+            {/* No menu o nome e o e-mail aparecem inteiros (no botao do menu lateral eles cortam). */}
+            <span className="block break-words text-sm font-semibold">{name}</span>
+            <span className="block break-all text-xs font-normal text-muted-foreground">{profile?.email}</span>
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

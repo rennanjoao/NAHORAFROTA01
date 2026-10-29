@@ -68,7 +68,7 @@ export function DriversInRouteModal({ open, onOpenChange, data, invoicesInTransi
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="truncate text-[0.9375rem] font-semibold text-foreground">{driver.name}</h3>
+                      <h3 className="min-w-0 break-words text-[0.9375rem] font-semibold text-foreground">{driver.name}</h3>
                       <StatusBadge tone="info" pulse>
                         Em rota
                       </StatusBadge>

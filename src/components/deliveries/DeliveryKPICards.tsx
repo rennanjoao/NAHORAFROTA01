@@ -1,6 +1,7 @@
 import { useCountUp } from "@/hooks/useCountUp";
 import { toneDot, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DELIVERY_STATUS } from "./status";
 
 export type KPIStatusFilter = "all" | "pending" | "in_transit" | "delivered" | "occurrence" | "returned";
@@ -98,6 +99,26 @@ export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: Delive
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** Esqueleto com a mesma grade e altura dos cartoes (a tela nao pula quando carrega). */
+export function DeliveryKPICardsSkeleton() {
+  return (
+    <div aria-hidden="true" className="grid grid-cols-6 gap-2 sm:gap-3 lg:grid-cols-5">
+      {TILES.map((tile, index) => (
+        <div
+          key={tile.key}
+          className={cn(
+            "flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4 lg:col-span-1",
+            index < 3 ? "col-span-2" : "col-span-3",
+          )}
+        >
+          <Skeleton className="h-3.5 w-16 sm:w-20" />
+          <Skeleton className="h-6 w-8 sm:h-7" />
+        </div>
+      ))}
     </div>
   );
 }

@@ -58,11 +58,12 @@ function RankingRow({ driver, rank, onClick }: { driver: DriverSLAStats; rank: n
       >
         <RankBadge rank={rank} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-foreground">{driver.driver_name}</span>
+          <span className="block break-words text-sm font-medium text-foreground">{driver.driver_name}</span>
           {hasActivity ? (
+            // Quebra so entre os itens ("4 entregas" fica junto).
             <span className="block text-xs text-muted-foreground">
-              {plural(driver.todayDeliveredCount, "entrega", "entregas")} ·{" "}
-              {plural(driver.todayOccurrenceCount, "ocorrência", "ocorrências")}
+              <span className="whitespace-nowrap">{plural(driver.todayDeliveredCount, "entrega", "entregas")}</span> ·{" "}
+              <span className="whitespace-nowrap">{plural(driver.todayOccurrenceCount, "ocorrência", "ocorrências")}</span>
             </span>
           ) : (
             <span className="block text-xs text-muted-foreground">Em rota, aguardando as primeiras baixas</span>

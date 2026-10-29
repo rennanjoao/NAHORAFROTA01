@@ -86,7 +86,7 @@ export function MobileMoreSheet() {
         <SheetHeader className="flex-row items-center gap-3 space-y-0 pr-10">
           <UserAvatar name={profile?.name} className="h-10 w-10" />
           <div className="min-w-0 text-left">
-            <SheetTitle className="truncate text-base">{profile?.name || "Usuário"}</SheetTitle>
+            <SheetTitle className="break-words text-base">{profile?.name || "Usuário"}</SheetTitle>
             <SheetDescription className="truncate">{roleLabel(roles)}</SheetDescription>
           </div>
         </SheetHeader>

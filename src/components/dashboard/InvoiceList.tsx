@@ -42,7 +42,7 @@ export function InvoiceRow({ number, recipient, address, value, weight, status, 
           <span className="font-data text-sm font-semibold text-foreground">{number}</span>
           {status && <StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
         </div>
-        <p className="truncate text-sm text-foreground">{recipient}</p>
+        <p className="break-words text-sm text-foreground">{recipient}</p>
         {address && (
           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
             <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />

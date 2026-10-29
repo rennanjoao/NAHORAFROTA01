@@ -17,6 +17,7 @@ import {
   Truck,
   Type,
   UserPlus,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { Command as CommandPrimitive } from "cmdk";
@@ -302,11 +303,20 @@ export function CommandPalette() {
             <CommandPrimitive.Input
               value={query}
               onValueChange={setQuery}
-              placeholder="Tela, motorista, placa ou número da nota…"
+              placeholder="Tela, motorista, placa ou nota"
               className="h-14 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
               aria-label="Buscar"
             />
             <kbd className="kbd hidden sm:inline-flex">Esc</kbd>
+            {/* No celular nao ha Esc: botao para fechar a folha. */}
+            <button
+              type="button"
+              onClick={() => closePanel()}
+              aria-label="Fechar a busca"
+              className="-mr-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
           </div>
 
           <CommandPrimitive.List className="max-h-[min(62vh,440px)] overflow-y-auto overscroll-contain p-1.5">

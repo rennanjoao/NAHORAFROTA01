@@ -26,14 +26,13 @@ interface DriverListProps {
 const stretchedButton =
   "text-left font-medium text-foreground after:absolute after:inset-0 after:content-[''] hover:text-primary focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring";
 
-// nowrap: na tabela o texto nao quebra no meio (com texto "Maior" a celula ficava em 2 linhas).
-function VehicleSummary({ driver, nowrap }: { driver: DriverRecord; nowrap?: boolean }) {
+function VehicleSummary({ driver }: { driver: DriverRecord }) {
   // CLT sem placa propria usa um veiculo da empresa a cada rota.
   if (driver.isOwnFleet && (!driver.vehiclePlate || driver.vehiclePlate === "PENDENTE")) {
-    return <span className={cn("text-sm text-muted-foreground", nowrap && "whitespace-nowrap")}>Veículo da empresa</span>;
+    return <span className="text-sm text-muted-foreground">Veículo da empresa</span>;
   }
   return (
-    <span className={cn("inline-flex items-center gap-2", nowrap ? "flex-nowrap whitespace-nowrap" : "flex-wrap")}>
+    <span className="inline-flex flex-wrap items-center gap-2">
       <span className="text-sm text-foreground">{driver.vehicleType}</span>
       <PlateTag plate={driver.vehiclePlate} />
     </span>
@@ -49,7 +48,7 @@ function SlaValue({ sla, compact }: { sla: number | null | undefined; compact?: 
         <span className="sr-only">Sem entregas</span>
       </>
     ) : (
-      <span className="whitespace-nowrap text-sm text-muted-foreground">Sem entregas</span>
+      <span className="text-sm text-muted-foreground">Sem entregas</span>
     );
   }
   return <span className={cn("font-data text-sm font-semibold", toneText[slaTone(sla)])}>{formatSLA(sla)}%</span>;
@@ -110,7 +109,8 @@ export function DriverList(props: DriverListProps) {
               <TableHead className="pl-5">Motorista</TableHead>
               <TableHead>Veículo</TableHead>
               <TableHead>Situação</TableHead>
-              <TableHead className="hidden xl:table-cell" title="Entregues sobre notas finalizadas nos últimos 6 meses">
+              {/* So a partir de 1400px: em 1280 a coluna apertava a tabela (texto quebrando, rolagem com texto "Maior"). */}
+              <TableHead className="hidden min-[1400px]:table-cell" title="Entregues sobre notas finalizadas nos últimos 6 meses">
                 Entregas (6 meses)
               </TableHead>
               <TableHead title="Entregas no prazo (SLA) nos últimos 6 meses">
@@ -137,9 +137,9 @@ export function DriverList(props: DriverListProps) {
                           <button type="button" data-driver-open={driver._dbId} onClick={() => onOpen(driver)} className={cn(stretchedButton, "max-w-[15rem] truncate")} title={driver.name}>
                             {driver.name}
                           </button>
-                          {/* py-0: o selo nao aumenta a altura da linha (linhas com e sem CLT iguais) */}
+                          {/* -my-px: o selo (22px com a borda) nao aumenta a linha; linhas com e sem CLT iguais */}
                           {driver.isOwnFleet && (
-                            <Badge variant="secondary" className="py-0 leading-5">
+                            <Badge variant="secondary" className="-my-px py-0 leading-5">
                               CLT
                             </Badge>
                           )}
@@ -149,12 +149,12 @@ export function DriverList(props: DriverListProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <VehicleSummary driver={driver} nowrap />
+                    <VehicleSummary driver={driver} />
                   </TableCell>
                   <TableCell>
                     <DriverStatusBadge status={driver.status} />
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell">
+                  <TableCell className="hidden min-[1400px]:table-cell">
                     <div className="space-y-1.5">
                       <p className="font-data text-sm">
                         <span className="font-semibold text-foreground">{driver.successfulDeliveries}</span>

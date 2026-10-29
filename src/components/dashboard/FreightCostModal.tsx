@@ -71,7 +71,7 @@ export function FreightCostModal({ open, onOpenChange, data, totalCost }: Freigh
                   <span className="font-data text-sm font-semibold text-foreground">{manifest.manifest_code}</span>
                   <Badge variant="secondary">{manifest.is_own_fleet ? "Frota própria" : "Terceiro"}</Badge>
                 </div>
-                <p className="truncate text-sm text-foreground">{manifest.driver_name}</p>
+                <p className="break-words text-sm text-foreground">{manifest.driver_name}</p>
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1">
                     <Truck className="h-3 w-3" aria-hidden="true" />

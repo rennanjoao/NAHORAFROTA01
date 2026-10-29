@@ -102,7 +102,7 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
                   <DriverAvatar name={driver.name} photo={driver.photo_url || driver.avatar} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="min-w-0 truncate font-medium text-foreground">{driver.name}</span>
+                      <span className="min-w-0 break-words font-medium text-foreground">{driver.name}</span>
                       <RouteResultBadge occurrences={occurrences} />
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

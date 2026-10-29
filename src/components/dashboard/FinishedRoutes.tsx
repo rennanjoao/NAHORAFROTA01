@@ -93,7 +93,7 @@ export function FinishedRoutesList({ data, onShowAll }: { data: FinishedDriverDa
                 <DriverAvatar name={driver?.name} photo={driver?.photo_url || driver?.avatar} />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="min-w-0 truncate font-medium text-foreground">{driver?.name || "Motorista"}</span>
+                    <span className="min-w-0 break-words font-medium text-foreground">{driver?.name || "Motorista"}</span>
                     <RouteResultBadge occurrences={occurrences} />
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">

@@ -224,10 +224,17 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
         <EmptyState compact icon={Package} title="Nenhuma entrega finalizada no período" description="O SLA aparece assim que os motoristas baixarem as entregas." />
       ) : (
         <>
-          {!hasProblems && (
+          {!hasProblems && fleetSLA >= SLA_THRESHOLDS.EXCELLENT && (
             <p className="flex items-start gap-2.5 rounded-lg border border-success/30 bg-success/5 p-3 text-sm text-foreground">
               <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-success" />
               Operação saudável. Todos os motoristas estão acima da meta de {pct(SLA_THRESHOLDS.EXCELLENT)}.
+            </p>
+          )}
+          {/* A frota conta tambem notas sem motorista: sem isto dizia "saudavel" com a frota abaixo da meta. */}
+          {!hasProblems && fleetSLA < SLA_THRESHOLDS.EXCELLENT && (
+            <p className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-foreground">
+              <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-warning" />
+              Os motoristas estão acima da meta, mas o SLA da frota ficou abaixo de {pct(SLA_THRESHOLDS.EXCELLENT)} por notas com ocorrência que não estão ligadas a um motorista.
             </p>
           )}
 
@@ -293,10 +300,11 @@ function DriverRow({ driver, mode, onClick }: { driver: DriverSLAStats; mode: Mo
       >
         <DriverAvatar name={driver.driver_name} photo={driver.photo_url} tone={status.tone} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium text-foreground">{driver.driver_name}</span>
+          <span className="block break-words font-medium text-foreground">{driver.driver_name}</span>
           <span className="block text-xs text-muted-foreground">
-            {plural(driverDelivered(driver, mode), "entrega", "entregas")} · {plural(driverTotal(driver, mode), "nota", "notas")} ·{" "}
-            {plural(driverOccurrences(driver, mode), "ocorrência", "ocorrências")}
+            <span className="whitespace-nowrap">{plural(driverDelivered(driver, mode), "entrega", "entregas")}</span> ·{" "}
+            <span className="whitespace-nowrap">{plural(driverTotal(driver, mode), "nota", "notas")}</span> ·{" "}
+            <span className="whitespace-nowrap">{plural(driverOccurrences(driver, mode), "ocorrência", "ocorrências")}</span>
           </span>
         </span>
         <span className={cn("shrink-0 font-data text-base font-semibold", toneText[status.tone])}>{formatSLA(sla)}%</span>

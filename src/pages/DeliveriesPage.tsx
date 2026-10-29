@@ -14,7 +14,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  CardsSkeleton,
   ConfirmDialog,
   EmptyState,
   ListSkeleton,
@@ -43,7 +42,7 @@ import { DeliveryDetailSheet } from "@/components/deliveries/DeliveryDetailSheet
 import { XMLImportDialog } from "@/components/deliveries/XMLImportDialog";
 import { DeleteInvoiceDialog } from "@/components/deliveries/DeleteInvoiceDialog";
 import { ConfirmDeliveryDialog } from "@/components/deliveries/ConfirmDeliveryDialog";
-import { DeliveryKPICards, KPIStatusFilter } from "@/components/deliveries/DeliveryKPICards";
+import { DeliveryKPICards, DeliveryKPICardsSkeleton, KPIStatusFilter } from "@/components/deliveries/DeliveryKPICards";
 import { DeliveriesToolbar, ActiveFilterChips, describePeriod, type FilterChip } from "@/components/deliveries/DeliveriesToolbar";
 import { InvoiceList } from "@/components/deliveries/InvoiceList";
 import { SelectionBar } from "@/components/deliveries/SelectionBar";
@@ -1138,7 +1137,7 @@ export default function DeliveriesPage() {
 
           {isFirstLoad ? (
             <div role="status" aria-label="Carregando notas" className="space-y-6">
-              <CardsSkeleton count={5} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5" />
+              <DeliveryKPICardsSkeleton />
               <ListSkeleton rows={6} />
             </div>
           ) : hasNoInvoices ? (
