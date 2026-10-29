@@ -31,6 +31,19 @@ export default {
           foreground: "hsl(var(--primary-foreground))",
           hover: "hsl(var(--primary-hover))",
         },
+        // Verde vivo da marca para detalhes decorativos (nunca texto em fundo claro).
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+        },
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+        },
+        overlay: "hsl(var(--overlay) / var(--overlay-opacity))",
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
@@ -97,15 +110,37 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
-      // Manual: raio de 0 a 4px na interface; nada arredondado demais.
-      // rounded-full continua para pontos de status e avatares.
+      // Raio 2026: cartoes 12px, controles 10px, chips 8px. Um token so (--radius).
       borderRadius: {
-        "3xl": "var(--radius)",
-        "2xl": "var(--radius)",
-        xl: "var(--radius)",
+        "3xl": "calc(var(--radius) + 12px)",
+        "2xl": "calc(var(--radius) + 8px)",
+        xl: "calc(var(--radius) + 4px)",
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 1px)",
-        sm: "calc(var(--radius) - 2px)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm), var(--highlight)",
+        DEFAULT: "var(--shadow-sm), var(--highlight)",
+        md: "var(--shadow-md), var(--highlight)",
+        lg: "var(--shadow-lg), var(--highlight)",
+        xl: "var(--shadow-xl), var(--highlight)",
+        "2xl": "var(--shadow-xl), var(--highlight)",
+      },
+      transitionTimingFunction: {
+        out: "var(--ease-out)",
+        "in-out": "var(--ease-in-out)",
+        spring: "var(--ease-spring)",
+      },
+      transitionDuration: {
+        fast: "var(--duration-fast)",
+        DEFAULT: "var(--duration)",
+        slow: "var(--duration-slow)",
+      },
+      spacing: {
+        topbar: "var(--topbar-height)",
+        "bottom-nav": "var(--bottom-nav-height)",
       },
       keyframes: {
         "accordion-down": {
@@ -116,16 +151,28 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "collapsible-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-collapsible-content-height)" },
+        },
+        "collapsible-up": {
+          from: { height: "var(--radix-collapsible-content-height)" },
+          to: { height: "0" },
+        },
         "fade-in": {
-          "0%": { opacity: "0", transform: "translateY(10px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "none" },
         },
         "slide-in-left": {
-          "0%": { opacity: "0", transform: "translateX(-20px)" },
+          "0%": { opacity: "0", transform: "translateX(-16px)" },
           "100%": { opacity: "1", transform: "translateX(0)" },
         },
         "scale-in": {
-          "0%": { opacity: "0", transform: "scale(0.95)" },
+          "0%": { opacity: "0", transform: "scale(0.96)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "pop-in": {
+          "0%": { opacity: "0", transform: "scale(0.6)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
         "pulse-glow": {
@@ -134,11 +181,14 @@ export default {
         },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.5s ease-out forwards",
-        "slide-in-left": "slide-in-left 0.4s ease-out forwards",
-        "scale-in": "scale-in 0.3s ease-out forwards",
+        "accordion-down": "accordion-down 0.25s var(--ease-out)",
+        "accordion-up": "accordion-up 0.2s var(--ease-out)",
+        "collapsible-down": "collapsible-down 0.25s var(--ease-out)",
+        "collapsible-up": "collapsible-up 0.2s var(--ease-out)",
+        "fade-in": "fade-in 0.36s var(--ease-out) backwards",
+        "slide-in-left": "slide-in-left 0.36s var(--ease-out) backwards",
+        "scale-in": "scale-in 0.24s var(--ease-out) backwards",
+        "pop-in": "pop-in 0.32s var(--ease-spring) both",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       },
     },

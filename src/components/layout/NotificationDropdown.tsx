@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, AlertTriangle, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,14 +9,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useOperationalAlerts, OperationalAlert } from "@/hooks/useOperationalAlerts";
 
 const severityColors: Record<OperationalAlert["severity"], string> = {
-  critical: "border-l-destructive bg-destructive/5",
-  high: "border-l-warning bg-warning/5",
-  medium: "border-l-orange-500 bg-warning/5",
+  critical: "border-l-destructive",
+  high: "border-l-warning",
+  medium: "border-l-warning/60",
 };
 
 function formatTimeAgo(date: Date): string {
@@ -56,18 +54,21 @@ export function NotificationDropdown() {
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-destructive p-0 text-xs flex items-center justify-center animate-pulse">
+            <span
+              aria-hidden="true"
+              className="absolute right-1 top-1 flex h-[1.125rem] min-w-[1.125rem] animate-pop-in items-center justify-center rounded-full bg-destructive px-1 text-[0.625rem] font-bold leading-none text-destructive-foreground ring-2 ring-background"
+            >
               {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
+            </span>
           )}
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-80 bg-popover border border-border shadow-lg" sideOffset={8}>
-        <DropdownMenuLabel className="flex items-center justify-between py-3">
-          <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-primary" />
-            <span className="font-semibold">Ocorrências (48h)</span>
+      <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-0" sideOffset={8}>
+        <DropdownMenuLabel className="flex items-center justify-between px-4 py-3 text-foreground">
+          <div>
+            <span className="block text-sm font-semibold">Alertas</span>
+            <span className="block text-xs font-normal text-muted-foreground">Ocorrências das últimas 48 horas</span>
           </div>
           {unreadCount > 0 && (
             <Button
@@ -86,11 +87,14 @@ export function NotificationDropdown() {
 
         <DropdownMenuSeparator />
 
-        <ScrollArea className="h-[320px]">
+        <div className="max-h-[min(60vh,360px)] overflow-y-auto overscroll-contain">
           {alerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <Bell className="h-10 w-10 mb-2 opacity-50" />
-              <p className="text-sm">Nenhuma ocorrência nas últimas 48h</p>
+            <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-success/10 text-success">
+                <Bell className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <p className="text-sm font-medium text-foreground">Tudo tranquilo</p>
+              <p className="text-xs text-muted-foreground">Nenhuma ocorrência nas últimas 48 horas.</p>
             </div>
           ) : (
             <div className="p-1">
@@ -100,7 +104,7 @@ export function NotificationDropdown() {
                   type="button"
                   onClick={() => openAlert(alert)}
                   className={cn(
-                    "relative flex w-full gap-3 p-3 rounded-lg border-l-4 mb-2 text-left transition-colors hover:bg-muted/50",
+                    "relative mb-1 flex w-full gap-3 rounded-lg border-l-[3px] p-3 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     severityColors[alert.severity],
                     isUnread(alert) && "bg-primary/5",
                   )}
@@ -120,13 +124,13 @@ export function NotificationDropdown() {
                       {isUnread(alert) && <span className="h-2 w-2 shrink-0 rounded-full bg-primary mt-1" />}
                     </div>
                     {alert.message && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{alert.message}</p>}
-                    <p className="text-[10px] text-muted-foreground/70 mt-1">{formatTimeAgo(alert.createdAt)}</p>
+                    <p className="mt-1 text-[0.6875rem] text-muted-foreground">{formatTimeAgo(alert.createdAt)}</p>
                   </div>
                 </button>
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         <DropdownMenuSeparator />
 

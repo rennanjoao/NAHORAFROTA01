@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,11 +93,11 @@ export default function MasterAdminPage() {
 
   if (checking) {
     return (
-      <AppLayout>
+      <>
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </AppLayout>
+      </>
     );
   }
 
@@ -144,7 +143,7 @@ export default function MasterAdminPage() {
   };
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -505,6 +504,6 @@ export default function MasterAdminPage() {
         tenant={billingTenant}
         onSaved={() => { fetchTenants(); }}
       />
-    </AppLayout>
+    </>
   );
 }

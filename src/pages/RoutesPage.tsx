@@ -1,9 +1,8 @@
-import { AppLayout } from "@/components/layout/AppLayout";
 import { BrasilRiskMap } from "@/components/dashboard/BrasilRiskMap";
 
 export default function RoutesPage() {
   return (
-    <AppLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -16,6 +15,6 @@ export default function RoutesPage() {
         {/* Risk Map */}
         <BrasilRiskMap />
       </div>
-    </AppLayout>
+    </>
   );
 }

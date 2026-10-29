@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
 import { brandAvatar } from "@/lib/avatar";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -565,7 +564,7 @@ export default function SettlementPage() {
 
   if (!financialAccess.allowed) {
     return (
-      <AppLayout>
+      <>
         <PlanLockOverlay upgradePlanLabel={financialAccess.upgradePlanLabel}>
           <div className="space-y-6 min-h-[60vh]">
             <div>
@@ -577,12 +576,12 @@ export default function SettlementPage() {
             </div>
           </div>
         </PlanLockOverlay>
-      </AppLayout>
+      </>
     );
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -1256,6 +1255,6 @@ export default function SettlementPage() {
         manifestCode={manifestToReverse?.id}
         driverName={selectedDriver?.name}
       />
-    </AppLayout>
+    </>
   );
 }

@@ -7,7 +7,6 @@ import { useInvoicesDB } from "@/hooks/useInvoicesDB";
 import { getInvoiceEventDate } from "@/lib/reportFilters";
 import { useManifestsDB, DBManifest } from "@/hooks/useManifestsDB";
 import { supabase } from "@/integrations/supabase/client";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -1128,7 +1127,7 @@ export default function DeliveriesPage() {
   const clearPeriodLabel = "Limpar período";
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1996,7 +1995,7 @@ export default function DeliveriesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppLayout>
+    </>
   );
 }
 

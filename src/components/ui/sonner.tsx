@@ -1,26 +1,29 @@
 import { Toaster as Sonner, toast } from "sonner";
+import { usePreferences } from "@/components/theme/PreferencesProvider";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  // O produto e escuro por padrao (manual da marca); nao segue o tema do sistema.
+  const { resolvedTheme } = usePreferences();
+
   return (
     <Sonner
-      theme="dark"
+      theme={resolvedTheme}
       position="top-center"
-      duration={2000}
+      duration={3000}
+      closeButton
       className="toaster group"
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-card group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg group-[.toaster]:text-sm",
+            "group toast group-[.toaster]:rounded-xl group-[.toaster]:bg-popover group-[.toaster]:text-popover-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg group-[.toaster]:text-sm",
           description: "group-[.toast]:text-muted-foreground group-[.toast]:text-xs",
           actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
-        },
-        style: {
-          fontSize: '14px',
-          padding: '12px',
+          success: "[&_[data-icon]]:text-success",
+          error: "[&_[data-icon]]:text-destructive",
+          warning: "[&_[data-icon]]:text-warning",
+          info: "[&_[data-icon]]:text-info",
         },
       }}
       {...props}

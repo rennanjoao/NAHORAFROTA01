@@ -9,6 +9,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PlanProtectedRoute } from "@/components/auth/PlanProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AppShell } from "@/components/layout/AppShell";
+import { PreferencesProvider } from "@/components/theme/PreferencesProvider";
 import Index from "./pages/Index";
 import DriversPage from "./pages/DriversPage";
 import RoutesPage from "./pages/RoutesPage";
@@ -30,110 +32,89 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <LogisticsProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <PWAUpdatePrompt />
-          <BrowserRouter>
-            <ErrorBoundary fallbackMessage="Erro ao carregar o sistema">
-              <Routes>
-                {/* Public routes */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                
-                {/* Protected routes - require authentication */}
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                } />
-                <Route path="/drivers" element={
-                  <ProtectedRoute>
-                    <DriversPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/routes" element={
-                  <ProtectedRoute>
-                    <RoutesPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/vehicles" element={
-                  <ProtectedRoute>
-                    <VehiclesPage />
-                  </ProtectedRoute>
-                } />
-                {/* Seguradoras era uma tela so com dados de exemplo; links antigos vao para o inicio. */}
-                <Route path="/seguradoras" element={<Navigate to="/" replace />} />
-                <Route path="/reports" element={
-                  <ProtectedRoute>
-                    <PlanProtectedRoute feature="reports">
-                      <ReportsPage />
-                    </PlanProtectedRoute>
-                  </ProtectedRoute>
-                } />
-                <Route path="/deliveries" element={
-                  <ProtectedRoute>
-                    <DeliveriesPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/settlement" element={
-                  <ProtectedRoute>
-                    <PlanProtectedRoute feature="financial_dashboard">
-                      <SettlementPage />
-                    </PlanProtectedRoute>
-                  </ProtectedRoute>
-                } />
-                
-                {/* Admin route - requires admin role */}
-                <Route path="/admin" element={
-                  <ProtectedRoute requiredRole="admin">
-                    <AdminPage />
-                  </ProtectedRoute>
-                } />
-                
-                <Route path="/settings" element={
-                  <ProtectedRoute>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                } />
-                
-                {/* GPS Tracker for drivers - protected and allows drivers */}
-                <Route path="/tracker" element={
-                  <ProtectedRoute allowDrivers={true}>
-                    <TrackerPage />
-                  </ProtectedRoute>
-                } />
-                
-                {/* Master Admin - platform admins only */}
-                <Route path="/master" element={
-                  <ProtectedRoute>
-                    <MasterAdminPage />
-                  </ProtectedRoute>
-                } />
-                
-                {/* PWA Install page - public */}
-                <Route path="/install" element={<InstallPage />} />
-                
-                {/* Upgrade Required page */}
-                <Route path="/upgrade" element={
-                  <ProtectedRoute>
-                    <UpgradeRequiredPage />
-                  </ProtectedRoute>
-                } />
-                
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </ErrorBoundary>
-          </BrowserRouter>
-        </TooltipProvider>
-      </LogisticsProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <PreferencesProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <LogisticsProvider>
+          <TooltipProvider delayDuration={300}>
+            <Toaster />
+            <Sonner />
+            <PWAUpdatePrompt />
+            <BrowserRouter>
+              <ErrorBoundary fallbackMessage="Erro ao carregar o sistema">
+                <Routes>
+                  {/* Publicas */}
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  <Route path="/install" element={<InstallPage />} />
+
+                  {/* Painel: estrutura fixa (menu, topo, busca) com as telas dentro.
+                      ProtectedRoute cuida de login, papel, motorista e assinatura. */}
+                  <Route
+                    element={
+                      <ProtectedRoute>
+                        <AppShell />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route path="/" element={<Index />} />
+                    <Route path="/deliveries" element={<DeliveriesPage />} />
+                    <Route path="/routes" element={<RoutesPage />} />
+                    <Route path="/drivers" element={<DriversPage />} />
+                    <Route path="/vehicles" element={<VehiclesPage />} />
+                    <Route
+                      path="/settlement"
+                      element={
+                        <PlanProtectedRoute feature="financial_dashboard">
+                          <SettlementPage />
+                        </PlanProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/reports"
+                      element={
+                        <PlanProtectedRoute feature="reports">
+                          <ReportsPage />
+                        </PlanProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/admin"
+                      element={
+                        <ProtectedRoute requiredRole="admin">
+                          <AdminPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/master" element={<MasterAdminPage />} />
+                    <Route path="/upgrade" element={<UpgradeRequiredPage />} />
+                  </Route>
+
+                  {/* App do motorista (celular), fora do painel. */}
+                  <Route
+                    path="/tracker"
+                    element={
+                      <ProtectedRoute allowDrivers={true}>
+                        <TrackerPage />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Seguradoras era uma tela so com dados de exemplo; links antigos vao para o inicio. */}
+                  <Route path="/seguradoras" element={<Navigate to="/" replace />} />
+
+                  {/* Novas rotas acima do "*". Telas do painel: registre tambem em src/config/navigation.ts. */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </ErrorBoundary>
+            </BrowserRouter>
+          </TooltipProvider>
+        </LogisticsProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </PreferencesProvider>
 );
 
 export default App;

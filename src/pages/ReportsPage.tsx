@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -432,7 +431,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <AppLayout>
+    <>
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -590,6 +589,6 @@ export default function ReportsPage() {
           dateRange={filters.dateRange}
         />
       </div>
-    </AppLayout>
+    </>
   );
 }

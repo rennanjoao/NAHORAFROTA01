@@ -5,32 +5,27 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-heading text-sm font-semibold ring-offset-background transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold ring-offset-background transition-[background-color,border-color,color,box-shadow,transform] duration-fast ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        // CTA da marca: verde com texto preto. O chanfro (abaixo) corta o anel de
-        // foco externo, entao o foco desta variante e interno.
-        default:
-          "bg-primary text-primary-foreground hover:bg-primary-hover focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-primary-foreground",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
+        default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover",
+        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        outline: "border border-input bg-card shadow-xs hover:border-foreground/20 hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/70",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-primary underline-offset-4 hover:underline active:scale-100",
+        // Acao secundaria com cor da marca (ex.: "Ver todos", filtros ativos).
+        soft: "bg-primary/10 text-primary hover:bg-primary/15",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
+        default: "h-10 px-4",
+        sm: "h-9 px-3 text-[0.8125rem]",
+        lg: "h-12 rounded-lg px-6 text-[0.9375rem]",
         icon: "h-10 w-10",
+        "icon-sm": "h-8 w-8 rounded-md",
       },
     },
-    // Manual: botoes de destaque levam um chanfro de 45 graus no canto superior direito.
-    compoundVariants: [
-      { variant: "default", size: "default", className: "nhf-chamfer-sm" },
-      { variant: "default", size: "lg", className: "nhf-chamfer-sm" },
-    ],
     defaultVariants: {
       variant: "default",
       size: "default",

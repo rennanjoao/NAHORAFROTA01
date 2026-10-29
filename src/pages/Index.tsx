@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { LiveMap } from "@/components/dashboard/LiveMap";
 import { PredictiveIntelligence } from "@/components/dashboard/PredictiveIntelligence";
@@ -114,7 +113,7 @@ export default function Index() {
   // Show loading while tenant data is being verified
   if (tenantLoading || isLoading) {
     return (
-      <AppLayout>
+      <>
         <div className="flex items-center justify-center h-[50vh]">
           <div className="text-center space-y-4">
             <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
@@ -123,14 +122,14 @@ export default function Index() {
             </p>
           </div>
         </div>
-      </AppLayout>
+      </>
     );
   }
 
   // If tenant is not found after loading, show onboarding message
   if (!tenant) {
     return (
-      <AppLayout>
+      <>
         <div className="flex items-center justify-center h-[50vh]">
           <div className="text-center space-y-4 max-w-md">
             <Building2 className="h-16 w-16 text-primary/50 mx-auto" />
@@ -147,12 +146,12 @@ export default function Index() {
             </button>
           </div>
         </div>
-      </AppLayout>
+      </>
     );
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-8">
         {/* System Notifications Banner */}
         <NotificationBanner />
@@ -635,6 +634,6 @@ export default function Index() {
         onOpenChange={setIsDeliveredInvoicesOpen}
         data={todayDeliveredInvoices}
       />
-    </AppLayout>
+    </>
   );
 }

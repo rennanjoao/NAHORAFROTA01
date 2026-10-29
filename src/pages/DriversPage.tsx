@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { brandAvatar } from "@/lib/avatar";
 import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -321,7 +320,7 @@ export default function DriversPage() {
   };
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -703,6 +702,6 @@ export default function DriversPage() {
           return true;
         }}
       />
-    </AppLayout>
+    </>
   );
 }

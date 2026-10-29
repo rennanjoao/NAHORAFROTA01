@@ -12,8 +12,9 @@ export function PlanProtectedRoute({ feature, children }: PlanProtectedRouteProp
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+      <div className="flex h-[50vh] items-center justify-center" role="status">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+        <span className="sr-only">Carregando</span>
       </div>
     );
   }

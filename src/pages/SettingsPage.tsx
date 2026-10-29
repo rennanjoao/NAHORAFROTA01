@@ -1,5 +1,4 @@
 ﻿import { useEffect, useState } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -220,7 +219,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <AppLayout>
+    <>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
@@ -354,6 +353,6 @@ export default function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </AppLayout>
+    </>
   );
 }
