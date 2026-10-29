@@ -390,7 +390,7 @@ export function SLAEvolutionChart({
 
       {currentDataRows.length > 0 ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
             <div className="rounded-lg border bg-muted/20 p-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Target className="h-4 w-4" />

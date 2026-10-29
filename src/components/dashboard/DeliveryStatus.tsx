@@ -147,7 +147,7 @@ export function DeliveryStatus() {
       <div className="glass-card rounded-xl p-5 animate-pulse">
         <div className="h-6 w-48 bg-muted rounded mb-6" />
         <div className="h-3 bg-muted rounded-full mb-6" />
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-24 bg-muted rounded-lg" />
           ))}
@@ -201,7 +201,7 @@ export function DeliveryStatus() {
         </div>
 
         {/* Status grid - 4 columns */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {statusItems.map((item) => (
             <div
               key={item.label}

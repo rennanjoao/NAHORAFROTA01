@@ -268,7 +268,7 @@ export default function SettingsPage() {
                 <CardDescription>Atualize suas informações pessoais</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name">Nome Completo</Label>
                     <Input
@@ -316,7 +316,7 @@ export default function SettingsPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   {passwordField("current-password", "Senha Atual", "current", "current-password")}
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {passwordField("new-password", "Nova Senha", "next", "new-password")}
                     {passwordField("confirm-password", "Confirmar Nova Senha", "confirm", "new-password")}
                   </div>

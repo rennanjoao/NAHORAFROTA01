@@ -163,7 +163,7 @@
        </CardHeader>
        <CardContent className="space-y-6">
          {/* KPI Summary */}
-         <div className="grid gap-4 md:grid-cols-4">
+         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
              <div className="flex items-center gap-2 text-primary mb-2">
                <Building2 className="h-4 w-4" />
@@ -212,7 +212,7 @@
          </div>
  
          {/* Charts */}
-         <div className="grid gap-6 lg:grid-cols-2">
+         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
            {/* Bar Chart - Comparison */}
            <div className="p-4 rounded-lg border">
              <h4 className="text-sm font-medium mb-4">Comparativo de Utilização</h4>

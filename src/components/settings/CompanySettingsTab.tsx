@@ -154,7 +154,7 @@ export function CompanySettingsTab() {
         {/* Dados Cadastrais */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Dados Cadastrais</h4>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="razaoSocial">Razão Social *</Label>
               <Input id="razaoSocial" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Nome empresarial completo" />
@@ -181,7 +181,7 @@ export function CompanySettingsTab() {
         {/* Endereço */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium border-b pb-2">Endereço da Base (Ponto de Partida)</h4>
-          <div className="grid gap-4 sm:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
             <div className="space-y-2 sm:col-span-4">
               <Label htmlFor="logradouro">Logradouro</Label>
               <Input id="logradouro" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} placeholder="Rua, Avenida, etc." />

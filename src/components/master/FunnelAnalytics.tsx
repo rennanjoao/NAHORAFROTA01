@@ -143,7 +143,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
             <MousePointerClick className="h-8 w-8 text-primary" />
@@ -227,7 +227,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Testaram e não contrataram</CardTitle>

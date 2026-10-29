@@ -382,7 +382,7 @@ export default function VehiclesPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="glass-card rounded-xl p-4">
             <p className="text-sm text-muted-foreground">Total da Frota</p>
             <p className="text-2xl font-bold font-heading">{stats.total}</p>
@@ -439,7 +439,7 @@ export default function VehiclesPage() {
         </div>
 
         {/* Vehicle Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {isLoading ? (
             <div className="col-span-full flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

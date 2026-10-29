@@ -193,7 +193,7 @@ export default function AdminPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">{billingLine}</p>
                     <div className="space-y-1 text-sm">
@@ -286,7 +286,7 @@ export default function AdminPage() {
                   {limits.max_users !== -1 && ` • Limite de Painel: ${systemUsersCount}/${limits.max_users}`}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button 
                   variant="outline" 
                   size="icon"

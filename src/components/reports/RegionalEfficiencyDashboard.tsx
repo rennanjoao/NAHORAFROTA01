@@ -175,7 +175,7 @@
    if (isLoading) {
      return (
        <div className="space-y-6">
-         <div className="grid gap-4 md:grid-cols-4">
+         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
            {[1, 2, 3, 4].map(i => (
              <Card key={i} className="p-4 animate-pulse">
                <div className="h-20 bg-muted rounded" />
@@ -189,7 +189,7 @@
    return (
      <div className="space-y-6">
        {/* KPIs */}
-       <div className="grid gap-4 md:grid-cols-4">
+       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
          <Card className="p-4">
            <div className="flex items-center gap-3">
              <div className="p-2 rounded-lg bg-primary/10">
@@ -240,7 +240,7 @@
        </div>
  
        {/* Gráficos */}
-       <div className="grid gap-6 lg:grid-cols-2">
+       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
          {/* Gráfico de Barras - Entregas vs Ocorrências */}
          <Card className="p-6">
            <div className="flex items-center justify-between mb-6">

@@ -492,7 +492,7 @@ export default function ReportsPage() {
 
         {/* Tabs for different report views */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 h-auto flex-wrap justify-start">
             <TabsTrigger value="desempenho" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Desempenho

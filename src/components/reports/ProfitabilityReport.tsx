@@ -203,7 +203,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
     return (
       <div className="space-y-4">
         <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
@@ -286,7 +286,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Gauge Card */}
         <Card>
           <CardHeader className="pb-2">

@@ -182,7 +182,7 @@ export default function Index() {
         </div>
 
         {/* SLA Widget + KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {/* SLA Weekly Widget - Prominent */}
           <div className="lg:col-span-2">
             {slaAccess.allowed ? (
@@ -218,7 +218,7 @@ export default function Index() {
         </div>
 
         {/* Notas Carregadas + Entregas Section */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <MetricCard
             title="Notas Carregadas Hoje"
             value={todayLoadedCount}
@@ -252,7 +252,7 @@ export default function Index() {
 
         {/* Financial Summary Row - 3 cards */}
         {financialAccess.allowed ? (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {/* Receita Total */}
           <div 
             className="glass-card rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-transform"
@@ -310,7 +310,7 @@ export default function Index() {
         )}
 
         {/* Fleet Row - 2 cards */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Frota Própria Hoje */}
           <div 
             className="glass-card rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-transform"
@@ -361,7 +361,7 @@ export default function Index() {
         </div>
 
         {/* SLA Real-Time + Predictive Intelligence */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {realtimeAccess.allowed ? (
             <SLARealTimeWidget />
           ) : (

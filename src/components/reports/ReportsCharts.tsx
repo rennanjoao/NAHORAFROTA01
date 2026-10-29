@@ -77,7 +77,7 @@ export function ReportsCharts({ slaData, issuesData, isLoading }: ReportsChartsP
 
   if (isLoading) {
     return (
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="p-6">
           <div className="h-[350px] flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Carregando...</div>
