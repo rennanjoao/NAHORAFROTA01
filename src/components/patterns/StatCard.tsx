@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDownRight, ArrowUpRight, ChevronRight, type LucideIcon } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, type LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCountUp } from "@/hooks/useCountUp";
 import { cn } from "@/lib/utils";
@@ -47,8 +47,10 @@ export function StatCard({
   children,
 }: StatCardProps) {
   const interactive = Boolean(onClick || href);
-  const trendGood = trend ? (trend.value >= 0) === (trend.upIsGood ?? true) : false;
-  const TrendIcon = trend && trend.value < 0 ? ArrowDownRight : ArrowUpRight;
+  // Variacao zero e neutra (nem boa nem ruim).
+  const trendFlat = trend ? Math.abs(trend.value) < 0.05 : false;
+  const trendGood = trend ? (trend.value > 0) === (trend.upIsGood ?? true) : false;
+  const TrendIcon = trendFlat ? ArrowRight : trend && trend.value < 0 ? ArrowDownRight : ArrowUpRight;
 
   const body = (
     <>
@@ -76,12 +78,12 @@ export function StatCard({
             <span
               className={cn(
                 "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-semibold",
-                trendGood ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
+                trendFlat ? "bg-muted text-muted-foreground" : trendGood ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
               )}
             >
               <TrendIcon className="h-3 w-3" aria-hidden="true" />
               {Math.abs(trend.value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
-              <span className="sr-only">{trend.value >= 0 ? "a mais" : "a menos"}</span>
+              <span className="sr-only">{trendFlat ? "sem variação" : trend.value > 0 ? "a mais" : "a menos"}</span>
             </span>
           )}
           {hint && <span className="text-muted-foreground">{hint}</span>}
