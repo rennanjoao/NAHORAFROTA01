@@ -17,6 +17,7 @@ import { friendlyServerMessage, isDuplicateEmail } from "./serverMessages";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { plateText } from "@/lib/vehicles";
 import { SystemUser } from "@/hooks/useSystemUsers";
 import { DBDriver } from "@/hooks/useDriversDB";
 
@@ -122,7 +123,8 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved, takenEma
     setRole("viewer");
     setCpf(target.record.cpf || "");
     setPhone(target.record.phone || "");
-    setVehiclePlate(target.record.vehicle_plate || "");
+    // Cadastro sem placa ("PENDENTE"): o campo abre vazio; vazio ao salvar mantem como esta.
+    setVehiclePlate(plateText(target.record.vehicle_plate) ?? "");
     setVehicleType((target.record.vehicle_type || "van").toLowerCase());
     setStatus(target.record.status || "active");
   }, [target]);

@@ -1,6 +1,6 @@
 import { ClipboardList, FileText, Truck, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { vehicleTypeLabel } from "@/lib/vehicles";
+import { plateText, vehicleTypeLabel } from "@/lib/vehicles";
 
 /**
  * Busca geral (motoristas, veiculos, notas e romaneios) usada pela paleta de
@@ -64,7 +64,7 @@ export async function searchAll(term: string): Promise<SearchResult[]> {
       kind: "driver",
       id: d.id,
       title: d.name,
-      subtitle: [d.vehicle_type ? vehicleTypeLabel(d.vehicle_type) : null, d.vehicle_plate].filter(Boolean).join(" • "),
+      subtitle: [d.vehicle_type ? vehicleTypeLabel(d.vehicle_type) : null, plateText(d.vehicle_plate)].filter(Boolean).join(" • "),
       href: `/drivers?q=${q(d.name)}`,
     });
   }

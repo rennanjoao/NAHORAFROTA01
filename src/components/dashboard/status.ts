@@ -5,6 +5,7 @@
  */
 import type { Tone } from "@/components/patterns";
 import { getSLAColorScheme } from "@/lib/slaThresholds";
+import { plateText } from "@/lib/vehicles";
 import { getOccurrenceLabel } from "@/hooks/useSLADB";
 
 export interface StatusInfo {
@@ -68,7 +69,7 @@ export function invoiceNumber(nfeNumber: string | null | undefined, id: string):
 
 /** Placa para mostrar: "PENDENTE" (cadastro sem placa) e vazio viram "Sem placa". */
 export function plateLabel(plate: string | null | undefined): string {
-  return !plate || plate.trim().toUpperCase() === "PENDENTE" ? "Sem placa" : plate;
+  return plateText(plate) ?? "Sem placa";
 }
 
 /** Peso em pt-BR ("12,5 kg"). */

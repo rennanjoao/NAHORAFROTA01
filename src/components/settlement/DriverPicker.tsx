@@ -4,6 +4,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { DBDriver } from "@/hooks/useDBDrivers";
 import { cn } from "@/lib/utils";
+import { plateText } from "@/lib/vehicles";
 import { DriverAvatar } from "./DriverAvatar";
 
 // Busca sem acento ("joao" acha "João"), CPF sem pontuacao e placa.
@@ -70,8 +71,7 @@ export function DriverPicker({ id, drivers, selected, open, onOpenChange, onSele
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{driver.name}</span>
                     <span className="block truncate font-data text-xs text-muted-foreground">
-                      {driver.cpf}
-                      {driver.vehicle_plate ? ` · ${driver.vehicle_plate}` : ""}
+                      {[driver.cpf, plateText(driver.vehicle_plate)].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                   <Check

@@ -22,6 +22,7 @@ import { useWakeLock } from '@/hooks/useWakeLock';
 import { useDriverPresence } from '@/hooks/useDriverPresence';
 import { resolveDriverForUser } from '@/lib/driverIdentity';
 import { findArrivals } from '@/lib/geo';
+import { plateText, vehicleTypeLabel } from '@/lib/vehicles';
 
 interface GPSPosition {
   latitude: number;
@@ -610,14 +611,17 @@ export default function TrackerPage() {
   }
 
   const gpsState: GpsState = !isTracking ? 'paused' : gpsError ? 'weak' : 'on';
-  const vehicle = [linkedDriver?.vehicle_plate, linkedDriver?.vehicle_type].filter(Boolean).join(' · ');
+  // "PENDENTE" e o marcador de cadastro sem placa; o tipo aparece com o nome do dia a dia ("Van/VUC").
+  const plate = plateText(linkedDriver?.vehicle_plate) ?? undefined;
+  const vehicleType = linkedDriver?.vehicle_type ? vehicleTypeLabel(linkedDriver.vehicle_type) : undefined;
+  const vehicle = [plate, vehicleType].filter(Boolean).join(' · ');
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <DriverTopBar
         name={driverInfo?.name || 'Motorista'}
-        plate={linkedDriver?.vehicle_plate}
-        vehicleType={linkedDriver?.vehicle_type}
+        plate={plate}
+        vehicleType={vehicleType}
         photo={linkedDriver?.photo}
         gps={gpsState}
         batteryLevel={batteryLevel}

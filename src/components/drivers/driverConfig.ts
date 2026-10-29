@@ -46,8 +46,7 @@ export const DRIVER_DOCUMENT_KEYS = Object.keys(DRIVER_DOCUMENT_LABELS) as Drive
 
 export const DOCUMENT_ACCEPT = ".pdf,.jpg,.jpeg,.png";
 
-/** Placa gravada quando o motorista ainda nao tem veiculo (CLT usa o da empresa). */
-export const PENDING_PLATE = "PENDENTE";
+export { PENDING_PLATE } from "@/lib/vehicles";
 
 /* Telefone e placa: mesma regra da importacao por planilha (src/lib/driverImport.ts). */
 

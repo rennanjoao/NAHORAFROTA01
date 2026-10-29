@@ -2,6 +2,7 @@ import { Truck } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toneDot, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
+import { plateText } from "@/lib/vehicles";
 import type { DriverManifest } from "@/hooks/useDriverManifest";
 
 interface DayProgressCardProps {
@@ -51,7 +52,7 @@ export function DayProgressCard({ manifest, deliveredCount, problemCount, openCo
         <Count tone="info" value={openCount} label={openCount === 1 ? "falta" : "faltam"} />
       </ul>
 
-      {manifest.vehicle_plate && (
+      {plateText(manifest.vehicle_plate) && (
         <p className="mt-3 flex items-center gap-2 border-t pt-3 text-sm text-muted-foreground">
           <Truck className="h-4 w-4" aria-hidden="true" />
           Veículo <span className="font-data font-medium text-foreground">{manifest.vehicle_plate}</span>

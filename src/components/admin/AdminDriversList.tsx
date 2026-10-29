@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmptyState, ListSkeleton, StatusBadge, type Tone } from "@/components/patterns";
 import type { DBDriver } from "@/hooks/useDriversDB";
+import { plateText } from "@/lib/vehicles";
 import { PersonAvatar } from "./PersonAvatar";
 
 const DRIVER_STATUS: Record<string, { label: string; tone: Tone }> = {
@@ -17,8 +18,6 @@ const DRIVER_STATUS: Record<string, { label: string; tone: Tone }> = {
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("pt-BR");
 
-// "PENDENTE" e o marcador do cadastro sem placa: na tela vira texto, nao parece uma placa.
-const plateText = (plate?: string | null) => (!plate || plate === "PENDENTE" ? null : plate);
 
 function DriverStatus({ status }: { status: string }) {
   const config = DRIVER_STATUS[status] ?? { label: status, tone: "neutral" as Tone };

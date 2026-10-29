@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { StatusBadge, type Tone } from "@/components/patterns";
 import { getOccurrenceLabel } from "@/hooks/useSLADB";
-import { PENDING_PLATE } from "@/components/drivers/driverConfig";
 import type { DeliveryStatus } from "./types";
 
 /**
@@ -98,12 +97,7 @@ export function ManifestStatusBadge({ status, live, className }: BadgeProps) {
 
 /** Nomes do tipo de veiculo e de frete em portugues simples. */
 // Nomes dos tipos de veiculo moram em src/lib/vehicles (usados tambem pela busca).
-export { VEHICLE_TYPE_LABELS, vehicleTypeLabel } from "@/lib/vehicles";
-
-/** Placa para mostrar; "PENDENTE" (cadastro sem placa) e vazio viram null. */
-export function plateText(plate?: string | null) {
-  return !plate || plate.toUpperCase() === PENDING_PLATE ? null : plate;
-}
+export { VEHICLE_TYPE_LABELS, plateText, vehicleTypeLabel } from "@/lib/vehicles";
 
 
 export const FREIGHT_TYPE_LABELS: Record<string, string> = {

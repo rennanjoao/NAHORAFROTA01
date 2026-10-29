@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { uniqueChannelName } from "@/lib/realtime";
+import { plateText } from "@/lib/vehicles";
 import { getOccurrenceLabel } from "@/hooks/useSLADB";
 
 export type OperationalAlertKind = "delivery" | "vehicle";
@@ -113,11 +114,12 @@ async function fetchAlerts(): Promise<OperationalAlert[]> {
   for (const row of vehicleRows) {
     const driver = row.driver_id ? drivers.get(row.driver_id) : undefined;
     const label = VEHICLE_OCCURRENCE_LABELS[row.type] || getOccurrenceLabel(row.type);
+    const plate = plateText(driver?.vehicle_plate);
     alerts.push({
       id: `vehicle-${row.id}`,
       kind: "vehicle",
       severity: row.type === "accident" || row.type === "mechanical" ? "critical" : "medium",
-      title: `${label}${driver?.vehicle_plate ? ` • ${driver.vehicle_plate}` : ""}`,
+      title: `${label}${plate ? ` • ${plate}` : ""}`,
       message: [driver?.name, row.description].filter(Boolean).join(" • "),
       createdAt: new Date(row.created_at),
       href: driver?.name ? `/drivers?q=${encodeURIComponent(driver.name)}` : "/drivers",

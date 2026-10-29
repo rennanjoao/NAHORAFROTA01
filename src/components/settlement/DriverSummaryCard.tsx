@@ -9,6 +9,7 @@ import type { DBDriver } from "@/hooks/useDBDrivers";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
+import { plateText } from "@/lib/vehicles";
 import { DriverAvatar } from "./DriverAvatar";
 import { PixCopyButton } from "./PixCopyButton";
 
@@ -64,7 +65,7 @@ export function DriverSummaryCard({ driver, stats, sla, periodLabel, onOpenBankD
               </div>
               <div className="flex items-center gap-1">
                 <dt>Placa</dt>
-                <dd className="font-data text-foreground">{driver.vehicle_plate || "—"}</dd>
+                <dd className="font-data text-foreground">{plateText(driver.vehicle_plate) ?? "Sem placa"}</dd>
               </div>
               <div className="flex items-center gap-1.5">
                 <dt title="Entregas no prazo nos últimos 6 meses">No prazo (6 meses)</dt>
