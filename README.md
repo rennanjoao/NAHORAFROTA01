@@ -37,13 +37,22 @@ Importante:
 
 Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o frontend.
 
-1. Aplique as migrations, nesta ordem (as duas sao idempotentes):
-   - `supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql` (trial de 7 dias,
-     funil, avisos de cobranca, chegada por raio, auto-finalizacao de romaneio e permissoes);
-   - `supabase/migrations/20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do
-     app do motorista, fotos de comprovante para a equipe, RPCs com checagem de empresa,
-     realtime, troca de nivel de acesso, ordem das paradas, finalizar/excluir romaneio,
-     carteira do motorista, bloqueio por atraso e limites do plano iguais aos da tela).
+1. Atualize o banco com um arquivo so: no Supabase, abra SQL Editor > New query, cole
+   `supabase/ATUALIZAR_BANCO.sql` inteiro e clique em Run. Ele roda numa transacao (se algo
+   falhar, nada e gravado), pode ser rodado de novo sem duplicar nada e confere antes se o
+   banco tem a base do projeto. Junta, na ordem, as migrations que podem faltar:
+   - `20260526003000`, `20260527100000` e `20260527103000` (inicio do plano, isolamento entre
+     empresas e status do plano; provavelmente ja aplicadas, reaplicar nao muda nada);
+   - `20261028120000_trial_billing_funnel_and_ops.sql` (trial de 7 dias, funil, avisos de
+     cobranca, chegada por raio, auto-finalizacao de romaneio e permissoes);
+   - `20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do app do motorista,
+     fotos de comprovante para a equipe, RPCs com checagem de empresa, realtime, troca de
+     nivel de acesso, ordem das paradas, finalizar/excluir romaneio, carteira do motorista,
+     bloqueio por atraso e limites do plano iguais aos da tela).
+
+   Quem usa a CLI pode rodar `supabase db push` no lugar. Ao criar uma migration nova,
+   inclua o nome dela em `supabase/gerar_atualizacao.sh` e rode o script para gerar o
+   arquivo de novo (os testes abaixo avisam se ele ficou desatualizado).
 2. Publique as edge functions alteradas/novas: `register-tenant`, `create-user`,
    `invite-user`, `create-driver`, `update-user-access` e `send-driver-credentials`
    (todas usam a pasta `_shared`).
