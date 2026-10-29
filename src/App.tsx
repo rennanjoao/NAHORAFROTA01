@@ -3,9 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { PWAUpdatePrompt } from "@/components/layout/PWAUpdatePrompt";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LogisticsProvider } from "@/contexts/LogisticsContext";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { PlanProtectedRoute } from "@/components/auth/PlanProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -51,17 +51,10 @@ function SiteFallback() {
 const Site = ({ children }: { children: ReactNode }) => <Suspense fallback={<SiteFallback />}>{children}</Suspense>;
 
 /**
- * Estrutura do painel. Em "/" o visitante ve o site e quem ja esta logado ve o
- * Inicio; nas outras telas, ProtectedRoute cuida de login, papel, motorista e
- * assinatura antes de abrir o AppShell (menu, topo, busca).
+ * Estrutura do painel (/dashboard e as demais telas). ProtectedRoute cuida de
+ * login, papel, motorista e assinatura antes de abrir o AppShell (menu, topo, busca).
  */
-function PanelOrSite() {
-  const { session, loading } = useAuth();
-  const { pathname } = useLocation();
-  if (pathname === "/") {
-    if (loading) return <BrandedLoader label="Abrindo o Na Hora Frota" />;
-    if (!session) return <Site><LandingPage /></Site>;
-  }
+function Panel() {
   return (
     <ProtectedRoute>
       <AppShell />
@@ -81,8 +74,9 @@ const App = () => (
               <ErrorBoundary fallbackMessage="Erro ao carregar o sistema">
                 <Suspense fallback={<BrandedLoader label="Abrindo o Na Hora Frota" />}>
                   <Routes>
-                    {/* Site publico */}
-                    <Route path="/site" element={<Site><LandingPage /></Site>} />
+                    {/* Site publico: a raiz e sempre o site (quem esta logado ve "Abrir painel" no topo). */}
+                    <Route path="/" element={<Site><LandingPage /></Site>} />
+                    <Route path="/site" element={<Navigate to="/" replace />} />
                     <Route path="/comprar/sucesso" element={<Site><CheckoutSuccessPage /></Site>} />
                     <Route path="/comprar/:planId" element={<Site><CheckoutPage /></Site>} />
                     <Route path="/checkout/sandbox/:orderId" element={<Site><CheckoutSandboxPage /></Site>} />
@@ -98,9 +92,9 @@ const App = () => (
                     <Route path="/primeiro-acesso" element={<PrimeiroAcessoPage />} />
                     <Route path="/install" element={<InstallPage />} />
 
-                    {/* Painel: estrutura fixa com as telas dentro ("/" = site para visitantes). */}
-                    <Route element={<PanelOrSite />}>
-                      <Route path="/" element={<Index />} />
+                    {/* Painel: estrutura fixa (menu, topo, busca) com as telas dentro. */}
+                    <Route element={<Panel />}>
+                      <Route path="/dashboard" element={<Index />} />
                       <Route path="/deliveries" element={<DeliveriesPage />} />
                       <Route path="/routes" element={<RoutesPage />} />
                       <Route path="/drivers" element={<DriversPage />} />
@@ -133,7 +127,6 @@ const App = () => (
                       <Route path="/master" element={<MasterAdminPage />} />
                       <Route path="/upgrade" element={<UpgradeRequiredPage />} />
                     </Route>
-                    <Route path="/dashboard" element={<Navigate to="/" replace />} />
 
                     {/* App do motorista (celular), fora do painel. */}
                     <Route
@@ -146,7 +139,7 @@ const App = () => (
                     />
 
                     {/* Seguradoras era uma tela so com dados de exemplo; links antigos vao para o inicio. */}
-                    <Route path="/seguradoras" element={<Navigate to="/" replace />} />
+                    <Route path="/seguradoras" element={<Navigate to="/dashboard" replace />} />
 
                     {/* Novas rotas acima do "*". Telas do painel: registre tambem em src/config/navigation.ts. */}
                     <Route path="*" element={<NotFound />} />

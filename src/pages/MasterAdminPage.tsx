@@ -115,7 +115,7 @@ export default function MasterAdminPage() {
   }
 
   if (!isPlatformAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const activeTenants = tenants.filter(t => t.status === 'active').length;

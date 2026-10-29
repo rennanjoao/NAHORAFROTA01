@@ -58,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
 
 export const NAV_ITEMS: NavItem[] = [
   {
-    path: "/",
+    path: "/dashboard",
     label: "Início",
     description: "Resumo do dia: quem está em rota, o que foi entregue e o que precisa de atenção.",
     icon: Home,
@@ -203,12 +203,11 @@ export const HIDDEN_ITEMS: NavItem[] = [
 ];
 
 /** Telas da barra inferior do celular (na ordem). O resto fica em "Mais". */
-export const MOBILE_PRIMARY_PATHS = ["/", "/deliveries", "/drivers", "/settlement"];
+export const MOBILE_PRIMARY_PATHS = ["/dashboard", "/deliveries", "/drivers", "/settlement"];
 
 export function findNavItem(pathname: string): NavItem | undefined {
-  if (pathname === "/") return NAV_ITEMS[0];
   return [...NAV_ITEMS, ...HIDDEN_ITEMS].find(
-    (item) => item.path !== "/" && (pathname === item.path || pathname.startsWith(`${item.path}/`)),
+    (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
   );
 }
 

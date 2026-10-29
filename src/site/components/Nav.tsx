@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import { Cta } from "./Cta";
@@ -17,6 +18,13 @@ const LINKS = [
 
 
 export function Nav() {
+  // Quem ja esta logado nao precisa de "Entrar": vai direto ao painel (ou ao app, se for motorista).
+  const { session, isDriverUser } = useAuth();
+  const account = session
+    ? isDriverUser
+      ? { to: "/tracker", label: "Abrir o app" }
+      : { to: "/dashboard", label: "Abrir painel" }
+    : { to: "/login", label: "Entrar" };
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const anchor = useAnchor();
@@ -71,10 +79,10 @@ export function Nav() {
         <div className="hidden items-center gap-2 lg:flex">
           <ThemeToggle />
           <Link
-            to="/login"
+            to={account.to}
             className="rounded px-4 py-2 text-sm font-semibold text-foreground/85 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Entrar
+            {account.label}
           </Link>
           <Cta href={anchor("planos")} className="ml-1">
             Começar agora
@@ -113,8 +121,8 @@ export function Nav() {
             </a>
           ))}
           <div className="mt-3 flex flex-col gap-2 border-t border-border pt-4">
-            <Link to="/login" className="rounded px-3 py-3 text-base font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Entrar
+            <Link to={account.to} className="rounded px-3 py-3 text-base font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {account.label}
             </Link>
             <Cta href={anchor("planos")} onClick={() => setOpen(false)} className="w-full">
               Começar agora

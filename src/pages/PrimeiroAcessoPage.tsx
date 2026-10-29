@@ -71,7 +71,7 @@ export default function PrimeiroAcessoPage() {
       );
       return;
     }
-    navigate(isDriverUser ? "/tracker" : "/", { replace: true });
+    navigate(isDriverUser ? "/tracker" : "/dashboard", { replace: true });
   };
 
   if (loading || !session) {

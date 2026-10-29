@@ -91,7 +91,7 @@ export default function LoginPage() {
         console.log("[LOGIN] Driver user detected, redirecting to /tracker");
         navigate("/tracker", { replace: true });
       } else {
-        const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/";
+        const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/dashboard";
         navigate(from, { replace: true });
       }
     }

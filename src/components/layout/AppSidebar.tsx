@@ -70,7 +70,7 @@ export function AppSidebar() {
     >
       <div className={cn("flex h-topbar shrink-0 items-center", collapsed ? "justify-center px-2" : "justify-between pl-5 pr-2")}>
         <NavLink
-          to="/"
+          to="/dashboard"
           // Area de toque de 40px tambem com o menu recolhido (so o simbolo).
           className={cn(
             "inline-flex h-10 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",

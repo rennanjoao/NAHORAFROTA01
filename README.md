@@ -5,7 +5,7 @@ Site público + painel de gestão de entregas e frota. React + Vite + Tailwind n
 - **Site** (`/`): landing com 11 seções, dark/light, planos (Básico R$ 197 · Controle R$ 370 · Controle Total R$ 550) e checkout self-service. Código em `src/site/`.
 - **Checkout → acesso na hora**: veja [docs/CHECKOUT.md](docs/CHECKOUT.md) (fluxo, deploy das funções, Stripe, Resend, testes).
 - **Identidade visual**: `brand/` (manual, logos, tokens). Tema em `src/index.css`.
-- **Painel** (`/deliveries`, `/drivers`, …): app autenticado; `/` mostra o painel para quem já está logado e o site para visitantes. Cadastro com 7 dias grátis em `/register`; quem está em teste assina pelo site com o mesmo CNPJ (a empresa é convertida, nada se perde).
+- **Painel** (`/dashboard`, `/deliveries`, `/drivers`, …): app autenticado. `/` é sempre o site; quem já está logado vê "Abrir painel" no topo. Cadastro com 7 dias grátis em `/register`; quem está em teste assina pelo site com o mesmo CNPJ (a empresa é convertida, nada se perde).
 
 ## Rodando localmente
 

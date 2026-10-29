@@ -36,8 +36,8 @@ export default defineConfig(({ mode }) => ({
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
-        // "/" leva o motorista ao app (/tracker) e a equipe ao painel.
-        start_url: '/',
+        // "/" e o site; /dashboard leva o motorista ao app (/tracker) e a equipe ao painel.
+        start_url: '/dashboard',
         icons: [
           {
             src: 'pwa-192x192.png',
