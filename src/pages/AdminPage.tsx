@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ConfirmDialog, PageHeader, Section, StatCard } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { revealSection } from "@/lib/scroll";
 import { CreateDriverModal } from "@/components/admin/CreateDriverModal";
 import { InviteUserDialog } from "@/components/admin/InviteUserDialog";
 import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
@@ -75,7 +76,7 @@ export default function AdminPage() {
   // Abre a aba e rola ate o bloco (os indicadores do topo levam ate a lista).
   const goTo = (value: AdminTab, sectionId?: string) => {
     changeTab(value);
-    if (sectionId) requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: "start" }));
+    if (sectionId) requestAnimationFrame(() => revealSection(sectionId));
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {

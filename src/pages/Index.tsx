@@ -10,6 +10,7 @@ import { useTenantData } from "@/hooks/useTenantData";
 import { useDashboardKPIs } from "@/hooks/useDashboardKPIs";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
+import { revealSection } from "@/lib/scroll";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import { LiveMap } from "@/components/dashboard/LiveMap";
@@ -157,7 +158,7 @@ export default function Index() {
       <DashboardHeader
         actions={
           <>
-            <Button variant="outline" onClick={scrollToMap}>
+            <Button variant="outline" onClick={() => revealSection(MAP_SECTION_ID)}>
               <MapPinned aria-hidden="true" />
               Ver mapa ao vivo
             </Button>
