@@ -2807,7 +2807,7 @@ BEGIN
     'freight',
     COALESCE(NEW.freight_value, 0),
     'Frete do romaneio nº ' || COALESCE(NEW.manifest_number::text || '/' || to_char(NEW.created_at, 'YYYY'), NEW.manifest_code),
-    COALESCE(NEW.scheduled_date::text, to_char(NEW.created_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')),
+    COALESCE(NEW.scheduled_date::date, (NEW.created_at AT TIME ZONE 'America/Sao_Paulo')::date),
     CASE WHEN NEW.status = 'paid' THEN 'paid' ELSE 'pending' END
   )
   ON CONFLICT (manifest_id) WHERE type = 'freight'
@@ -2845,7 +2845,7 @@ SELECT
   'freight',
   COALESCE(m.freight_value, 0),
   'Frete do romaneio nº ' || COALESCE(m.manifest_number::text || '/' || to_char(m.created_at, 'YYYY'), m.manifest_code),
-  COALESCE(m.scheduled_date::text, to_char(m.created_at AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD')),
+  COALESCE(m.scheduled_date::date, (m.created_at AT TIME ZONE 'America/Sao_Paulo')::date),
   CASE WHEN m.status = 'paid' THEN 'paid' ELSE 'pending' END
 FROM public.manifests m
 WHERE m.driver_id IS NOT NULL
