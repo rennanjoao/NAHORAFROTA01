@@ -35,7 +35,7 @@ export function TopBar() {
       {/* Celular: simbolo + nome da tela. Computador: caminho "Grupo > Tela". */}
       <NavLink
         to="/"
-        className="shrink-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        className="-ml-1.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
         aria-label="Ir para o início"
       >
         <BrandLogo arrangement="simbolo" className="w-7" />
