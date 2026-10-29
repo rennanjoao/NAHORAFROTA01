@@ -28,7 +28,7 @@ export function MapPanel({ className }: { className?: string }) {
             <span key={f} className={cn("rounded border px-2 py-1 font-data text-[9px] uppercase tracking-wider backdrop-blur", i === 0 ? "border-brand/60 bg-brand/15 text-brand" : "border-foreground/15 bg-background/70 text-muted-foreground")}>{f}</span>
           ))}
         </div>
-        <div className="absolute right-3 top-3 z-10 rounded border border-foreground/10 bg-background/80 p-2.5 font-data text-[10px] backdrop-blur">
+        <div className="absolute right-3 top-3 z-10 hidden rounded border border-foreground/10 bg-background/80 p-2.5 font-data text-[10px] backdrop-blur sm:block">
           <p className="text-brand">ABC1D23 · João</p>
           <p className="text-muted-foreground">8/14 · 1,2 km da próxima</p>
           <p className="text-muted-foreground">Atualizado há 12 s</p>
@@ -36,6 +36,19 @@ export function MapPanel({ className }: { className?: string }) {
         <div className="aspect-[16/10]">
           <RouteMap />
         </div>
+        {/* legenda: sobre o mapa no computador, logo abaixo dele no celular */}
+        <ul className="mx-3 mb-3 flex w-fit items-center gap-4 rounded border border-foreground/10 bg-background/85 px-3 py-1.5 font-data text-[9px] font-semibold uppercase tracking-wider text-foreground/85 backdrop-blur sm:absolute sm:bottom-3 sm:left-3 sm:z-10 sm:m-0">
+          {[
+            ["No prazo", "bg-[hsl(var(--brand))]"],
+            ["Atenção", "bg-[#FFC53D]"],
+            ["Atrasado", "bg-[#FF4D4F]"],
+          ].map(([label, dot]) => (
+            <li key={label} className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
+              {label}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

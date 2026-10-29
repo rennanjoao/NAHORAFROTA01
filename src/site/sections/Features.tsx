@@ -214,7 +214,8 @@ export function Features() {
             <StaggerItem key={p.n} className="h-full min-w-0">
               <Tilt max={2.5} glare={false} className="flex h-full flex-col overflow-hidden rounded-3xl border border-foreground/10 bg-background shadow-sm transition-shadow hover:shadow-xl">
                 <div role="img" aria-label={p.alt} className="relative h-52 overflow-hidden border-b border-foreground/10 bg-muted/50">
-                  <BrandRoutes scale={0.42} />
+                  {/* no cartao o ladrilho e menor (mais denso), entao fica ainda mais leve */}
+                  <BrandRoutes scale={0.42} className="opacity-60" />
                   {/* a miniatura tem largura fixa; no celular ela encolhe inteira, sem cortar */}
                   <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
                     <div className="h-full w-[400px] shrink-0 origin-center scale-[0.8] min-[400px]:scale-[0.88] sm:scale-100">
