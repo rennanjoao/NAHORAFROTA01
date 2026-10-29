@@ -10,14 +10,15 @@ const STOPS = [
 ];
 
 /** App do motorista em miniatura. Alterna entre "próxima parada" e "entregue" a cada 4 s. */
-export function PhoneMockup({ className, static: isStatic = false }: { className?: string; static?: boolean }) {
+export function PhoneMockup({ className, static: isStatic = false, step: controlled }: { className?: string; static?: boolean; /** Tela fixada de fora (ex.: pela rolagem). */ step?: 0 | 1 | 2 }) {
   const reduce = useReducedMotion();
-  const [step, setStep] = useState(0); // 0 = próxima parada, 1 = confirmando, 2 = entregue
+  const [auto, setAuto] = useState(0); // 0 = próxima parada, 1 = confirmando, 2 = entregue
+  const step = controlled ?? auto;
   useEffect(() => {
-    if (reduce || isStatic) return;
-    const id = window.setInterval(() => setStep((s) => (s + 1) % 3), 2600);
+    if (reduce || isStatic || controlled !== undefined) return;
+    const id = window.setInterval(() => setAuto((s) => (s + 1) % 3), 2600);
     return () => window.clearInterval(id);
-  }, [reduce, isStatic]);
+  }, [reduce, isStatic, controlled]);
   const [h, m] = [new Date().getHours(), new Date().getMinutes()];
   const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 

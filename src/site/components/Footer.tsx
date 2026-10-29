@@ -39,7 +39,7 @@ export function Footer() {
   ];
 
   return (
-    <footer className="border-t border-border bg-background">
+    <footer className="border-t hairline bg-background">
       <div className="container py-14">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
@@ -70,7 +70,10 @@ export function Footer() {
             </nav>
           ))}
         </div>
-        <div className="mt-12 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <p aria-hidden="true" className="text-outline mt-16 select-none overflow-hidden whitespace-nowrap font-heading text-[clamp(3rem,11.5vw,11rem)] font-bold leading-none tracking-tight">
+          Na Hora Frota
+        </p>
+        <div className="mt-8 flex flex-col gap-3 border-t hairline pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>© {year} Na Hora Frota. Todos os direitos reservados.</p>
           <p className="font-data uppercase tracking-[0.08em]">nahorafrota.tech</p>
         </div>
