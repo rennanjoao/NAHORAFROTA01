@@ -610,8 +610,9 @@ export default function DeliveriesPage() {
 
     await refetchInvoices();
     toast({
-      title: "NF liberada para romaneamento",
-      description: `NF ${deliveryForReRoute.nfe} pode ser romaneada novamente.`,
+      title: "Nota de volta na fila",
+      description: `A NF ${deliveryForReRoute.nfe} já pode entrar em um novo romaneio.`,
+      variant: "success",
     });
 
     setIsReRouteDialogOpen(false);
@@ -1303,6 +1304,7 @@ export default function DeliveriesPage() {
         manifest={manifestForPreview}
         deliveries={[]}
         dbManifest={dbManifestForPreview}
+        focusFallback={() => generateButtonRef.current}
       />
 
       {/* Edit Delivery Dialog */}

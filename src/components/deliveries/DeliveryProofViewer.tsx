@@ -289,11 +289,16 @@ export function DeliveryProofViewer({
                 )}
 
                 {proofs.length === 0 && occurrences.length === 0 && (
+                  // Baixa manual pelo painel nao tem foto nem assinatura: diz isso em vez de "nada ainda".
                   <EmptyState
                     compact
                     icon={FileText}
-                    title="Nada registrado ainda"
-                    description="O comprovante aparece aqui quando o motorista der baixa pelo app."
+                    title={isDelivered ? "Sem foto nem assinatura" : "Nada registrado ainda"}
+                    description={
+                      isDelivered
+                        ? "A entrega foi confirmada pelo painel, sem comprovante do app do motorista."
+                        : "O comprovante aparece aqui quando o motorista der baixa pelo app."
+                    }
                     className="rounded-lg border border-dashed"
                   />
                 )}

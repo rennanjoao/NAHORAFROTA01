@@ -65,6 +65,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
       p_to: new Date(Date.now() + 60 * 1000).toISOString(),
     });
     if (rpcError) {
+      console.error("Funnel summary error:", rpcError);
       setError(rpcError.message);
       setSummary(null);
     } else {
@@ -143,7 +144,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
       {error && (
         <Alert variant="destructive">
           <AlertDescription className="text-foreground">
-            Não foi possível carregar o funil: {error}. Verifique se a migration de funil foi aplicada.
+            Não foi possível carregar o funil agora. Use o botão de atualizar ao lado do período para tentar de novo.
           </AlertDescription>
         </Alert>
       )}
@@ -158,7 +159,8 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
           tone="warning"
         />
         <StatCard
-          label="Conversão teste → cliente"
+          label="Viraram clientes"
+          hint="Dos que começaram o teste"
           value={summary ? pct(summary.converted, summary.registered) : "—"}
           icon={TrendingUp}
           tone="success"
@@ -170,7 +172,11 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
           <CardTitle className="text-base">Etapas do funil</CardTitle>
           <CardDescription>
             A porcentagem compara com a etapa anterior.{" "}
-            {summary ? `${summary.abandoned_registrations} visitante(s) começaram o cadastro e não concluíram.` : ""}
+            {summary
+              ? summary.abandoned_registrations === 1
+                ? "1 visitante começou o cadastro e não concluiu."
+                : `${summary.abandoned_registrations} visitantes começaram o cadastro e não concluíram.`
+              : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -187,7 +193,8 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
                 const share = index === 0 ? "100%" : pct(step.value, previous);
                 return (
                   <li key={step.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[12rem_minmax(0,1fr)_7rem]">
-                    <span className="truncate text-sm text-foreground">{step.label}</span>
+                    {/* Quebra em vez de cortar ("Cadastraram (iniciaram teste)" ficava pela metade). */}
+                    <span className="text-sm leading-snug text-foreground">{step.label}</span>
                     <span className="text-right text-sm tabular-nums sm:order-last">
                       <span className="font-data font-semibold text-foreground">{step.value}</span>
                       <span
@@ -225,8 +232,13 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
                 {expiredNotConverted.map((tenant) => (
                   <li key={tenant.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 space-y-0.5">
-                      <p className="truncate text-sm font-medium text-foreground">{tenant.razao_social}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="truncate text-sm font-medium text-foreground" title={tenant.razao_social}>
+                        {tenant.razao_social}
+                      </p>
+                      <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={`${tenant.admin_name || "Sem responsável"}${tenant.admin_email || tenant.telefone ? ` · ${tenant.admin_email || tenant.telefone}` : ""}`}
+                      >
                         {tenant.admin_name || "Sem responsável"}
                         {tenant.admin_email || tenant.telefone ? ` · ${tenant.admin_email || tenant.telefone}` : ""}
                       </p>
@@ -273,8 +285,13 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
                   return (
                     <li key={tenant.id} className="flex items-center justify-between gap-4 px-6 py-4">
                       <div className="min-w-0 space-y-0.5">
-                        <p className="truncate text-sm font-medium text-foreground">{tenant.razao_social}</p>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="truncate text-sm font-medium text-foreground" title={tenant.razao_social}>
+                          {tenant.razao_social}
+                        </p>
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={`${tenant.admin_name || "Sem responsável"}${tenant.admin_email ? ` · ${tenant.admin_email}` : ""}`}
+                        >
                           {tenant.admin_name || "Sem responsável"}
                           {tenant.admin_email ? ` · ${tenant.admin_email}` : ""}
                         </p>

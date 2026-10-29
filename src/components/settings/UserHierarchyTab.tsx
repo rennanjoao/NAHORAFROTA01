@@ -100,7 +100,7 @@ export function UserHierarchyTab() {
     <div className="space-y-6">
       <SettingsCard
         icon={ShieldCheck}
-        title="Hierarquia de Acesso"
+        title="Níveis de acesso"
         description="Cada pessoa da equipe tem um nível. O nível define o que ela pode fazer no sistema."
         actions={
           myRole && (

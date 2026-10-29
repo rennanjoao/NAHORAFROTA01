@@ -37,7 +37,7 @@ export function MobileBottomNav() {
       className="surface-glass fixed inset-x-0 bottom-0 z-40 border-t md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="mx-auto flex h-bottom-nav max-w-lg items-stretch px-2">
+      <ul className="mx-auto flex h-bottom-nav max-w-lg items-stretch px-1 min-[360px]:px-2">
         {primary.map((item) => {
           const active = isActive(item);
           const Icon = item.icon;
@@ -47,7 +47,8 @@ export function MobileBottomNav() {
                 <span className={pill(active)}>
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <span className="max-w-full truncate px-1">{item.shortLabel ?? item.label}</span>
+                {/* Sem respiro lateral: "Motoristas" cabe inteiro em 320px. */}
+                <span className="max-w-full truncate">{item.shortLabel ?? item.label}</span>
               </NavLink>
             </li>
           );

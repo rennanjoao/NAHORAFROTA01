@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ClipboardList, CloudOff, Loader2, RefreshCw } from "lucide-react";
@@ -44,6 +44,7 @@ function HomeSkeleton() {
 /** Aba Inicio: andamento do dia, GPS e as entregas na ordem da rota. */
 export function HomeTab({ manifest, deliveries, loading, error, onRefresh, gps, ...actions }: HomeTabProps) {
   const [refreshing, setRefreshing] = useState(false);
+  const errorShownRef = useRef(false);
 
   // Sem "disabled" no botao: desabilitar tira o foco dele (leitor de tela se perde).
   const refresh = async () => {
@@ -64,6 +65,10 @@ export function HomeTab({ manifest, deliveries, loading, error, onRefresh, gps, 
 
   // Esqueleto so na primeira carga: ao atualizar, a lista fica na tela (e o foco no botao).
   const showSkeleton = loading && !manifest && !refreshing;
+  // O hook limpa o erro ao comecar a buscar: durante o "Tentar de novo" o aviso fica na tela
+  // (senao piscava "Nenhum romaneio" e o botao sumia).
+  const showError = !manifest && (Boolean(error) || (refreshing && errorShownRef.current));
+  errorShownRef.current = showError;
   const refreshLabel = refreshing ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />;
 
   const scheduled = manifest ? parseDateOnly(manifest.scheduled_date) : null;
@@ -93,7 +98,7 @@ export function HomeTab({ manifest, deliveries, loading, error, onRefresh, gps, 
 
       {showSkeleton ? (
         <HomeSkeleton />
-      ) : !manifest && error ? (
+      ) : showError ? (
         // Antes a falha mostrava "Nenhum romaneio": o motorista achava que nao tinha entregas.
         <div className="space-y-4">
           <GpsStatusCard {...gps} />

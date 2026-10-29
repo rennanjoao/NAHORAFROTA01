@@ -7,7 +7,7 @@ import { FinishedDriverData } from "@/hooks/useDashboardKPIs";
 import { cn } from "@/lib/utils";
 import { DriverAvatar } from "./DriverAvatar";
 import { InvoiceList } from "./InvoiceList";
-import { formatTime, invoiceNumber, invoiceStatus, plural } from "./status";
+import { formatTime, invoiceNumber, invoiceStatus, plateLabel, plural } from "./status";
 
 /** Ponto + texto do resultado da rota: sem ocorrencia (verde) ou com (vermelho). */
 export function RouteResultBadge({ occurrences }: { occurrences: number }) {
@@ -97,7 +97,7 @@ export function FinishedRoutesList({ data, onShowAll }: { data: FinishedDriverDa
                     <RouteResultBadge occurrences={occurrences} />
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {driver?.vehicle_plate || "Sem placa"} · {completedDeliveries} de {plural(totalDeliveries, "entrega", "entregas")} · terminou às{" "}
+                    {plateLabel(driver?.vehicle_plate)} · {completedDeliveries} de {plural(totalDeliveries, "entrega", "entregas")} · terminou às{" "}
                     {formatTime(finishedAt)}
                   </span>
                 </span>

@@ -12,7 +12,7 @@ import { DriversInRouteData } from "@/hooks/useDashboardKPIs";
 import { openWhatsApp } from "@/lib/whatsapp";
 import { DetailSheet } from "./DetailPanel";
 import { DriverAvatar } from "./DriverAvatar";
-import { plural } from "./status";
+import { plateLabel, plural } from "./status";
 
 interface DriversInRouteModalProps {
   open: boolean;
@@ -77,7 +77,7 @@ export function DriversInRouteModal({ open, onOpenChange, data, invoicesInTransi
                     <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <Truck className="h-3.5 w-3.5" aria-hidden="true" />
-                        {driver.vehicle_plate || "Sem placa"}
+                        {plateLabel(driver.vehicle_plate)}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5" aria-hidden="true" />

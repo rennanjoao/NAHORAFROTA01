@@ -237,14 +237,10 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     setIsSaving(true);
 
     // O banco aceita CPF repetido: confere antes de criar login ou gravar.
+    // Erro so no campo: um aviso solto roubava o primeiro Esc da janela.
     if (await isCpfTaken(cpfToSave)) {
       setIsSaving(false);
-      toast({
-        title: "CPF já cadastrado",
-        description: "Este CPF já está ligado a outro motorista. Confira se ele já está na lista.",
-        variant: "destructive",
-      });
-      showErrors({ cpf: "Este CPF já está cadastrado." });
+      showErrors({ cpf: "Este CPF já está cadastrado em outro motorista. Confira a lista de motoristas." });
       return;
     }
 

@@ -30,10 +30,16 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
 
   const confirmRemove = async () => {
     if (!toRemove) return;
+    const index = adjustments.findIndex((adj) => adj.id === toRemove.id);
     setRemoving(true);
     await onRemove(toRemove.id);
     setRemoving(false);
     setToRemove(null);
+    // A linha excluida levava o foco: passa para a linha vizinha (ou para o nome do motorista).
+    window.setTimeout(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>("[data-adjustment-action]")].filter((el) => el.getClientRects().length > 0);
+      (rows[Math.min(Math.max(0, index), rows.length - 1)] ?? document.getElementById("acerto-motorista"))?.focus();
+    }, 50);
   };
 
   const detail = (adj: LocalAdjustment) =>
@@ -43,15 +49,6 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
     const isPaid = adj.status === "paid";
     return (
       <div className={full ? "flex items-center gap-2" : "flex items-center justify-end gap-1.5"}>
-        <Button
-          size={full ? "default" : "sm"}
-          variant={isPaid ? "outline" : "soft"}
-          className={full ? "flex-1" : undefined}
-          onClick={() => onSetPaid(adj, !isPaid)}
-        >
-          {isPaid ? <RotateCcw aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
-          {isPaid ? "Reabrir" : "Quitar"}
-        </Button>
         {!isPaid && (
           <>
             <Tooltip>
@@ -83,6 +80,17 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
             </Tooltip>
           </>
         )}
+        {/* Botao principal por ultimo: "Quitar" e "Reabrir" ficam alinhados na mesma coluna. */}
+        <Button
+          size={full ? "default" : "sm"}
+          variant={isPaid ? "outline" : "soft"}
+          className={full ? "flex-1" : undefined}
+          data-adjustment-action=""
+          onClick={() => onSetPaid(adj, !isPaid)}
+        >
+          {isPaid ? <RotateCcw aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
+          {isPaid ? "Reabrir" : "Quitar"}
+        </Button>
       </div>
     );
   };

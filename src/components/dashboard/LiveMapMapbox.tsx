@@ -9,10 +9,11 @@ import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
 import { prefersReducedMotion, readPreferences } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
 import { openWhatsApp } from "@/lib/whatsapp";
+import { vehicleTypeLabel } from "@/components/deliveries/status";
 import { DriverAvatar } from './DriverAvatar';
 import { LiveMapFrame } from './LiveMapFrame';
 import { VEHICLE_STATUS, countByStatus, vehicleStatus } from './mapStatus';
-import { slaStatus } from './status';
+import { plateLabel, slaStatus } from './status';
 
 interface FleetPosition {
   id: string;
@@ -89,8 +90,8 @@ function DriverPopup({ position, onClose }: { position: FleetPosition; onClose: 
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{position.driver_name || "Motorista"}</p>
           <p className="truncate font-data text-xs text-muted-foreground">
-            {position.vehicle_plate || "Placa pendente"}
-            {position.vehicle_type && ` · ${position.vehicle_type}`}
+            {plateLabel(position.vehicle_plate)}
+            {position.vehicle_type && ` · ${vehicleTypeLabel(position.vehicle_type)}`}
           </p>
         </div>
         <Button size="icon-sm" variant="ghost" onClick={onClose} aria-label="Fechar detalhes">

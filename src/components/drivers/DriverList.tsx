@@ -113,7 +113,9 @@ export function DriverList(props: DriverListProps) {
                 Entregas (6 meses)
               </TableHead>
               <TableHead title="Entregas no prazo (SLA) nos últimos 6 meses">No prazo (6 meses)</TableHead>
-              <TableHead title="Frete de romaneios ainda não pagos">A receber</TableHead>
+              <TableHead className="text-right" title="Frete de romaneios ainda não pagos">
+                A receber
+              </TableHead>
               <TableHead className="w-14 pr-4">
                 <span className="sr-only">Ações</span>
               </TableHead>
@@ -132,7 +134,12 @@ export function DriverList(props: DriverListProps) {
                           <button type="button" data-driver-open={driver._dbId} onClick={() => onOpen(driver)} className={cn(stretchedButton, "max-w-[15rem] truncate")} title={driver.name}>
                             {driver.name}
                           </button>
-                          {driver.isOwnFleet && <Badge variant="secondary">CLT</Badge>}
+                          {/* py-0: o selo nao aumenta a altura da linha (linhas com e sem CLT iguais) */}
+                          {driver.isOwnFleet && (
+                            <Badge variant="secondary" className="py-0 leading-5">
+                              CLT
+                            </Badge>
+                          )}
                         </div>
                         <p className="font-data text-xs text-muted-foreground">{driver.cpf || "CPF não informado"}</p>
                       </div>
@@ -160,7 +167,7 @@ export function DriverList(props: DriverListProps) {
                   <TableCell>
                     <SlaValue sla={driver.sla} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <BalanceValue driver={driver} />
                   </TableCell>
                   <TableCell className="relative z-10 pr-4 text-right">

@@ -44,6 +44,8 @@ interface ManifestPrintPreviewProps {
   deliveries: DeliveryItem[];
   // New props for DB-based manifest
   dbManifest?: DBManifest | null;
+  /** Onde o foco fica ao fechar se o botao que abriu sumiu (ex.: janela de sucesso). */
+  focusFallback?: () => HTMLElement | null;
 }
 
 const freightTypeLabels: Record<string, string> = {
@@ -68,9 +70,11 @@ export function ManifestPrintPreview({
   onOpenChange, 
   manifest,
   deliveries: propDeliveries,
-  dbManifest
+  dbManifest,
+  focusFallback,
 }: ManifestPrintPreviewProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   // Dados da empresa vem do banco (o store local ficava vazio ou com outra empresa).
   const { tenant } = useTenantData();
   const company = tenant
@@ -255,7 +259,23 @@ export function ManifestPrintPreview({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="gap-0 p-0 pt-3 sm:max-w-5xl sm:pt-0">
+      <DialogContent
+        hideClose
+        className="gap-0 p-0 pt-3 sm:max-w-5xl sm:pt-0"
+        onOpenAutoFocus={() => {
+          const active = document.activeElement;
+          openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          // Aberta pela janela de sucesso (que ja fechou): o foco vai para o botao de reserva.
+          if (openerRef.current?.isConnected) return;
+          const target = focusFallback?.();
+          if (target?.isConnected) {
+            event.preventDefault();
+            target.focus({ preventScroll: true });
+          }
+        }}
+      >
         {/* Barra de acoes */}
         <div className="sticky top-0 z-10 flex flex-col gap-3 border-b bg-popover px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="min-w-0">

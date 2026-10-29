@@ -45,10 +45,16 @@ export function ManifestsPanel({
 
   const confirmPayment = async () => {
     if (!toPay) return;
+    const index = manifests.findIndex((manifest) => manifest.id === toPay.id);
     setPaying(true);
     await onMarkPaid(toPay.id);
     setPaying(false);
     setToPay(null);
+    // O romaneio pago sai da lista: o foco vai para o vizinho (ou para a aba "Pagos").
+    window.setTimeout(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>("[data-manifest-action]")].filter((el) => el.getClientRects().length > 0);
+      (rows[Math.min(Math.max(0, index), rows.length - 1)] ?? document.querySelector<HTMLElement>('[data-romaneios-tab="paid"]'))?.focus();
+    }, 50);
   };
 
   const status = (manifest: DBManifest) => {
@@ -74,6 +80,7 @@ export function ManifestsPanel({
               size={full ? "icon" : "icon-sm"}
               variant={full ? "outline" : "ghost"}
               aria-label={`Editar valor do romaneio ${number}`}
+              data-manifest-action=""
               onClick={() => onEdit(manifest)}
             >
               <Pencil aria-hidden="true" />
@@ -222,11 +229,11 @@ export function ManifestsPanel({
     >
       <Tabs value={activeTab} onValueChange={(v) => onTabChange(v as ManifestTab)}>
         <TabsList className="grid w-full grid-cols-2 sm:inline-flex sm:w-auto">
-          <TabsTrigger value="pending">
+          <TabsTrigger value="pending" data-romaneios-tab="pending">
             <Clock aria-hidden="true" />
             Pendentes
           </TabsTrigger>
-          <TabsTrigger value="paid">
+          <TabsTrigger value="paid" data-romaneios-tab="paid">
             <CheckCircle2 aria-hidden="true" />
             Pagos
           </TabsTrigger>

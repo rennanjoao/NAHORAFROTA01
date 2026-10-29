@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Building2, CheckCircle2, FileUp, FileWarning, Flag, MapPinned, Package, RefreshCw, Truck, UserCheck, Wallet, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,9 @@ export default function Index() {
   const [isUnroutedOpen, setIsUnroutedOpen] = useState(false);
   const [isDeliveredInvoicesOpen, setIsDeliveredInvoicesOpen] = useState(false);
   const focusDriverId = searchParams.get("focusDriver");
+  // "Notas em transito" abre de dentro de "Motoristas em rota": ao fechar, o foco
+  // volta ao indicador (o botao que abriu ja saiu da tela).
+  const inRouteCard = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!focusDriverId) return;
@@ -151,7 +154,11 @@ export default function Index() {
             icon={Truck}
             tone="info"
             hint={plural(invoicesInTransitCount, "nota em trânsito", "notas em trânsito")}
-            onClick={() => setIsDriversInRouteOpen(true)}
+            onClick={() => {
+              const active = document.activeElement;
+              inRouteCard.current = active instanceof HTMLElement && active !== document.body ? active : null;
+              setIsDriversInRouteOpen(true);
+            }}
           />
           <StatCard
             className={KPI_COMPACT}
@@ -318,7 +325,18 @@ export default function Index() {
         }}
       />
       <FinishedDriversModal open={isFinishedDriversOpen} onOpenChange={setIsFinishedDriversOpen} data={finishedDrivers} />
-      <InvoicesInTransitModal open={isInTransitOpen} onOpenChange={setIsInTransitOpen} data={invoicesInTransit} />
+      <InvoicesInTransitModal
+        open={isInTransitOpen}
+        onOpenChange={setIsInTransitOpen}
+        data={invoicesInTransit}
+        onCloseAutoFocus={(event) => {
+          const card = inRouteCard.current;
+          if (card?.isConnected) {
+            event.preventDefault();
+            card.focus({ preventScroll: true });
+          }
+        }}
+      />
       <TodayLoadedModal open={isTodayLoadedOpen} onOpenChange={setIsTodayLoadedOpen} data={todayLoadedInvoices} />
       <FreightCostModal
         open={isFreightCostOpen}

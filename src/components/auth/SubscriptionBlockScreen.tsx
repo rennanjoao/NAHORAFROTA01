@@ -23,7 +23,8 @@ const COPY: Record<
   },
   trial_expired: {
     title: "Seu teste grátis terminou",
-    message: "Os 7 dias de teste do Na Hora Frota chegaram ao fim e o acesso foi pausado.",
+    // Sem "7 dias": o teste pode ter sido estendido.
+    message: "O período de teste grátis do Na Hora Frota chegou ao fim e o acesso foi pausado.",
     nextStep: "Fale com a nossa equipe para contratar um plano e continuar de onde parou. Seus dados ficam guardados.",
     badge: "Teste encerrado",
     icon: Hourglass,

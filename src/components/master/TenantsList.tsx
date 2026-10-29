@@ -1,13 +1,11 @@
 import { Ban, CalendarPlus, CheckCircle2, DollarSign, Loader2, Monitor, MoreHorizontal, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { StatusBadge } from "@/components/patterns";
+import { ActionMenu, StatusBadge, type ActionMenuItem } from "@/components/patterns";
+import { formatCNPJ } from "@/lib/cnpjValidation";
 import type { TenantData } from "@/hooks/usePlatformAdmin";
 import { DueDateIndicator } from "./DueDateIndicator";
 import { BillingNoticeBadge, TrialIndicator } from "./TrialIndicator";
@@ -39,6 +37,9 @@ function LimitValue({ value }: { value: number }) {
 }
 
 const companyName = (tenant: TenantData) => tenant.razao_social?.trim() || "Empresa sem nome";
+const cnpjText = (tenant: TenantData) => (tenant.cnpj && /[1-9]/.test(tenant.cnpj) ? formatCNPJ(tenant.cnpj) : "Sem CNPJ");
+const adminText = (tenant: TenantData) =>
+  `${tenant.admin_name || "Sem responsável"}${tenant.admin_email ? ` · ${tenant.admin_email}` : ""}`;
 
 function PlanSelect({ tenant, onPlanChange, className }: { tenant: TenantData; onPlanChange: TenantsListProps["onPlanChange"]; className?: string }) {
   return (
@@ -190,11 +191,12 @@ function TenantRowActions({
   const name = companyName(tenant);
   const extending = extendingTenantId === tenant.id;
   const primary = can.extend && !can.approve ? "extend" : can.approve ? "approve" : can.reactivate ? "reactivate" : null;
+  // ActionMenu: a acao roda depois que o menu devolve o foco (ao fechar a confirmacao, o foco volta ao "...").
   const menuItems = [
-    can.extend && primary !== "extend" && { key: "extend", label: "Dar mais 7 dias de teste", icon: CalendarPlus, run: () => onExtendTrial(tenant) },
-    can.activate && { key: "activate", label: "Ativar assinatura", icon: CheckCircle2, run: () => onStatusChange(tenant, "active") },
-    can.block && { key: "block", label: "Bloquear acesso", icon: Ban, run: () => onRequestBlock(tenant), danger: true },
-  ].filter(Boolean) as { key: string; label: string; icon: typeof Ban; run: () => void; danger?: boolean }[];
+    can.extend && primary !== "extend" && { label: "Dar mais 7 dias de teste", icon: CalendarPlus, onSelect: () => onExtendTrial(tenant) },
+    can.activate && { label: "Ativar assinatura", icon: CheckCircle2, onSelect: () => onStatusChange(tenant, "active") },
+    can.block && { label: "Bloquear acesso", icon: Ban, onSelect: () => onRequestBlock(tenant), destructive: true, separatorBefore: true },
+  ].filter(Boolean) as ActionMenuItem[];
 
   return (
     <div className="flex items-center justify-end gap-1">
@@ -237,33 +239,21 @@ function TenantRowActions({
       </Tooltip>
 
       {menuItems.length > 0 ? (
-        // Nao modal: o resto da tela continua acessivel enquanto o menu esta aberto.
-        <DropdownMenu modal={false}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" className="text-muted-foreground hover:text-foreground" aria-label={`Mais ações para ${name}`}>
-                  <MoreHorizontal aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Mais ações</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="truncate">{name}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {menuItems.map(({ key, label, icon: Icon, run, danger }) => (
-              <DropdownMenuItem
-                key={key}
-                onSelect={run}
-                className={danger ? "text-destructive focus:bg-destructive/10 focus:text-destructive" : undefined}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ActionMenu
+          title={name}
+          items={menuItems}
+          trigger={
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={`Mais ações para ${name}`}
+              title="Mais ações"
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </Button>
+          }
+        />
       ) : (
         <span className="h-10 w-10" aria-hidden="true" />
       )}
@@ -297,13 +287,14 @@ export function TenantsList(props: TenantsListProps) {
               return (
                 <TableRow key={tenant.id}>
                   <TableCell className="max-w-[18rem] px-3 first:pl-4">
-                    <p className="truncate font-medium text-foreground">{companyName(tenant)}</p>
-                    <p className="font-data text-xs text-muted-foreground">
-                      {tenant.cnpj || "Sem CNPJ"} · desde {formatDate(tenant.created_at)}
+                    <p className="truncate font-medium text-foreground" title={companyName(tenant)}>
+                      {companyName(tenant)}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {tenant.admin_name || "Sem responsável"}
-                      {tenant.admin_email ? ` · ${tenant.admin_email}` : ""}
+                    <p className="font-data text-xs text-muted-foreground">
+                      {cnpjText(tenant)} · desde {formatDate(tenant.created_at)}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground" title={adminText(tenant)}>
+                      {adminText(tenant)}
                     </p>
                   </TableCell>
                   <TableCell className="px-3">
@@ -344,7 +335,7 @@ export function TenantsList(props: TenantsListProps) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-medium text-foreground">{companyName(tenant)}</p>
-                  <p className="font-data text-xs text-muted-foreground">{tenant.cnpj || "Sem CNPJ"}</p>
+                  <p className="font-data text-xs text-muted-foreground">{cnpjText(tenant)}</p>
                 </div>
                 <StatusBadge tone={status.tone} className="shrink-0">
                   {status.label}
@@ -354,7 +345,7 @@ export function TenantsList(props: TenantsListProps) {
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <div className="col-span-2 min-w-0">
                   <dt className="text-xs text-muted-foreground">Responsável</dt>
-                  <dd className="truncate text-foreground">
+                  <dd className="truncate text-foreground" title={adminText(tenant)}>
                     {tenant.admin_name || "Sem responsável"}
                     {tenant.admin_email && <span className="text-muted-foreground"> · {tenant.admin_email}</span>}
                   </dd>

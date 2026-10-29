@@ -60,7 +60,8 @@ export function SLARing({
   }, [value]);
 
   return (
-    <div role="img" aria-label={label} className="relative shrink-0" style={{ width: size, height: size }}>
+    // Tamanho em rem: com "texto maior" o anel cresce junto e o numero nao encosta na borda.
+    <div role="img" aria-label={label} className="relative shrink-0" style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }}>
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
         <circle cx="50" cy="50" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="9" />
         <circle

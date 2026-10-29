@@ -263,8 +263,8 @@ export function SLARealTimeWidget() {
               <EmptyState
                 compact
                 icon={Trophy}
-                title="Nenhum motorista em rota hoje"
-                description="O ranking aparece assim que as primeiras entregas forem baixadas."
+                title="Nenhuma entrega baixada hoje"
+                description="O ranking aparece assim que os motoristas baixarem as primeiras entregas."
               />
             )}
           </div>

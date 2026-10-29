@@ -4,14 +4,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   CalendarDays,
   CalendarRange,
   CheckCircle2,
@@ -24,7 +16,7 @@ import {
   Trash2,
   Truck,
 } from "lucide-react";
-import { CardsSkeleton, EmptyState, FilterBar, ListSkeleton, SearchInput, StatCard } from "@/components/patterns";
+import { ActionMenu, CardsSkeleton, EmptyState, FilterBar, ListSkeleton, SearchInput, StatCard } from "@/components/patterns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useManifestsDB, DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { ManifestDetailSheet } from "@/components/deliveries/ManifestDetailSheet";
@@ -183,35 +175,26 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
     }
   };
 
+  // ActionMenu: a janela abre depois que o menu devolve o foco ao "...", entao o foco
+  // volta para ele ao fechar. O div segura o clique para nao abrir o detalhe pela linha.
   const renderMenu = (manifest: DBManifest) => {
     const number = formatManifestNumber(manifest);
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" aria-label={`Ações do romaneio ${number}`} className="text-muted-foreground hover:text-foreground">
-            <MoreHorizontal aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
-          <DropdownMenuLabel>Romaneio {number}</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => handleOpenDetail(manifest)}>
-            <Eye className="text-muted-foreground" aria-hidden="true" />
-            Ver detalhes
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => handlePrint(manifest)}>
-            <Printer className="text-muted-foreground" aria-hidden="true" />
-            Imprimir romaneio
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => handleOpenDelete(manifest)}
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-          >
-            <Trash2 aria-hidden="true" />
-            Excluir romaneio
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div onClick={(e) => e.stopPropagation()} className="inline-flex">
+        <ActionMenu
+          title={`Romaneio ${number}`}
+          items={[
+            { label: "Ver detalhes", icon: Eye, onSelect: () => handleOpenDetail(manifest) },
+            { label: "Imprimir romaneio", icon: Printer, onSelect: () => handlePrint(manifest) },
+            { label: "Excluir romaneio", icon: Trash2, destructive: true, separatorBefore: true, onSelect: () => handleOpenDelete(manifest) },
+          ]}
+          trigger={
+            <Button variant="ghost" size="icon" aria-label={`Ações do romaneio ${number}`} className="text-muted-foreground hover:text-foreground">
+              <MoreHorizontal aria-hidden="true" />
+            </Button>
+          }
+        />
+      </div>
     );
   };
 
@@ -233,7 +216,9 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
     </button>
   );
 
-  if (isLoading) {
+  // Esqueleto so na primeira carga: recarregar a lista (depois de remover ou finalizar)
+  // desmontava a folha de detalhe aberta, que fechava e abria de novo.
+  if (isLoading && manifests.length === 0) {
     return (
       <div role="status" aria-label="Carregando romaneios" className="space-y-6">
         <CardsSkeleton count={4} className="grid-cols-2" />

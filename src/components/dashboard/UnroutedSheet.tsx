@@ -51,7 +51,7 @@ export function UnroutedSheet({ open, onOpenChange }: UnroutedSheetProps) {
         !isLoading &&
         unroutedInvoices.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {pendingCount > 0 && <StatusBadge tone="warning">{plural(pendingCount, "nova", "novas")}</StatusBadge>}
+            {pendingCount > 0 && <StatusBadge tone="warning">{plural(pendingCount, "pendente", "pendentes")}</StatusBadge>}
             {returnedCount > 0 && <StatusBadge tone="danger">{plural(returnedCount, "devolvida", "devolvidas")}</StatusBadge>}
           </div>
         )
@@ -81,7 +81,8 @@ export function UnroutedSheet({ open, onOpenChange }: UnroutedSheetProps) {
               address: place,
               value: invoice.total_value,
               weight: invoice.total_weight,
-              status: isReturned ? { tone: "danger" as const, label: "Devolvida" } : { tone: "warning" as const, label: "Nova" },
+              // "Pendente", o mesmo nome do resto do painel (antes "Nova").
+              status: isReturned ? { tone: "danger" as const, label: "Devolvida" } : { tone: "warning" as const, label: "Pendente" },
               meta: [
                 // Nova: data da importacao (antes mostrava a ultima alteracao).
                 isReturned

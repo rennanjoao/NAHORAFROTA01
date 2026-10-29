@@ -4,7 +4,7 @@
  * mexeram no SLA dele. Cada nota abre o detalhe da entrega.
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ChevronRight, MessageCircle, Package, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   SLAInvoiceItem,
   getOccurrenceLabel,
 } from "@/hooks/useSLADB";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { openWhatsApp } from "@/lib/whatsapp";
@@ -27,7 +28,7 @@ import { DetailDialog } from "./DetailPanel";
 import { DriverAvatar } from "./DriverAvatar";
 import { InvoiceList, type InvoiceRowData } from "./InvoiceList";
 import { SLABar } from "./SLAParts";
-import { plural, slaStatus, pct } from "./status";
+import { plateLabel, plural, slaStatus, pct } from "./status";
 
 interface SLADrilldownModalProps {
   open: boolean;
@@ -66,6 +67,24 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
   const [selectedDriver, setSelectedDriver] = useState<DriverSLAStats | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<DeliveryWithHistory | null>(null);
   const [isInvoiceDetailOpen, setIsInvoiceDetailOpen] = useState(false);
+  // Foco: "Voltar" ao abrir um motorista; a linha dele ao voltar para a lista.
+  const backRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const lastDriverId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      lastDriverId.current = null;
+      return;
+    }
+    if (selectedDriver) backRef.current?.focus();
+    else if (lastDriverId.current) bodyRef.current?.querySelector<HTMLElement>(`[data-row="${lastDriverId.current}"]`)?.focus();
+  }, [open, selectedDriver]);
+
+  const openDriver = (driver: DriverSLAStats) => {
+    lastDriverId.current = driver.driver_id;
+    setSelectedDriver(driver);
+  };
 
   // Pior SLA primeiro
   const sortedDrivers = [...drivers].filter((d) => driverTotal(d, mode) > 0).sort((a, b) => driverSLA(a, mode) - driverSLA(b, mode));
@@ -119,6 +138,19 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
 
     setSelectedInvoice(delivery);
     setIsInvoiceDetailOpen(true);
+
+    // O detalhe mostra o codigo do romaneio; sem ele dizia "Sem romaneio".
+    if (invoice.manifestId) {
+      void supabase
+        .from("manifests")
+        .select("manifest_code")
+        .eq("id", invoice.manifestId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data?.manifest_code) return;
+          setSelectedInvoice((current) => (current?.dbId === invoice.invoiceId ? { ...current, manifestId: data.manifest_code } : current));
+        });
+    }
   };
 
   const invoiceSheet = <DeliveryDetailSheet delivery={selectedInvoice} open={isInvoiceDetailOpen} onOpenChange={setIsInvoiceDetailOpen} />;
@@ -132,7 +164,7 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
         open={open}
         onOpenChange={handleOpenChange}
         leading={
-          <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={() => setSelectedDriver(null)}>
+          <Button ref={backRef} variant="ghost" size="sm" className="-ml-2 w-fit" onClick={() => setSelectedDriver(null)}>
             <ArrowLeft aria-hidden="true" />
             Voltar para os motoristas
           </Button>
@@ -144,7 +176,7 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className={cn("font-data text-3xl font-semibold leading-none", toneText[status.tone])}>{formatSLA(sla)}%</span>
             <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-            {selectedDriver.vehicle_plate && <Badge variant="outline">{selectedDriver.vehicle_plate}</Badge>}
+            {plateLabel(selectedDriver.vehicle_plate) !== "Sem placa" && <Badge variant="outline">{selectedDriver.vehicle_plate}</Badge>}
           </div>
         }
       >
@@ -187,6 +219,7 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
         </div>
       }
     >
+      <div ref={bodyRef} className="space-y-5">
       {sortedDrivers.length === 0 && orphanInvoices.length === 0 ? (
         <EmptyState compact icon={Package} title="Nenhuma entrega finalizada no período" description="O SLA aparece assim que os motoristas baixarem as entregas." />
       ) : (
@@ -218,13 +251,14 @@ export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers
               <DriverGroup key={group.key} title={group.title} hint={group.hint} tone={group.tone} count={group.drivers.length}>
                 <ul className="divide-y overflow-hidden rounded-lg border bg-card">
                   {group.drivers.map((driver) => (
-                    <DriverRow key={driver.driver_id} driver={driver} mode={mode} onClick={() => setSelectedDriver(driver)} />
+                    <DriverRow key={driver.driver_id} driver={driver} mode={mode} onClick={() => openDriver(driver)} />
                   ))}
                 </ul>
               </DriverGroup>
             ))}
         </>
       )}
+      </div>
       {invoiceSheet}
     </DetailDialog>
   );
@@ -253,6 +287,7 @@ function DriverRow({ driver, mode, onClick }: { driver: DriverSLAStats; mode: Mo
     <li className="flex items-center gap-1 pr-2">
       <button
         type="button"
+        data-row={driver.driver_id}
         onClick={onClick}
         className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >

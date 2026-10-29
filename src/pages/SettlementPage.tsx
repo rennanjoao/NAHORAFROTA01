@@ -459,6 +459,11 @@ export default function SettlementPage() {
 
     await fetchManifests();
     setManifestToReverse(null);
+    // O romaneio sai da aba "Pagos": o foco vai para o vizinho (ou para a aba "Pendentes").
+    window.setTimeout(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>("[data-manifest-action]")].filter((el) => el.getClientRects().length > 0);
+      (rows[0] ?? document.querySelector<HTMLElement>('[data-romaneios-tab="pending"]'))?.focus();
+    }, 300);
     return true;
   };
 

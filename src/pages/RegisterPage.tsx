@@ -24,7 +24,11 @@ function formatCNPJ(value: string): string {
 }
 
 const registerSchema = z.object({
-  cnpj: z.string().refine((v) => isValidCNPJ(v), "CNPJ inválido. Confira os 14 números."),
+  // Campo vazio pede o CNPJ; so diz "invalido" quando a pessoa digitou algo.
+  cnpj: z
+    .string()
+    .min(1, "Digite o CNPJ da empresa.")
+    .refine((v) => isValidCNPJ(v), "CNPJ inválido. Confira os 14 números."),
   razaoSocial: z.string().min(3, "Digite a razão social (pelo menos 3 letras)."),
   name: z.string().min(2, "Digite o seu nome."),
   email: z.string().email("Digite um e-mail válido, como nome@empresa.com.br."),

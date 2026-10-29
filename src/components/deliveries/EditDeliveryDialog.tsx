@@ -23,7 +23,7 @@ import { Save, Loader2, CheckCircle, User, Warehouse } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { parseDecimalInput } from "@/lib/formatCurrency";
-import { FormField } from "@/components/patterns";
+import { FieldGroup, FormField } from "@/components/patterns";
 import type { DeliveryStatus } from "./types";
 
 interface Delivery {
@@ -356,48 +356,45 @@ export function EditDeliveryDialog({
             )}
           </div>
 
-          <fieldset className="space-y-4">
-            <legend className="mb-3 text-sm font-semibold text-foreground">Nota e cliente</legend>
+          <FieldGroup title="Nota e cliente">
             <div className="grid gap-4 sm:grid-cols-2">
               {field("nfe", "Número da nota", { inputMode: "numeric", required: true })}
               {field("phone", "Telefone do cliente", { placeholder: "(00) 00000-0000", inputMode: "tel" })}
               {field("recipient", "Cliente (destinatário)", { className: "sm:col-span-2", required: true })}
             </div>
-          </fieldset>
+          </FieldGroup>
 
-          <fieldset className="space-y-4">
-            <legend className="mb-3 text-sm font-semibold text-foreground">Endereço de entrega</legend>
+          <FieldGroup title="Endereço de entrega">
             <div className="grid grid-cols-6 gap-4">
               {field("address", "Rua e número", { className: "col-span-6", placeholder: "Ex.: Rua das Flores, 120", required: true })}
               {field("city", "Cidade", { className: "col-span-6 sm:col-span-3", required: true })}
-              <div className="col-span-2 space-y-1.5 sm:col-span-1">
-                <Label htmlFor="state">UF</Label>
-                <Select
-                  value={formData.state || ""}
-                  onValueChange={(value) => setFormData({ ...formData, state: value })}
-                >
-                  <SelectTrigger id="state">
-                    <SelectValue placeholder="UF" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brazilianStates.map((uf) => (
-                      <SelectItem key={uf} value={uf}>{uf}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField id="state" label="UF" className="col-span-2 sm:col-span-1">
+                {(control) => (
+                  <Select value={formData.state || ""} onValueChange={(value) => setFormData({ ...formData, state: value })}>
+                    <SelectTrigger {...control}>
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {brazilianStates.map((uf) => (
+                        <SelectItem key={uf} value={uf}>
+                          {uf}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </FormField>
               {field("zipCode", "CEP", { className: "col-span-4 sm:col-span-2", placeholder: "00000-000", inputMode: "numeric", maxLength: 9 })}
             </div>
             <p className="text-sm text-muted-foreground">Mudou o endereço? A localização no mapa é refeita na próxima rota.</p>
-          </fieldset>
+          </FieldGroup>
 
-          <fieldset className="space-y-4">
-            <legend className="mb-3 text-sm font-semibold text-foreground">Carga</legend>
+          <FieldGroup title="Carga">
             <div className="grid grid-cols-2 gap-4">
               {field("weight", "Peso", { placeholder: "Ex.: 5,2 kg", inputMode: "decimal" })}
               {field("value", "Valor da mercadoria", { placeholder: "R$ 0,00", inputMode: "decimal" })}
             </div>
-          </fieldset>
+          </FieldGroup>
 
           <FormField id="observation" label="Observação para o motorista" optional>
             {(control) => (

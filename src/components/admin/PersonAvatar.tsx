@@ -6,6 +6,8 @@ export function PersonAvatar({ name, src, className }: { name: string; src?: str
   const initials =
     name
       .split(/\s+/)
+      // So letras e numeros ("[Equipe] Ana" vira "EA", sem o colchete).
+      .map((part) => part.replace(/[^\p{L}\p{N}]/gu, ""))
       .filter(Boolean)
       .filter((part, index, parts) => index === 0 || index === parts.length - 1)
       .map((part) => part[0])

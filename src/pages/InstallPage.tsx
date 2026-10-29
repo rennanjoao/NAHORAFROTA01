@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AuthLayout } from '@/components/auth/AuthLayout';
@@ -28,6 +28,12 @@ export default function InstallPage() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const installedHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  // "Instalar agora" some ao instalar: o foco vai para o titulo da tela nova (nao cai no body).
+  useEffect(() => {
+    if (isInstalled) installedHeadingRef.current?.focus();
+  }, [isInstalled]);
 
   useEffect(() => {
     trackFunnelEvent('page_view');
@@ -101,7 +107,9 @@ export default function InstallPage() {
           <span aria-hidden="true" className="mx-auto flex h-16 w-16 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
             <CircleCheck className="h-8 w-8" />
           </span>
-          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">App instalado</h1>
+          <h1 ref={installedHeadingRef} tabIndex={-1} className="text-[1.75rem] font-semibold leading-tight tracking-tight outline-none">
+            App instalado
+          </h1>
           <p className="text-[0.9375rem] text-muted-foreground">
             O Na Hora Frota já está no seu celular. Abra pelo ícone na tela inicial.
           </p>

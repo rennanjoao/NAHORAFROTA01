@@ -57,6 +57,7 @@ export default function ResetPasswordPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSaving) return;
     setErrors({});
     if (password.length < MIN_PASSWORD_LENGTH) {
       setErrors({ password: `A senha precisa de pelo menos ${MIN_PASSWORD_LENGTH} caracteres.` });
@@ -80,7 +81,21 @@ export default function ResetPasswordPage() {
         passwordRef.current?.focus();
         return;
       }
-      toast({ title: "Não foi possível alterar a senha", description: error.message, variant: "destructive" });
+      // Mensagens do servidor vem em ingles: traduz as conhecidas, o resto vira um texto simples.
+      if (/weak|pwned|strength|characters/i.test(error.message)) {
+        setErrors({ password: "Essa senha é fácil de adivinhar. Misture letras e números." });
+        passwordRef.current?.focus();
+        return;
+      }
+      if (/session|expired|jwt|token/i.test(error.message)) {
+        setStatus("invalid");
+        return;
+      }
+      toast({
+        title: "Não foi possível alterar a senha",
+        description: "Confira a internet e tente de novo.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -178,9 +193,10 @@ export default function ResetPasswordPage() {
               ))}
             </ul>
 
-            <Button type="submit" size="lg" className="w-full" disabled={isSaving}>
+            {/* aria-disabled (e nao disabled): o foco fica no botao se der erro. */}
+            <Button type="submit" size="lg" className="w-full" aria-disabled={isSaving || undefined}>
               {isSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
-              Salvar nova senha
+              {isSaving ? "Salvando" : "Salvar nova senha"}
             </Button>
           </form>
         </>

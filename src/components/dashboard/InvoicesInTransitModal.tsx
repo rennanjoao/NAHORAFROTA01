@@ -16,9 +16,10 @@ interface InvoicesInTransitModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: DashboardInvoice[];
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
-export function InvoicesInTransitModal({ open, onOpenChange, data }: InvoicesInTransitModalProps) {
+export function InvoicesInTransitModal({ open, onOpenChange, data, onCloseAutoFocus }: InvoicesInTransitModalProps) {
   const totalValue = data.reduce((sum, inv) => sum + (inv.total_value || 0), 0);
 
   return (
@@ -30,6 +31,7 @@ export function InvoicesInTransitModal({ open, onOpenChange, data }: InvoicesInT
       title="Notas em trânsito"
       description={`${plural(data.length, "nota a caminho do cliente", "notas a caminho do cliente")} · ${formatCurrency(totalValue)}`}
       bodyLabel="Notas em trânsito"
+      onCloseAutoFocus={onCloseAutoFocus}
     >
       {data.length === 0 ? (
         <EmptyState compact icon={Truck} title="Nenhuma nota em trânsito" description="As notas aparecem aqui quando o romaneio sai para entrega." />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -52,6 +52,7 @@ export function ReversalPasswordDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleConfirm = async () => {
     setError("");
@@ -76,19 +77,17 @@ export function ReversalPasswordDialog({
         setRemainingAttempts(data?.remainingAttempts ?? null);
         const left = data?.remainingAttempts;
         const attemptsMsg = left !== undefined ? ` ${left === 1 ? "Resta 1 tentativa." : `Restam ${left} tentativas.`}` : "";
+        // So o erro no campo (role=alert): um aviso solto roubava o primeiro Esc da janela.
         setError(`${data?.error || "Senha de estorno incorreta"}.${attemptsMsg}`);
-        toast({
-          title: "Senha incorreta",
-          description: "Confira a senha de estorno e tente de novo.",
-          variant: "destructive",
-        });
         return;
       }
 
       // Password validated server-side, log the reversal action
       const { data: userData } = await supabase.auth.getUser();
       
-      await supabase.from("settlement_audit_logs").insert({
+      // performed_at vai explicito: sem o padrao now() no banco, o registro falhava calado.
+      const { error: auditError } = await supabase.from("settlement_audit_logs").insert({
+        performed_at: new Date().toISOString(),
         settlement_id: settlementId || null,
         action_type: "reversal",
         previous_status: "paid",
@@ -97,12 +96,16 @@ export function ReversalPasswordDialog({
         notes: `Estorno autorizado para ${driverName || "motorista"} - Romaneio: ${manifestLabel ? `${manifestLabel} (${manifestCode})` : manifestCode || "N/A"}`,
       });
 
+      if (auditError) console.error("Reversal audit log failed:", auditError);
+
       const reverted = await onConfirm();
       if (reverted === false) return;
 
       toast({
         title: "Estorno feito",
-        description: "O romaneio voltou para \"a pagar\". A ação ficou registrada no histórico.",
+        description: auditError
+          ? "O romaneio voltou para \"a pagar\"."
+          : "O romaneio voltou para \"a pagar\". A ação ficou registrada no histórico.",
       });
       onOpenChange(false);
       setPassword("");
@@ -111,11 +114,6 @@ export function ReversalPasswordDialog({
       console.error("Error during reversal:", err);
       const message = err instanceof Error ? err.message : "";
       setError(message || "Não foi possível estornar. Tente de novo em instantes.");
-      toast({
-        title: "Não foi possível estornar",
-        description: message || "Tente de novo em instantes.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +127,15 @@ export function ReversalPasswordDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleClose}>
-      <AlertDialogContent className="sm:max-w-md">
+      <AlertDialogContent
+        className="sm:max-w-md"
+        // Foco no campo da senha. Antes o autoFocus fazia a janela "lembrar" do proprio campo
+        // e, ao fechar, o foco ia para o topo da pagina em vez do botao Estornar.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
@@ -164,6 +170,7 @@ export function ReversalPasswordDialog({
           </Label>
           <Input
             id="reversal-password"
+            ref={inputRef}
             type="password"
             placeholder="Digite a senha de estorno"
             value={password}
@@ -174,7 +181,6 @@ export function ReversalPasswordDialog({
             aria-invalid={Boolean(error)}
             className={error ? "border-destructive" : undefined}
             aria-describedby={error ? "reversal-password-error" : undefined}
-            autoFocus
           />
           {error && (
             <p id="reversal-password-error" role="alert" className="text-sm text-destructive">

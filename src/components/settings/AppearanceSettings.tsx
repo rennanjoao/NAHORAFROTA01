@@ -38,6 +38,8 @@ export function AppearanceSettings() {
   const handleReset = () => {
     reset();
     toast({ title: "Preferências restauradas", description: "Texto, animações e contraste voltaram ao normal." });
+    // O botao fica desabilitado no padrao: o foco vai para o tamanho do texto (e nao se perde).
+    window.setTimeout(() => document.getElementById("texto-normal")?.focus(), 0);
   };
 
   return (

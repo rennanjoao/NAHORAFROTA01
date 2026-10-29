@@ -14,8 +14,8 @@ import { FormField } from "@/components/patterns/FormField";
 import { BellRing, FileText, Loader2, Plus, Receipt, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { format, addMonths, addDays } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { format, addMonths } from "date-fns";
+import { formatCNPJ } from "@/lib/cnpjValidation";
 
 interface PaymentRecord {
   id: string;
@@ -85,6 +85,22 @@ const financialStatusConfig: Record<string, { label: string; tone: Tone }> = {
 
 const formatMoney = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+
+/** "1.234,56", "199,90" ou "199.90" -> numero (antes "199,90" virava 199). */
+function parseMoney(text: string): number {
+  const clean = text.replace(/[^\d,.-]/g, "").trim();
+  if (!clean) return NaN;
+  // "1.500" (milhar sem centavos) tambem vale 1500.
+  const normalized = clean.includes(",")
+    ? clean.replace(/\./g, "").replace(",", ".")
+    : /^\d{1,3}(\.\d{3})+$/.test(clean)
+      ? clean.replace(/\./g, "")
+      : clean;
+  return Number(normalized);
+}
+
+// Erros do banco vem em ingles: na tela, uma frase simples.
+const SAVE_ERROR = "Tente de novo em instantes. Se continuar, atualize a página.";
 
 /** Bloco do dialogo com titulo (h3) e acao opcional a direita. */
 function DialogSection({ id, title, icon: Icon, action, children }: {
@@ -207,7 +223,8 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     setSavingNotice(false);
 
     if (error) {
-      toast({ title: "Erro ao registrar aviso", description: error.message, variant: "destructive" });
+      console.error("Billing notice error:", error);
+      toast({ title: "Não foi possível registrar o aviso", description: SAVE_ERROR, variant: "destructive" });
       return;
     }
     toast({ title: "Cobrança marcada como avisada", variant: "success" });
@@ -233,7 +250,8 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
 
     setSaving(false);
     if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      console.error("Billing contract error:", error);
+      toast({ title: "Não foi possível salvar o contrato", description: SAVE_ERROR, variant: "destructive" });
     } else {
       toast({ title: "Contrato salvo", variant: "success" });
       onSaved();
@@ -242,8 +260,8 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
 
   const handleAddPayment = async () => {
     if (!tenant) return;
-    const amount = parseFloat(newAmount);
-    if (isNaN(amount) || amount <= 0) {
+    const amount = parseMoney(newAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
       setAmountError("Digite o valor pago. Exemplo: 199,90");
       document.getElementById("billing-amount")?.focus();
       return;
@@ -261,7 +279,8 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     } as any);
 
     if (error) {
-      toast({ title: "Erro ao registrar", description: error.message, variant: "destructive" });
+      console.error("Payment error:", error);
+      toast({ title: "Não foi possível registrar o pagamento", description: SAVE_ERROR, variant: "destructive" });
     } else {
       toast({ title: "Pagamento registrado", variant: "success" });
 
@@ -272,7 +291,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
           .update({ status: "active", updated_at: new Date().toISOString() })
           .eq("id", tenant.id);
         if (activateError) {
-          toast({ title: "Erro ao ativar assinatura", description: activateError.message, variant: "destructive" });
+          toast({ title: "Pagamento salvo, mas a assinatura não foi ativada", description: SAVE_ERROR, variant: "destructive" });
         } else {
           toast({ title: "Assinatura ativada", description: "O período de teste foi encerrado." });
         }
@@ -299,7 +318,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
         updated_at: new Date().toISOString(),
       } as any).eq("id", tenant.id);
       if (dueError) {
-        toast({ title: "Pagamento salvo, mas o vencimento não foi atualizado", description: dueError.message, variant: "destructive" });
+        toast({ title: "Pagamento salvo, mas o vencimento não foi atualizado", description: SAVE_ERROR, variant: "destructive" });
       }
 
       fetchHistory();
@@ -314,7 +333,9 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Financeiro de {tenant.razao_social}</DialogTitle>
-          <DialogDescription className="font-data">CNPJ {tenant.cnpj}</DialogDescription>
+          <DialogDescription className="font-data">
+            {tenant.cnpj && /[1-9]/.test(tenant.cnpj) ? `CNPJ ${formatCNPJ(tenant.cnpj)}` : "Sem CNPJ cadastrado"}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
@@ -425,9 +446,9 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
                     {(control) => (
                       <Input
                         {...control}
-                        type="number"
+                        type="text"
                         inputMode="decimal"
-                        step="0.01"
+                        autoComplete="off"
                         value={newAmount}
                         onChange={(e) => {
                           setNewAmount(e.target.value);

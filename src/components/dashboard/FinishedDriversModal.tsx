@@ -2,7 +2,7 @@
  * Motoristas que finalizaram a rota hoje. Toque em um para ver as notas.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArrowLeft, CheckCircle2, ChevronRight, Clock, Package, Truck } from "lucide-react";
@@ -12,7 +12,7 @@ import { FinishedDriverData } from "@/hooks/useDashboardKPIs";
 import { DetailSheet } from "./DetailPanel";
 import { DriverAvatar } from "./DriverAvatar";
 import { FinishedRouteInvoices, RouteResultBadge } from "./FinishedRoutes";
-import { plural } from "./status";
+import { plateLabel, plural } from "./status";
 
 interface FinishedDriversModalProps {
   open: boolean;
@@ -22,6 +22,20 @@ interface FinishedDriversModalProps {
 
 export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDriversModalProps) {
   const [selectedDriver, setSelectedDriver] = useState<FinishedDriverData | null>(null);
+  // Foco: entra no "Voltar" ao abrir um motorista e volta para a linha dele ao voltar
+  // (antes caia no corpo da janela).
+  const backRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const lastId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      lastId.current = null;
+      return;
+    }
+    if (selectedDriver) backRef.current?.focus();
+    else if (lastId.current) listRef.current?.querySelector<HTMLElement>(`[data-row="${lastId.current}"]`)?.focus();
+  }, [open, selectedDriver]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) setSelectedDriver(null);
@@ -37,7 +51,7 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
         open={open}
         onOpenChange={handleOpenChange}
         leading={
-          <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={() => setSelectedDriver(null)}>
+          <Button ref={backRef} variant="ghost" size="sm" className="-ml-2 w-fit" onClick={() => setSelectedDriver(null)}>
             <ArrowLeft aria-hidden="true" />
             Voltar para a lista
           </Button>
@@ -71,14 +85,18 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
           description="Quando um motorista concluir o romaneio, ele aparece aqui."
         />
       ) : (
-        <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+        <ul ref={listRef} className="divide-y overflow-hidden rounded-lg border bg-card">
           {data.map((item) => {
             const { driver, manifest, finishedAt, totalDeliveries, completedDeliveries, occurrences } = item;
             return (
               <li key={manifest.id}>
                 <button
                   type="button"
-                  onClick={() => setSelectedDriver(item)}
+                  data-row={manifest.id}
+                  onClick={() => {
+                    lastId.current = manifest.id;
+                    setSelectedDriver(item);
+                  }}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <DriverAvatar name={driver.name} photo={driver.photo_url || driver.avatar} />
@@ -98,7 +116,7 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <Truck className="h-3 w-3" aria-hidden="true" />
-                        {driver.vehicle_plate || "Sem placa"}
+                        {plateLabel(driver.vehicle_plate)}
                       </span>
                     </span>
                   </span>

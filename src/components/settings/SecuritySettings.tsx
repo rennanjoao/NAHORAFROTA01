@@ -12,6 +12,21 @@ import { SettingsCard } from "./SettingsCard";
 
 const MIN_PASSWORD_LENGTH = 8;
 
+/** Erros do Supabase Auth (em ingles) em portugues simples. */
+function authErrorMessage(message: string | undefined): string {
+  const text = message || "";
+  if (/different from the old|same.*password|should be different/i.test(text)) return "Escolha uma senha diferente da atual.";
+  if (/at least|too short|weak|password should/i.test(text)) return "Use uma senha mais forte, com pelo menos 8 caracteres.";
+  if (/fetch|network|timeout|connection/i.test(text)) return "Sem conexão com o servidor. Confira a internet e tente de novo.";
+  if (/rate limit|too many/i.test(text)) return "Muitas tentativas seguidas. Espere um minuto e tente de novo.";
+  if (/session|jwt|expired/i.test(text)) return "Sua sessão expirou. Entre de novo para continuar.";
+  return "Tente de novo em instantes.";
+}
+
+/** Senha atual errada (e nao falta de internet ou outro problema). */
+const isWrongPassword = (error: { message?: string; status?: number; code?: string }) =>
+  error.code === "invalid_credentials" || /invalid login credentials/i.test(error.message || "") || error.status === 400;
+
 type PasswordKey = "current" | "next" | "confirm";
 
 /** Navegador e sistema do aparelho atual, para a lista de sessoes. */
@@ -87,18 +102,27 @@ export function SecuritySettings() {
       // Confere a senha atual antes de trocar.
       const { error: checkError } = await supabase.auth.signInWithPassword({ email, password: passwordForm.current });
       if (checkError) {
-        fail("current", "Senha atual incorreta. Confira e tente de novo.");
+        // Sem internet nao e "senha incorreta".
+        if (isWrongPassword(checkError)) fail("current", "Senha atual incorreta. Confira e tente de novo.");
+        else
+          toast({ title: "Não foi possível conferir a senha atual", description: authErrorMessage(checkError.message), variant: "destructive" });
         return;
       }
 
       const { error } = await supabase.auth.updateUser({ password: passwordForm.next });
       if (error) {
-        toast({ title: "Não foi possível alterar a senha", description: error.message, variant: "destructive" });
+        toast({ title: "Não foi possível alterar a senha", description: authErrorMessage(error.message), variant: "destructive" });
         return;
       }
 
       setPasswordForm({ current: "", next: "", confirm: "" });
       toast({ title: "Senha alterada", description: "Use a nova senha no próximo acesso.", variant: "success" });
+    } catch (err) {
+      toast({
+        title: "Não foi possível alterar a senha",
+        description: authErrorMessage(err instanceof Error ? err.message : ""),
+        variant: "destructive",
+      });
     } finally {
       setIsChangingPassword(false);
     }
@@ -110,7 +134,7 @@ export function SecuritySettings() {
     setIsSigningOutOthers(false);
     setConfirmSignOut(false);
     if (error) {
-      toast({ title: "Não foi possível encerrar as sessões", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível encerrar as sessões", description: authErrorMessage(error.message), variant: "destructive" });
       return;
     }
     toast({

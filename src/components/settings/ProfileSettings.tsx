@@ -62,24 +62,32 @@ export function ProfileSettings() {
     }
 
     setIsSavingProfile(true);
-    const [{ error }, { error: metadataError }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .update({
-          name: profileForm.name.trim(),
-          full_name: profileForm.name.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id),
-      // Antes o telefone era descartado ao salvar.
-      supabase.auth.updateUser({ data: { name: profileForm.name.trim(), phone: profileForm.phone.trim() || null } }),
-    ]);
-    setIsSavingProfile(false);
+    let failed = false;
+    try {
+      const [{ error }, { error: metadataError }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .update({
+            name: profileForm.name.trim(),
+            full_name: profileForm.name.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", user.id),
+        // Antes o telefone era descartado ao salvar.
+        supabase.auth.updateUser({ data: { name: profileForm.name.trim(), phone: profileForm.phone.trim() || null } }),
+      ]);
+      failed = !!(error || metadataError);
+    } catch {
+      // Sem internet o supabase pode lancar em vez de devolver o erro.
+      failed = true;
+    } finally {
+      setIsSavingProfile(false);
+    }
 
-    if (error || metadataError) {
+    if (failed) {
       toast({
         title: "Não foi possível salvar",
-        description: (error || metadataError)?.message || "Confira os dados e tente de novo.",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
       return;

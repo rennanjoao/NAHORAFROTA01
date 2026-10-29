@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -133,6 +133,28 @@ export function ManifestDetailSheet({
 
   // Proof viewer state
   const [proofViewerInvoice, setProofViewerInvoice] = useState<ManifestInvoice | null>(null);
+
+  // Depois de "Entregue"/"Ocorrencia"/"Remover" o botao some (a parada muda): o foco
+  // vai para a propria parada, em vez de cair no topo da folha.
+  const focusBack = useRef<{ opener: HTMLElement | null; stopId: string | null }>({ opener: null, stopId: null });
+  const stopFocusProps = (stopId: string | null | undefined) => ({
+    onOpenAutoFocus: () => {
+      focusBack.current = {
+        opener: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+        stopId: stopId ?? null,
+      };
+    },
+    onCloseAutoFocus: (event: Event) => {
+      const { opener, stopId: id } = focusBack.current;
+      if (opener?.isConnected || !id) return;
+      // Parada removida: foco no titulo da lista de paradas.
+      const stopElement = document.getElementById(`manifest-stop-${id}`) ?? document.getElementById("manifest-invoices-title");
+      if (stopElement) {
+        event.preventDefault();
+        stopElement.focus();
+      }
+    },
+  });
 
   // Fetch invoices for this manifest
   useEffect(() => {
@@ -428,6 +450,20 @@ export function ManifestDetailSheet({
   const handleFinalizeManifest = async () => {
     if (!manifest) return;
 
+    // Notas ainda sem baixa: avisa antes (o banco recusaria e o aviso de ocorrencias viria antes do erro).
+    const openCount = invoices.filter((inv) => ["pending", "in_transit", "delayed", "returning"].includes(inv.status)).length;
+    if (openCount > 0) {
+      toast({
+        title: "Ainda há notas sem baixa",
+        description:
+          openCount === 1
+            ? "1 nota ainda está em rota. Marque como entregue ou registre a ocorrência antes de finalizar."
+            : `${openCount} notas ainda estão em rota. Marque como entregue ou registre a ocorrência antes de finalizar.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check for invoices with occurrences
     const occurrenceInvoices = invoices.filter(
       (inv) => inv.status === "occurrence"
@@ -605,7 +641,7 @@ export function ManifestDetailSheet({
 
               {/* Notas do romaneio */}
               <section aria-labelledby="manifest-invoices-title" className="space-y-3">
-                <h3 id="manifest-invoices-title" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <h3 id="manifest-invoices-title" tabIndex={-1} className="flex items-center gap-2 text-sm font-semibold text-foreground outline-none">
                   <Package className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   Paradas, na ordem da rota
                 </h3>
@@ -634,8 +670,10 @@ export function ManifestDetailSheet({
                       return (
                         <li
                           key={invoice.id}
+                          id={`manifest-stop-${invoice.id}`}
+                          tabIndex={-1}
                           className={cn(
-                            "rounded-lg border bg-card p-4 shadow-xs",
+                            "rounded-lg border bg-card p-4 shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring",
                             tone === "danger" && "shadow-[inset_3px_0_0_hsl(var(--destructive))]",
                           )}
                         >
@@ -787,7 +825,7 @@ export function ManifestDetailSheet({
 
       {/* Confirmar entrega */}
       <Dialog open={deliveryDialog.open} onOpenChange={(isOpen) => (isOpen ? setDeliveryDialog((prev) => ({ ...prev, open: true })) : closeDeliveryDialog())}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" {...stopFocusProps(deliveryDialog.invoice?.id)}>
           <DialogHeader>
             <DialogTitle>Confirmar entrega da NF {deliveryDialog.invoice?.nfe_number}</DialogTitle>
             <DialogDescription>{deliveryDialog.invoice?.recipient_name}. Informe quem recebeu a mercadoria.</DialogDescription>
@@ -837,7 +875,7 @@ export function ManifestDetailSheet({
 
       {/* Registrar ocorrencia */}
       <Dialog open={occurrenceDialog.open} onOpenChange={(isOpen) => (isOpen ? setOccurrenceDialog((prev) => ({ ...prev, open: true })) : closeOccurrenceDialog())}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" {...stopFocusProps(occurrenceDialog.invoice?.id)}>
           <DialogHeader>
             <DialogTitle>Registrar ocorrência na NF {occurrenceDialog.invoice?.nfe_number}</DialogTitle>
             <DialogDescription>{occurrenceDialog.invoice?.recipient_name}. Conte o que impediu a entrega.</DialogDescription>
@@ -920,7 +958,7 @@ export function ManifestDetailSheet({
 
       {/* Remover nota do romaneio (com motivo) */}
       <Dialog open={removeDialog.open} onOpenChange={(isOpen) => { if (!isOpen) closeRemoveDialog(); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" {...stopFocusProps(removeDialog.invoice?.id)}>
           <DialogHeader>
             <DialogTitle>Tirar a NF {removeDialog.invoice?.nfe_number} do romaneio?</DialogTitle>
             <DialogDescription>

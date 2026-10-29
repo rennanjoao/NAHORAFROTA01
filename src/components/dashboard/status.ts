@@ -66,6 +66,11 @@ export function invoiceNumber(nfeNumber: string | null | undefined, id: string):
   return `NF ${nfeNumber || id.slice(0, 8)}`;
 }
 
+/** Placa para mostrar: "PENDENTE" (cadastro sem placa) e vazio viram "Sem placa". */
+export function plateLabel(plate: string | null | undefined): string {
+  return !plate || plate.trim().toUpperCase() === "PENDENTE" ? "Sem placa" : plate;
+}
+
 /** Peso em pt-BR ("12,5 kg"). */
 export function formatWeight(kg: number): string {
   return `${kg.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`;

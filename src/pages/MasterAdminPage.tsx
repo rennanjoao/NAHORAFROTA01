@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CardsSkeleton, ConfirmDialog, EmptyState, FilterBar, ListSkeleton, PageHeader, SearchInput, Section, StatCard,
+  CardsSkeleton, ConfirmDialog, EmptyState, FilterBar, FilterStatCard, ListSkeleton, PageHeader, SearchInput, Section, StatCard,
 } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
 import { usePlatformAdmin, TenantData } from "@/hooks/usePlatformAdmin";
@@ -33,6 +33,9 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
 ];
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+// Erros do banco vem em ingles: na tela, uma frase simples.
+const SAVE_ERROR = "Tente de novo em instantes. Se continuar, atualize a página.";
 
 type PlanLimitsSummary = { max_users: number; max_drivers: number };
 
@@ -122,16 +125,18 @@ export default function MasterAdminPage() {
   const dueSoonCount = getDueSoonCount(tenants, 5);
   const overdueCount = getOverdueCount(tenants);
 
+  // Indicador que filtra: clicar de novo no ativo volta para "todas".
   const showClients = (filter: StatusFilter) => {
     setTab("clients");
-    setStatusFilter(filter);
+    setStatusFilter((current) => (current === filter ? "all" : filter));
     requestAnimationFrame(() => document.getElementById("clientes")?.scrollIntoView({ block: "start" }));
   };
 
   const handleStatusChange = async (tenant: TenantData, newStatus: string) => {
     const { error } = await updateTenantStatus(tenant.id, newStatus);
     if (error) {
-      toast({ title: "Não foi possível mudar a situação", description: error.message, variant: "destructive" });
+      console.error("Tenant status error:", error);
+      toast({ title: "Não foi possível mudar a situação", description: SAVE_ERROR, variant: "destructive" });
     } else {
       toast({
         title: "Situação atualizada",
@@ -146,7 +151,8 @@ export default function MasterAdminPage() {
     const { error } = await extendTrial(tenant.id, 7);
     setExtendingTenantId(null);
     if (error) {
-      toast({ title: "Não foi possível estender o teste", description: error.message, variant: "destructive" });
+      console.error("Extend trial error:", error);
+      toast({ title: "Não foi possível estender o teste", description: SAVE_ERROR, variant: "destructive" });
     } else {
       toast({ title: "Teste estendido", description: `${tenant.razao_social} ganhou mais 7 dias de teste grátis.`, variant: "success" });
     }
@@ -155,7 +161,8 @@ export default function MasterAdminPage() {
   const handlePlanChange = async (tenant: TenantData, newPlan: string) => {
     const { error } = await updateTenantPlan(tenant.id, newPlan);
     if (error) {
-      toast({ title: "Não foi possível mudar o plano", description: error.message, variant: "destructive" });
+      console.error("Tenant plan error:", error);
+      toast({ title: "Não foi possível mudar o plano", description: SAVE_ERROR, variant: "destructive" });
     } else {
       toast({ title: "Plano atualizado", description: `${tenant.razao_social} agora está no plano ${planLabel(newPlan)}.`, variant: "success" });
     }
@@ -197,27 +204,62 @@ export default function MasterAdminPage() {
         )}
 
         {/* Indicadores */}
+        {/* Indicadores que filtram a lista (marcado = filtro ligado) */}
         <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 2xl:grid-cols-6">
-          <StatCard label="Empresas" value={tenants.length} icon={Building2} loading={isLoading} onClick={() => showClients("all")} />
-          <StatCard label="Ativas" value={activeTenants} icon={CheckCircle2} tone="success" loading={isLoading} onClick={() => showClients("active")} />
           <StatCard
+            label="Empresas"
+            value={tenants.length}
+            icon={Building2}
+            loading={isLoading}
+            hint="Ver todas"
+            onClick={() => showClients("all")}
+            className="min-h-0 gap-2 p-4 sm:min-h-[7.5rem] sm:gap-3 sm:p-5"
+          />
+          <FilterStatCard
+            label="Ativas"
+            value={activeTenants}
+            icon={CheckCircle2}
+            tone="success"
+            loading={isLoading}
+            pressed={statusFilter === "active"}
+            onPressedChange={() => showClients("active")}
+          />
+          <FilterStatCard
             label="Em teste"
             value={trialTenants}
             icon={Gift}
             tone="info"
             loading={isLoading}
             hint={expiredTrialTenants > 0 ? plural(expiredTrialTenants, "teste expirado", "testes expirados") : undefined}
-            onClick={() => showClients("trial")}
+            pressed={statusFilter === "trial"}
+            onPressedChange={() => showClients("trial")}
           />
-          <StatCard label="Aguardando liberação" value={pendingTenants} icon={Hourglass} tone="warning" loading={isLoading} onClick={() => showClients("inactive")} />
-          <StatCard label="Usuários" value={totalUsers} icon={Users} tone="neutral" loading={isLoading} hint="Em todas as empresas" />
+          <FilterStatCard
+            label="Aguardando liberação"
+            value={pendingTenants}
+            icon={Hourglass}
+            tone="warning"
+            loading={isLoading}
+            pressed={statusFilter === "inactive"}
+            onPressedChange={() => showClients("inactive")}
+          />
           <StatCard
+            label="Usuários"
+            value={totalUsers}
+            icon={Users}
+            tone="neutral"
+            loading={isLoading}
+            hint="Em todas as empresas"
+            className="min-h-0 gap-2 p-4 sm:min-h-[7.5rem] sm:gap-3 sm:p-5"
+          />
+          <FilterStatCard
             label="Inadimplentes"
             value={overdueCount}
             icon={DollarSign}
             tone={overdueCount > 0 ? "danger" : "neutral"}
             loading={isLoading}
-            onClick={() => showClients("overdue")}
+            pressed={statusFilter === "overdue"}
+            onPressedChange={() => showClients("overdue")}
           />
         </div>
 

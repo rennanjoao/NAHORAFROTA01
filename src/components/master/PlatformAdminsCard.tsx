@@ -66,7 +66,7 @@ export function PlatformAdminsCard() {
       }));
 
       setAdmins(enriched);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error fetching platform admins:", err);
     } finally {
       setIsLoading(false);
@@ -81,6 +81,11 @@ export function PlatformAdminsCard() {
     event?.preventDefault();
     if (!email.trim()) {
       setEmailError("Digite o e-mail de quem vai ter acesso.");
+      document.getElementById("adminEmail")?.focus();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailError("Confira o e-mail. Exemplo: nome@empresa.com.br");
       document.getElementById("adminEmail")?.focus();
       return;
     }
@@ -123,11 +128,11 @@ export function PlatformAdminsCard() {
       setEmail("");
       setOpen(false);
       fetchAdmins();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error adding platform admin:", err);
       toast({
-        title: "Erro ao adicionar",
-        description: err.message,
+        title: "Não foi possível adicionar",
+        description: "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -150,11 +155,11 @@ export function PlatformAdminsCard() {
       });
 
       setAdmins((prev) => prev.filter((a) => a.user_id !== adminUserId));
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error removing platform admin:", err);
       toast({
-        title: "Erro ao remover",
-        description: err.message,
+        title: "Não foi possível remover o acesso",
+        description: "Tente de novo em instantes.",
         variant: "destructive",
       });
     }

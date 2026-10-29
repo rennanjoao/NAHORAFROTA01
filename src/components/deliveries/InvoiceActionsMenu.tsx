@@ -12,14 +12,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ActionMenu, type ActionMenuItem } from "@/components/patterns";
 import type { Delivery, InvoiceActionHandlers } from "./types";
 
 // Regras de quais acoes valem para cada nota (iguais as de antes).
@@ -35,7 +28,11 @@ interface InvoiceActionsMenuProps {
   actions: InvoiceActionHandlers;
 }
 
-/** Menu "Acoes" de uma nota fiscal: so mostra o que faz sentido no status atual. */
+/**
+ * Menu "Acoes" de uma nota fiscal: so mostra o que faz sentido no status atual.
+ * Usa o ActionMenu: a janela so abre depois que o menu devolve o foco ao botao,
+ * entao ao fechar a janela o foco volta para o "..." da mesma nota.
+ */
 export function InvoiceActionsMenu({ delivery, actions }: InvoiceActionsMenuProps) {
   const canAddToManifest = delivery.status === "pending" && !delivery.manifestId;
   const canRegisterOccurrence = delivery.status === "pending" || delivery.status === "in_transit";
@@ -43,82 +40,35 @@ export function InvoiceActionsMenu({ delivery, actions }: InvoiceActionsMenuProp
   const canConfirmReturn = delivery.status === "returning";
   const canRemove = canRemoveFromManifest(delivery);
   const canSendBack = canReRoute(delivery);
-  const hasOperation = canAddToManifest || canRegisterOccurrence || canConfirmDelivery || canConfirmReturn || canRemove || canSendBack;
+
+  const items: ActionMenuItem[] = [
+    { label: "Ver detalhes", icon: FileText, onSelect: () => actions.onDetail(delivery) },
+    { label: "Editar dados da nota", icon: Pencil, onSelect: () => actions.onEdit(delivery) },
+    { label: "Editar observação", icon: MessageSquare, onSelect: () => actions.onObservation(delivery) },
+  ];
+  const operations: ActionMenuItem[] = [];
+  if (canAddToManifest) operations.push({ label: "Adicionar a romaneio existente", icon: Plus, onSelect: () => actions.onAddToManifest(delivery) });
+  if (canRegisterOccurrence) operations.push({ label: "Registrar ocorrência", icon: AlertTriangle, onSelect: () => actions.onOccurrence(delivery) });
+  if (canConfirmDelivery) operations.push({ label: "Confirmar entrega", icon: CheckCircle2, onSelect: () => actions.onConfirmDelivery(delivery) });
+  if (canConfirmReturn) operations.push({ label: "Confirmar retorno ao galpão", icon: Warehouse, onSelect: () => actions.onConfirmReturn(delivery) });
+  if (canRemove) operations.push({ label: "Remover do romaneio", icon: Unlink, onSelect: () => actions.onRemoveFromManifest(delivery) });
+  if (canSendBack) operations.push({ label: "Voltar para a fila de romaneio", icon: RefreshCw, onSelect: () => actions.onReRoute(delivery) });
+  if (operations.length > 0) operations[0].separatorBefore = true;
+  items.push(...operations);
+  if (delivery.dbId) {
+    items.push({ label: "Excluir nota", icon: Trash2, destructive: true, separatorBefore: true, onSelect: () => actions.onDelete(delivery) });
+  }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <ActionMenu
+      title={`NF ${delivery.nfe}`}
+      className="w-64"
+      items={items}
+      trigger={
         <Button variant="ghost" size="icon" aria-label={`Ações da NF ${delivery.nfe}`} className="text-muted-foreground hover:text-foreground">
           <MoreHorizontal aria-hidden="true" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>NF {delivery.nfe}</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => actions.onDetail(delivery)}>
-          <FileText className="text-muted-foreground" aria-hidden="true" />
-          Ver detalhes
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => actions.onEdit(delivery)}>
-          <Pencil className="text-muted-foreground" aria-hidden="true" />
-          Editar dados da nota
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => actions.onObservation(delivery)}>
-          <MessageSquare className="text-muted-foreground" aria-hidden="true" />
-          Editar observação
-        </DropdownMenuItem>
-
-        {hasOperation && <DropdownMenuSeparator />}
-
-        {canAddToManifest && (
-          <DropdownMenuItem onSelect={() => actions.onAddToManifest(delivery)}>
-            <Plus className="text-primary" aria-hidden="true" />
-            Adicionar a romaneio existente
-          </DropdownMenuItem>
-        )}
-        {canRegisterOccurrence && (
-          <DropdownMenuItem onSelect={() => actions.onOccurrence(delivery)}>
-            <AlertTriangle className="text-warning" aria-hidden="true" />
-            Registrar ocorrência
-          </DropdownMenuItem>
-        )}
-        {canConfirmDelivery && (
-          <DropdownMenuItem onSelect={() => actions.onConfirmDelivery(delivery)}>
-            <CheckCircle2 className="text-success" aria-hidden="true" />
-            Confirmar entrega
-          </DropdownMenuItem>
-        )}
-        {canConfirmReturn && (
-          <DropdownMenuItem onSelect={() => actions.onConfirmReturn(delivery)}>
-            <Warehouse className="text-warning" aria-hidden="true" />
-            Confirmar retorno ao galpão
-          </DropdownMenuItem>
-        )}
-        {canRemove && (
-          <DropdownMenuItem onSelect={() => actions.onRemoveFromManifest(delivery)}>
-            <Unlink className="text-destructive" aria-hidden="true" />
-            Remover do romaneio
-          </DropdownMenuItem>
-        )}
-        {canSendBack && (
-          <DropdownMenuItem onSelect={() => actions.onReRoute(delivery)}>
-            <RefreshCw className="text-primary" aria-hidden="true" />
-            Voltar para a fila de romaneio
-          </DropdownMenuItem>
-        )}
-
-        {delivery.dbId && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => actions.onDelete(delivery)}
-              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-            >
-              <Trash2 aria-hidden="true" />
-              Excluir nota
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+    />
   );
 }

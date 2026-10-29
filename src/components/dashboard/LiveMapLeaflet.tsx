@@ -4,8 +4,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
 import { whatsappNumber } from "@/lib/whatsapp";
+import { vehicleTypeLabel } from "@/components/deliveries/status";
 import { LiveMapFrame } from "./LiveMapFrame";
 import { VEHICLE_STATUS, countByStatus, vehicleStatus } from "./mapStatus";
+import { plateLabel } from "./status";
 
 interface FleetPosition {
   id: string;
@@ -66,7 +68,7 @@ function buildPopup(position: FleetPosition) {
     <div class="min-w-[15rem] p-4 font-sans text-popover-foreground">
       <p class="font-heading text-[0.9375rem] font-semibold leading-snug">${escapeHtml(position.driver_name || 'Motorista')}</p>
       <p class="mt-0.5 font-data text-xs tracking-wide text-muted-foreground">
-        ${escapeHtml(position.vehicle_plate || 'Placa pendente')}${position.vehicle_type ? ` · ${escapeHtml(position.vehicle_type)}` : ''}
+        ${escapeHtml(plateLabel(position.vehicle_plate))}${position.vehicle_type ? ` · ${escapeHtml(vehicleTypeLabel(position.vehicle_type))}` : ''}
       </p>
       <p class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium">
         <span class="h-2 w-2 rounded-full" style="background:${status.hex}"></span>${status.label}

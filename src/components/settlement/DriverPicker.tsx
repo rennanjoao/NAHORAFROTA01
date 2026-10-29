@@ -6,6 +6,11 @@ import type { DBDriver } from "@/hooks/useDBDrivers";
 import { cn } from "@/lib/utils";
 import { DriverAvatar } from "./DriverAvatar";
 
+// Busca sem acento ("joao" acha "João"), CPF sem pontuacao e placa.
+const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const searchKeywords = (driver: DBDriver) =>
+  [fold(driver.name), (driver.cpf || "").replace(/\D/g, ""), driver.vehicle_plate || ""].filter(Boolean);
+
 interface DriverPickerProps {
   id?: string;
   drivers: DBDriver[];
@@ -57,6 +62,7 @@ export function DriverPicker({ id, drivers, selected, open, onOpenChange, onSele
                 <CommandItem
                   key={driver.id}
                   value={`${driver.name} ${driver.cpf}`}
+                  keywords={searchKeywords(driver)}
                   onSelect={() => onSelect(driver)}
                   className="gap-3 py-2"
                 >

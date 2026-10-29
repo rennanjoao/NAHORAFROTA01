@@ -93,7 +93,7 @@ export function CompanySettingsTab() {
     if (!logradouro || !cidade || !uf) {
       toast({
         title: "Endereço incompleto",
-        description: "Preencha rua, cidade e UF para buscar a localização.",
+        description: "Preencha rua, cidade e estado para buscar a localização.",
         variant: "destructive",
       });
       return;
@@ -116,7 +116,7 @@ export function CompanySettingsTab() {
       if (error || !data?.success) {
         toast({
           title: "Não foi possível achar o endereço no mapa",
-          description: data?.error || error?.message || "Confira o endereço e tente de novo.",
+          description: "Confira rua, número, cidade e estado e tente de novo.",
           variant: "destructive",
         });
       } else {
@@ -141,7 +141,7 @@ export function CompanySettingsTab() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
-    if (!razaoSocial) {
+    if (!razaoSocial.trim()) {
       setRazaoError("Digite a razão social da empresa.");
       razaoRef.current?.focus();
       return;
@@ -181,6 +181,8 @@ export function CompanySettingsTab() {
   }
 
   const hasLocation = !!latitude && !!longitude;
+  // So leitura: campo vazio diz "Nao informado" (o exemplo "123" parecia um dado).
+  const hint = (example: string) => (canEdit ? example : "Não informado");
 
   return (
     <SettingsCard
@@ -188,11 +190,7 @@ export function CompanySettingsTab() {
       title="Dados da empresa"
       description="Cadastro da empresa e o endereço de onde saem as entregas."
       onSubmit={canEdit ? handleSave : (event) => event.preventDefault()}
-      footerHint={
-        canEdit
-          ? "O endereço da base é o ponto de partida de todas as rotas."
-          : "Somente o administrador da conta pode alterar estes dados."
-      }
+      footerHint={canEdit ? "O endereço da base é o ponto de partida de todas as rotas." : undefined}
       footer={
         canEdit ? (
           <Button type="submit" disabled={isSaving}>
@@ -226,7 +224,7 @@ export function CompanySettingsTab() {
                     setRazaoSocial(e.target.value);
                     if (razaoError) setRazaoError(null);
                   }}
-                  placeholder="Nome empresarial completo"
+                  placeholder={hint("Nome empresarial completo")}
                 />
               )}
             </FormField>
@@ -250,7 +248,7 @@ export function CompanySettingsTab() {
                   inputMode="tel"
                   value={telefone}
                   onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                  placeholder="(00) 00000-0000"
+                  placeholder={hint("(00) 00000-0000")}
                 />
               )}
             </FormField>
@@ -261,26 +259,26 @@ export function CompanySettingsTab() {
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-6">
             <FormField id="logradouro" label="Rua ou avenida" className="sm:col-span-4">
               {(control) => (
-                <Input {...control} value={logradouro} onChange={(e) => setLogradouro(e.target.value)} placeholder="Ex.: Rua das Flores" />
+                <Input {...control} value={logradouro} onChange={(e) => setLogradouro(e.target.value)} placeholder={hint("Ex.: Rua das Flores")} />
               )}
             </FormField>
             <FormField id="numero" label="Número" className="sm:col-span-2">
               {(control) => (
-                <Input {...control} inputMode="numeric" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="123" />
+                <Input {...control} inputMode="numeric" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder={hint("123")} />
               )}
             </FormField>
             <FormField id="bairro" label="Bairro" className="sm:col-span-2">
-              {(control) => <Input {...control} value={bairro} onChange={(e) => setBairro(e.target.value)} />}
+              {(control) => <Input {...control} value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder={hint("")} />}
             </FormField>
             <FormField id="cidade" label="Cidade" className="sm:col-span-2">
-              {(control) => <Input {...control} value={cidade} onChange={(e) => setCidade(e.target.value)} />}
+              {(control) => <Input {...control} value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder={hint("")} />}
             </FormField>
             <div className="grid grid-cols-2 gap-5 sm:col-span-2">
-              <FormField id="uf" label="UF">
+              <FormField id="uf" label="Estado">
                 {(control) => (
                   <Select value={uf} onValueChange={setUf} disabled={!canEdit}>
                     <SelectTrigger {...control}>
-                      <SelectValue placeholder="UF" />
+                      <SelectValue placeholder={canEdit ? "UF" : "—"} />
                     </SelectTrigger>
                     <SelectContent>
                       {UF_OPTIONS.map((u) => (
@@ -299,7 +297,7 @@ export function CompanySettingsTab() {
                     inputMode="numeric"
                     value={cep}
                     onChange={(e) => setCep(formatCEP(e.target.value))}
-                    placeholder="00000-000"
+                    placeholder={hint("00000-000")}
                   />
                 )}
               </FormField>
@@ -329,7 +327,11 @@ export function CompanySettingsTab() {
                     {formatCoord(longitude as number)}
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Preencha o endereço e toque em “Buscar no mapa”.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {canEdit
+                      ? "Preencha o endereço e use “Buscar no mapa”."
+                      : "O administrador ainda não marcou a base no mapa."}
+                  </p>
                 )}
               </div>
             </div>

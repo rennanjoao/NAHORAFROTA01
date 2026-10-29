@@ -419,7 +419,7 @@ export default function TrackerPage() {
   useEffect(() => {
     if (driverInfo && gpsShouldStayActive && !isTracking && !gpsBlocked) {
       const timer = setTimeout(() => {
-        console.log('🚀 Auto-iniciando rastreamento GPS...');
+        console.log('Auto-iniciando rastreamento GPS');
         setAutoStarted(true);
         startTracking();
       }, autoStarted ? 500 : 1500);
@@ -544,6 +544,18 @@ export default function TrackerPage() {
   useEffect(() => {
     document.title = `${TAB_TITLES[activeTab]} · Na Hora Frota`;
   }, [activeTab]);
+
+  // Topo fixo (4rem) e barra inferior (4.5rem): ao navegar com Tab, o botao em foco
+  // rola para fora delas em vez de ficar escondido (WCAG 2.4.11).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.scrollPaddingTop = 'calc(4rem + env(safe-area-inset-top) + 0.75rem)';
+    root.style.scrollPaddingBottom = 'calc(4.5rem + env(safe-area-inset-bottom) + 0.75rem)';
+    return () => {
+      root.style.scrollPaddingTop = '';
+      root.style.scrollPaddingBottom = '';
+    };
+  }, []);
 
   // Depois de finalizar/reportar, o cartao usado sai da lista e o foco cairia no body:
   // leva para "Proxima entrega" (ou "Todas as paradas foram feitas").

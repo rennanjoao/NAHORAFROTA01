@@ -101,8 +101,9 @@ export function DeliveryStatus() {
             invoices: delivered,
           },
           {
-            label: "Ocorrência ou devolução",
-            hint: "Notas com problema na entrega hoje.",
+            // Rotulo curto: "Ocorrência ou devolução" quebrava em 3 linhas no cartao estreito.
+            label: "Com ocorrência",
+            hint: "Notas com ocorrência ou devolvidas hoje.",
             count: returned.length,
             icon: RotateCcw,
             tone: "danger",

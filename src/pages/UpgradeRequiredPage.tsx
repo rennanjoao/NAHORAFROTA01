@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Lock, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFeatureAccess, type Feature } from "@/hooks/useFeatureAccess";
 
@@ -31,6 +31,18 @@ const FEATURE_INFO: Record<Feature, { title: string; description: string; plural
   batch_import: { title: "A importação em lote", description: "Importe dezenas de notas fiscais (XML) de uma só vez." },
 };
 
+// Tela de cada recurso (para quem ja tem acesso ir direto).
+const FEATURE_PATH: Partial<Record<Feature, string>> = {
+  financial_dashboard: "/settlement",
+  financial_reports: "/reports",
+  reports: "/reports",
+  sla_weekly: "/",
+  sla_drilldown: "/",
+  sla_evolution: "/reports",
+  realtime_dashboard: "/",
+  batch_import: "/deliveries",
+};
+
 const STEPS = [
   "Fale com a equipe pelo e-mail ou pelo botão abaixo.",
   "Escolhemos juntos o plano certo para a sua operação.",
@@ -40,13 +52,63 @@ const STEPS = [
 /** Tela de recurso fora do plano (dentro do painel). Aceita ?feature= e ?plano=. */
 export default function UpgradeRequiredPage() {
   const [searchParams] = useSearchParams();
-  const { checkFeatureAccess, plan, planLabels } = useFeatureAccess();
+  const { checkFeatureAccess, plan, planLabels, isTrial, isLoading } = useFeatureAccess();
 
   const featureParam = searchParams.get("feature") as Feature | null;
   const info = featureParam && featureParam in FEATURE_INFO ? FEATURE_INFO[featureParam] : null;
   const requiredPlan =
     searchParams.get("plano") || (info && featureParam ? checkFeatureAccess(featureParam).upgradePlanLabel : "") || null;
-  const currentPlan = planLabels[plan] || plan;
+  // No teste gratis o plano interno e o completo: mostra "Teste grátis", como na Administracao.
+  const currentPlan = isTrial ? "Teste grátis (acesso completo)" : planLabels[plan] || plan;
+  // Link antigo ou plano ja trocado: o recurso ja esta liberado, nada de "faz parte do plano superior".
+  const alreadyAllowed = !isLoading && !!info && !!featureParam && checkFeatureAccess(featureParam).allowed;
+
+  if (alreadyAllowed && featureParam) {
+    const path = FEATURE_PATH[featureParam] ?? "/";
+    // Concordancia: "Os relatórios já estão liberados", "A importação em lote já está liberada".
+    const released = `${/^As? /.test(info.title) ? "liberada" : "liberado"}${info.plural ? "s" : ""}`;
+    const allowedTitle = `${info.title} já ${info.plural ? "estão" : "está"} ${released} para você`;
+    return (
+      <div className="flex justify-center py-4 md:py-12">
+        <section
+          aria-labelledby="upgrade-titulo"
+          className="relative w-full max-w-xl overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm animate-scale-in"
+        >
+          <div className="relative space-y-6 p-6 text-center sm:p-10">
+            <span
+              aria-hidden="true"
+              className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border bg-background text-success shadow-sm"
+            >
+              <CheckCircle2 className="h-6 w-6" />
+            </span>
+            <div className="space-y-2">
+              <h1 id="upgrade-titulo" className="text-2xl font-semibold leading-tight tracking-tight text-foreground">
+                {allowedTitle}
+              </h1>
+              <p className="mx-auto max-w-md text-[0.9375rem] text-muted-foreground">{info.description}</p>
+              <p className="text-sm text-muted-foreground">
+                Seu plano hoje: <span className="font-medium text-foreground">{currentPlan}</span>
+              </p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-center">
+              <Button asChild variant="outline">
+                <Link to="/">
+                  <ArrowLeft aria-hidden="true" />
+                  Voltar para o início
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link to={path}>
+                  Abrir agora
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   const title = info
     ? `${info.title} ${info.plural ? "fazem" : "faz"} parte do plano ${requiredPlan ?? "superior"}`

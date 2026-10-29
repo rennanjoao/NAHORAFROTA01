@@ -69,7 +69,8 @@ function RiskZoneDetail({ zone }: { zone: RiskZone }) {
             {zone.region} · {zone.state}
           </p>
         </div>
-        <dl className="grid shrink-0 grid-cols-3 gap-4 sm:gap-6">
+        {/* Numeros alinhados na base mesmo quando um rotulo quebra em 2 linhas (celular). */}
+        <dl className="grid shrink-0 grid-cols-3 gap-4 sm:gap-6 [&>div]:flex [&>div]:flex-col [&>div]:justify-between [&>div]:gap-0.5">
           <div>
             <dt className="text-xs text-muted-foreground">Dos roubos do país</dt>
             <dd className="font-data text-xl font-semibold text-foreground">{pctBR(zone.statistics.percentOfTotal)}</dd>
@@ -267,6 +268,11 @@ export function BrasilRiskMap() {
 
       bubble.bindTooltip(`${zone.state} · ${zone.region} · risco ${label.toLowerCase()}`, { direction: "top", offset: [0, -6] });
       bubble.on("click", () => selectZoneRef.current(zone, true));
+      // O Leaflet deixa o circulo focavel pelo Tab, sem nome e sem acao no Enter.
+      // A lista ao lado faz o mesmo pelo teclado: o circulo sai da ordem do Tab.
+      const path = bubble.getElement();
+      path?.setAttribute("tabindex", "-1");
+      path?.setAttribute("aria-hidden", "true");
       bubbles.set(zone.id, bubble);
     });
 
@@ -314,6 +320,8 @@ export function BrasilRiskMap() {
       }
     >
       <FilterBar
+        // Campos com rotulo: o "Limpar filtros" alinha com a base dos campos.
+        className="sm:items-end"
         actions={
           hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -346,7 +354,7 @@ export function BrasilRiskMap() {
               <SelectValue placeholder="Cidade" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{region ? "Todas as cidades da região" : "Todas as cidades"}</SelectItem>
+              <SelectItem value="all">Todas as cidades</SelectItem>
               {availableCities.map((city) => (
                 <SelectItem key={city} value={city}>
                   {city}
@@ -414,7 +422,8 @@ export function BrasilRiskMap() {
                             {pctBR(zone.statistics.percentOfTotal)} do país · risco {RISK[zone.riskLevel].label.toLowerCase()}
                           </span>
                         </span>
-                        <span className="mt-0.5 block truncate text-sm text-muted-foreground">{zone.region}</span>
+                        {/* Quebra em vez de cortar (com "texto maior" o nome nao cabia). */}
+                        <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">{zone.region}</span>
                       </span>
                       <Trend value={zone.statistics.yearlyTrend} />
                     </button>

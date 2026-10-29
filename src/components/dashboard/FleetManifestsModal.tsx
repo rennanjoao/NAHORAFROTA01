@@ -9,7 +9,7 @@ import { EmptyState, StatusBadge } from "@/components/patterns";
 import { DashboardManifest } from "@/hooks/useDashboardKPIs";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { DetailSheet } from "./DetailPanel";
-import { manifestStatus, plural } from "./status";
+import { manifestStatus, plateLabel, plural } from "./status";
 
 interface FleetManifestsModalProps {
   open: boolean;
@@ -64,7 +64,7 @@ export function FleetManifestsModal({ open, onOpenChange, data, type }: FleetMan
                   <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <Truck className="h-3 w-3" aria-hidden="true" />
-                      {manifest.vehicle_plate || "Sem placa"}
+                      {plateLabel(manifest.vehicle_plate)}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <Package className="h-3 w-3" aria-hidden="true" />
