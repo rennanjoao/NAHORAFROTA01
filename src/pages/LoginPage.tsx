@@ -12,6 +12,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import nahoraFrotaLogo from "@/assets/nahora-frota-logo.png";
 import { trackFunnelEvent } from "@/lib/funnel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+const REMEMBERED_EMAIL_KEY = "nahora:remembered-email";
+// Logins de motorista usam um e-mail interno que nao recebe mensagens.
+const DRIVER_LOGIN_DOMAIN = "@driver.nahorafrota.app";
+
+const readRememberedEmail = (): string => {
+  try {
+    return localStorage.getItem(REMEMBERED_EMAIL_KEY) || "";
+  } catch {
+    return "";
+  }
+};
 
 // Validation schema
 const loginSchema = z.object({
@@ -26,29 +46,78 @@ export default function LoginPage() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!readRememberedEmail());
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [isSendingReset, setIsSendingReset] = useState(false);
   
   // Login form state
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState(readRememberedEmail);
   const [loginPassword, setLoginPassword] = useState("");
 
   useEffect(() => {
     trackFunnelEvent("page_view");
   }, []);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated. Espera o envio do formulario terminar:
+  // antes o redirecionamento acontecia no meio da checagem da empresa e um
+  // usuario de empresa bloqueada entrava no painel por um instante.
   useEffect(() => {
-    if (session && !authLoading) {
+    if (session && !authLoading && !isLoading) {
       // CRITICAL: Use isDriverUser from context for immediate detection
       if (isDriverUser) {
         console.log("[LOGIN] Driver user detected, redirecting to /tracker");
         navigate("/tracker", { replace: true });
       } else {
-        const from = (location.state as any)?.from?.pathname || "/";
+        const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/";
         navigate(from, { replace: true });
       }
     }
-  }, [session, authLoading, navigate, location, isDriverUser]);
+  }, [session, authLoading, navigate, location, isDriverUser, isLoading]);
+
+  const openResetDialog = () => {
+    setResetEmail(loginEmail.trim().toLowerCase());
+    setIsResetOpen(true);
+  };
+
+  const handleSendReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = resetEmail.trim().toLowerCase();
+    if (!z.string().email().safeParse(email).success) {
+      toast({ title: "E-mail inválido", description: "Digite o e-mail usado no login.", variant: "destructive" });
+      return;
+    }
+    if (email.endsWith(DRIVER_LOGIN_DOMAIN)) {
+      toast({
+        title: "Login de motorista",
+        description: "Peça ao gestor da sua transportadora para redefinir a sua senha no painel.",
+      });
+      return;
+    }
+
+    setIsSendingReset(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setIsSendingReset(false);
+
+    if (error) {
+      const rateLimited = /rate limit|too many|seconds/i.test(error.message);
+      toast({
+        title: "Não foi possível enviar o link",
+        description: rateLimited ? "Muitas tentativas. Aguarde alguns minutos e tente de novo." : error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsResetOpen(false);
+    // Mesma resposta para e-mail cadastrado ou nao (nao revela quem tem conta).
+    toast({
+      title: "Verifique seu e-mail",
+      description: `Se ${email} tiver conta, enviamos um link para criar uma nova senha.`,
+    });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +155,13 @@ export default function LoginPage() {
       toast({ title: "Erro ao entrar", description: errorMessage, variant: "destructive" });
       setIsLoading(false);
       return;
+    }
+
+    try {
+      if (rememberMe) localStorage.setItem(REMEMBERED_EMAIL_KEY, normalizedEmail);
+      else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+    } catch {
+      // Sem armazenamento local: so nao lembra o e-mail.
     }
 
     // Check tenant status after successful auth
@@ -199,12 +275,7 @@ export default function LoginPage() {
                   <Label htmlFor="login-password">Senha</Label>
                   <button
                     type="button"
-                    onClick={() => {
-                      toast({
-                        title: "Recuperação de senha",
-                        description: "Entre em contato com o administrador para recuperar sua senha.",
-                      });
-                    }}
+                    onClick={openResetDialog}
                     className="text-xs text-primary hover:underline"
                   >
                     Esqueci minha senha
@@ -247,7 +318,7 @@ export default function LoginPage() {
                   htmlFor="remember"
                   className="text-sm text-muted-foreground cursor-pointer"
                 >
-                  Lembrar de mim
+                  Lembrar meu e-mail
                 </label>
               </div>
 
@@ -285,6 +356,40 @@ export default function LoginPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={isResetOpen} onOpenChange={(open) => !isSendingReset && setIsResetOpen(open)}>
+          <DialogContent className="sm:max-w-md">
+            <form onSubmit={handleSendReset}>
+              <DialogHeader>
+                <DialogTitle>Recuperar senha</DialogTitle>
+                <DialogDescription>
+                  Enviaremos um link para você criar uma nova senha. Motoristas devem pedir a redefinição ao gestor.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2 py-4">
+                <Label htmlFor="reset-email">E-mail</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  disabled={isSendingReset}
+                  autoFocus
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsResetOpen(false)} disabled={isSendingReset}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSendingReset}>
+                  {isSendingReset ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar link"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground mt-6">

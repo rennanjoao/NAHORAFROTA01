@@ -20,6 +20,7 @@ import SettlementPage from "./pages/SettlementPage";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SettingsPage from "./pages/SettingsPage";
 import TrackerPage from "./pages/TrackerPage";
 import InstallPage from "./pages/InstallPage";
@@ -43,6 +44,7 @@ const App = () => (
                 {/* Public routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 
                 {/* Protected routes - require authentication */}
                 <Route path="/" element={
