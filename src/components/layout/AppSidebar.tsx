@@ -19,7 +19,7 @@ function SidebarLink({ item, active, collapsed }: { item: NavItem; active: boole
         "focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         collapsed && "justify-center px-0",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          ? "bg-brand-soft font-semibold text-sidebar-accent-foreground"
           : "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
       )}
     >
@@ -27,7 +27,7 @@ function SidebarLink({ item, active, collapsed }: { item: NavItem; active: boole
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand transition-all duration ease-out",
+          "absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-brand shadow-[0_0_10px_hsl(var(--brand)/0.7)] transition-all duration ease-out",
           active ? "opacity-100" : "h-0 opacity-0",
         )}
       />

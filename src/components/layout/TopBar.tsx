@@ -50,12 +50,12 @@ export function TopBar() {
         type="button"
         onClick={() => openPanel("palette")}
         className="group hidden h-9 w-full max-w-[22rem] items-center gap-2 rounded-md border border-input bg-card px-3 text-sm text-muted-foreground shadow-xs transition-colors duration-fast hover:border-foreground/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
-        aria-label="Buscar telas, motoristas, placas e notas"
+        aria-label="Buscar ou ir para… telas, motoristas, placas e notas"
         aria-keyshortcuts="Control+K Meta+K"
       >
         <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="flex-1 truncate text-left">Buscar ou ir para…</span>
-        <span className="kbd" aria-hidden="true">{isMac() ? "⌘ K" : "Ctrl K"}</span>
+        <span className="kbd before:content-[attr(data-kbd)]" aria-hidden="true" data-kbd={isMac() ? "⌘ K" : "Ctrl K"} />
       </button>
 
       <div className="flex items-center gap-0.5 sm:gap-1">
