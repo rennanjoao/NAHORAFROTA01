@@ -63,14 +63,14 @@ export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: Delive
             aria-pressed={active}
             onClick={() => onFilterChange(active ? "all" : tile.key)}
             className={cn(
-              "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card p-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4",
+              "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
               active && cn("ring-4", activeTone[meta.tone]),
             )}
           >
             <span className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-1.5 text-[0.8125rem] font-medium text-muted-foreground sm:gap-2 sm:text-sm">
-                <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", toneDot[meta.tone])} />
+              <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-muted-foreground sm:gap-2 sm:text-sm">
+                <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2", toneDot[meta.tone])} />
                 <span className="truncate">{tile.label}</span>
               </span>
               <span
