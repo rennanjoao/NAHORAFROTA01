@@ -1229,6 +1229,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       if (!isOpen) resetForm();
       onOpenChange(isOpen);
     }}>
+      {/* Com o romaneio gerado, so a janela de sucesso fica na tela. */}
+      {!showSuccessDialog && (
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{stepTitles[step]}</DialogTitle>
@@ -1367,15 +1369,15 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                   <dl className="grid grid-cols-3 gap-2 sm:gap-3">
                     <div className="rounded-lg bg-muted/60 p-3">
                       <dt className="text-xs text-muted-foreground">Paradas</dt>
-                      <dd className="font-data text-lg font-semibold text-foreground">{optimizedRoute.waypoints.length}</dd>
+                      <dd className="whitespace-nowrap font-data text-base font-semibold text-foreground sm:text-lg">{optimizedRoute.waypoints.length}</dd>
                     </div>
                     <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
                       <dt className="text-xs text-muted-foreground">Distância</dt>
-                      <dd className="break-words font-data text-lg font-semibold text-primary">{formatDistance(optimizedRoute.totalDistance)}</dd>
+                      <dd className="whitespace-nowrap font-data text-base font-semibold text-primary sm:text-lg">{formatDistance(optimizedRoute.totalDistance)}</dd>
                     </div>
                     <div className="rounded-lg bg-muted/60 p-3">
                       <dt className="text-xs text-muted-foreground">Tempo</dt>
-                      <dd className="break-words font-data text-lg font-semibold text-foreground">{formatDuration(optimizedRoute.totalDuration)}</dd>
+                      <dd className="whitespace-nowrap font-data text-base font-semibold text-foreground sm:text-lg">{formatDuration(optimizedRoute.totalDuration)}</dd>
                     </div>
                   </dl>
 
@@ -1708,6 +1710,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           )}
         </DialogFooter>
       </DialogContent>
+      )}
 
       {/* Success Dialog */}
       <ManifestSuccessDialog

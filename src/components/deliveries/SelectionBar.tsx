@@ -15,7 +15,8 @@ interface SelectionBarProps {
  */
 export function SelectionBar({ count, onGenerate, onDelete, onClear }: SelectionBarProps) {
   if (count === 0) return null;
-  const label = count === 1 ? "1 nota selecionada" : `${count.toLocaleString("pt-BR")} notas selecionadas`;
+  const noun = count === 1 ? "nota" : "notas";
+  const done = count === 1 ? "selecionada" : "selecionadas";
 
   return (
     <div className="pointer-events-none sticky bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+0.75rem)] z-30 flex justify-center md:bottom-6">
@@ -25,7 +26,8 @@ export function SelectionBar({ count, onGenerate, onDelete, onClear }: Selection
         className="pointer-events-auto flex w-full max-w-xl animate-fade-in items-center gap-2 rounded-xl border bg-popover p-2 pl-4 text-popover-foreground shadow-xl"
       >
         <p className="min-w-0 flex-1 truncate text-sm font-semibold" aria-live="polite">
-          {label}
+          <span className="font-data">{count.toLocaleString("pt-BR")}</span> {noun}
+          <span className="sr-only sm:not-sr-only"> {done}</span>
         </p>
         <Button size="sm" onClick={onGenerate} className="h-10 sm:h-9">
           <Route aria-hidden="true" />

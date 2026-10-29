@@ -255,11 +255,11 @@ export function AppLoginFields({ enabled, onEnabledChange, email, password, hasN
           <Label htmlFor="create-login" className="cursor-pointer">
             Criar acesso ao aplicativo
           </Label>
-          <p id="create-login-dica" className="text-xs text-muted-foreground">
+          <p id="app-login-dica" className="text-xs text-muted-foreground">
             O motorista entra no app com o e-mail e a senha abaixo.
           </p>
         </div>
-        <Switch id="create-login" aria-describedby="create-login-dica" checked={enabled} onCheckedChange={onEnabledChange} />
+        <Switch id="create-login" aria-describedby="app-login-dica" checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
 
       {enabled && (

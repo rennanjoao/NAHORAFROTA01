@@ -39,8 +39,18 @@ function VehicleSummary({ driver }: { driver: DriverRecord }) {
   );
 }
 
-function SlaValue({ sla }: { sla: number | null | undefined }) {
-  if (sla === null || sla === undefined) return <span className="text-sm text-muted-foreground">Sem entregas</span>;
+function SlaValue({ sla, compact }: { sla: number | null | undefined; compact?: boolean }) {
+  if (sla === null || sla === undefined) {
+    // No cartao o espaco e curto: traco, com o texto para leitor de tela.
+    return compact ? (
+      <>
+        <span aria-hidden="true" className="text-sm text-muted-foreground">—</span>
+        <span className="sr-only">Sem entregas</span>
+      </>
+    ) : (
+      <span className="text-sm text-muted-foreground">Sem entregas</span>
+    );
+  }
   return <span className={cn("font-data text-sm font-semibold", toneText[slaTone(sla)])}>{formatSLA(sla)}%</span>;
 }
 
@@ -173,13 +183,11 @@ export function DriverList(props: DriverListProps) {
             <div className="flex items-start gap-3">
               <DriverAvatar photo={driver.photo} className="h-11 w-11" />
               <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <button type="button" onClick={() => onOpen(driver)} className={cn(stretchedButton, "min-w-0 truncate leading-snug after:rounded-lg")}>
-                    {driver.name}
-                  </button>
-                  <DriverStatusBadge status={driver.status} className="shrink-0" />
-                </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => onOpen(driver)} className={cn(stretchedButton, "block max-w-full truncate leading-snug after:rounded-lg")}>
+                  {driver.name}
+                </button>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <DriverStatusBadge status={driver.status} />
                   {driver.isOwnFleet && <Badge variant="secondary">CLT</Badge>}
                   <VehicleSummary driver={driver} />
                 </div>
@@ -196,7 +204,7 @@ export function DriverList(props: DriverListProps) {
               <div>
                 <dt className="text-xs text-muted-foreground">No prazo</dt>
                 <dd>
-                  <SlaValue sla={driver.sla} />
+                  <SlaValue sla={driver.sla} compact />
                 </dd>
               </div>
               <div>

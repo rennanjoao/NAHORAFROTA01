@@ -283,8 +283,13 @@ export function ManifestPrintPreview({
           </div>
         ) : (
           // Documento em papel: sempre claro (".light"), nos dois temas.
-          <div className="overflow-x-auto bg-muted/40 p-3 sm:p-6">
-          <div ref={printRef} className="light mx-auto min-w-[44rem] rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
+          <div
+            role="region"
+            aria-label="Documento do romaneio"
+            tabIndex={0}
+            className="overflow-x-auto bg-muted/40 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-6"
+          >
+          <div ref={printRef} className="light mx-auto min-w-[56rem] rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
             {/* Header */}
             <div className="header mb-4 flex items-start justify-between border-b-2 border-foreground pb-3">
               <div>
@@ -396,8 +401,8 @@ export function ManifestPrintPreview({
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs whitespace-nowrap">{delivery.phone || "Não informado"}</TableCell>
-                      <TableCell className="text-right text-xs">{delivery.weight}</TableCell>
-                      <TableCell className="text-right text-xs">{delivery.value}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right text-xs">{delivery.weight}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right text-xs">{delivery.value}</TableCell>
                       <TableCell className="text-center text-xs">
                         {delivery.observation ? "Obs." : "-"}
                       </TableCell>
@@ -407,8 +412,8 @@ export function ManifestPrintPreview({
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={5} className="font-bold text-xs">Totais</TableCell>
-                    <TableCell className="text-right font-bold text-xs">{totalWeight.toFixed(1).replace(".", ",")} kg</TableCell>
-                    <TableCell className="text-right font-bold text-xs">{formatCurrency(totalValue)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-bold text-xs">{totalWeight.toFixed(1).replace(".", ",")} kg</TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-bold text-xs">{formatCurrency(totalValue)}</TableCell>
                     <TableCell></TableCell>
                   </TableRow>
                 </TableFooter>

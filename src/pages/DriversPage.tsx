@@ -306,7 +306,7 @@ export default function DriversPage() {
         description="Cadastro, documentos, acesso ao aplicativo e desempenho de cada motorista."
         actions={
           <>
-            <div className="hidden gap-2 sm:flex">
+            <div className="hidden gap-2 lg:flex">
               <Button variant="outline" onClick={() => setIsImportOpen(true)} disabled={!canAddDriver}>
                 <FileSpreadsheet aria-hidden="true" />
                 Importar planilha
@@ -319,7 +319,7 @@ export default function DriversPage() {
             <ActionMenu
               align="start"
               trigger={
-                <Button variant="outline" className="sm:hidden">
+                <Button variant="outline" className="lg:hidden">
                   <MoreHorizontal aria-hidden="true" />
                   Mais ações
                 </Button>
