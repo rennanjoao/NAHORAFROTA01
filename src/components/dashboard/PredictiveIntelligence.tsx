@@ -145,7 +145,7 @@ function DriverAttentionCard({
 
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const cleanPhone = driver.phone.replace(/\D/g, "");
+    const cleanPhone = (driver.phone || "").replace(/\D/g, "");
     openWhatsApp(cleanPhone);
   };
 
@@ -218,14 +218,19 @@ function DriverAttentionCard({
           </div>
         </div>
 
-        <Button 
-          size="sm" 
-          variant="ghost"
-          className="opacity-0 group-hover:opacity-100 text-green-500 hover:text-green-600" 
-          onClick={handleWhatsApp}
-        >
-          <MessageCircle className="h-4 w-4" />
-        </Button>
+        {/* Ficava sempre invisivel (opacity-0 sem um "group" no card) e no celular nao ha hover. */}
+        {driver.phone?.replace(/\D/g, "") && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-green-500 hover:text-green-600"
+            onClick={handleWhatsApp}
+            title={`Chamar ${driver.name} no WhatsApp`}
+            aria-label={`Chamar ${driver.name} no WhatsApp`}
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <PeriodHistoryRow driver={driver} selected={period} />

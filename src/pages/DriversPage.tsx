@@ -48,6 +48,7 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { RequestVehicleWizard } from "@/components/drivers/RequestVehicleWizard";
+import { ImportDriversDialog } from "@/components/drivers/ImportDriversDialog";
 import { DriverDetailSheet } from "@/components/drivers/DriverDetailSheet";
 import { EditDriverDialog } from "@/components/drivers/EditDriverDialog";
 import { NewDriverDialog } from "@/components/drivers/NewDriverDialog";
@@ -133,8 +134,7 @@ export default function DriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [driverToEdit, setDriverToEdit] = useState<Driver | null>(null);
   const [isEditDriverDialogOpen, setIsEditDriverDialogOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Romaneios ainda nao pagos: definem quem esta em rota e o saldo a receber
   // (mesma regra do Acerto: pendente, em andamento ou concluido).
@@ -231,7 +231,8 @@ export default function DriversPage() {
       const matchesSearch = 
         searchQuery === "" || 
         driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        driver.cpf.includes(searchQuery) ||
+        // CPF pode estar gravado com ou sem pontuacao.
+        (/\d/.test(searchQuery) && driver.cpf.replace(/\D/g, "").includes(searchQuery.replace(/\D/g, ""))) ||
         driver.vehiclePlate.toLowerCase().includes(searchQuery.toLowerCase());
       
       return matchesStatus && matchesVehicle && matchesDriverType && matchesSearch;
@@ -297,39 +298,6 @@ export default function DriversPage() {
     fetchDrivers();
   }, [fetchDrivers]);
 
-  // Excel Import Handler (simulated)
-  const handleExcelImport = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      toast({
-        title: "❌ Formato inválido",
-        description: "Por favor, selecione um arquivo Excel (.xlsx ou .xls)",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsImporting(true);
-    
-    setTimeout(() => {
-      setIsImporting(false);
-      toast({
-        title: "✅ Sucesso!",
-        description: "15 novos motoristas importados.",
-      });
-      
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }, 2000);
-  };
-
   // Generate pagination items
   const getPaginationItems = () => {
     const items: (number | "ellipsis")[] = [];
@@ -362,29 +330,9 @@ export default function DriversPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".xlsx,.xls"
-              className="hidden"
-            />
-            <Button 
-              variant="outline" 
-              onClick={handleExcelImport}
-              disabled={isImporting}
-            >
-              {isImporting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processando...
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Importar Excel
-                </>
-              )}
+            <Button variant="outline" onClick={() => setIsImportOpen(true)} disabled={!canAddDriver}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Importar Planilha
             </Button>
             <Button 
               className="bg-primary hover:bg-primary/90 btn-neon" 
@@ -644,6 +592,17 @@ export default function DriversPage() {
         onOpenChange={setIsNewDriverDialogOpen}
         onSave={handleNewDriver}
         addDriver={addDriver}
+      />
+
+      <ImportDriversDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        existingCpfs={dbDrivers.map((d) => d.cpf)}
+        remainingSlots={limits.max_drivers === -1 ? -1 : Math.max(0, limits.max_drivers - driversCount)}
+        onImported={() => {
+          fetchDrivers();
+          refreshPlan();
+        }}
       />
 
       {/* Request Vehicle Wizard */}

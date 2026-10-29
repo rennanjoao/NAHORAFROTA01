@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError";
 import { z } from "zod";
+import { isValidCPF } from "@/lib/documentValidation";
 import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
 
 function generatePasswordFromCPF(cpf: string): string {
@@ -45,7 +46,8 @@ const createDriverSchema = z.object({
   cpf: z
     .string()
     .transform((value) => normalizeCPF(value))
-    .refine((value) => value.length === 11, "CPF deve ter 11 dígitos"),
+    .refine((value) => value.length === 11, "CPF deve ter 11 dígitos")
+    .refine((value) => isValidCPF(value), "CPF inválido"),
   vehiclePlate: z
     .string()
     .optional()

@@ -178,10 +178,13 @@ serve(async (req) => {
 
     // Pre-check: CPF must be unique (drivers.cpf has UNIQUE constraint)
     if (normalizedCpf) {
+      // O painel grava o CPF formatado; compara nos dois formatos.
+      const formattedCpf = normalizedCpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
       const { data: existingDriver, error: cpfCheckError } = await adminClient
         .from("drivers")
         .select("id,name,cpf")
-        .eq("cpf", normalizedCpf)
+        .in("cpf", [normalizedCpf, formattedCpf])
+        .limit(1)
         .maybeSingle();
 
       if (cpfCheckError) {

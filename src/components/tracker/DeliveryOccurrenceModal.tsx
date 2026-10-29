@@ -186,7 +186,7 @@ export function DeliveryOccurrenceModal({
       }
 
       const typeLabel = OCCURRENCE_TYPES.find((item) => item.value === occurrenceType)?.label || occurrenceType;
-      toast.success(`Ocorrencia registrada: ${typeLabel}`);
+      toast.success(`Ocorrência registrada: ${typeLabel}`);
 
       resetAndClose();
       onSuccess();

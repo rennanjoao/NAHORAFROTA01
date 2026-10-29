@@ -162,7 +162,7 @@ export function useDriversDB() {
 
       toast({
         title: "Motorista cadastrado",
-        description: `${driver.name} foi adicionado e esta disponivel em todo o sistema.`,
+        description: `${driver.name} foi adicionado e está disponível em todo o sistema.`,
       });
 
       return data;

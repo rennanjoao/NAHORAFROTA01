@@ -198,8 +198,9 @@ export function AppSidebar({
           )}
         </Button>
 
-        {/* Favorites Section */}
-        {!collapsed && visibleFavorites.length > 0 && (
+        {/* Favorites Section: o cabecalho fica sempre visivel; antes, ao desmarcar
+            todos os favoritos, o botao de editar sumia e nao dava para adicionar de novo. */}
+        {!collapsed && (
           <div className="px-3 pt-4 pb-2">
             <div className="flex items-center justify-between px-3 mb-2">
               <div className="flex items-center gap-2">
@@ -213,10 +214,21 @@ export function AppSidebar({
                 size="icon"
                 className="h-6 w-6 text-sidebar-foreground hover:text-white"
                 onClick={openEditFavorites}
+                title="Editar favoritos"
+                aria-label="Editar favoritos"
               >
                 <Edit2 className="h-3 w-3" />
               </Button>
             </div>
+            {visibleFavorites.length === 0 && (
+              <button
+                type="button"
+                onClick={openEditFavorites}
+                className="w-full px-3 py-1 text-left text-xs text-sidebar-foreground/70 hover:text-white"
+              >
+                Nenhum favorito. Clique para adicionar.
+              </button>
+            )}
             <div className="space-y-1">
               {visibleFavorites.map((item: { path: string; label: string; icon: React.ComponentType<{ className?: string }> }) => {
                 const isActive = location.pathname === item.path;
@@ -242,7 +254,7 @@ export function AppSidebar({
         )}
 
         {/* Divider */}
-        {!collapsed && visibleFavorites.length > 0 && (
+        {!collapsed && (
           <div className="px-6 py-2">
             <div className="border-t border-sidebar-border" />
           </div>

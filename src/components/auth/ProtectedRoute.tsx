@@ -17,7 +17,6 @@ const ADMIN_ROUTES = [
   "/drivers",
   "/routes",
   "/vehicles",
-  "/seguradoras",
   "/reports",
   "/deliveries",
   "/settlement",

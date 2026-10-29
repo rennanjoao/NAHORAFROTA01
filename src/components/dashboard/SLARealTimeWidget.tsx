@@ -140,7 +140,7 @@ function DriverOccurrenceCard({
         <Button 
           size="sm" 
           variant="ghost"
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-success hover:text-success hover:bg-success/10" 
+          className="md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-success hover:text-success hover:bg-success/10" 
           onClick={handleWhatsApp}
         >
           <MessageCircle className="h-4 w-4" />

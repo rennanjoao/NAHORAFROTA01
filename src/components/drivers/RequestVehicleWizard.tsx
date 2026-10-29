@@ -21,7 +21,12 @@ import {
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { useLogistics, VehicleType } from "@/contexts/LogisticsContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTenantData } from "@/hooks/useTenantData";
+
+// O pedido vai por e-mail para a equipe NaHora, que confirma disponibilidade e
+// prazo pelo mesmo canal. Antes a tela mostrava "APROVADO" e nada era enviado.
+const REQUEST_EMAIL = "suporte@nahorafrota.com.br";
 
 interface RequestVehicleWizardProps {
   open: boolean;
@@ -44,7 +49,8 @@ const regions = [
 ];
 
 export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizardProps) {
-  const { createVehicleRequest } = useLogistics();
+  const { profile } = useAuth();
+  const { tenant } = useTenantData();
   
   const [step, setStep] = useState<Step>("cargo");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,30 +100,34 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
   };
 
   const handleSubmit = () => {
-    setIsSubmitting(true);
-    
-    // Create vehicle request in context
     const selectedVehicleType = vehicleTypes.find(v => v.value === vehicleType);
-    
-    setTimeout(() => {
-      createVehicleRequest({
-        cargoValue: parsedValue,
-        productType,
-        vehicleType: (selectedVehicleType?.label || "VUC") as VehicleType,
-        region: region as "grande_sp" | "nacional",
-        estimatedDeadline: region === "grande_sp" ? "Até 24 horas" : "24 a 72 horas",
-      });
-      
-      setIsSubmitting(false);
-      toast({
-        title: "✅ Veículo Solicitado!",
-        description: region === "grande_sp" 
-          ? "Gerenciadora de Risco: APROVADO. Veículo disponível em até 24h."
-          : "Solicitação enviada. Validação de 24h a 72h necessária para rotas nacionais.",
-      });
-      resetForm();
-      onOpenChange(false);
-    }, 1500);
+    const selectedRegionLabel = regions.find(r => r.value === region)?.label || region;
+    const company = tenant?.razao_social || "Minha empresa";
+
+    const body = [
+      "Olá, equipe NaHora Frota.",
+      "",
+      "Gostaria de solicitar um carro extra:",
+      "",
+      `Empresa: ${company}${tenant?.cnpj ? ` (CNPJ ${tenant.cnpj})` : ""}`,
+      `Solicitante: ${profile?.name || ""}${profile?.email ? ` <${profile.email}>` : ""}`,
+      `Veículo: ${selectedVehicleType?.label || vehicleType} (${selectedVehicleType?.capacity || "-"})`,
+      `Tipo de produto: ${productType}`,
+      `Valor da carga: ${formatCurrency(parsedValue)}`,
+      `Região: ${selectedRegionLabel}`,
+      "",
+      "Aguardo a confirmação de disponibilidade e prazo.",
+    ].join("\n");
+
+    const subject = `Pedido de carro extra - ${company}`;
+    window.location.href = `mailto:${REQUEST_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    toast({
+      title: "Pedido pronto para envio",
+      description: `Abrimos seu e-mail com o pedido para ${REQUEST_EMAIL}. Envie a mensagem; a equipe NaHora confirma a disponibilidade e o prazo por lá.`,
+    });
+    resetForm();
+    onOpenChange(false);
   };
 
   const selectedVehicle = vehicleTypes.find(v => v.value === vehicleType);
@@ -138,7 +148,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
           <DialogDescription>
             {step === "cargo" && "Informe os dados da carga para solicitar um veículo."}
             {step === "region" && "Selecione a área de atuação do veículo."}
-            {step === "confirm" && "Confirme os dados e finalize a solicitação."}
+            {step === "confirm" && `Confira os dados. O pedido será enviado por e-mail para ${REQUEST_EMAIL}.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -245,16 +255,16 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
                     <div>
                       {region === "grande_sp" ? (
                         <>
-                          <p className="font-medium text-success">✅ Disponibilidade Imediata</p>
+                          <p className="font-medium text-success">Região metropolitana</p>
                           <p className="text-sm text-success/80 mt-1">
-                            Veículo ativo em até 24hrs. Aprovação automática para região metropolitana.
+                            Prazo estimado de até 24h, sujeito à confirmação da equipe NaHora.
                           </p>
                         </>
                       ) : (
                         <>
                           <p className="font-medium text-warning">⚠️ Rota Longa</p>
                           <p className="text-sm text-warning/80 mt-1">
-                            Validação de 24h a 72h necessária. Sujeito à análise de risco e disponibilidade.
+                            Prazo estimado de 24h a 72h, sujeito à análise de risco e disponibilidade.
                           </p>
                         </>
                       )}
@@ -311,9 +321,9 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
                   <p className={`text-sm font-medium ${
                     region === "grande_sp" ? "text-success" : "text-warning"
                   }`}>
-                    {region === "grande_sp" 
-                      ? "Veículo disponível em até 24 horas"
-                      : "Prazo de validação: 24h a 72h"
+                    {region === "grande_sp"
+                      ? "Prazo estimado: até 24 horas (a confirmar)"
+                      : "Prazo estimado: 24h a 72h (a confirmar)"
                     }
                   </p>
                 </div>
@@ -340,7 +350,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
                   Solicitando...
                 </>
               ) : (
-                "Solicitar Veículo"
+                "Enviar pedido por e-mail"
               )}
             </Button>
           )}

@@ -42,6 +42,7 @@ import { toast } from "@/hooks/use-toast";
 import { VehicleType } from "@/contexts/LogisticsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
+import { formatDocument, isValidCPF } from "@/lib/documentValidation";
 import { requireCurrentTenantId } from "@/lib/tenant";
 import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError";
 import { MAX_DRIVER_DOCUMENT_BYTES, uploadDriverDocument, type DriverDocumentType } from "@/lib/driverDocuments";
@@ -234,7 +235,18 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       return;
     }
 
-    const cpfToSave = formData.cpf.trim();
+    if (!isValidCPF(formData.cpf)) {
+      toast({
+        title: "⚠️ CPF inválido",
+        description: "Confira os números do CPF do motorista.",
+        variant: "destructive",
+      });
+      setActiveTab("personal");
+      return;
+    }
+
+    // Sempre no formato 000.000.000-00: misturar com so digitos furava a checagem de CPF repetido.
+    const cpfToSave = formatDocument(formData.cpf);
 
     if (formData.contactEmail.trim() && !isValidContactEmail(formData.contactEmail)) {
       toast({
@@ -569,7 +581,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       } else {
         toast({
           title: "Motorista cadastrado",
-          description: `${driverData.name} foi adicionado e esta disponivel em todo o sistema.`,
+          description: `${driverData.name} foi adicionado e está disponível em todo o sistema.`,
         });
       }
       

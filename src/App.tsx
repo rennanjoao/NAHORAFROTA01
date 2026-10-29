@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { PWAUpdatePrompt } from "@/components/layout/PWAUpdatePrompt";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LogisticsProvider } from "@/contexts/LogisticsContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -13,7 +13,6 @@ import Index from "./pages/Index";
 import DriversPage from "./pages/DriversPage";
 import RoutesPage from "./pages/RoutesPage";
 import VehiclesPage from "./pages/VehiclesPage";
-import SeguradoresPage from "./pages/SeguradoresPage";
 import ReportsPage from "./pages/ReportsPage";
 import DeliveriesPage from "./pages/DeliveriesPage";
 import SettlementPage from "./pages/SettlementPage";
@@ -67,11 +66,8 @@ const App = () => (
                     <VehiclesPage />
                   </ProtectedRoute>
                 } />
-                <Route path="/seguradoras" element={
-                  <ProtectedRoute>
-                    <SeguradoresPage />
-                  </ProtectedRoute>
-                } />
+                {/* Seguradoras era uma tela so com dados de exemplo; links antigos vao para o inicio. */}
+                <Route path="/seguradoras" element={<Navigate to="/" replace />} />
                 <Route path="/reports" element={
                   <ProtectedRoute>
                     <PlanProtectedRoute feature="reports">

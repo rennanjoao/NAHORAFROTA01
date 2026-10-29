@@ -571,7 +571,7 @@ function DriverRow({
       <Button
         size="icon"
         variant="ghost"
-        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-success hover:text-success shrink-0"
+        className="h-8 w-8 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-success hover:text-success shrink-0"
         onClick={onWhatsApp}
       >
         <MessageCircle className="h-4 w-4" />
