@@ -22,7 +22,7 @@ export function PlanProtectedRoute({ feature, children }: PlanProtectedRouteProp
   const access = checkFeatureAccess(feature);
 
   if (!access.allowed) {
-    return <Navigate to="/upgrade" replace />;
+    return <Navigate to={`/upgrade?feature=${feature}`} replace />;
   }
 
   return <>{children}</>;

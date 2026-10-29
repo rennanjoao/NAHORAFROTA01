@@ -45,6 +45,8 @@ export interface NavItem {
   shortcut?: string;
   /** Passo a passo mostrado em "Ajuda". */
   tips: string[];
+  /** Fora do menu e da busca (so titulo, caminho e ajuda). */
+  hidden?: boolean;
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -187,12 +189,27 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+/** Telas sem item no menu, mas com titulo e ajuda. */
+export const HIDDEN_ITEMS: NavItem[] = [
+  {
+    path: "/upgrade",
+    label: "Plano e recursos",
+    description: "Este recurso faz parte de outro plano. A equipe Na Hora Frota libera para você.",
+    icon: Crown,
+    group: "gestao",
+    hidden: true,
+    tips: ["Toque em “Falar com a equipe” para liberar o recurso no seu plano."],
+  },
+];
+
 /** Telas da barra inferior do celular (na ordem). O resto fica em "Mais". */
 export const MOBILE_PRIMARY_PATHS = ["/", "/deliveries", "/drivers", "/settlement"];
 
 export function findNavItem(pathname: string): NavItem | undefined {
   if (pathname === "/") return NAV_ITEMS[0];
-  return NAV_ITEMS.find((item) => item.path !== "/" && (pathname === item.path || pathname.startsWith(`${item.path}/`)));
+  return [...NAV_ITEMS, ...HIDDEN_ITEMS].find(
+    (item) => item.path !== "/" && (pathname === item.path || pathname.startsWith(`${item.path}/`)),
+  );
 }
 
 export const SUPPORT_EMAIL = "suporte@nahorafrota.com.br";
