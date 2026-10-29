@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { brandAvatar } from "@/lib/avatar";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -358,7 +359,7 @@ export default function AdminPage() {
                                 <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
                                   {systemUser.avatar_url ? (
                                     <img 
-                                      src={systemUser.avatar_url} 
+                                      src={brandAvatar(systemUser.avatar_url)} 
                                       alt={systemUser.name}
                                       className="h-full w-full object-cover"
                                     />
@@ -488,7 +489,7 @@ export default function AdminPage() {
                                 <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
                                   {driver.avatar || driver.photo ? (
                                     <img
-                                      src={driver.avatar || driver.photo}
+                                      src={brandAvatar(driver.avatar || driver.photo)}
                                       alt={driver.name}
                                       className="h-full w-full object-cover"
                                     />

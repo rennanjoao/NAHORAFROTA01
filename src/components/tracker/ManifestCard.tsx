@@ -68,7 +68,7 @@ export function ManifestCard({ manifest, completedCount, totalCount }: ManifestC
       <div className="space-y-1">
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Progresso</span>
-          <span className="font-medium">{progress.toFixed(0)}%</span>
+          <span className="font-medium">{progress.toFixed(0).replace(".", ",")}%</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 

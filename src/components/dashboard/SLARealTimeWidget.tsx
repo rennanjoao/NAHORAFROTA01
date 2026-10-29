@@ -68,7 +68,7 @@ function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff
     return (
       <span className="flex items-center gap-1 text-xs text-success">
         <TrendingUp className="h-3 w-3" />
-        +{Math.abs(diff).toFixed(1)}%
+        +{Math.abs(diff).toFixed(1).replace(".", ",")}%
       </span>
     );
   }
@@ -76,7 +76,7 @@ function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff
   return (
     <span className="flex items-center gap-1 text-xs text-destructive">
       <TrendingDown className="h-3 w-3" />
-      -{Math.abs(diff).toFixed(1)}%
+      -{Math.abs(diff).toFixed(1).replace(".", ",")}%
     </span>
   );
 }

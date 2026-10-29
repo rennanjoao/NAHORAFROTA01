@@ -1,4 +1,5 @@
 import { AlertTriangle, Eye, CheckCircle2, Clock, AlertCircle, MessageCircle, History, Truck } from "lucide-react";
+import { brandAvatar } from "@/lib/avatar";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useMemo, useState, useEffect } from "react";
@@ -164,7 +165,7 @@ function DriverAttentionCard({
       <div className="flex items-center gap-3">
         {driver.photoUrl ? (
           <img 
-            src={driver.photoUrl} 
+            src={brandAvatar(driver.photoUrl)} 
             alt={driver.name} 
             className={cn(
               "h-10 w-10 rounded-full object-cover ring-2",
@@ -295,7 +296,7 @@ function DriverDetailSheet({
           <SheetTitle className="flex items-center gap-3">
             {driver.photoUrl ? (
               <img 
-                src={driver.photoUrl} 
+                src={brandAvatar(driver.photoUrl)} 
                 alt={driver.name}
                 className="h-12 w-12 rounded-full object-cover"
               />

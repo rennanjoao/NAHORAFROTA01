@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { brandAvatar } from "@/lib/avatar";
 import { Check, ChevronsUpDown, User, Truck, Loader2, Building2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -104,7 +105,7 @@ export function DriverCombobox({ value, onSelect, fleetType }: DriverComboboxPro
     if (avatarSrc) {
       return (
         <img
-          src={avatarSrc}
+          src={brandAvatar(avatarSrc)}
           alt={driver.name}
           className={cn(sizeClass, "rounded-full object-cover flex-shrink-0")}
         />

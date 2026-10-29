@@ -110,7 +110,7 @@ export function InteractiveKPIs({ data, viewMode, onKPIClick }: InteractiveKPIsP
                 "text-xs font-medium",
                 isTrendGood ? "text-success" : "text-destructive"
               )}>
-                {isTrendPositive ? "+" : ""}{kpi.trend.toFixed(1)}%
+                {isTrendPositive ? "+" : ""}{kpi.trend.toFixed(1).replace(".", ",")}%
               </span>
               <span className="text-xs text-muted-foreground">{kpi.trendLabel}</span>
             </div>

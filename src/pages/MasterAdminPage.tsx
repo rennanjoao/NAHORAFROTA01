@@ -149,7 +149,7 @@ export default function MasterAdminPage() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Crown className="h-7 w-7 text-warning" />
+            <Crown className="h-7 w-7 text-primary" />
             Painel Master
           </h1>
           <p className="text-muted-foreground">Gestão de clientes e planos da plataforma</p>

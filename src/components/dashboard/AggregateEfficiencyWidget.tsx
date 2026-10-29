@@ -55,7 +55,7 @@ function MiniGauge({ percentage }: { percentage: number }) {
         className="fill-foreground text-lg font-bold"
         style={{ fontSize: "16px", fontFamily: "Space Grotesk, sans-serif" }}
       >
-        {clamped.toFixed(1)}%
+        {clamped.toFixed(1).replace(".", ",")}%
       </text>
     </svg>
   );
@@ -109,7 +109,7 @@ export function AggregateEfficiencyWidget({
             className="text-2xl font-bold font-mono"
             style={{ color: "hsl(var(--foreground))" }}
           >
-            {percentage.toFixed(1)}%
+            {percentage.toFixed(1).replace(".", ",")}%
           </p>
           <p className="text-[10px] text-muted-foreground leading-tight">
             do valor total de vendas

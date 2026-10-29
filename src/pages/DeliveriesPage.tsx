@@ -346,7 +346,7 @@ export default function DeliveriesPage() {
         status: inv.status as Delivery["status"],
         scheduledTime: format(new Date(getInvoiceEventDate(inv)), "dd/MM HH:mm"),
         scheduledDate: new Date(inv.imported_at),
-        weight: inv.total_weight ? `${inv.total_weight}kg` : '-',
+        weight: inv.total_weight ? `${String(inv.total_weight).replace(".", ",")} kg` : '-',
         value: formatCurrency(inv.total_value),
         selected: selectedDbIds.has(inv.id),
         observation: inv.observation || undefined,

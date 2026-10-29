@@ -65,8 +65,8 @@ function buildPopup(position: FleetPosition) {
         ${position.vehicle_type ? ` - ${escapeHtml(position.vehicle_type)}` : ''}
       </div>
       <div style="margin-top:8px;font-size:12px">
-        Velocidade: <strong>${Number(position.speed || 0).toFixed(0)} km/h</strong><br />
-        SLA: <strong>${position.individual_sla !== undefined ? `${Number(position.individual_sla).toFixed(1)}%` : '-'}</strong><br />
+        Velocidade: <strong>${Number(position.speed || 0).toFixed(0).replace(".", ",")} km/h</strong><br />
+        SLA: <strong>${position.individual_sla !== undefined ? `${Number(position.individual_sla).toFixed(1).replace(".", ",")}%` : '-'}</strong><br />
         Atualizado: <strong>${escapeHtml(updatedAt)}</strong>
       </div>
       ${
@@ -123,6 +123,7 @@ export default function LiveMapLeaflet({
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap',
+      className: 'nhf-map-dark',
     }).addTo(mapRef.current);
 
     markerLayerRef.current = L.layerGroup().addTo(mapRef.current);

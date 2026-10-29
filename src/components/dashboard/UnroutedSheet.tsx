@@ -113,7 +113,7 @@ export function UnroutedSheet({ open, onOpenChange }: UnroutedSheetProps) {
                       <h4 className="font-semibold text-foreground">{invoice.nfe_number || 'S/N'}</h4>
                       {invoice.total_weight && (
                         <Badge variant="outline" className="text-xs">
-                          {invoice.total_weight}kg
+                          {String(invoice.total_weight).replace(".", ",")} kg
                         </Badge>
                       )}
                       {invoice.status === 'returned' && (

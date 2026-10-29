@@ -135,7 +135,7 @@ export function SLADrilldownModal({
       status: invoice.status as DeliveryWithHistory["status"],
       scheduledTime: "08:00",
       scheduledDate: new Date(invoice.importedAt || invoice.updatedAt),
-      weight: invoice.totalWeight ? `${invoice.totalWeight}kg` : "-",
+      weight: invoice.totalWeight ? `${String(invoice.totalWeight).replace(".", ",")} kg` : "-",
       value: formatCurrency(invoice.totalValue || 0),
       observation: invoice.observation || undefined,
       manifestUuid: invoice.manifestId || undefined,
@@ -610,7 +610,7 @@ function OrphanInvoiceRow({ invoice }: { invoice: OrphanInvoice }) {
           {getOccurrenceLabel(invoice.occurrenceType)}
         </Badge>
         <p className="text-xs text-muted-foreground mt-1">
-          Peso: {(invoice.weight * 100).toFixed(0)}%
+          Peso: {(invoice.weight * 100).toFixed(0).replace(".", ",")}%
         </p>
       </div>
     </div>
@@ -689,7 +689,7 @@ function DriverInvoicesView({
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Entregas realizadas:</span>
-            <span className="font-mono">{delivered} × 1.0 = {deliveredWeight.toFixed(1)}</span>
+            <span className="font-mono">{delivered} × 1,0 = {deliveredWeight.toFixed(1).replace(".", ",")}</span>
           </div>
           {occurrences.map((occ, idx) => (
             <div key={idx} className="flex justify-between text-muted-foreground">
@@ -697,14 +697,14 @@ function DriverInvoicesView({
                 {getOccurrenceLabel(occ.occurrenceType)} (NF {occ.nfeNumber}):
               </span>
               <span className={cn("font-mono", occ.weight === 0 ? "text-destructive" : "")}>
-                {occ.weight.toFixed(1)}
+                {occ.weight.toFixed(1).replace(".", ",")}
               </span>
             </div>
           ))}
           <Separator className="my-2" />
           <div className="flex justify-between font-medium">
             <span>Soma dos pesos:</span>
-            <span className="font-mono">{totalWeight.toFixed(1)}</span>
+            <span className="font-mono">{totalWeight.toFixed(1).replace(".", ",")}</span>
           </div>
           <div className="flex justify-between font-medium">
             <span>Total de NFs:</span>
@@ -713,7 +713,7 @@ function DriverInvoicesView({
           <div className="flex justify-between font-bold text-lg">
             <span>SLA:</span>
             <span className={cn("font-mono", colorScheme.textClass)}>
-              ({totalWeight.toFixed(1)} / {total}) × 100 = {formatSLA(sla)}%
+              ({totalWeight.toFixed(1).replace(".", ",")} / {total}) × 100 = {formatSLA(sla)}%
             </span>
           </div>
         </div>
@@ -781,7 +781,7 @@ function DriverInvoicesView({
                 weight < 0.9 ? "text-warning" :
                 "text-success"
               )}>
-                {weight.toFixed(1)}
+                {weight.toFixed(1).replace(".", ",")}
               </span>
             </div>
           ))}
@@ -843,7 +843,7 @@ function InvoiceItemCard({ invoice, onClick }: { invoice: SLAInvoiceItem; onClic
           "text-lg font-bold font-mono",
           isDelivered ? "text-success" : isZeroWeight ? "text-destructive" : isCritical ? "text-warning" : "text-foreground"
         )}>
-          {(invoice.weight * 100).toFixed(0)}%
+          {(invoice.weight * 100).toFixed(0).replace(".", ",")}%
         </span>
         <p className="text-xs text-muted-foreground">peso</p>
       </div>
@@ -895,7 +895,7 @@ function InvoiceOccurrenceCard({ occurrence }: { occurrence: DriverSLAStats["tod
           "text-lg font-bold font-mono",
           isZeroWeight ? "text-destructive" : isCritical ? "text-warning" : "text-foreground"
         )}>
-          {(occurrence.weight * 100).toFixed(0)}%
+          {(occurrence.weight * 100).toFixed(0).replace(".", ",")}%
         </span>
         <p className="text-xs text-muted-foreground">impacto</p>
       </div>

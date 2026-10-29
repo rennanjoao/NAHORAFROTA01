@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { brandAvatar } from "@/lib/avatar";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -725,7 +726,7 @@ export default function SettlementPage() {
 
         {/* Driver Selection */}
         <Card className="p-4">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <Label className="text-sm font-medium whitespace-nowrap">Selecionar Motorista:</Label>
             <Popover open={driverSearchOpen} onOpenChange={setDriverSearchOpen}>
               <PopoverTrigger asChild>
@@ -733,7 +734,7 @@ export default function SettlementPage() {
                   variant="outline"
                   role="combobox"
                   aria-expanded={driverSearchOpen}
-                  className="w-full max-w-md justify-between"
+                  className="w-full min-w-0 max-w-md justify-between"
                 >
                   {selectedDriver ? (
                     <span className="flex items-center gap-2 truncate">
@@ -746,7 +747,7 @@ export default function SettlementPage() {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
+              <PopoverContent className="w-[min(400px,calc(100vw-2rem))] p-0" align="start">
                 <Command>
                   <CommandInput placeholder="Digite o nome ou CPF..." />
                   <CommandList>
@@ -766,7 +767,7 @@ export default function SettlementPage() {
                           />
                           <div className="flex items-center gap-3">
                             <img 
-                              src={driver.photo || driver.avatar} 
+                              src={brandAvatar(driver.photo || driver.avatar)} 
                               alt={driver.name}
                               className="h-8 w-8 rounded-full object-cover"
                             />
@@ -799,7 +800,7 @@ export default function SettlementPage() {
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-4">
                     <img 
-                      src={selectedDriver.photo || selectedDriver.avatar} 
+                      src={brandAvatar(selectedDriver.photo || selectedDriver.avatar)} 
                       alt={selectedDriver.name}
                       className="h-12 w-12 rounded-full object-cover border-2 border-primary"
                     />

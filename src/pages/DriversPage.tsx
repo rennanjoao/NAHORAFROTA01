@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { brandAvatar } from "@/lib/avatar";
 import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -473,7 +474,7 @@ export default function DriversPage() {
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <img 
-                            src={driver.photo} 
+                            src={brandAvatar(driver.photo)} 
                             alt={driver.name}
                             className="h-10 w-10 rounded-full object-cover border border-border flex-shrink-0"
                           />

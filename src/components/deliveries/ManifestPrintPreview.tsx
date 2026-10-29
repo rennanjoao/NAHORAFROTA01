@@ -136,7 +136,7 @@ export function ManifestPrintPreview({
             state: inv.address_state || '',
             zipCode: inv.address_zip || '',
             phone: formattedPhone,
-            weight: inv.total_weight ? `${inv.total_weight.toFixed(2)}kg` : '-',
+            weight: inv.total_weight ? `${inv.total_weight.toFixed(2).replace(".", ",")} kg` : '-',
             value: formatCurrency(inv.total_value || 0),
             observation: inv.observation || undefined,
           };
@@ -357,7 +357,7 @@ export function ManifestPrintPreview({
                   </Badge>
                   {manifestData.estimatedDistance && (
                     <span className="text-xs text-muted-foreground">
-                      Distância: {manifestData.estimatedDistance.toFixed(1)} km
+                      Distância: {manifestData.estimatedDistance.toFixed(1).replace(".", ",")} km
                     </span>
                   )}
                 </div>
@@ -408,7 +408,7 @@ export function ManifestPrintPreview({
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={5} className="font-bold text-xs">TOTAIS</TableCell>
-                    <TableCell className="text-right font-bold text-xs">{totalWeight.toFixed(1)} kg</TableCell>
+                    <TableCell className="text-right font-bold text-xs">{totalWeight.toFixed(1).replace(".", ",")} kg</TableCell>
                     <TableCell className="text-right font-bold text-xs">{formatCurrency(totalValue)}</TableCell>
                     <TableCell></TableCell>
                   </TableRow>
@@ -438,7 +438,7 @@ export function ManifestPrintPreview({
               <div className="totals bg-muted/30 p-3 rounded-lg">
                 <div className="total-row flex justify-between gap-6 mb-1 text-xs">
                   <span className="total-label text-muted-foreground">Peso Total:</span>
-                  <span className="total-value font-bold">{totalWeight.toFixed(1)} kg</span>
+                  <span className="total-value font-bold">{totalWeight.toFixed(1).replace(".", ",")} kg</span>
                 </div>
                 <div className="total-row flex justify-between gap-6 mb-1 text-xs">
                   <span className="total-label text-muted-foreground">Valor Mercadorias:</span>

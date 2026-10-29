@@ -385,7 +385,7 @@ export default function RegisterPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()} Na Hora Transporte. Todos os direitos reservados.
+          © {new Date().getFullYear()} Na Hora Frota. Todos os direitos reservados.
         </p>
       </div>
     </div>

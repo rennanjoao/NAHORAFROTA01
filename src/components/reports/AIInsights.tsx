@@ -32,7 +32,7 @@ export function AIInsights({ data }: AIInsightsProps) {
       icon: MapPin,
       message: (
         <>
-          <span className="font-medium">{data.topDelayRoute.percentage.toFixed(0)}%</span> dos atrasos estão concentrados na rota{" "}
+          <span className="font-medium">{data.topDelayRoute.percentage.toFixed(0).replace(".", ",")}%</span> dos atrasos estão concentrados na rota{" "}
           <span className="font-medium text-foreground">{data.topDelayRoute.name}</span>.
         </>
       ),
@@ -45,7 +45,7 @@ export function AIInsights({ data }: AIInsightsProps) {
       message: (
         <>
           Cliente <span className="font-medium text-foreground">{data.topReturnClient.name}</span> é responsável por{" "}
-          <span className="font-medium">{data.topReturnClient.percentage.toFixed(0)}%</span> de todas as devoluções.
+          <span className="font-medium">{data.topReturnClient.percentage.toFixed(0).replace(".", ",")}%</span> de todas as devoluções.
         </>
       ),
       action: "Analisar cliente →",
@@ -57,7 +57,7 @@ export function AIInsights({ data }: AIInsightsProps) {
       message: (
         <>
           Motorista <span className="font-medium text-foreground">{data.belowAverageDriver.name}</span> está{" "}
-          <span className="font-medium">{data.belowAverageDriver.difference.toFixed(0)}%</span> abaixo da média de SLA da frota.
+          <span className="font-medium">{data.belowAverageDriver.difference.toFixed(0).replace(".", ",")}%</span> abaixo da média de SLA da frota.
         </>
       ),
       action: "Ver perfil →",
@@ -68,7 +68,7 @@ export function AIInsights({ data }: AIInsightsProps) {
       icon: TrendingDown,
       message: (
         <>
-          <span className="font-medium">{data.peakDelayTime.percentage.toFixed(0)}%</span> dos atrasos ocorrem entre{" "}
+          <span className="font-medium">{data.peakDelayTime.percentage.toFixed(0).replace(".", ",")}%</span> dos atrasos ocorrem entre{" "}
           <span className="font-medium text-foreground">{data.peakDelayTime.time}</span>. Considere ajustar horários de coleta.
         </>
       ),

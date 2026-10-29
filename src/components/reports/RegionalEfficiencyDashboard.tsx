@@ -234,7 +234,7 @@
              </div>
              <div>
                <p className="text-sm text-muted-foreground">Taxa de Sucesso</p>
-               <p className="text-2xl font-bold">{overallSuccessRate.toFixed(1)}%</p>
+               <p className="text-2xl font-bold">{overallSuccessRate.toFixed(1).replace(".", ",")}%</p>
              </div>
            </div>
          </Card>
@@ -295,7 +295,7 @@
                    outerRadius={100}
                    paddingAngle={2}
                    dataKey="value"
-                   label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                   label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0).replace(".", ",")}%)`}
                    labelLine={false}
                  >
                    {pieChartData.map((_, index) => (
@@ -352,7 +352,7 @@
                        variant={stat.successRate >= 90 ? "default" : stat.successRate >= 70 ? "secondary" : "destructive"}
                        className="font-mono"
                      >
-                       {stat.successRate.toFixed(1)}%
+                       {stat.successRate.toFixed(1).replace(".", ",")}%
                      </Badge>
                    </td>
                    <td className="text-right py-3 px-2 font-mono">

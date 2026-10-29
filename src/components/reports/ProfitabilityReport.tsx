@@ -99,7 +99,7 @@ function EfficiencyGauge({ percentage }: { percentage: number }) {
         className="fill-foreground"
         style={{ fontSize: "20px", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}
       >
-        {clamped.toFixed(1)}%
+        {clamped.toFixed(1).replace(".", ",")}%
       </text>
     </svg>
   );
@@ -298,7 +298,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
             <EfficiencyGauge percentage={percentage} />
             <div>
               <p className="text-3xl font-bold font-mono" style={{ color: "hsl(var(--foreground))" }}>
-                {percentage.toFixed(1)}%
+                {percentage.toFixed(1).replace(".", ",")}%
               </p>
               <div className="flex items-center gap-1 mt-1">
                 {trend > 0.5 ? (
@@ -311,7 +311,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                 <span className={cn("text-xs font-medium",
                   trend > 0.5 ? "text-destructive" : trend < -0.5 ? "text-success" : "text-muted-foreground"
                 )}>
-                  {trend > 0 ? "+" : ""}{trend.toFixed(1)}pp vs. mês anterior
+                  {trend > 0 ? "+" : ""}{trend.toFixed(1).replace(".", ",")}pp vs. mês anterior
                 </span>
               </div>
             </div>
@@ -377,7 +377,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                     borderRadius: "8px",
                     fontSize: "12px",
                   }}
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, "Custo Agregados / Cargas"]}
+                  formatter={(value: number) => [`${value.toFixed(1).replace(".", ",")}%`, "Custo Agregados / Cargas"]}
                 />
                 <ReferenceLine y={20} stroke="hsl(var(--success))" strokeDasharray="5 5" label={{ value: "Meta 20%", fontSize: 10, fill: "hsl(var(--success))" }} />
                 <Line
@@ -434,7 +434,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                             pct <= 40 ? "bg-warning/10 text-warning border-warning/30" :
                             "bg-destructive/10 text-destructive border-destructive/30"
                           )}>
-                            {pct.toFixed(1)}%
+                            {pct.toFixed(1).replace(".", ",")}%
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -447,7 +447,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                     <TableCell className="text-right font-mono text-warning">{formatCurrency(thirdPartyFreight)}</TableCell>
                     <TableCell className="text-right">
                       <Badge variant="default" className="text-xs">
-                        {percentage.toFixed(1)}%
+                        {percentage.toFixed(1).replace(".", ",")}%
                       </Badge>
                     </TableCell>
                   </TableRow>

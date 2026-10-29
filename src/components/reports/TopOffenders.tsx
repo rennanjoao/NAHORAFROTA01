@@ -174,7 +174,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
                   <p className="text-xs text-muted-foreground">{reason.count} ocorrências</p>
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">
-                  {reason.percentage.toFixed(1)}%
+                  {reason.percentage.toFixed(1).replace(".", ",")}%
                 </Badge>
               </div>
             ))}

@@ -117,7 +117,7 @@ export function TodayLoadedModal({ open, onOpenChange, data }: TodayLoadedModalP
                         </span>
                         {invoice.total_weight && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            {invoice.total_weight.toFixed(2)} kg
+                            {invoice.total_weight.toFixed(2).replace(".", ",")} kg
                           </p>
                         )}
                       </div>

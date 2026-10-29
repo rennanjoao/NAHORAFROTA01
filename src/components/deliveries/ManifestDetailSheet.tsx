@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getOccurrenceLabel } from "@/hooks/useSLADB";
 import {
   Sheet,
   SheetContent,
@@ -755,7 +756,7 @@ export function ManifestDetailSheet({
                             {invoice.status === "occurrence" && invoice.occurrence_type && (
                               <p className="text-xs text-warning flex items-center gap-1.5 pt-1">
                                 <AlertTriangle className="h-3.5 w-3.5" />
-                                {OCCURRENCE_TYPES.find(t => t.value === invoice.occurrence_type)?.label || invoice.occurrence_type}
+                                {OCCURRENCE_TYPES.find(t => t.value === invoice.occurrence_type)?.label || getOccurrenceLabel(invoice.occurrence_type)}
                               </p>
                             )}
 

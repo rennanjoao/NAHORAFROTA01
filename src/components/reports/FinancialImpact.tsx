@@ -47,7 +47,7 @@ export function FinancialImpact({ data }: FinancialImpactProps) {
     },
     {
       label: "Retrabalho",
-      formula: `${data.reworkPercentage.toFixed(1)}% das entregas`,
+      formula: `${data.reworkPercentage.toFixed(1).replace(".", ",")}% das entregas`,
       value: data.reworkCost,
       icon: Repeat,
       color: "text-warning",
@@ -113,7 +113,7 @@ export function FinancialImpact({ data }: FinancialImpactProps) {
           <div>
             <p className="text-sm font-medium">Análise Executiva</p>
             <p className="text-sm text-muted-foreground mt-1">
-              O custo de devoluções representa <span className="font-medium text-foreground">{((returnsCost / totalImpact) * 100).toFixed(0)}%</span> do impacto total.
+              O custo de devoluções representa <span className="font-medium text-foreground">{((returnsCost / totalImpact) * 100).toFixed(0).replace(".", ",")}%</span> do impacto total.
               Reduzir a taxa de devoluções em 10% economizaria aproximadamente <span className="font-medium text-success">{formatCurrency(returnsCost * 0.1)}</span> no período.
             </p>
           </div>

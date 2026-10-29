@@ -489,11 +489,12 @@ export function BrasilRiskMap() {
 
     mapRef.current = map;
 
-    // Add CartoDB Dark Matter tile layer for dramatic effect
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
+    // Tiles do OpenStreetMap escurecidos (classe nhf-map-dark). Os tiles escuros da
+    // CARTO passaram a exigir chave de API e apareciam como "API KEY REQUIRED".
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
+      className: 'nhf-map-dark',
     }).addTo(map);
 
     // Add risk zone circles (heatmap effect)
@@ -571,7 +572,7 @@ export function BrasilRiskMap() {
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
               <div style="padding: 10px; background: #1C1F22; border-radius: 4px;">
                 <p style="font-size: 10px; color: #8A9199; margin: 0; text-transform: uppercase;">% do Total</p>
-                <p style="font-size: 20px; font-weight: 700; color: ${color}; margin: 4px 0 0 0;">${zone.statistics.percentOfTotal}%</p>
+                <p style="font-size: 20px; font-weight: 700; color: ${color}; margin: 4px 0 0 0;">${String(zone.statistics.percentOfTotal).replace(".", ",")}%</p>
               </div>
               <div style="padding: 10px; background: #1C1F22; border-radius: 4px;">
                 <p style="font-size: 10px; color: #8A9199; margin: 0; text-transform: uppercase;">Tendência</p>
@@ -678,8 +679,8 @@ export function BrasilRiskMap() {
               <span className="w-2 h-2 rounded-full bg-warning" />
               {highCount} Alto Risco
             </Badge>
-            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-warning" />
+            <Badge variant="outline" className="bg-idle/10 text-idle border-idle/30 gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-idle" />
               {mediumCount} Médio
             </Badge>
           </div>
@@ -776,7 +777,7 @@ export function BrasilRiskMap() {
                 <span className="text-xs">Alto (3-10%)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-warning" />
+                <div className="w-3 h-3 rounded-full bg-idle" />
                 <span className="text-xs">Médio (&lt;3%)</span>
               </div>
             </div>
@@ -859,7 +860,7 @@ export function BrasilRiskMap() {
                           />
                           <span className="text-xs font-semibold truncate">{zone.state}</span>
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {zone.statistics.percentOfTotal}%
+                            {String(zone.statistics.percentOfTotal).replace(".", ",")}%
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 truncate">{zone.region}</p>

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { brandAvatar } from "@/lib/avatar";
 import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
 import Map, { Marker, NavigationControl, FullscreenControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -251,7 +252,7 @@ export default function LiveMapMapbox({
                           transform: `rotate(${-(position.heading || 0)}deg)`
                         }}
                       >
-                        {Number(position.speed).toFixed(0)} km/h
+                        {Number(position.speed).toFixed(0).replace(".", ",")} km/h
                       </div>
                     )}
 
@@ -284,7 +285,7 @@ export default function LiveMapMapbox({
                         <div className="relative flex-shrink-0">
                           {position.driver_photo ? (
                             <img
-                              src={position.driver_photo}
+                              src={brandAvatar(position.driver_photo)}
                               alt={position.driver_name}
                               className="w-11 h-11 rounded-full object-cover border-2 border-primary"
                             />
@@ -328,7 +329,7 @@ export default function LiveMapMapbox({
                           <div>
                             <p className="text-xs text-muted-foreground">Velocidade</p>
                             <p className="text-sm font-bold text-foreground font-heading">
-                              {position.speed !== undefined ? `${Number(position.speed).toFixed(0)} km/h` : '0 km/h'}
+                              {position.speed !== undefined ? `${Number(position.speed).toFixed(0).replace(".", ",")} km/h` : '0 km/h'}
                             </p>
                           </div>
                         </div>
@@ -363,7 +364,7 @@ export default function LiveMapMapbox({
                                   : "text-primary"
                             )}>
                               {position.individual_sla !== undefined 
-                                ? `${Number(position.individual_sla).toFixed(1)}%` 
+                                ? `${Number(position.individual_sla).toFixed(1).replace(".", ",")}%` 
                                 : '—'}
                             </p>
                           </div>

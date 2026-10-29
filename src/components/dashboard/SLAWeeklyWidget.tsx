@@ -27,7 +27,7 @@ function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff
     return (
       <span className="flex items-center gap-1 text-xs text-success">
         <TrendingUp className="h-3 w-3" />
-        +{Math.abs(diff).toFixed(1)}%
+        +{Math.abs(diff).toFixed(1).replace(".", ",")}%
       </span>
     );
   }
@@ -35,7 +35,7 @@ function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff
   return (
     <span className="flex items-center gap-1 text-xs text-destructive">
       <TrendingDown className="h-3 w-3" />
-      -{Math.abs(diff).toFixed(1)}%
+      -{Math.abs(diff).toFixed(1).replace(".", ",")}%
     </span>
   );
 }
@@ -139,7 +139,7 @@ export function SLAWeeklyWidget() {
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Meta:</span>
-              <span className="font-medium text-foreground">{SLA_THRESHOLDS.EXCELLENT}.0%</span>
+              <span className="font-medium text-foreground">{SLA_THRESHOLDS.EXCELLENT},0%</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Atual:</span>

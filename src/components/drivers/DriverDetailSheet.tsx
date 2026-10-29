@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { brandAvatar } from "@/lib/avatar";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -299,7 +300,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
           {/* Header with Photo and Name */}
           <div className="flex items-center gap-4">
             <img 
-              src={driver.photo} 
+              src={brandAvatar(driver.photo)} 
               alt={driver.name}
               className="h-20 w-20 rounded-full object-cover border-2 border-primary/30 shadow-lg"
             />

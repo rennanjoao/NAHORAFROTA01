@@ -196,6 +196,77 @@ a {
   }
 }
 
+/* Pecas da marca em components: utilitarios do Tailwind (hidden, md:inline-flex,
+   text-*) continuam valendo por cima delas. */
+@layer components {
+  /* Rotulo curto em caixa alta (eyebrow do manual). */
+  .nhf-label {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Marcador de hora: carimbo com ponto de status. O ponto pulsa so "ao vivo". */
+  .nhf-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border: 1px solid hsl(var(--primary));
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.06);
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .nhf-live::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: nhf-pulse 1.8s ease-out infinite;
+  }
+
+  .nhf-live--off {
+    border-color: hsl(var(--destructive));
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.06);
+  }
+
+  .nhf-live--off::before {
+    animation: none;
+  }
+
+  @keyframes nhf-pulse {
+    0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55); }
+    100% { box-shadow: 0 0 0 10px hsl(var(--primary) / 0); }
+  }
+
+  /* Linhas de rota a 45 graus (fundo de capa / login). */
+  .nhf-routes {
+    background-image:
+      repeating-linear-gradient(-45deg, hsl(var(--primary) / 0.14) 0 1px, transparent 1px 110px),
+      repeating-linear-gradient(0deg, hsl(var(--primary) / 0.07) 0 1px, transparent 1px 56px);
+  }
+
+  /* Truncate with ellipsis for long text */
+  .truncate-safe {
+    @apply truncate max-w-full;
+  }
+
+  .btn-neon {
+    @apply transition-colors duration-200;
+  }
+}
+
 @layer utilities {
   .glass-card {
     @apply bg-card border border-border shadow-sm;
@@ -274,15 +345,6 @@ a {
     font-feature-settings: 'tnum' on, 'lnum' on;
   }
 
-  /* Rotulo curto em caixa alta (eyebrow do manual). */
-  .nhf-label {
-    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
   /* Chanfro de 45 graus no canto superior direito (botoes e cartoes de destaque). */
   .nhf-chamfer {
     clip-path: polygon(0 0, calc(100% - var(--nhf-chamfer)) 0, 100% var(--nhf-chamfer), 100% 100%, 0 100%);
@@ -290,64 +352,6 @@ a {
 
   .nhf-chamfer-sm {
     clip-path: polygon(0 0, calc(100% - var(--nhf-chamfer-sm)) 0, 100% var(--nhf-chamfer-sm), 100% 100%, 0 100%);
-  }
-
-  /* Marcador de hora: carimbo com ponto de status. O ponto pulsa so "ao vivo". */
-  .nhf-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 10px;
-    border: 1px solid hsl(var(--primary));
-    color: hsl(var(--primary));
-    background: hsl(var(--primary) / 0.06);
-    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .nhf-live::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 9999px;
-    background: currentColor;
-    animation: nhf-pulse 1.8s ease-out infinite;
-  }
-
-  .nhf-live--off {
-    border-color: hsl(var(--destructive));
-    color: hsl(var(--destructive));
-    background: hsl(var(--destructive) / 0.06);
-  }
-
-  .nhf-live--off::before {
-    animation: none;
-  }
-
-  @keyframes nhf-pulse {
-    0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55); }
-    100% { box-shadow: 0 0 0 10px hsl(var(--primary) / 0); }
-  }
-
-  /* Linhas de rota a 45 graus (fundo de capa / login). */
-  .nhf-routes {
-    background-image:
-      repeating-linear-gradient(-45deg, hsl(var(--primary) / 0.14) 0 1px, transparent 1px 110px),
-      repeating-linear-gradient(0deg, hsl(var(--primary) / 0.07) 0 1px, transparent 1px 56px);
-  }
-
-  /* Truncate with ellipsis for long text */
-  .truncate-safe {
-    @apply truncate max-w-full;
-  }
-
-  .btn-neon {
-    @apply transition-colors duration-200;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -365,8 +369,9 @@ a {
   background: hsl(var(--background));
 }
 
-/* Manual: mapa com base escura e dessaturada (os tiles do OSM sao claros). */
-.leaflet-tile-pane {
+/* Manual: mapa com base escura e dessaturada. Os tiles do OSM sao claros; a camada
+   com className "nhf-map-dark" e escurecida (sem afetar marcadores e rotas). */
+.nhf-map-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
 }
 

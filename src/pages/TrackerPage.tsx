@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { brandAvatar } from "@/lib/avatar";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -588,7 +589,7 @@ export default function TrackerPage() {
           >
             {linkedDriver.photo && (
               <img 
-                src={linkedDriver.photo} 
+                src={brandAvatar(linkedDriver.photo)} 
                 alt={linkedDriver.name} 
                 className="w-8 h-8 rounded-full object-cover border-2 border-primary"
               />
@@ -632,7 +633,7 @@ export default function TrackerPage() {
                     </p>
                     {position && (
                       <p className="text-xs text-muted-foreground">
-                        {position.speed.toFixed(0)} km/h • ±{position.accuracy.toFixed(0)}m
+                        {position.speed.toFixed(0).replace(".", ",")} km/h • ±{position.accuracy.toFixed(0)}m
                       </p>
                     )}
                     {gpsError && !gpsBlocked && (
