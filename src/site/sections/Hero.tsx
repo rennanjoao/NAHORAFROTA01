@@ -3,6 +3,8 @@ import { motion, useReducedMotion, useScroll, useSpring, useTransform } from "fr
 import { Clock, Gift, Satellite, FileCode2, Smartphone, Globe, Users, Download, Route } from "lucide-react";
 import { Cta } from "../components/Cta";
 import { HeroScene } from "../components/HeroScene";
+import { BrandRoutes } from "../components/BrandRoutes";
+import { routeNode } from "../components/brandRoutesGeometry";
 
 const EASE = [0.2, 0.8, 0.2, 1] as const;
 
@@ -20,6 +22,9 @@ const WORKS_WITH = [
   { icon: Users, label: "Frota própria e agregados" },
   { icon: Route, label: "Rota otimizada" },
 ];
+
+/* Paradas acesas no padrao da capa (em areas livres, fora do texto e da cena). */
+const LIT = [routeNode(1, 0), routeNode(3, 4), routeNode(6, -1)];
 
 function In({ children, delay, className }: { children: React.ReactNode; delay: number; className?: string }) {
   const reduce = useReducedMotion();
@@ -41,20 +46,17 @@ export function Hero() {
   const sceneOpacity = useTransform(p, [0, 0.9], [1, 0.35]);
   const textY = useTransform(p, [0, 1], [0, 24]);
   const textOpacity = useTransform(p, [0, 0.9], [1, 0.4]);
+  const bgY = useTransform(p, [0, 1], [0, 90]);
   return (
-    <section ref={ref} id="inicio" className="relative overflow-x-clip pt-[72px]" aria-labelledby="hero-title">
-      {/* fundo: brilho verde + grade com alguns quadros acesos */}
+    <section ref={ref} id="inicio" className="relative isolate overflow-x-clip pt-[72px]" aria-labelledby="hero-title">
+      {/* fundo: brilho verde + padrao "rotas" da marca, de leve, com algumas paradas acesas */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
         <div className="hero-glow absolute inset-0" />
-        <div className="hero-grid absolute inset-0" />
-        {[
-          "left-[2%] top-[14%]",
-          "left-[46%] top-[62%]",
-          "right-[8%] top-[10%]",
-          "right-[30%] bottom-[18%]",
-        ].map((pos) => (
-          <span key={pos} className={`absolute ${pos} hidden h-14 w-14 border border-brand/30 bg-brand/10 lg:block`} />
-        ))}
+        <div className="hero-routes absolute inset-0 overflow-hidden">
+          <motion.div className="absolute inset-x-0 -bottom-24 top-0" style={reduce ? undefined : { y: bgY }}>
+            <BrandRoutes lit={LIT} />
+          </motion.div>
+        </div>
       </div>
 
       <div className="container grid items-center gap-14 pb-14 pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-6 lg:pb-20 lg:pt-20">
