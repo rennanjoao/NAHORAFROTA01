@@ -26,8 +26,9 @@ import type { Delivery, InvoiceActionHandlers } from "./types";
 export const canRemoveFromManifest = (delivery: Delivery) =>
   !!delivery.manifestId && !["delivered", "returned"].includes(delivery.status);
 
-export const canReRoute = (delivery: Delivery) =>
-  !!delivery.manifestId && ["occurrence", "returning", "returned"].includes(delivery.status);
+// Com ou sem romaneio: uma nota com ocorrencia ainda fora de romaneio tambem precisa
+// voltar para a fila (antes ela ficava presa, so dava para excluir).
+export const canReRoute = (delivery: Delivery) => ["occurrence", "returning", "returned"].includes(delivery.status);
 
 interface InvoiceActionsMenuProps {
   delivery: Delivery;

@@ -589,14 +589,16 @@ export default function DeliveriesPage() {
     const dbId = deliveryForReRoute.dbId;
     const manifestUuid = deliveryForReRoute.manifestUuid;
 
-    if (!dbId || !manifestUuid) {
-      toast({ title: "NF sem romaneio", description: "Esta NF já está disponível para romaneamento.", variant: "destructive" });
+    if (!dbId) {
       setIsReRouteDialogOpen(false);
       setDeliveryForReRoute(null);
       return;
     }
 
-    const success = await dbRemoveInvoiceFromManifest(manifestUuid, dbId, `Voltar para romaneamento: ${reason}`);
+    // Fora de romaneio: so volta o status para pendente. Em romaneio: sai dele tambem.
+    const success = manifestUuid
+      ? await dbRemoveInvoiceFromManifest(manifestUuid, dbId, `Voltar para romaneamento: ${reason}`)
+      : await dbUpdateInvoice(dbId, { status: "pending" }, { silent: true });
     if (!success) return;
 
     await refetchInvoices();
@@ -607,16 +609,6 @@ export default function DeliveriesPage() {
 
     setIsReRouteDialogOpen(false);
     setDeliveryForReRoute(null);
-  };
-
-  // Check if delivery can be re-routed (has occurrence-related status)
-  const canReRoute = (delivery: Delivery) => {
-    return delivery.manifestId && ["occurrence", "returning", "returned"].includes(delivery.status);
-  };
-
-  // Check if delivery can be removed from manifest (is in manifest but not yet delivered)
-  const canRemoveFromManifest = (delivery: Delivery) => {
-    return delivery.manifestId && !["delivered", "returned"].includes(delivery.status);
   };
 
   // Handler to open occurrence dialog
@@ -1323,10 +1315,14 @@ export default function DeliveriesPage() {
         onOpenChange={setIsReRouteDialogOpen}
         title="Voltar a nota para a fila de romaneio?"
         description={
-          <>
-            A NF {deliveryForReRoute?.nfe} sai do romaneio {deliveryForReRoute?.manifestId} e volta a ficar pendente,
-            pronta para entrar em outro romaneio.
-          </>
+          deliveryForReRoute?.manifestId ? (
+            <>
+              A NF {deliveryForReRoute.nfe} sai do romaneio {deliveryForReRoute.manifestId} e volta a ficar pendente,
+              pronta para entrar em outro romaneio.
+            </>
+          ) : (
+            <>A NF {deliveryForReRoute?.nfe} volta a ficar pendente, pronta para entrar em um romaneio.</>
+          )
         }
         confirmLabel="Sim, já conferi. Liberar nota"
         loading={isReRouting}

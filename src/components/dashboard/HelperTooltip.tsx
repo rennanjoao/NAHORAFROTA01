@@ -31,6 +31,7 @@ export function HelperTooltip({ term, explanation }: HelperTooltipProps) {
       <PopoverContent
         side="top"
         className="w-auto max-w-[280px] p-3 text-sm"
+        aria-label={term}
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <p className="mb-1 font-semibold text-foreground">{term}</p>

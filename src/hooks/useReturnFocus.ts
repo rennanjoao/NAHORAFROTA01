@@ -51,3 +51,29 @@ export function useReturnFocusOnClose(open: boolean) {
     target.current = focusedElement();
   }, []);
 }
+
+/**
+ * Versao para os componentes base (Dialog, AlertDialog, Sheet): guarda quem tinha
+ * o foco ao abrir e devolve ao fechar, sem atrapalhar handlers de quem usa o
+ * componente (se eles cancelarem o evento, nada e feito aqui).
+ */
+export function useAutoReturnFocus(
+  onOpenAutoFocus?: (event: Event) => void,
+  onCloseAutoFocus?: (event: Event) => void,
+) {
+  const target = useRef<HTMLElement | null>(null);
+  return {
+    onOpenAutoFocus: (event: Event) => {
+      target.current = focusedElement();
+      onOpenAutoFocus?.(event);
+    },
+    onCloseAutoFocus: (event: Event) => {
+      onCloseAutoFocus?.(event);
+      const element = target.current;
+      target.current = null;
+      if (event.defaultPrevented || !element?.isConnected) return;
+      event.preventDefault();
+      element.focus({ preventScroll: true });
+    },
+  };
+}
