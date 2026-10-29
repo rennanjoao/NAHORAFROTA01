@@ -80,6 +80,10 @@ Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o fronte
    banco tem a base do projeto. Junta, na ordem, as migrations que podem faltar:
    - `20260526003000`, `20260527100000` e `20260527103000` (inicio do plano, isolamento entre
      empresas e status do plano; provavelmente ja aplicadas, reaplicar nao muda nada);
+   - `20260526120000_ensure_billing_and_tenant_columns.sql` (tenant_id nas tabelas
+     operacionais, colunas de cobranca em `tenants` e o formato de `payment_history`; este
+     banco foi montado pelo bootstrap de 27/04 sem isso, e a atualizacao parava em
+     "column tenant_id does not exist" / "contract_start_date does not exist");
    - `20261028120000_trial_billing_funnel_and_ops.sql` (trial de 7 dias, funil, avisos de
      cobranca, chegada por raio, auto-finalizacao de romaneio e permissoes);
    - `20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do app do motorista,

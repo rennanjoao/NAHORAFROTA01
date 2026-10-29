@@ -11,6 +11,7 @@ cd "$(dirname "$0")"
 
 MIGRATIONS=(
   20260526003000_add_tenants_plan_started_at.sql
+  20260526120000_ensure_billing_and_tenant_columns.sql
   20260527100000_enforce_tenant_isolation.sql
   20260527103000_plan_limits_status_rpc.sql
   20261028120000_trial_billing_funnel_and_ops.sql

@@ -22,7 +22,7 @@ Empresa que já está no **teste grátis** (cadastro em `/register`) assina pelo
 
 ## Publicar no Supabase
 
-1. **Banco**: Supabase → SQL Editor → cole `supabase/ATUALIZAR_BANCO.sql` inteiro → Run (é o mesmo arquivo do README; já inclui a migration dos pedidos e pode ser rodado de novo). Com a CLI, `supabase db push` faz o mesmo.
+1. **Banco**: Supabase → SQL Editor → cole `supabase/ATUALIZAR_BANCO.sql` inteiro → Run (é o mesmo arquivo do README; já inclui a migration dos pedidos e pode ser rodado de novo). Com a CLI, `supabase db push` faz o mesmo. O arquivo roda numa transação: se parar com erro, nada foi gravado; corrija e rode de novo.
 2. **Funções**:
 
 ```bash
