@@ -18,7 +18,7 @@ export const ROLE_HIERARCHY: RoleDefinition[] = [
   },
   {
     role: "fleet_manager",
-    label: "Gestor de Frota",
+    label: "Gestor de frota",
     description: "Toda a operação, incluindo cadastro de motoristas com acesso ao app.",
   },
   {
@@ -44,10 +44,10 @@ export interface PermissionDefinition {
 export const ROLE_PERMISSIONS: PermissionDefinition[] = [
   { label: "Alterar dados da empresa", roles: ["admin"] },
   { label: "Gerenciar usuários e níveis de acesso", roles: ["admin"] },
-  { label: "Área Administrativa (plano e usuários)", roles: ["admin"] },
+  { label: "Administração (plano e usuários)", roles: ["admin"] },
   { label: "Cadastrar motoristas com login no app", roles: ["admin", "fleet_manager"] },
-  { label: "Importar NFs, criar romaneios e baixar entregas", roles: ["admin", "fleet_manager", "dispatcher"] },
-  { label: "Dashboard, mapa e relatórios", roles: ["admin", "fleet_manager", "dispatcher"] },
+  { label: "Importar notas, criar romaneios e dar baixa nas entregas", roles: ["admin", "fleet_manager", "dispatcher"] },
+  { label: "Início, mapa e relatórios", roles: ["admin", "fleet_manager", "dispatcher"] },
 ];
 
 export function getRoleLabel(role: string): string {

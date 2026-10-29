@@ -75,17 +75,26 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
       doc.setFontSize(9);
       const columns = 2;
       const colWidth = contentWidth / columns;
+      // Valor longo (ex.: nome de cliente) quebra em linhas a direita, sem passar por cima do rotulo.
+      let rowLines = 1;
       section.summary.forEach(([label, value], index) => {
         const col = index % columns;
-        if (col === 0) ensureSpace(LINE);
+        if (col === 0) {
+          ensureSpace(LINE * 2);
+          rowLines = 1;
+        }
         const x = MARGIN + col * colWidth;
         doc.setFont("helvetica", "normal");
         doc.setTextColor(110);
         doc.text(label, x, y);
+        const labelWidth = doc.getTextWidth(label);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(30);
-        doc.text(value, x + colWidth - 4, y, { align: "right" });
-        if (col === columns - 1 || index === section.summary!.length - 1) y += LINE;
+        const valueWidth = Math.max(colWidth - 8 - labelWidth, colWidth * 0.35);
+        const lines = doc.splitTextToSize(value, valueWidth) as string[];
+        lines.forEach((line, li) => doc.text(line, x + colWidth - 4, y + li * 4.2, { align: "right" }));
+        rowLines = Math.max(rowLines, lines.length);
+        if (col === columns - 1 || index === section.summary!.length - 1) y += LINE + (rowLines - 1) * 4.2;
       });
       y += 2;
     }

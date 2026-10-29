@@ -134,12 +134,12 @@ describe("Motoristas que precisam de atencao", () => {
   it("mostra historico por periodo e ranking", async () => {
     const { PredictiveIntelligence } = await import("@/components/dashboard/PredictiveIntelligence");
     wrap(<PredictiveIntelligence />);
-    expect(screen.getByText("Motoristas que Precisam de Atenção")).toBeInTheDocument();
+    expect(screen.getByText("Histórico de SLA por motorista")).toBeInTheDocument();
     expect(screen.getByText("Carla Dias")).toBeInTheDocument();
     expect(screen.getByText("Bruno Souza")).toBeInTheDocument();
     expect(screen.queryByText("Ana Lima")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "7d" }));
-    expect(screen.getAllByText(/Ranking 7 dias/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("radio", { name: "7 dias" }));
+    expect(screen.getAllByText(/nos últimos 7 dias/).length).toBeGreaterThan(0);
   });
 });
 
@@ -155,7 +155,7 @@ describe("Top ofensores", () => {
         }}
       />,
     );
-    expect(screen.getByText("Top 5 Regiões com Atraso")).toBeInTheDocument();
+    expect(screen.getByText("Regiões com mais atrasos")).toBeInTheDocument();
     expect(screen.getByText(/4 atrasos • 2 ocorrências/)).toBeInTheDocument();
     expect(screen.getByText("Nenhuma devolução no período")).toBeInTheDocument();
   });
@@ -165,7 +165,7 @@ describe("Hierarquia de usuarios", () => {
   it("renderiza a matriz de permissoes", async () => {
     const { UserHierarchyTab } = await import("@/components/settings/UserHierarchyTab");
     wrap(<UserHierarchyTab />);
-    expect(screen.getByText("Hierarquia de Acesso")).toBeInTheDocument();
+    expect(screen.getByText("Níveis de acesso")).toBeInTheDocument();
     expect(screen.getByText("Alterar dados da empresa")).toBeInTheDocument();
   });
 });

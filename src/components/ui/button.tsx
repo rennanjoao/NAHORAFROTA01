@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -37,12 +38,42 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  /**
+   * Salvando: mostra o giro e ignora cliques, mas continua focavel (aria-disabled).
+   * Com "disabled" o foco cairia no <body> e o leitor de tela perderia o lugar.
+   */
+  loading?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, loading = false, onClick, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }), loading && "cursor-wait opacity-80")}
+        ref={ref}
+        aria-disabled={loading || props["aria-disabled"] || undefined}
+        aria-busy={loading || undefined}
+        onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+          if (loading) {
+            event.preventDefault();
+            return;
+          }
+          onClick?.(event);
+        }}
+        {...props}
+      >
+        {/* Com asChild o Slot exige um unico filho: o giro so entra no <button> comum. */}
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {children}
+          </>
+        )}
+      </Comp>
+    );
   },
 );
 Button.displayName = "Button";

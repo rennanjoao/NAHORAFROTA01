@@ -12,7 +12,7 @@ import { SettingsCard } from "./SettingsCard";
 
 const roleLabels: Record<string, string> = {
   admin: "Administrador",
-  fleet_manager: "Gestor de Frota",
+  fleet_manager: "Gestor de frota",
   dispatcher: "Despachante",
   viewer: "Visualizador",
 };

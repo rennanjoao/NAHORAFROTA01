@@ -18,7 +18,7 @@ const ROLE_PRIORITY: SystemUser['role'][] = ['admin', 'fleet_manager', 'dispatch
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
-  fleet_manager: 'Gestor de Frota',
+  fleet_manager: 'Gestor de frota',
   dispatcher: 'Despachante',
   viewer: 'Visualizador',
 };
@@ -36,10 +36,12 @@ export function useSystemUsers() {
       const currentUserId = (await supabase.auth.getUser()).data.user?.id ?? '';
 
       // O usuario pode ter mais de um papel (ex.: viewer criado no cadastro + admin).
-      const { data: currentUserRoles } = await supabase
+      const { data: currentUserRoles, error: currentRolesError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', currentUserId);
+      // Falha de rede sobe como erro (o catch mostra a mensagem e mantem a lista).
+      if (currentRolesError) throw currentRolesError;
 
       const isAdmin = (currentUserRoles || []).some((r) => r.role === 'admin');
 
@@ -226,7 +228,7 @@ export function useSystemUsers() {
       }
 
       toast({
-        title: 'Usuário deletado',
+        title: 'Usuário removido',
         description: 'Usuário removido completamente do sistema.',
       });
 
