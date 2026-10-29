@@ -28,16 +28,16 @@ function ShellLayout() {
   const { current } = useNavigation();
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
-  const firstRender = useRef(true);
+  // Rota anterior: so move o foco quando a tela muda de verdade (no carregamento,
+  // o primeiro Tab precisa cair em "Pular para o conteudo").
+  const previousPath = useRef(location.pathname);
   const [announcement, setAnnouncement] = useState("");
 
   // Titulo da aba, aviso para leitor de tela e foco no conteudo a cada tela nova.
   useEffect(() => {
     document.title = current ? `${current.label} · Na Hora Frota` : "Na Hora Frota";
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
+    if (previousPath.current === location.pathname) return;
+    previousPath.current = location.pathname;
     setAnnouncement(`Tela ${current?.label ?? ""} aberta`);
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     mainRef.current?.focus({ preventScroll: true });
