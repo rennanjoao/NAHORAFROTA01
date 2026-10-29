@@ -2,40 +2,30 @@ import { useState, useMemo, useEffect } from "react";
 import { formatDateOnly, getTodayBrazil, parseDateOnly } from "@/lib/timezone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Search,
-  MoreVertical,
-  Printer,
-  Calendar,
   CalendarDays,
-  Truck,
-  FileText,
-  Eye,
-  Trash2,
+  CalendarRange,
   CheckCircle2,
+  ClipboardList,
   Clock,
-  DollarSign,
-  Package,
-  AlertTriangle,
-  Loader2,
+  Eye,
+  MoreHorizontal,
+  Printer,
+  SearchX,
+  Trash2,
+  Truck,
 } from "lucide-react";
+import { CardsSkeleton, EmptyState, FilterBar, ListSkeleton, SearchInput, StatCard } from "@/components/patterns";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useManifestsDB, DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { ManifestDetailSheet } from "@/components/deliveries/ManifestDetailSheet";
 import { ManifestPrintPreview } from "@/components/deliveries/ManifestPrintPreview";
@@ -44,28 +34,36 @@ import { formatCurrency } from "@/lib/formatCurrency";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { SegmentedControl } from "./SegmentedControl";
+import { ManifestStatusBadge, vehicleTypeLabel } from "./status";
 
 type TimeFilter = "daily" | "weekly" | "all";
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pendente", color: "bg-warning/15 text-warning" },
-  in_progress: { label: "Em Rota", color: "bg-info/15 text-info" },
-  completed: { label: "Concluído", color: "bg-success/15 text-success" },
-  paid: { label: "Pago", color: "bg-success text-success-foreground" },
-  cancelled: { label: "Cancelado", color: "bg-destructive/15 text-destructive" },
-};
+const PERIOD_OPTIONS: { value: TimeFilter; label: string }[] = [
+  { value: "daily", label: "Hoje" },
+  { value: "weekly", label: "7 dias" },
+  { value: "all", label: "Todos" },
+];
 
 interface ManifestsTabDBProps {
   /** Termo vindo da busca geral do topo (nonce reaplica o mesmo termo). */
   externalSearch?: { term: string; nonce: number } | null;
+  /** Leva para a aba de notas (proximo passo quando nao ha romaneio). */
+  onCreateManifest?: () => void;
 }
 
-export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
+const createdTime = (manifest: DBManifest) =>
+  new Date(manifest.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+const notesLabel = (count: number) => (count === 1 ? "1 nota" : `${count} notas`);
+
+export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTabDBProps = {}) {
   const {
     manifests,
     isLoading,
     fetchManifests,
   } = useManifestsDB();
+  const isMobile = useIsMobile();
 
   const [search, setSearch] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
@@ -84,7 +82,7 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
     // Get today's date in Brazil timezone
     const todayStr = getTodayBrazil();
     const today = new Date(todayStr + "T00:00:00-03:00");
-    
+
     // Calculate date 7 days ago
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
@@ -154,6 +152,11 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
     setIsPrintOpen(true);
   };
 
+  const handleOpenDelete = (manifest: DBManifest) => {
+    setSelectedManifest(manifest);
+    setIsDeleteOpen(true);
+  };
+
   const handleDelete = async (manifestId: string) => {
     try {
       const { data, error } = await supabase.rpc("delete_manifest", { p_manifest_id: manifestId });
@@ -168,8 +171,8 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
         title: "Romaneio excluído",
         description:
           kept > 0
-            ? `${reopened} NF(s) voltaram para pendente; ${kept} já finalizada(s) mantiveram o status.`
-            : `${reopened} NF(s) voltaram para pendente.`,
+            ? `${reopened} nota(s) voltaram para pendente; ${kept} já finalizada(s) mantiveram o status.`
+            : `${reopened} nota(s) voltaram para pendente.`,
       });
 
       setIsDeleteOpen(false);
@@ -177,251 +180,224 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
       void fetchManifests();
     } catch (err: any) {
       toast({
-        title: "Erro ao excluir",
+        title: "Não foi possível excluir o romaneio",
         description: err.message,
         variant: "destructive",
       });
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const config = statusLabels[status] || statusLabels.pending;
+  const renderMenu = (manifest: DBManifest) => {
+    const number = formatManifestNumber(manifest);
     return (
-      <Badge className={cn("font-medium", config.color)}>{config.label}</Badge>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon" aria-label={`Ações do romaneio ${number}`} className="text-muted-foreground hover:text-foreground">
+            <MoreHorizontal aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuLabel>Romaneio {number}</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={() => handleOpenDetail(manifest)}>
+            <Eye className="text-muted-foreground" aria-hidden="true" />
+            Ver detalhes
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => handlePrint(manifest)}>
+            <Printer className="text-muted-foreground" aria-hidden="true" />
+            Imprimir romaneio
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => handleOpenDelete(manifest)}
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          >
+            <Trash2 aria-hidden="true" />
+            Excluir romaneio
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
 
+  const numberButton = (manifest: DBManifest, className?: string) => (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        handleOpenDetail(manifest);
+      }}
+      aria-label={`Ver romaneio ${formatManifestNumber(manifest)}`}
+      className={cn(
+        "rounded-sm font-data font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
+        className,
+      )}
+    >
+      Romaneio {formatManifestNumber(manifest)}
+    </button>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div role="status" aria-label="Carregando romaneios" className="space-y-6">
+        <CardsSkeleton count={4} className="grid-cols-2" />
+        <ListSkeleton rows={5} />
       </div>
     );
   }
 
+  if (manifests.length === 0) {
+    return (
+      <EmptyState
+        icon={ClipboardList}
+        title="Nenhum romaneio ainda"
+        description="Na aba Notas fiscais, marque as notas que vão sair juntas e toque em Gerar romaneio."
+        action={
+          onCreateManifest && (
+            <Button onClick={onCreateManifest}>
+              Escolher notas
+            </Button>
+          )
+        }
+      />
+    );
+  }
+
+  const resultLabel = filteredManifests.length === 1 ? "1 romaneio" : `${filteredManifests.length} romaneios`;
+
   return (
-    <div className="space-y-4">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Calendar className="h-4 w-4" />
-            Hoje
-          </div>
-          <div className="text-2xl font-bold">{stats.today}</div>
-          <div className="text-sm text-muted-foreground">
-            {formatCurrency(stats.todayValue)}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <CalendarDays className="h-4 w-4" />
-            Semana
-          </div>
-          <div className="text-2xl font-bold">{stats.week}</div>
-          <div className="text-sm text-muted-foreground">
-            {formatCurrency(stats.weekValue)}
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Clock className="h-4 w-4" />
-            Em Aberto
-          </div>
-          <div className="text-2xl font-bold text-warning">{stats.pending}</div>
-          <div className="text-sm text-muted-foreground">Aguardando baixa</div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <CheckCircle2 className="h-4 w-4" />
-            Concluídos
-          </div>
-          <div className="text-2xl font-bold text-success">
-            {stats.completed}
-          </div>
-          <div className="text-sm text-muted-foreground">Finalizados</div>
-        </Card>
+    <div className="space-y-6">
+      {/* Indicadores */}
+      <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard label="Hoje" value={stats.today} icon={CalendarDays} tone="brand" hint={formatCurrency(stats.todayValue)} />
+        <StatCard label="Últimos 7 dias" value={stats.week} icon={CalendarRange} tone="brand" hint={formatCurrency(stats.weekValue)} />
+        <StatCard label="Em aberto" value={stats.pending} icon={Clock} tone="info" hint="Aguardando baixa" />
+        <StatCard label="Concluídos" value={stats.completed} icon={CheckCircle2} tone="success" hint="No período escolhido" />
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por código, motorista, CPF ou placa..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant={timeFilter === "daily" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTimeFilter("daily")}
-            className="gap-2"
-          >
-            <Calendar className="h-4 w-4" />
-            Hoje
-          </Button>
-          <Button
-            variant={timeFilter === "weekly" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTimeFilter("weekly")}
-            className="gap-2"
-          >
-            <CalendarDays className="h-4 w-4" />
-            Semana
-          </Button>
-          <Button
-            variant={timeFilter === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setTimeFilter("all")}
-            className="gap-2"
-          >
-            Todos
-          </Button>
-        </div>
-      </div>
+      {/* Busca e periodo */}
+      <FilterBar>
+        <SearchInput
+          label="Buscar romaneio"
+          placeholder="Número, motorista, CPF ou placa"
+          value={search}
+          onChange={setSearch}
+        />
+        <SegmentedControl<TimeFilter> label="Período dos romaneios" options={PERIOD_OPTIONS} value={timeFilter} onChange={(value) => setTimeFilter(value)} />
+      </FilterBar>
 
-      {/* Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Romaneio</TableHead>
-              <TableHead>Motorista</TableHead>
-              <TableHead>Veículo</TableHead>
-              <TableHead className="text-center">NFs</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredManifests.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="text-center py-8 text-muted-foreground"
-                >
-                  {manifests.length === 0
-                    ? "Nenhum romaneio cadastrado."
-                    : "Nenhum romaneio encontrado para o período selecionado."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredManifests.map((manifest) => (
-                <TableRow
-                  key={manifest.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleOpenDetail(manifest)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <span className="font-bold text-primary">
-                          Nº {formatManifestNumber(manifest)}
-                        </span>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {manifest.manifest_code}
-                        </div>
-                      </div>
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          <span className="font-semibold text-foreground">{resultLabel}</span>
+          {search.trim() && " · buscando em todos os períodos"}
+        </p>
+
+        {filteredManifests.length === 0 ? (
+          <Card>
+            <EmptyState
+              compact
+              icon={SearchX}
+              title={search.trim() ? "Nenhum romaneio encontrado" : "Nenhum romaneio neste período"}
+              description={search.trim() ? "Confira o número, o nome do motorista ou a placa." : "Veja todos os romaneios ou escolha outro período."}
+              action={
+                search.trim() ? (
+                  <Button variant="outline" onClick={() => setSearch("")}>
+                    Limpar busca
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => setTimeFilter("all")}>
+                    Ver todos os romaneios
+                  </Button>
+                )
+              }
+            />
+          </Card>
+        ) : isMobile ? (
+          <ul className="space-y-3" aria-label="Romaneios">
+            {filteredManifests.map((manifest) => (
+              <li key={manifest.id} className="rounded-lg border bg-card p-4 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-h-10 flex-col justify-center">
+                      {numberButton(manifest, "self-start text-base")}
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateOnly(manifest.scheduled_date)} às {createdTime(manifest)}
+                      </span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{manifest.driver_name}</div>
-                      {manifest.driver_cpf && (
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {manifest.driver_cpf}
-                        </div>
-                      )}
+                    <p className="mt-1 truncate font-medium text-foreground">{manifest.driver_name}</p>
+                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="truncate">
+                        {vehicleTypeLabel(manifest.vehicle_type)} · {manifest.vehicle_plate || "sem placa"}
+                      </span>
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <ManifestStatusBadge status={manifest.status} />
+                      <span className="text-sm">
+                        <span className="text-muted-foreground">{notesLabel(manifest.deliveries_count)} · </span>
+                        <span className="font-data font-semibold">{formatCurrency(manifest.total_value || 0)}</span>
+                      </span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="text-sm">
-                          {manifest.vehicle_type || "-"}
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {manifest.vehicle_plate || "-"}
-                        </div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary">{manifest.deliveries_count}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(manifest.total_value || 0)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {formatDateOnly(manifest.scheduled_date)}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(manifest.created_at).toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(manifest.status)}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        asChild
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenDetail(manifest);
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Ver Detalhes
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePrint(manifest);
-                          }}
-                        >
-                          <Printer className="h-4 w-4 mr-2" />
-                          Reimprimir
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedManifest(manifest);
-                            setIsDeleteOpen(true);
-                          }}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  </div>
+                  <div className="-mr-2 -mt-1 shrink-0">{renderMenu(manifest)}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Card className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-5">Romaneio</TableHead>
+                  <TableHead>Motorista</TableHead>
+                  <TableHead className="hidden xl:table-cell">Veículo</TableHead>
+                  <TableHead className="text-right">Notas</TableHead>
+                  <TableHead className="hidden text-right lg:table-cell">Valor</TableHead>
+                  <TableHead className="hidden lg:table-cell">Data</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-16 pr-5 text-right">
+                    <span className="sr-only">Ações</span>
+                  </TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {filteredManifests.map((manifest) => (
+                  // Clique na linha tambem abre o detalhe (atalho do mouse; o botao do numero e o acesso principal).
+                  <TableRow key={manifest.id} className="h-[4.25rem] cursor-pointer" onClick={() => handleOpenDetail(manifest)}>
+                    <TableCell className="whitespace-nowrap pl-5">
+                      <div className="flex flex-col items-start">
+                        {numberButton(manifest)}
+                        <span className="font-data text-xs text-muted-foreground">{manifest.manifest_code}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="max-w-0 w-full">
+                      <p className="truncate font-medium text-foreground">{manifest.driver_name}</p>
+                      {manifest.driver_cpf && <p className="font-data text-xs text-muted-foreground">{manifest.driver_cpf}</p>}
+                    </TableCell>
+                    <TableCell className="hidden whitespace-nowrap xl:table-cell">
+                      <p>{vehicleTypeLabel(manifest.vehicle_type)}</p>
+                      <p className="font-data text-xs text-muted-foreground">{manifest.vehicle_plate || "Sem placa"}</p>
+                    </TableCell>
+                    <TableCell className="text-right font-data">{manifest.deliveries_count}</TableCell>
+                    <TableCell className="hidden whitespace-nowrap text-right font-data font-medium lg:table-cell">
+                      {formatCurrency(manifest.total_value || 0)}
+                    </TableCell>
+                    <TableCell className="hidden whitespace-nowrap lg:table-cell">
+                      <p className="font-data">{formatDateOnly(manifest.scheduled_date)}</p>
+                      <p className="font-data text-xs text-muted-foreground">{createdTime(manifest)}</p>
+                    </TableCell>
+                    <TableCell>
+                      <ManifestStatusBadge status={manifest.status} />
+                    </TableCell>
+                    <TableCell className="pr-3 text-right">{renderMenu(manifest)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </div>
 
       {/* Detail Sheet */}
       <ManifestDetailSheet

@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Lock, RotateCcw } from "lucide-react";
+import { AlertTriangle, Loader2, Lock, RotateCcw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -63,7 +63,7 @@ export function ReversalPasswordDialog({
           : '';
         setError(`${data.error || 'Senha incorreta'}${attemptsMsg}`);
         toast({
-          title: "Senha Incorreta",
+          title: "Senha incorreta",
           description: data.error || "A senha de estorno informada está incorreta.",
           variant: "destructive",
         });
@@ -86,18 +86,19 @@ export function ReversalPasswordDialog({
       if (reverted === false) return;
 
       toast({
-        title: "Estorno Autorizado",
-        description: "O valor foi revertido para 'A Pagar'. Ação registrada no log de auditoria.",
+        title: "Estorno feito",
+        description: "O romaneio voltou para \"a pagar\". A ação ficou registrada no histórico.",
       });
       onOpenChange(false);
       setPassword("");
       setRemainingAttempts(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error during reversal:", err);
-      setError(err.message || "Erro ao processar estorno");
+      const message = err instanceof Error ? err.message : "";
+      setError(message || "Erro ao processar estorno");
       toast({
-        title: "Erro",
-        description: err.message || "Não foi possível processar o estorno.",
+        title: "Não foi possível estornar",
+        description: message || "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -105,73 +106,73 @@ export function ReversalPasswordDialog({
     }
   };
  
-   const handleClose = () => {
-     setPassword("");
-     setError("");
-     onOpenChange(false);
-   };
- 
-   return (
-     <AlertDialog open={open} onOpenChange={handleClose}>
-       <AlertDialogContent className="sm:max-w-md">
-         <AlertDialogHeader>
-           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-             <AlertTriangle className="h-5 w-5" />
-             Confirmar Estorno
-           </AlertDialogTitle>
-           <AlertDialogDescription className="space-y-2">
-             <p>
-               Você está prestes a reverter o status de <strong>"Pago"</strong> para{" "}
-               <strong>"A Pagar"</strong>.
-             </p>
-             {manifestCode && (
-               <p className="font-mono text-sm bg-muted p-2 rounded">
-                 Romaneio: {manifestCode}
-               </p>
-             )}
-             <p className="text-destructive font-medium">
-               Esta ação será registrada no log de auditoria.
-             </p>
-           </AlertDialogDescription>
-         </AlertDialogHeader>
- 
-         <div className="py-4 space-y-4">
-           <div className="space-y-2">
-             <Label htmlFor="reversal-password" className="flex items-center gap-2">
-               <Lock className="h-4 w-4" />
-               Senha de Segurança
-             </Label>
-             <Input
-               id="reversal-password"
-               type="password"
-               placeholder="Digite a senha de estorno"
-               value={password}
-               onChange={(e) => {
-                 setPassword(e.target.value);
-                 setError("");
-               }}
-               className={error ? "border-destructive" : ""}
-               autoFocus
-             />
-             {error && (
-               <p className="text-sm text-destructive">{error}</p>
-             )}
-           </div>
-         </div>
- 
-         <AlertDialogFooter>
-           <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
-           <Button
-             variant="destructive"
-             onClick={handleConfirm}
-             disabled={!password || isLoading}
-             className="gap-2"
-           >
-             <RotateCcw className="h-4 w-4" />
-             {isLoading ? "Processando..." : "Confirmar Estorno"}
-           </Button>
-         </AlertDialogFooter>
-       </AlertDialogContent>
-     </AlertDialog>
-   );
- }
+  const handleClose = () => {
+    setPassword("");
+    setError("");
+    onOpenChange(false);
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={handleClose}>
+      <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden="true" />
+            Estornar pagamento?
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>
+                O romaneio sai de <strong className="text-foreground">pago</strong> e volta para{" "}
+                <strong className="text-foreground">a pagar</strong>. A ação fica registrada no histórico.
+              </p>
+              {manifestCode && (
+                <p className="truncate rounded-md bg-muted px-3 py-2 font-data text-xs">Romaneio: {manifestCode}</p>
+              )}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <form
+          className="space-y-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (password && !isLoading) void handleConfirm();
+          }}
+        >
+          <Label htmlFor="reversal-password" className="flex items-center gap-2">
+            <Lock className="h-4 w-4" aria-hidden="true" />
+            Senha de estorno
+          </Label>
+          <Input
+            id="reversal-password"
+            type="password"
+            placeholder="Digite a senha de estorno"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError("");
+            }}
+            aria-invalid={Boolean(error)}
+            className={error ? "border-destructive" : undefined}
+            aria-describedby={error ? "reversal-password-error" : undefined}
+            autoFocus
+          />
+          {error && (
+            <p id="reversal-password-error" role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </form>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
+          <Button variant="destructive" onClick={handleConfirm} disabled={!password || isLoading}>
+            {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
+            {isLoading ? "Estornando" : "Estornar pagamento"}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}

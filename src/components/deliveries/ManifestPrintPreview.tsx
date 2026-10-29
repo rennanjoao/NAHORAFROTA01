@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
-import { X, Printer, FileText, Loader2 } from "lucide-react";
+import { Printer } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCNPJ } from "@/lib/cnpjValidation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -56,9 +57,9 @@ const vehicleTypeLabels: Record<string, string> = {
 };
 
 const freightTypeLabels: Record<string, string> = {
-  fixed: "Frete Fixo",
-  lumpsum: "Frete Fechado",
-  per_km: "Frete por KM",
+  fixed: "Frete fixo",
+  lumpsum: "Frete fechado",
+  per_km: "Frete por km",
 };
 
 // Parse weight string to number (e.g., "5.2kg" -> 5.2)
@@ -256,40 +257,38 @@ export function ManifestPrintPreview({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0">
-        <DialogTitle className="sr-only">Romaneio para impressão</DialogTitle>
-        <DialogDescription className="sr-only">Visualização do romaneio antes de imprimir ou salvar em PDF.</DialogDescription>
-        {/* Toolbar */}
-        <div className="sticky top-0 z-10 bg-background border-b p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <span className="font-semibold">Visualização do Romaneio</span>
-            <Badge variant="outline" className="text-xs">Paisagem</Badge>
+      <DialogContent hideClose className="gap-0 p-0 pt-3 sm:max-w-5xl sm:pt-0">
+        {/* Barra de acoes */}
+        <div className="sticky top-0 z-10 flex flex-col gap-3 border-b bg-popover px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="min-w-0">
+            <DialogTitle>Romaneio {manifestData.displayNumber}</DialogTitle>
+            <DialogDescription>Confira antes de imprimir. A folha sai deitada (paisagem); no navegador dá para salvar em PDF.</DialogDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={handlePrint} className="gap-2" disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-              Imprimir
-            </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4" />
+          <div className="flex shrink-0 gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
               Fechar
+            </Button>
+            <Button onClick={handlePrint} disabled={isLoading} className="flex-1 sm:flex-none">
+              <Printer aria-hidden="true" />
+              Imprimir
             </Button>
           </div>
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="space-y-3 p-6" role="status" aria-label="Carregando romaneio">
+            <Skeleton className="h-10 w-1/2" />
+            <Skeleton className="h-6 w-1/3" />
+            <Skeleton className="h-48 w-full" />
           </div>
         ) : (
-          /* Print Content - Landscape Layout */
-          // ".light": documento em papel (tema claro da marca) dentro do dialogo escuro.
-          <div ref={printRef} className="light p-6 bg-white text-black">
+          // Documento em papel: sempre claro (".light"), nos dois temas.
+          <div className="overflow-x-auto bg-muted/40 p-3 sm:p-6">
+          <div ref={printRef} className="light mx-auto min-w-[44rem] rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
             {/* Header */}
-            <div className="header flex justify-between items-start mb-4 border-b-2 border-nhf-ink pb-3">
+            <div className="header mb-4 flex items-start justify-between border-b-2 border-foreground pb-3">
               <div>
-                <div className="logo text-xl font-bold text-nhf-ink">
+                <div className="logo font-heading text-xl font-bold text-foreground">
                   {company?.razaoSocial || "Na Hora Frota"}
                 </div>
                 {company?.cnpj && (
@@ -304,7 +303,7 @@ export function ManifestPrintPreview({
               </div>
               <div className="manifest-info text-right">
                 <div className="text-xs text-muted-foreground mb-1">Romaneio Nº</div>
-                <div className="manifest-id text-xl font-bold text-nhf-green-deep font-data">{manifestData.displayNumber}</div>
+                <div className="manifest-id font-data text-xl font-bold text-primary">{manifestData.displayNumber}</div>
                 <div className="manifest-date text-xs text-muted-foreground mt-1">
                   {manifestData.createdAt.toLocaleDateString('pt-BR', {
                     day: '2-digit',
@@ -349,7 +348,7 @@ export function ManifestPrintPreview({
                   Informações do Frete
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="bg-nhf-mist text-nhf-green-deep border-nhf-green-deep text-xs">
+                  <Badge variant="outline" className="border-primary/40 bg-primary/10 text-xs text-primary">
                     {freightTypeLabels[manifestData.freightType] || manifestData.freightType}
                   </Badge>
                   <Badge variant={manifestData.isOwnVehicle ? "default" : "outline"} className="text-xs">
@@ -386,7 +385,7 @@ export function ManifestPrintPreview({
                   {deliveries.map((delivery, idx) => (
                     <TableRow key={delivery.id}>
                       <TableCell className="font-mono text-muted-foreground text-xs">{idx + 1}</TableCell>
-                      <TableCell className="font-mono font-medium text-xs">{delivery.nfe}</TableCell>
+                      <TableCell className="font-data font-medium text-xs">{delivery.nfe}</TableCell>
                       <TableCell className="max-w-[120px] truncate text-xs">{delivery.recipient}</TableCell>
                       <TableCell className="text-xs">
                         <div className="max-w-[180px]">
@@ -407,7 +406,7 @@ export function ManifestPrintPreview({
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={5} className="font-bold text-xs">TOTAIS</TableCell>
+                    <TableCell colSpan={5} className="font-bold text-xs">Totais</TableCell>
                     <TableCell className="text-right font-bold text-xs">{totalWeight.toFixed(1).replace(".", ",")} kg</TableCell>
                     <TableCell className="text-right font-bold text-xs">{formatCurrency(totalValue)}</TableCell>
                     <TableCell></TableCell>
@@ -418,8 +417,8 @@ export function ManifestPrintPreview({
 
             {/* Observations Section - Only if there are observations */}
             {deliveriesWithObs.length > 0 && (
-              <div className="obs-section bg-warning/5 border border-warning/30 p-3 rounded-lg mb-4">
-                <div className="obs-title text-xs font-bold text-warning mb-2">
+              <div className="obs-section mb-4 rounded-lg border border-warning/30 bg-warning/5 p-3">
+                <div className="obs-title mb-2 text-xs font-bold text-warning">
                   Observações das Entregas
                 </div>
                 <div className="space-y-1">
@@ -447,7 +446,7 @@ export function ManifestPrintPreview({
                 <Separator className="my-2" />
                 <div className="total-row flex justify-between gap-6 text-sm">
                   <span className="total-label text-muted-foreground">Valor do Frete:</span>
-                  <span className="total-value font-bold text-nhf-green-deep font-data">{formatCurrency(manifestData.calculatedTotal)}</span>
+                  <span className="total-value font-data font-bold text-primary">{formatCurrency(manifestData.calculatedTotal)}</span>
                 </div>
               </div>
 
@@ -462,6 +461,7 @@ export function ManifestPrintPreview({
             <div className="mt-6 pt-3 border-t text-center text-xs text-muted-foreground">
               Documento gerado automaticamente pelo Na Hora Frota • {new Date().toLocaleDateString('pt-BR')}
             </div>
+          </div>
           </div>
         )}
       </DialogContent>

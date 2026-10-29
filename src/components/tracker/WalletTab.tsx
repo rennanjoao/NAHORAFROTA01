@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Wallet, DollarSign, Clock, CheckCircle } from "lucide-react";
+import { WalletCards } from "lucide-react";
+import { EmptyState, StatusBadge, type Tone } from "@/components/patterns";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatDateOnly } from "@/lib/timezone";
+import { ScreenHeader } from "./ScreenHeader";
 
 interface WalletItem {
   id: string;
@@ -17,6 +18,12 @@ interface WalletItem {
 interface WalletTabProps {
   driverId: string;
 }
+
+const STATUS: Record<string, { label: string; tone: Tone }> = {
+  pending: { label: "A receber", tone: "warning" },
+  paid: { label: "Pago", tone: "success" },
+  cancelled: { label: "Cancelado", tone: "neutral" },
+};
 
 export function WalletTab({ driverId }: WalletTabProps) {
   const [items, setItems] = useState<WalletItem[]>([]);
@@ -43,96 +50,81 @@ export function WalletTab({ driverId }: WalletTabProps) {
     }
   };
 
-  const totalPending = items
-    .filter((i) => i.status === "pending")
-    .reduce((sum, i) => sum + Number(i.amount), 0);
+  const pendingItems = items.filter((i) => i.status === "pending");
+  const totalPending = pendingItems.reduce((sum, i) => sum + Number(i.amount), 0);
 
   const totalPaid = items
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + Number(i.amount), 0);
 
-  const statusConfig = {
-    pending: { label: "Pendente", icon: Clock, color: "bg-warning/10 text-warning" },
-    paid: { label: "Pago", icon: CheckCircle, color: "bg-success/10 text-success" },
-    cancelled: { label: "Cancelado", icon: DollarSign, color: "bg-destructive/10 text-destructive" },
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="p-4 bg-warning/10 border-warning/30">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="h-4 w-4 text-warning" />
-            <span className="text-xs text-warning">A Receber</span>
-          </div>
-          <p className="text-xl font-bold font-heading text-warning">
-            {formatCurrency(totalPending)}
-          </p>
-        </Card>
+    <>
+      <ScreenHeader title="Carteira" description="O que você tem para receber e o que já foi pago." />
 
-        <Card className="p-4 bg-success/10 border-success/30">
-          <div className="flex items-center gap-2 mb-1">
-            <CheckCircle className="h-4 w-4 text-success" />
-            <span className="text-xs text-success">Recebido</span>
-          </div>
-          <p className="text-xl font-bold font-heading text-success">
-            {formatCurrency(totalPaid)}
-          </p>
-        </Card>
-      </div>
+      {isLoading ? (
+        <div role="status" aria-label="Carregando a carteira" className="space-y-4">
+          <Skeleton className="h-44 rounded-2xl" />
+          <Skeleton className="h-16 rounded-xl" />
+          <Skeleton className="h-16 rounded-xl" />
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <section aria-labelledby="saldo-titulo" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+            <div className="relative p-5">
+              <div aria-hidden="true" className="nhf-routes pointer-events-none absolute inset-0 opacity-60" />
+              <div className="relative">
+                <h2 id="saldo-titulo" className="nhf-label text-muted-foreground">
+                  A receber
+                </h2>
+                <p className="mt-2 font-data text-[2.5rem] font-semibold leading-none tracking-tight text-foreground">
+                  {formatCurrency(totalPending)}
+                </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {pendingItems.length === 0
+                    ? "Nada pendente agora."
+                    : `${pendingItems.length} ${pendingItems.length === 1 ? "lançamento aguardando" : "lançamentos aguardando"} pagamento`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t bg-muted/40 px-5 py-4">
+              <span className="text-sm font-medium text-muted-foreground">Já recebido</span>
+              <span className="font-data text-xl font-semibold text-foreground">{formatCurrency(totalPaid)}</span>
+            </div>
+          </section>
 
-      {/* Transaction List */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-          <Wallet className="h-4 w-4" />
-          Histórico
-        </h3>
+          <section aria-labelledby="historico-titulo" className="space-y-3">
+            <h2 id="historico-titulo" className="text-lg font-semibold text-foreground">
+              Histórico
+            </h2>
 
-        {items.length === 0 ? (
-          <Card className="p-6 text-center">
-            <Wallet className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Nenhuma transação encontrada</p>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {items.map((item) => {
-              const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.pending;
-              const StatusIcon = config.icon;
-
-              return (
-                <Card key={item.id} className="p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDateOnly(item.date)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 ml-2">
-                      <span className="text-sm font-bold font-heading">
-                        {formatCurrency(item.amount)}
-                      </span>
-                      <Badge variant="secondary" className={config.color}>
-                        <StatusIcon className="h-3 w-3 mr-1" />
-                        {config.label}
-                      </Badge>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+            {items.length === 0 ? (
+              <EmptyState
+                icon={WalletCards}
+                title="Nenhum lançamento ainda"
+                description="Fretes, ajudas de custo e vales aparecem aqui quando a base lançar."
+              />
+            ) : (
+              <ul className="stagger divide-y overflow-hidden rounded-xl border bg-card">
+                {items.map((item) => {
+                  const status = STATUS[item.status] ?? STATUS.pending;
+                  return (
+                    <li key={item.id} className="flex items-center gap-3 px-4 py-3.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[0.9375rem] font-medium text-foreground">{item.description}</p>
+                        <p className="font-data text-xs text-muted-foreground">{formatDateOnly(item.date)}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="font-data text-base font-semibold text-foreground">{formatCurrency(Number(item.amount))}</span>
+                        <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      )}
+    </>
   );
 }

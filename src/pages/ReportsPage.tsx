@@ -1,23 +1,15 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  BarChart3, 
-  FileDown,
-  RefreshCw,
-   MapPin,
-   Truck,
-   DollarSign
-} from "lucide-react";
+import { BarChart3, FileDown, MapPin, RefreshCw, Truck, Wallet } from "lucide-react";
+import { PageHeader } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
 
 // Components
-import { ReportsFilters, FilterState, defaultFilters, ReportFilterOptions } from "@/components/reports/ReportsFilters";
+import { ReportsFilters } from "@/components/reports/ReportsFilters";
+import { defaultFilters, type FilterState, type ReportFilterOptions } from "@/components/reports/reportFilterState";
 import { InteractiveKPIs } from "@/components/reports/InteractiveKPIs";
 import { KPIDrilldownSheet, DrilldownType } from "@/components/reports/KPIDrilldownSheet";
-import { FinancialImpact } from "@/components/reports/FinancialImpact";
-import { AIInsights } from "@/components/reports/AIInsights";
 import { TopOffenders } from "@/components/reports/TopOffenders";
 import { ReportsCharts } from "@/components/reports/ReportsCharts";
 import { SLAEvolutionChart } from "@/components/reports/SLAEvolutionChart";
@@ -237,7 +229,7 @@ export default function ReportsPage() {
     };
   }, [periodSLA, previousPeriodSLA, deliveryData, previousDeliveryData, filteredManifests, previousManifests]);
 
-  // Financial impact data
+  // Impacto financeiro e insights: calculados, ainda nao exibidos (valores de exemplo).
   const financialImpactData = useMemo(() => ({
     returnCount: deliveryData.devolvido,
     returnCost: 85, // Cost per return
@@ -419,8 +411,8 @@ export default function ReportsPage() {
         `relatorio-${stamp}.pdf`,
       );
       toast({
-        title: "Relatório Exportado",
-        description: `${fileName} baixado.`,
+        title: "Relatório exportado",
+        description: `${fileName} foi baixado.`,
       });
     } catch (err) {
       console.error('Report export error:', err);
@@ -430,48 +422,42 @@ export default function ReportsPage() {
     }
   };
 
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    await Promise.all([refetchInvoices(), fetchManifests()]);
+    setIsLoading(false);
+    toast({ title: "Dados atualizados" });
+  };
+
+  const tabs = [
+    { value: "desempenho", label: "Desempenho", icon: BarChart3 },
+    { value: "regional", label: "Eficiência regional", icon: MapPin },
+    { value: "frota", label: "Uso da frota", icon: Truck },
+    { value: "rentabilidade", label: "Rentabilidade", icon: Wallet },
+  ] as const;
+
   return (
     <>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <BarChart3 className="h-7 w-7 text-primary" />
-              Relatórios
-            </h1>
-            <p className="text-muted-foreground">
-              Centro de análise e inteligência operacional
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={async () => {
-                setIsLoading(true);
-                await Promise.all([refetchInvoices(), fetchManifests()]);
-                setIsLoading(false);
-                toast({ title: "Dados atualizados" });
-              }}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Atualizar
+      <PageHeader
+        icon={BarChart3}
+        title="Relatórios"
+        description="SLA, custos, eficiência e ocorrências do período. Escolha o período e todos os gráficos acompanham."
+        actions={
+          <>
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+              <RefreshCw className={isLoading ? "animate-spin" : undefined} aria-hidden="true" />
+              {isLoading ? "Atualizando" : "Atualizar"}
             </Button>
-            <Button 
-              variant="default" 
-              size="sm"
-              className="gap-2"
-              onClick={() => setShowExportDialog(true)}
-            >
-              <FileDown className="h-4 w-4" />
-              Exportar
+            <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+              <FileDown aria-hidden="true" />
+              Exportar PDF
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        {/* Sticky Filters */}
+      <div className="space-y-6">
+        {/* Periodo e filtros (fixos no topo no computador) */}
         <ReportsFilters
           filters={filters}
           options={filterOptions}
@@ -479,74 +465,56 @@ export default function ReportsPage() {
           onClearFilters={handleClearFilters}
         />
 
-        {/* View Mode Indicator */}
-        <div className="flex items-center gap-2">
-          <Badge variant="default" className="text-xs">
-            Visão Operacional
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            Foco em volumes e contagens
-          </span>
-        </div>
-
-        {/* Tabs for different report views */}
+        {/* Abas: cada uma e uma visao do mesmo periodo */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="mb-4 h-auto flex-wrap justify-start">
-            <TabsTrigger value="desempenho" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Desempenho
-            </TabsTrigger>
-            <TabsTrigger value="regional" className="gap-2">
-              <MapPin className="h-4 w-4" />
-              Eficiência Regional
-            </TabsTrigger>
-             <TabsTrigger value="frota" className="gap-2">
-               <Truck className="h-4 w-4" />
-               Uso de Frota
-             </TabsTrigger>
-             <TabsTrigger value="rentabilidade" className="gap-2">
-               <DollarSign className="h-4 w-4" />
-               Rentabilidade
-             </TabsTrigger>
+          <TabsList
+            aria-label="Tipo de relatório"
+            className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:w-auto"
+          >
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.value} value={tab.value} className="min-h-[2.5rem] sm:min-h-0">
+                  <Icon aria-hidden="true" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
-          {/* Performance Tab */}
-          <TabsContent value="desempenho" className="space-y-6 mt-0">
-            {/* Interactive KPIs with Drill-Down */}
+          {/* Desempenho */}
+          <TabsContent value="desempenho" className="mt-6 space-y-6 md:space-y-8">
+            {/* Indicadores com detalhe ao clicar */}
             <InteractiveKPIs
               data={kpiData}
               viewMode={filters.viewMode}
               onKPIClick={handleKPIClick}
             />
 
-
-            {/* SLA Evolution Chart */}
             <SLAEvolutionChart
               invoices={entityFilteredInvoices}
               dateRange={filters.dateRange}
-              isLoading={isLoading}
+              isLoading={isLoading || (invoicesLoading && invoices.length === 0)}
               detailedAllowed={slaAccess.allowed}
             />
 
-            {/* Pareto Chart */}
+            {/* Pareto de ocorrencias */}
             <ReportsCharts
               slaData={[]}
               issuesData={chartsIssuesData}
               isLoading={isLoading}
             />
 
-
-            {/* Top Offenders */}
-            <TopOffenders 
+            <TopOffenders
               data={topOffendersData}
               onRouteClick={(route) => handleFiltersChange({ ...filters, route })}
               onClientClick={(client) => handleFiltersChange({ ...filters, client })}
             />
           </TabsContent>
 
-          {/* Regional Efficiency Tab */}
-          <TabsContent value="regional" className="mt-0">
-            <RegionalEfficiencyDashboard 
+          {/* Eficiencia regional */}
+          <TabsContent value="regional" className="mt-6">
+            <RegionalEfficiencyDashboard
               invoices={filteredInvoices.map(inv => ({
                 id: inv.id,
                 status: inv.status,
@@ -558,37 +526,38 @@ export default function ReportsPage() {
               isLoading={invoicesLoading}
             />
           </TabsContent>
-           {/* Fleet Usage Tab */}
-           <TabsContent value="frota" className="mt-0">
-             <FleetUsageReport />
-           </TabsContent>
-           {/* Rentabilidade e Agregados Tab */}
-           <TabsContent value="rentabilidade" className="mt-0">
-             <ProfitabilityReport
-               allowed={rentabilidadeAccess.allowed}
-               upgradePlanLabel={rentabilidadeAccess.upgradePlanLabel}
-             />
-           </TabsContent>
+
+          {/* Uso de frota */}
+          <TabsContent value="frota" className="mt-6">
+            <FleetUsageReport />
+          </TabsContent>
+
+          {/* Rentabilidade e agregados */}
+          <TabsContent value="rentabilidade" className="mt-6">
+            <ProfitabilityReport
+              allowed={rentabilidadeAccess.allowed}
+              upgradePlanLabel={rentabilidadeAccess.upgradePlanLabel}
+            />
+          </TabsContent>
         </Tabs>
-
-        {/* Drill-Down Sheet */}
-        <KPIDrilldownSheet
-          open={drilldownOpen}
-          onOpenChange={setDrilldownOpen}
-          kpiType={drilldownType}
-          invoices={filteredInvoices}
-        />
-
-        {/* Export Dialog */}
-        <ExportReportDialog
-          open={showExportDialog}
-          onOpenChange={setShowExportDialog}
-          currentTab="desempenho"
-          onExport={handleExport}
-          isExporting={isExporting}
-          dateRange={filters.dateRange}
-        />
       </div>
+
+      {/* Detalhe do indicador */}
+      <KPIDrilldownSheet
+        open={drilldownOpen}
+        onOpenChange={setDrilldownOpen}
+        kpiType={drilldownType}
+        invoices={filteredInvoices}
+      />
+
+      <ExportReportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        currentTab="desempenho"
+        onExport={handleExport}
+        isExporting={isExporting}
+        dateRange={filters.dateRange}
+      />
     </>
   );
 }

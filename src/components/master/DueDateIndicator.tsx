@@ -1,66 +1,40 @@
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarDays } from "lucide-react";
-import { calendarDaysBetween } from "@/lib/billingStatus";
-import { formatDateOnly, getTodayBrazil } from "@/lib/timezone";
+import { StatusBadge, type Tone } from "@/components/patterns";
+import { formatDateOnly } from "@/lib/timezone";
+import { daysUntilDue } from "./dueDates";
 
 interface DueDateIndicatorProps {
   nextDueDate: string | null;
   financialStatus: string | null;
 }
 
-/** Dias de calendario (Brasilia) ate o vencimento; negativo = atrasado. */
-function daysUntilDue(nextDueDate: string): number {
-  // differenceInDays truncava as horas: vencido ontem aparecia como "Vence hoje".
-  return calendarDaysBetween(getTodayBrazil(), nextDueDate.slice(0, 10));
-}
+const days = (count: number) => `${count} ${count === 1 ? "dia" : "dias"}`;
 
-export function DueDateIndicator({ nextDueDate, financialStatus }: DueDateIndicatorProps) {
+/** Vencimento da assinatura: selo com o prazo e a data por extenso abaixo. */
+export function DueDateIndicator({ nextDueDate }: DueDateIndicatorProps) {
   if (!nextDueDate) {
-    return <span className="text-xs text-muted-foreground">—</span>;
+    return <span className="text-xs text-muted-foreground">Sem vencimento</span>;
   }
 
   const diff = daysUntilDue(nextDueDate);
 
-  let color: string;
+  let tone: Tone;
   let label: string;
 
   if (diff < 0) {
-    color = "bg-destructive/20 text-destructive border-destructive/30";
-    label = `Atrasado ${Math.abs(diff)}d`;
+    tone = "danger";
+    label = `Atrasado há ${days(Math.abs(diff))}`;
   } else if (diff <= 7) {
-    color = "bg-warning/20 text-warning border-warning/30";
-    label = diff === 0 ? "Vence hoje" : `Vence em ${diff}d`;
+    tone = "warning";
+    label = diff === 0 ? "Vence hoje" : `Vence em ${days(diff)}`;
   } else {
-    color = "bg-success/20 text-success border-success/30";
-    label = `${diff}d restantes`;
+    tone = "success";
+    label = `Em dia · ${days(diff)}`;
   }
 
-  const formattedDate = formatDateOnly(nextDueDate.slice(0, 10));
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="outline" className={`gap-1 text-[11px] cursor-default ${color}`}>
-          <CalendarDays className="h-3 w-3" />
-          {formattedDate}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p className="text-xs">{label}</p>
-      </TooltipContent>
-    </Tooltip>
+    <span className="flex flex-col items-start gap-0.5">
+      <StatusBadge tone={tone}>{label}</StatusBadge>
+      <span className="pl-1 text-xs text-muted-foreground">Vencimento {formatDateOnly(nextDueDate.slice(0, 10))}</span>
+    </span>
   );
-}
-
-export function getDueSoonCount(tenants: Array<{ next_due_date?: string | null }>, withinDays = 5): number {
-  return tenants.filter((t) => {
-    if (!t.next_due_date) return false;
-    const diff = daysUntilDue(t.next_due_date);
-    return diff >= 0 && diff <= withinDays;
-  }).length;
-}
-
-export function getOverdueCount(tenants: Array<{ next_due_date?: string | null }>): number {
-  return tenants.filter((t) => !!t.next_due_date && daysUntilDue(t.next_due_date) < 0).length;
 }

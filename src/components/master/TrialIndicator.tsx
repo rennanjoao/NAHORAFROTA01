@@ -1,14 +1,15 @@
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { BellRing, Gift } from "lucide-react";
+import { BellRing } from "lucide-react";
+import { StatusBadge } from "@/components/patterns";
 import { getTrialDaysLeft } from "@/lib/billingStatus";
 import type { BillingNoticeSummary } from "@/hooks/usePlatformAdmin";
+import { cn } from "@/lib/utils";
 
 interface TrialIndicatorProps {
   trialEndsAt: string | null | undefined;
   extensions?: number | null;
 }
 
+/** Prazo do teste gratis: selo com os dias que faltam e a data de fim abaixo. */
 export function TrialIndicator({ trialEndsAt, extensions }: TrialIndicatorProps) {
   if (!trialEndsAt) {
     return <span className="text-xs text-muted-foreground">Teste sem data</span>;
@@ -16,28 +17,22 @@ export function TrialIndicator({ trialEndsAt, extensions }: TrialIndicatorProps)
 
   const expired = new Date(trialEndsAt) <= new Date();
   const days = getTrialDaysLeft(trialEndsAt);
-  const label = expired ? "Teste expirado" : days <= 0 ? "Teste acaba hoje" : `Teste: ${days}d`;
-  const color = expired
-    ? "bg-destructive/20 text-destructive border-destructive/30"
-    : days <= 2
-      ? "bg-warning/20 text-warning border-warning/30"
-      : "bg-info/20 text-info border-info/30";
+  const label = expired
+    ? "Teste expirado"
+    : days <= 0
+      ? "Teste acaba hoje"
+      : `Teste: ${days} ${days === 1 ? "dia" : "dias"}`;
+  const tone = expired ? "danger" : days <= 2 ? "warning" : "info";
+  const endDate = new Date(trialEndsAt).toLocaleDateString("pt-BR");
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="outline" className={`gap-1 text-[11px] cursor-default ${color}`}>
-          <Gift className="h-3 w-3" />
-          {label}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p className="text-xs">
-          {expired ? "Terminou em" : "Termina em"} {new Date(trialEndsAt).toLocaleString("pt-BR")}
-          {extensions ? ` • estendido ${extensions}x` : ""}
-        </p>
-      </TooltipContent>
-    </Tooltip>
+    <span className="flex flex-col items-start gap-0.5">
+      <StatusBadge tone={tone}>{label}</StatusBadge>
+      <span className="pl-1 text-xs text-muted-foreground">
+        {expired ? "Terminou em" : "Até"} {endDate}
+        {extensions ? ` · estendido ${extensions}x` : ""}
+      </span>
+    </span>
   );
 }
 
@@ -58,35 +53,27 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 /** Selo "Avisado" com o ultimo aviso de cobranca registrado para o cliente. */
-export function BillingNoticeBadge({ notice }: { notice: BillingNoticeSummary | null | undefined }) {
+export function BillingNoticeBadge({ notice, className }: { notice: BillingNoticeSummary | null | undefined; className?: string }) {
   if (!notice) return null;
 
   const isInApp = notice.channel === "in_app";
   const confirmed = !isInApp || !!notice.acknowledged_at;
   const when = new Date(notice.acknowledged_at || notice.shown_at || notice.created_at);
+  const details = [
+    `${NOTICE_LABELS[notice.notice_type] || notice.notice_type} por ${CHANNEL_LABELS[notice.channel] || notice.channel}`,
+    isInApp ? (notice.acknowledged_at ? "cliente confirmou ciência" : "cliente ainda não confirmou") : null,
+    notice.notes,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge
-          variant="outline"
-          className={`gap-1 text-[10px] cursor-default ${
-            confirmed
-              ? "bg-success/10 text-success border-success/30"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          <BellRing className="h-3 w-3" />
-          {confirmed ? "Avisado" : "Aviso exibido"} {when.toLocaleDateString("pt-BR")}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p className="text-xs">
-          {NOTICE_LABELS[notice.notice_type] || notice.notice_type} via {CHANNEL_LABELS[notice.channel] || notice.channel}
-          {isInApp && (notice.acknowledged_at ? " • cliente confirmou ciência" : " • cliente ainda não confirmou")}
-          {notice.notes ? ` • ${notice.notes}` : ""}
-        </p>
-      </TooltipContent>
-    </Tooltip>
+    <span className={cn("inline-flex max-w-full items-center gap-1.5 text-xs text-muted-foreground", className)} title={details}>
+      <BellRing className={cn("h-3.5 w-3.5 shrink-0", confirmed ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
+      <span className="truncate">
+        {confirmed ? "Avisado" : "Aviso exibido"} em {when.toLocaleDateString("pt-BR")}
+        <span className="sr-only">: {details}</span>
+      </span>
+    </span>
   );
 }

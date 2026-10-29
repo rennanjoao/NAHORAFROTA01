@@ -1,16 +1,8 @@
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Sparkles, 
-  AlertTriangle, 
-  TrendingDown, 
-  MapPin,
-  User,
-  Building2,
-  Lightbulb,
-  ArrowRight
-} from "lucide-react";
+import { Sparkles, TrendingDown, MapPin, User, Building2, Lightbulb } from "lucide-react";
+import { toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
+import { ReportCard } from "./ReportCard";
 
 interface InsightData {
   topDelayRoute: { name: string; percentage: number };
@@ -36,7 +28,6 @@ export function AIInsights({ data }: AIInsightsProps) {
           <span className="font-medium text-foreground">{data.topDelayRoute.name}</span>.
         </>
       ),
-      action: "Ver detalhes da rota →",
     },
     {
       id: 2,
@@ -48,7 +39,6 @@ export function AIInsights({ data }: AIInsightsProps) {
           <span className="font-medium">{data.topReturnClient.percentage.toFixed(0).replace(".", ",")}%</span> de todas as devoluções.
         </>
       ),
-      action: "Analisar cliente →",
     },
     {
       id: 3,
@@ -60,7 +50,6 @@ export function AIInsights({ data }: AIInsightsProps) {
           <span className="font-medium">{data.belowAverageDriver.difference.toFixed(0).replace(".", ",")}%</span> abaixo da média de SLA da frota.
         </>
       ),
-      action: "Ver perfil →",
     },
     {
       id: 4,
@@ -72,7 +61,6 @@ export function AIInsights({ data }: AIInsightsProps) {
           <span className="font-medium text-foreground">{data.peakDelayTime.time}</span>. Considere ajustar horários de coleta.
         </>
       ),
-      action: "Ver análise temporal →",
     },
     {
       id: 5,
@@ -84,84 +72,40 @@ export function AIInsights({ data }: AIInsightsProps) {
           gerar economia de <span className="font-medium text-success">{data.improvementOpportunity.potential}</span>.
         </>
       ),
-      action: "Explorar oportunidade →",
     },
   ];
 
-  const getTypeStyles = (type: string) => {
-    switch (type) {
-      case "warning":
-        return { badge: "bg-warning/10 text-warning border-warning/30", dot: "bg-warning" };
-      case "alert":
-        return { badge: "bg-destructive/10 text-destructive border-destructive/30", dot: "bg-destructive" };
-      case "info":
-        return { badge: "bg-primary/10 text-primary border-primary/30", dot: "bg-primary" };
-      case "insight":
-        return { badge: "bg-warning/10 text-warning border-warning/30", dot: "bg-warning" };
-      case "opportunity":
-        return { badge: "bg-success/10 text-success border-success/30", dot: "bg-success" };
-      default:
-        return { badge: "bg-muted text-muted-foreground", dot: "bg-muted-foreground" };
-    }
+  // Cor com significado: alerta = vermelho, atencao = amarelo, oportunidade = verde.
+  const typeTone: Record<string, Tone> = {
+    warning: "warning",
+    alert: "danger",
+    info: "info",
+    insight: "warning",
+    opportunity: "success",
   };
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-lg bg-gradient-to-br from-info/20 to-info/20">
-          <Sparkles className="h-5 w-5 text-info" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-lg flex items-center gap-2">
-            Insights da Operação
-            <Badge variant="outline" className="text-xs font-normal">
-              Análise Inteligente
-            </Badge>
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Padrões identificados automaticamente nos dados
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-4">
+    <ReportCard
+      icon={Sparkles}
+      tone="info"
+      title="Padrões da operação"
+      description="O que chama atenção nos dados do período escolhido."
+      actions={<Badge variant="outline">Análise automática</Badge>}
+    >
+      <ul className="space-y-3">
         {insights.map((insight) => {
           const Icon = insight.icon;
-          const styles = getTypeStyles(insight.type);
-          
+          const tone = typeTone[insight.type] ?? "neutral";
           return (
-            <div
-              key={insight.id}
-              className="flex items-start gap-4 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group cursor-pointer"
-            >
-              {/* Icon */}
-              <div className={cn("p-2 rounded-lg shrink-0", styles.badge)}>
+            <li key={insight.id} className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4">
+              <span aria-hidden="true" className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", toneSoftBg[tone], toneText[tone])}>
                 <Icon className="h-4 w-4" />
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {insight.message}
-                </p>
-                <button className="mt-2 text-xs text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                  {insight.action}
-                </button>
-              </div>
-
-              {/* Status Dot */}
-              <div className={cn("w-2 h-2 rounded-full shrink-0 mt-2", styles.dot)} />
-            </div>
+              </span>
+              <p className="flex-1 text-sm leading-relaxed text-muted-foreground">{insight.message}</p>
+            </li>
           );
         })}
-      </div>
-
-      {/* Footer */}
-      <div className="mt-6 pt-4 border-t border-border">
-        <p className="text-xs text-muted-foreground text-center">
-          Insights gerados com base nos dados do período selecionado • Atualizado há 5 minutos
-        </p>
-      </div>
-    </Card>
+      </ul>
+    </ReportCard>
   );
 }

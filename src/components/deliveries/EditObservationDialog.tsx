@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageSquare } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -38,42 +38,22 @@ export function EditObservationDialog({
     if (open) setObservation(currentObservation);
   }, [open, currentObservation, deliveryId]);
 
-  // iOS Fix: Bloquear scroll do body quando dialog abre
-  useEffect(() => {
-    if (open) {
-      const scrollY = window.scrollY;
-      document.body.classList.add('dialog-open');
-      document.body.style.top = `-${scrollY}px`;
-    } else {
-      const scrollY = document.body.style.top;
-      document.body.classList.remove('dialog-open');
-      document.body.style.top = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
-    }
-
-    return () => {
-      document.body.classList.remove('dialog-open');
-      document.body.style.top = '';
-    };
-  }, [open]);
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const result = await onSave(deliveryId, observation);
       if (result === false) {
         toast({
-          title: "Erro ao salvar observação",
-          description: "A observação não foi gravada. Tente novamente.",
+          title: "Não foi possível salvar a observação",
+          description: "Confira a internet e tente de novo.",
           variant: "destructive",
         });
         return;
       }
       toast({
         title: "Observação salva",
-        description: `Observação atualizada para ${deliveryNfe}.`,
+        description: `NF ${deliveryNfe} atualizada.`,
+        variant: "success",
       });
       onOpenChange(false);
     } finally {
@@ -83,44 +63,35 @@ export function EditObservationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            Editar Observação
-          </DialogTitle>
-          <DialogDescription>
-            Adicione ou edite observações para a entrega {deliveryNfe}.
-          </DialogDescription>
+          <DialogTitle>Observação da NF {deliveryNfe}</DialogTitle>
+          <DialogDescription>O motorista vê este recado no app, junto com a entrega.</DialogDescription>
         </DialogHeader>
 
-        <div className="py-4 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="observation">Observação</Label>
-            <Textarea
-              id="observation"
-              placeholder="Ex: Cliente pediu para entregar no vizinho, agendar para período da manhã..."
-              value={observation}
-              onChange={(e) => setObservation(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Essas informações ficarão visíveis para o motorista.
-            </p>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="observation-text">Observação</Label>
+          <Textarea
+            id="observation-text"
+            placeholder="Ex.: Entregar na portaria lateral. Cliente pediu entrega de manhã."
+            value={observation}
+            onChange={(e) => setObservation(e.target.value)}
+            rows={4}
+            className="resize-none text-base sm:text-sm"
+            aria-describedby="observation-hint"
+          />
+          <p id="observation-hint" className="text-sm text-muted-foreground">
+            Deixe em branco para apagar a observação.
+          </p>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} style={{ fontSize: '16px' }}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button type="button" onClick={handleSave} disabled={isSaving} style={{ fontSize: '16px' }}>
-            {isSaving ? "Salvando..." : "Salvar Observação"}
+          <Button type="button" onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {isSaving ? "Salvando…" : "Salvar observação"}
           </Button>
         </DialogFooter>
       </DialogContent>

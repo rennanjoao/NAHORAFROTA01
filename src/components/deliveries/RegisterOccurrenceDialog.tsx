@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Save, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface RegisterOccurrenceDialogProps {
@@ -29,15 +30,15 @@ interface RegisterOccurrenceDialogProps {
 }
 
 const occurrenceTypes = [
-  { value: "cliente_ausente", label: "Cliente Ausente" },
-  { value: "endereco_nao_encontrado", label: "Endereço Não Encontrado" },
-  { value: "recusa_recebimento", label: "Recusa de Recebimento" },
-  { value: "avaria_mercadoria", label: "Avaria na Mercadoria" },
-  { value: "falta_mercadoria", label: "Falta de Mercadoria" },
-  { value: "documentacao_incorreta", label: "Documentação Incorreta" },
-  { value: "area_risco", label: "Área de Risco" },
-  { value: "horario_restrito", label: "Horário Restrito" },
-  { value: "veiculo_quebrado", label: "Veículo Quebrado" },
+  { value: "cliente_ausente", label: "Cliente ausente" },
+  { value: "endereco_nao_encontrado", label: "Endereço não encontrado" },
+  { value: "recusa_recebimento", label: "Recusa de recebimento" },
+  { value: "avaria_mercadoria", label: "Avaria na mercadoria" },
+  { value: "falta_mercadoria", label: "Falta de mercadoria" },
+  { value: "documentacao_incorreta", label: "Documentação incorreta" },
+  { value: "area_risco", label: "Área de risco" },
+  { value: "horario_restrito", label: "Horário restrito" },
+  { value: "veiculo_quebrado", label: "Veículo quebrado" },
   { value: "outros", label: "Outros" },
 ];
 
@@ -52,14 +53,11 @@ export function RegisterOccurrenceDialog({
   const [occurrenceType, setOccurrenceType] = useState("");
   const [observation, setObservation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [typeError, setTypeError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!occurrenceType) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Selecione o tipo de ocorrência.",
-        variant: "destructive",
-      });
+      setTypeError("Escolha o que aconteceu.");
       return;
     }
 
@@ -69,8 +67,8 @@ export function RegisterOccurrenceDialog({
     onSave(deliveryId, occurrenceType, observation);
 
     toast({
-      title: "Ocorrência Registrada",
-      description: `Ocorrência registrada na NF ${deliveryNfe} por ${currentUser}.`,
+      title: "Ocorrência registrada",
+      description: `NF ${deliveryNfe}, registrada por ${currentUser}.`,
     });
 
     setIsSaving(false);
@@ -82,6 +80,7 @@ export function RegisterOccurrenceDialog({
   const handleClose = () => {
     setOccurrenceType("");
     setObservation("");
+    setTypeError(null);
     onOpenChange(false);
   };
 
@@ -89,23 +88,27 @@ export function RegisterOccurrenceDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-warning">
-            <AlertTriangle className="h-5 w-5" />
-            Registrar Ocorrência
-          </DialogTitle>
+          <DialogTitle>Registrar ocorrência na NF {deliveryNfe}</DialogTitle>
+          <DialogDescription>Conte o que impediu a entrega. A nota fica marcada como ocorrência.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="p-3 rounded-lg bg-muted/50 text-sm">
-            <span className="text-muted-foreground">Nota Fiscal: </span>
-            <span className="font-mono font-semibold">{deliveryNfe}</span>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="occurrenceType">Tipo de Ocorrência *</Label>
-            <Select value={occurrenceType} onValueChange={setOccurrenceType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="occurrenceType">O que aconteceu</Label>
+            <Select
+              value={occurrenceType}
+              onValueChange={(value) => {
+                setOccurrenceType(value);
+                setTypeError(null);
+              }}
+            >
+              <SelectTrigger
+                id="occurrenceType"
+                aria-invalid={!!typeError || undefined}
+                aria-describedby={typeError ? "occurrenceType-error" : undefined}
+                className={typeError ? "border-destructive" : undefined}
+              >
+                <SelectValue placeholder="Escolher o motivo" />
               </SelectTrigger>
               <SelectContent>
                 {occurrenceTypes.map((type) => (
@@ -115,15 +118,20 @@ export function RegisterOccurrenceDialog({
                 ))}
               </SelectContent>
             </Select>
+            {typeError && (
+              <p id="occurrenceType-error" className="text-sm font-medium text-destructive">
+                {typeError}
+              </p>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="observation">Observação</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="occurrence-observation">Detalhes (opcional)</Label>
             <Textarea
-              id="observation"
+              id="occurrence-observation"
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
-              placeholder="Detalhes adicionais sobre a ocorrência..."
+              placeholder="Ex.: Portão fechado, ninguém atendeu o interfone."
               rows={3}
             />
           </div>
@@ -133,22 +141,9 @@ export function RegisterOccurrenceDialog({
           <Button variant="outline" onClick={handleClose}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-warning hover:bg-warning/90"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Registrar Ocorrência
-              </>
-            )}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+            {isSaving ? "Salvando…" : "Registrar ocorrência"}
           </Button>
         </DialogFooter>
       </DialogContent>

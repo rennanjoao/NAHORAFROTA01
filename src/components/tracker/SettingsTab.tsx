@@ -1,83 +1,156 @@
-import { Card } from "@/components/ui/card";
-import { brandAvatar } from "@/lib/avatar";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { LogOut, Mail } from "lucide-react";
+import { ConfirmDialog } from "@/components/patterns";
+import { ThemeSegmented } from "@/components/theme/ThemeToggle";
+import { usePreferences } from "@/components/theme/PreferencesProvider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Phone, Mail, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
+import { brandAvatar } from "@/lib/avatar";
+import type { TextSize } from "@/lib/preferences";
+import { cn } from "@/lib/utils";
+import { initialsOf } from "./initials";
+import { ScreenHeader } from "./ScreenHeader";
 
 interface SettingsTabProps {
   driverName: string;
+  vehicle?: string;
 }
 
-export function SettingsTab({ driverName }: SettingsTabProps) {
+const TEXT_SIZES: { value: TextSize; label: string; sample: string }[] = [
+  { value: "normal", label: "Normal", sample: "text-sm" },
+  { value: "large", label: "Grande", sample: "text-base" },
+  { value: "larger", label: "Maior", sample: "text-lg" },
+];
+
+function SettingsGroup({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="space-y-3">
+      <h2 id={id} className="text-lg font-semibold text-foreground">
+        {title}
+      </h2>
+      <div className="divide-y rounded-xl border bg-card shadow-sm">{children}</div>
+    </section>
+  );
+}
+
+export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
   const { user, profile, signOut } = useAuth();
+  const { textSize, contrast, setPreference } = usePreferences();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const handleLogout = async () => {
+    setLeaving(true);
     await signOut();
     window.location.href = "/login";
   };
 
-  const initials = driverName
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
   return (
-    <div className="space-y-4">
-      {/* Profile Card */}
-      <Card className="p-6">
-        <div className="flex items-center gap-4 mb-4">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={brandAvatar(profile?.avatar_url)} />
-            <AvatarFallback className="text-lg bg-primary/10 text-primary">
-              {initials}
-            </AvatarFallback>
+    <>
+      <ScreenHeader title="Configurações" description="Seus dados e como o app aparece na tela." />
+
+      <div className="space-y-8">
+        <section aria-label="Seu perfil" className="flex items-center gap-4 rounded-2xl border bg-card p-5 shadow-sm">
+          <Avatar className="h-16 w-16 border-2 border-primary/40">
+            <AvatarImage src={brandAvatar(profile?.avatar_url)} alt="" />
+            <AvatarFallback className="bg-primary/10 text-lg text-primary">{initialsOf(driverName)}</AvatarFallback>
           </Avatar>
-          <div>
-            <h2 className="text-lg font-semibold">{driverName}</h2>
-            <Badge variant="secondary" className="mt-1">
-              Motorista
-            </Badge>
+          <div className="min-w-0">
+            <p className="truncate font-heading text-lg font-semibold text-foreground">{driverName}</p>
+            <p className="text-sm text-muted-foreground">Motorista{vehicle ? ` · ${vehicle}` : ""}</p>
+            {user?.email && (
+              <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{user.email}</span>
+              </p>
+            )}
           </div>
-        </div>
+        </section>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 text-sm">
-            <Mail className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{user?.email}</span>
+        <SettingsGroup id="aparencia-titulo" title="Aparência">
+          <div className="space-y-3 p-4">
+            <p className="text-[0.9375rem] font-medium text-foreground" aria-hidden="true">
+              Tema
+            </p>
+            <ThemeSegmented className="[&>button]:min-h-14 [&>button]:flex-col [&>button]:gap-1 [&>button]:text-xs [&_svg]:h-[1.125rem] [&_svg]:w-[1.125rem]" />
+            <p className="text-sm text-muted-foreground">No sol, o tema claro costuma ficar mais fácil de ler.</p>
           </div>
-          
-          {profile?.name && (
-            <div className="flex items-center gap-3 text-sm">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{profile.name}</span>
+
+          <div className="space-y-3 p-4">
+            <p id="tamanho-rotulo" className="text-[0.9375rem] font-medium text-foreground">
+              Tamanho do texto
+            </p>
+            <div role="radiogroup" aria-labelledby="tamanho-rotulo" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+              {TEXT_SIZES.map((option) => {
+                const selected = textSize === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setPreference("textSize", option.value)}
+                    className={cn(
+                      "flex min-h-14 flex-col items-center justify-center rounded-md px-2 font-medium transition-all duration ease-out",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      selected ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span aria-hidden="true" className={cn("font-heading font-semibold leading-none", option.sample)}>
+                      Aa
+                    </span>
+                    <span className="mt-1 text-xs">{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
-      </Card>
+          </div>
 
-      {/* App Info */}
-      <Card className="p-4">
-        <h3 className="font-semibold mb-3">Sobre o App</h3>
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p>Versão: 1.0.0</p>
-          <p>© {new Date().getFullYear()} Na Hora Frota</p>
-        </div>
-      </Card>
+          <label htmlFor="contraste" className="flex min-h-16 cursor-pointer items-center gap-4 p-4">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.9375rem] font-medium text-foreground">Mais contraste</span>
+              <span className="block text-sm text-muted-foreground">Letras e bordas mais fortes para ler no sol.</span>
+            </span>
+            <Switch
+              id="contraste"
+              checked={contrast === "more"}
+              onCheckedChange={(checked) => setPreference("contrast", checked ? "more" : "normal")}
+            />
+          </label>
+        </SettingsGroup>
 
-      {/* Logout */}
-      <Button
-        variant="destructive"
-        onClick={handleLogout}
-        className="w-full gap-2"
-        size="lg"
-      >
-        <LogOut className="h-4 w-4" />
-        Sair da Conta
-      </Button>
-    </div>
+        <SettingsGroup id="sobre-titulo" title="Sobre o app">
+          <dl className="grid grid-cols-2 gap-y-2 p-4 text-sm">
+            <dt className="text-muted-foreground">Versão</dt>
+            <dd className="text-right font-data text-foreground">1.0.0</dd>
+            <dt className="text-muted-foreground">Empresa</dt>
+            <dd className="text-right text-foreground">© {new Date().getFullYear()} Na Hora Frota</dd>
+          </dl>
+        </SettingsGroup>
+
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={() => setConfirmLogout(true)}
+          className="h-14 w-full border-destructive/40 text-base text-destructive hover:border-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
+          <LogOut aria-hidden="true" />
+          Sair da conta
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmLogout}
+        onOpenChange={setConfirmLogout}
+        title="Sair da conta?"
+        description="O GPS para de enviar sua localização. Para voltar, entre de novo com seu e-mail e senha."
+        confirmLabel="Sair da conta"
+        tone="danger"
+        loading={leaving}
+        onConfirm={handleLogout}
+      />
+    </>
   );
 }

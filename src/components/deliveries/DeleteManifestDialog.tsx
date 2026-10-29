@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Lock, Trash2, FileText, Truck, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
+import { AlertTriangle, CheckCircle2, Lock, Trash2, Truck, Loader2 } from "lucide-react";
 import { ManifestRecord } from "@/stores/manifestStore";
-import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DeleteManifestDialogProps {
@@ -52,7 +52,7 @@ export function DeleteManifestDialog({
 
   const validateSupervisorPassword = async () => {
     if (!supervisorPassword.trim()) {
-      setPasswordError("Digite a senha de supervisor");
+      setPasswordError("Digite a senha do supervisor.");
       return false;
     }
 
@@ -70,7 +70,7 @@ export function DeleteManifestDialog({
 
       if (error) {
         console.error('Supervisor validation error:', error);
-        setPasswordError("Erro ao validar senha. Tente novamente.");
+        setPasswordError("Não foi possível conferir a senha. Tente de novo.");
         setIsPasswordValid(false);
         return false;
       }
@@ -80,13 +80,13 @@ export function DeleteManifestDialog({
         setPasswordError("");
         return true;
       } else {
-        setPasswordError(data?.error || "Senha de supervisor incorreta");
+        setPasswordError(data?.error || "Senha do supervisor incorreta.");
         setIsPasswordValid(false);
         return false;
       }
     } catch (err) {
       console.error('Supervisor validation exception:', err);
-      setPasswordError("Erro de conexão. Tente novamente.");
+      setPasswordError("Sem conexão. Confira a internet e tente de novo.");
       setIsPasswordValid(false);
       return false;
     } finally {
@@ -119,117 +119,92 @@ export function DeleteManifestDialog({
 
   if (!manifest) return null;
 
+  const notes = manifest.deliveriesCount === 1 ? "1 nota" : `${manifest.deliveriesCount} notas`;
+  const canSubmit = !hardBlocked && (canDelete || !!supervisorPassword.trim());
+
   return (
     <AlertDialog open={open} onOpenChange={handleClose}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            {canDelete ? (
-              <Trash2 className="h-5 w-5 text-destructive" />
-            ) : (
-              <Lock className="h-5 w-5 text-warning" />
-            )}
-            {canDelete ? "Excluir Romaneio" : "Exclusão Bloqueada"}
+            {!canDelete && <Lock className="h-5 w-5 text-warning" aria-hidden="true" />}
+            {canDelete ? `Excluir o romaneio ${manifest.id}?` : "Exclusão bloqueada"}
           </AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-4">
-              {/* Manifest Info */}
-              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-mono font-semibold">{manifest.id}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Truck className="h-4 w-4" />
-                  <span>{manifest.driverName}</span>
-                  <span>•</span>
-                  <span className="font-mono">{manifest.driverPlate}</span>
-                </div>
-                <div className="text-sm">
-                  <Badge variant="secondary">{manifest.deliveriesCount} NFs</Badge>
-                </div>
-              </div>
-
-              {canDelete ? (
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    Tem certeza que deseja excluir o Romaneio{" "}
-                    <strong className="font-mono">{manifest.id}</strong>?
-                  </p>
-                  <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
-                    <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
-                    <p className="text-xs text-warning-foreground">
-                      As notas ainda não entregues voltam para a lista de pendentes. As já entregues continuam entregues.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                    <div className="text-xs text-destructive">
-                      <p className="font-semibold mb-1">Exclusão bloqueada:</p>
-                      <p>{blockReason}</p>
-                      {completedCount && (
-                        <p className="mt-1">
-                          {completedCount} entrega(s) já possui(em) baixa confirmada.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {!hardBlocked && (
-                  <div className="space-y-2">
-                    <Label htmlFor="supervisor-password" className="text-sm font-medium">
-                      Senha de Supervisor
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Para excluir este romaneio, é necessária a senha de um supervisor.
-                    </p>
-                    <Input
-                      id="supervisor-password"
-                      type="password"
-                      placeholder="Digite a senha de supervisor"
-                      value={supervisorPassword}
-                      onChange={(e) => handlePasswordChange(e.target.value)}
-                      disabled={isValidating}
-                      className={cn(
-                        passwordError && "border-destructive",
-                        isPasswordValid && "border-success"
-                      )}
-                    />
-                    {passwordError && (
-                      <p className="text-xs text-destructive">{passwordError}</p>
-                    )}
-                    {isPasswordValid && (
-                      <p className="text-xs text-success">✓ Senha válida</p>
-                    )}
-                  </div>
-                  )}
-                </div>
-              )}
-            </div>
+          <AlertDialogDescription>
+            {canDelete
+              ? "As notas ainda não entregues voltam para pendente. As já entregues continuam entregues. Não dá para desfazer."
+              : blockReason}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
+            <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-card text-muted-foreground">
+              <Truck className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 text-sm">
+              <p className="truncate font-medium text-foreground">{manifest.driverName}</p>
+              <p className="text-muted-foreground">
+                <span className="font-data">{manifest.driverPlate || "sem placa"}</span> · {notes}
+              </p>
+            </div>
+          </div>
+
+          {!canDelete && completedCount ? (
+            <Alert variant="warning">
+              <AlertTriangle aria-hidden="true" />
+              <AlertDescription className="text-foreground">{completedCount} entrega(s) já têm baixa confirmada.</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {!canDelete && !hardBlocked && (
+            <div className="space-y-1.5">
+              <Label htmlFor="supervisor-password">Senha do supervisor</Label>
+              <Input
+                id="supervisor-password"
+                type="password"
+                autoComplete="off"
+                placeholder="Digite a senha do supervisor"
+                value={supervisorPassword}
+                onChange={(e) => handlePasswordChange(e.target.value)}
+                disabled={isValidating}
+                aria-invalid={!!passwordError || undefined}
+                aria-describedby={passwordError ? "supervisor-password-error" : "supervisor-password-hint"}
+              />
+              {passwordError ? (
+                <p id="supervisor-password-error" className="text-sm font-medium text-destructive">
+                  {passwordError}
+                </p>
+              ) : isPasswordValid ? (
+                <p className="flex items-center gap-1.5 text-sm text-success">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  Senha conferida
+                </p>
+              ) : (
+                <p id="supervisor-password-hint" className="text-sm text-muted-foreground">
+                  Peça a um supervisor para digitar a senha.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isValidating}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirm}
-            disabled={hardBlocked || isValidating || (!canDelete && !supervisorPassword.trim())}
-            className={cn(
-              "gap-2",
-              !hardBlocked && (canDelete || supervisorPassword.trim())
-                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                : "opacity-50 cursor-not-allowed"
-            )}
-          >
-            {isValidating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            {isValidating ? "Validando..." : "Excluir Romaneio"}
-          </AlertDialogAction>
+          <AlertDialogCancel disabled={isValidating}>{hardBlocked ? "Fechar" : "Cancelar"}</AlertDialogCancel>
+          {!hardBlocked && (
+            <AlertDialogAction
+              onClick={(event) => {
+                // Mantem aberto enquanto a senha e conferida.
+                event.preventDefault();
+                void handleConfirm();
+              }}
+              disabled={isValidating || !canSubmit}
+              className={buttonVariants({ variant: "destructive" })}
+            >
+              {isValidating ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
+              {isValidating ? "Conferindo…" : "Excluir romaneio"}
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

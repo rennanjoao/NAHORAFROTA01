@@ -1,17 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { CalendarDays, DollarSign, History, Save, Plus, BellRing } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge, type Tone } from "@/components/patterns";
+import { FormField } from "@/components/settings/FormField";
+import { BellRing, FileText, Loader2, Plus, Receipt, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format, addMonths, addDays } from "date-fns";
@@ -77,11 +77,36 @@ const cycleLabels: Record<string, string> = {
   annual: "Anual",
 };
 
-const financialStatusConfig: Record<string, { label: string; className: string }> = {
-  current: { label: "Em dia", className: "bg-success/20 text-success" },
-  pending: { label: "Pendente", className: "bg-warning/20 text-warning" },
-  blocked: { label: "Bloqueado", className: "bg-destructive/20 text-destructive" },
+const financialStatusConfig: Record<string, { label: string; tone: Tone }> = {
+  current: { label: "Em dia", tone: "success" },
+  pending: { label: "Pendente", tone: "warning" },
+  blocked: { label: "Bloqueado", tone: "danger" },
 };
+
+const formatMoney = (value: number) =>
+  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+
+/** Bloco do dialogo com titulo (h3) e acao opcional a direita. */
+function DialogSection({ id, title, icon: Icon, action, children }: {
+  id: string;
+  title: string;
+  icon: typeof Receipt;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section aria-labelledby={id} className="space-y-3 border-t pt-5 first:border-t-0 first:pt-0">
+      <div className="flex items-center justify-between gap-3">
+        <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 function addCycle(date: Date, cycle: string): Date {
   return cycle === "annual" ? addMonths(date, 12) : cycle === "quarterly" ? addMonths(date, 3) : addMonths(date, 1);
@@ -118,6 +143,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
   const [showNewPayment, setShowNewPayment] = useState(false);
   const [newAmount, setNewAmount] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [amountError, setAmountError] = useState<string | null>(null);
 
   // Billing notices ("cobranca avisada")
   const [notices, setNotices] = useState<BillingNoticeRecord[]>([]);
@@ -184,7 +210,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       toast({ title: "Erro ao registrar aviso", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Cobrança marcada como avisada" });
+    toast({ title: "Cobrança marcada como avisada", variant: "success" });
     setNoticeNotes("");
     fetchHistory();
     onSaved();
@@ -209,7 +235,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Dados financeiros salvos" });
+      toast({ title: "Contrato salvo", variant: "success" });
       onSaved();
     }
   };
@@ -218,9 +244,11 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     if (!tenant) return;
     const amount = parseFloat(newAmount);
     if (isNaN(amount) || amount <= 0) {
-      toast({ title: "Informe um valor válido", variant: "destructive" });
+      setAmountError("Digite o valor pago. Exemplo: 199,90");
+      document.getElementById("billing-amount")?.focus();
       return;
     }
+    setAmountError(null);
 
     const { error } = await supabase.from("payment_history" as any).insert({
       tenant_id: tenant.id,
@@ -235,7 +263,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     if (error) {
       toast({ title: "Erro ao registrar", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Pagamento registrado" });
+      toast({ title: "Pagamento registrado", variant: "success" });
 
       // Pagamento de empresa em teste encerra o trial e ativa a assinatura
       if (tenant.status === "trial") {
@@ -283,223 +311,253 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-primary" />
-            Financeiro — {tenant.razao_social}
-          </DialogTitle>
-          <p className="text-xs text-muted-foreground">{tenant.cnpj}</p>
+          <DialogTitle>Financeiro de {tenant.razao_social}</DialogTitle>
+          <DialogDescription className="font-data">CNPJ {tenant.cnpj}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Contract Start */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Início do Contrato</Label>
-              <Input
-                type="date"
-                value={contractStart}
-                onChange={(e) => setContractStart(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Ciclo de Pagamento</Label>
-              <Select value={cycle} onValueChange={setCycle}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="monthly">Mensal</SelectItem>
-                  <SelectItem value="quarterly">Trimestral</SelectItem>
-                  <SelectItem value="annual">Anual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Next Due Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Próximo Vencimento</Label>
-              <Input
-                type="date"
-                value={nextDue}
-                onChange={(e) => setNextDue(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Status Financeiro</Label>
-              <Select value={financialStatus} onValueChange={setFinancialStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(financialStatusConfig).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      <Badge variant="outline" className={v.className}>{v.label}</Badge>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Auto Block */}
-          <div>
-            <Label className="text-xs">Bloqueio automático após X dias de atraso (0 = desativado)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={autoBlockDays}
-              onChange={(e) => setAutoBlockDays(parseInt(e.target.value) || 0)}
-            />
-          </div>
-
-          <Button onClick={handleSave} disabled={saving} className="w-full gap-2">
-            <Save className="h-4 w-4" />
-            {saving ? "Salvando..." : "Salvar Configurações"}
-          </Button>
-
-          <Separator />
-
-          {/* Payment History */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Histórico de Pagamentos
-              </h3>
-              <Button size="sm" variant="outline" onClick={() => setShowNewPayment(!showNewPayment)}>
-                <Plus className="h-3 w-3 mr-1" /> Registrar
-              </Button>
-            </div>
-
-            {showNewPayment && (
-              <div className="border rounded-lg p-3 space-y-2 mb-3 bg-muted/30">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Valor (R$)</Label>
+        <div className="space-y-5">
+          {/* Contrato */}
+          <DialogSection id="billing-contrato" title="Contrato" icon={FileText}>
+            <form
+              className="space-y-4"
+              noValidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleSave();
+              }}
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField id="billing-start" label="Início do contrato">
+                  {(control) => (
+                    <Input {...control} type="date" value={contractStart} onChange={(e) => setContractStart(e.target.value)} />
+                  )}
+                </FormField>
+                <FormField id="billing-cycle" label="Ciclo de pagamento">
+                  {(control) => (
+                    <Select value={cycle} onValueChange={setCycle}>
+                      <SelectTrigger {...control}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monthly">Mensal</SelectItem>
+                        <SelectItem value="quarterly">Trimestral</SelectItem>
+                        <SelectItem value="annual">Anual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
+                <FormField id="billing-next-due" label="Próximo vencimento" hint="Calculado pelo ciclo. Você pode ajustar.">
+                  {(control) => (
+                    <Input {...control} type="date" value={nextDue} onChange={(e) => setNextDue(e.target.value)} />
+                  )}
+                </FormField>
+                <FormField id="billing-status" label="Situação financeira">
+                  {(control) => (
+                    <Select value={financialStatus} onValueChange={setFinancialStatus}>
+                      <SelectTrigger {...control}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(financialStatusConfig).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>
+                            {v.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
+                <FormField
+                  id="billing-auto-block"
+                  label="Bloqueio automático"
+                  hint="Dias de atraso até bloquear o acesso. Use 0 para nunca bloquear."
+                  className="sm:col-span-2"
+                >
+                  {(control) => (
                     <Input
+                      {...control}
                       type="number"
-                      step="0.01"
-                      value={newAmount}
-                      onChange={(e) => setNewAmount(e.target.value)}
-                      placeholder="0,00"
+                      inputMode="numeric"
+                      min={0}
+                      value={autoBlockDays}
+                      onChange={(e) => setAutoBlockDays(parseInt(e.target.value) || 0)}
+                      className="sm:max-w-[10rem]"
                     />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Observação</Label>
-                    <Input
-                      value={newNotes}
-                      onChange={(e) => setNewNotes(e.target.value)}
-                      placeholder="Referência..."
-                    />
-                  </div>
-                </div>
-                <Button size="sm" onClick={handleAddPayment} className="w-full">
-                  Confirmar Pagamento
+                  )}
+                </FormField>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={saving} className="max-sm:w-full">
+                  {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+                  {saving ? "Salvando..." : "Salvar contrato"}
                 </Button>
               </div>
+            </form>
+          </DialogSection>
+
+          {/* Pagamentos */}
+          <DialogSection
+            id="billing-pagamentos"
+            title="Pagamentos"
+            icon={Receipt}
+            action={
+              !showNewPayment && (
+                <Button size="sm" variant="outline" onClick={() => setShowNewPayment(true)}>
+                  <Plus aria-hidden="true" />
+                  Registrar pagamento
+                </Button>
+              )
+            }
+          >
+            {showNewPayment && (
+              <form
+                noValidate
+                className="space-y-3 rounded-lg border bg-muted/30 p-4 animate-fade-in"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleAddPayment();
+                }}
+              >
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <FormField id="billing-amount" label="Valor pago (R$)" error={amountError}>
+                    {(control) => (
+                      <Input
+                        {...control}
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        value={newAmount}
+                        onChange={(e) => {
+                          setNewAmount(e.target.value);
+                          if (amountError) setAmountError(null);
+                        }}
+                        placeholder="0,00"
+                      />
+                    )}
+                  </FormField>
+                  <FormField id="billing-amount-notes" label="Observação" optional>
+                    {(control) => (
+                      <Input {...control} value={newNotes} onChange={(e) => setNewNotes(e.target.value)} placeholder="Ex.: PIX de outubro" />
+                    )}
+                  </FormField>
+                </div>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewPayment(false);
+                      setAmountError(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit">Confirmar pagamento</Button>
+                </div>
+              </form>
             )}
 
             {loadingHistory ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Carregando...</p>
+              <div className="space-y-2" role="status" aria-label="Carregando pagamentos">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
             ) : history.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Nenhum pagamento registrado</p>
+              <p className="rounded-lg border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">
+                Nenhum pagamento registrado ainda.
+              </p>
             ) : (
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              <ul className="max-h-[14rem] divide-y overflow-y-auto rounded-lg border">
                 {history.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between border rounded-md p-2 text-sm">
-                    <div>
-                      <p className="font-medium">
-                        R$ {Number(h.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{h.notes || "—"}</p>
+                  <li key={h.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-data font-semibold text-foreground">{formatMoney(Number(h.amount))}</p>
+                      <p className="truncate text-xs text-muted-foreground">{h.notes || "Sem observação"}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs">
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-foreground">
                         {new Date(h.payment_date + "T12:00:00").toLocaleDateString("pt-BR")}
                       </p>
-                      {h.cycle && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {cycleLabels[h.cycle] || h.cycle}
-                        </Badge>
-                      )}
+                      {h.cycle && <Badge variant="secondary">{cycleLabels[h.cycle] || h.cycle}</Badge>}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </DialogSection>
 
-          <Separator />
-
-          {/* Billing notices */}
-          <div>
-            <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
-              <BellRing className="h-4 w-4" />
-              Cobrança Avisada
-            </h3>
-
-            <div className="border rounded-lg p-3 space-y-2 mb-3 bg-muted/30">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Canal</Label>
-                  <Select value={noticeChannel} onValueChange={setNoticeChannel}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="email">E-mail</SelectItem>
-                      <SelectItem value="phone">Telefone</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Observação</Label>
-                  <Input
-                    value={noticeNotes}
-                    onChange={(e) => setNoticeNotes(e.target.value)}
-                    placeholder="Ex.: falou com o financeiro"
-                  />
-                </div>
+          {/* Avisos de cobranca */}
+          <DialogSection id="billing-avisos" title="Avisos de cobrança" icon={BellRing}>
+            <form
+              noValidate
+              className="space-y-3 rounded-lg border bg-muted/30 p-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleRegisterNotice();
+              }}
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField id="billing-notice-channel" label="Como o cliente foi avisado">
+                  {(control) => (
+                    <Select value={noticeChannel} onValueChange={setNoticeChannel}>
+                      <SelectTrigger {...control}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="email">E-mail</SelectItem>
+                        <SelectItem value="phone">Telefone</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
+                <FormField id="billing-notice-notes" label="Observação" optional>
+                  {(control) => (
+                    <Input
+                      {...control}
+                      value={noticeNotes}
+                      onChange={(e) => setNoticeNotes(e.target.value)}
+                      placeholder="Ex.: falou com o financeiro"
+                    />
+                  )}
+                </FormField>
               </div>
-              <Button size="sm" variant="outline" onClick={handleRegisterNotice} disabled={savingNotice} className="w-full">
-                {savingNotice ? "Registrando..." : "Marcar cobrança como avisada"}
-              </Button>
-            </div>
+              <div className="flex justify-end">
+                <Button type="submit" variant="outline" disabled={savingNotice} className="max-sm:w-full">
+                  {savingNotice ? <Loader2 className="animate-spin" aria-hidden="true" /> : <BellRing aria-hidden="true" />}
+                  {savingNotice ? "Registrando..." : "Marcar cobrança como avisada"}
+                </Button>
+              </div>
+            </form>
 
             {notices.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-2">Nenhum aviso registrado</p>
+              <p className="px-1 text-sm text-muted-foreground">Nenhum aviso registrado.</p>
             ) : (
-              <div className="space-y-2 max-h-[180px] overflow-y-auto">
+              <ul className="max-h-[12rem] divide-y overflow-y-auto rounded-lg border">
                 {notices.map((n) => (
-                  <div key={n.id} className="flex items-center justify-between border rounded-md p-2 text-sm">
-                    <div>
-                      <p className="font-medium">{noticeTypeLabels[n.notice_type] || n.notice_type}</p>
-                      <p className="text-xs text-muted-foreground">
+                  <li key={n.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{noticeTypeLabels[n.notice_type] || n.notice_type}</p>
+                      <p className="truncate text-xs text-muted-foreground">
                         {channelLabels[n.channel] || n.channel}
-                        {n.notes ? ` • ${n.notes}` : ""}
+                        {n.notes ? ` · ${n.notes}` : ""}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs">{new Date(n.created_at).toLocaleDateString("pt-BR")}</p>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <p className="text-xs text-foreground">{new Date(n.created_at).toLocaleDateString("pt-BR")}</p>
                       {n.channel === "in_app" && (
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${n.acknowledged_at ? "bg-success/20 text-success" : ""}`}
-                        >
+                        <StatusBadge tone={n.acknowledged_at ? "success" : "neutral"}>
                           {n.acknowledged_at ? "Cliente ciente" : "Exibido"}
-                        </Badge>
+                        </StatusBadge>
                       )}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </DialogSection>
         </div>
       </DialogContent>
     </Dialog>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -18,19 +19,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Pencil, Save, Loader2 } from "lucide-react";
+import { Minus, Plus, Save, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { parseDecimalInput } from "@/lib/formatCurrency";
-
-interface LocalAdjustment {
-  id: string;
-  date: Date;
-  description: string;
-  value: number;
-  type: "credit" | "debit";
-  category?: "discount" | "bonus" | "unloading" | "toll" | "fuel" | "other";
-  observation?: string;
-}
+import { cn } from "@/lib/utils";
+import { categoryLabels, type LocalAdjustment } from "./settlementConfig";
 
 interface EditTransactionDialogProps {
   transaction: LocalAdjustment | null;
@@ -38,15 +31,6 @@ interface EditTransactionDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (transaction: LocalAdjustment) => Promise<boolean> | boolean | void;
 }
-
-const categoryLabels: Record<string, string> = {
-  discount: "Desconto",
-  bonus: "Bônus",
-  unloading: "Descarga",
-  toll: "Pedágio",
-  fuel: "Combustível",
-  other: "Outros",
-};
 
 export function EditTransactionDialog({ transaction, open, onOpenChange, onSave }: EditTransactionDialogProps) {
   const [description, setDescription] = useState("");
@@ -59,7 +43,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
   useEffect(() => {
     if (transaction) {
       setDescription(transaction.description);
-      setValue(Math.abs(transaction.value).toString());
+      setValue(String(Math.abs(transaction.value)).replace(".", ","));
       setType(transaction.type);
       setCategory(transaction.category || "other");
       setObservation(transaction.observation || "");
@@ -99,52 +83,69 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
 
     toast({
       title: "Lançamento atualizado",
-      description: `${description} foi atualizado com sucesso.`,
+      description: `${description} foi atualizado.`,
     });
   };
 
   if (!transaction) return null;
 
+  const typeOptions = [
+    { value: "debit", id: "tx-debit", label: "Débito", hint: "Desconta do motorista", icon: Minus, tone: "text-destructive" },
+    { value: "credit", id: "tx-credit", label: "Crédito", hint: "Soma para o motorista", icon: Plus, tone: "text-success" },
+  ] as const;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-5 w-5 text-primary" />
-            Editar Lançamento
-          </DialogTitle>
+          <DialogTitle>Editar lançamento</DialogTitle>
+          <DialogDescription>Corrija o tipo, a categoria, a descrição ou o valor.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          {/* Type */}
-          <div className="space-y-3">
-            <Label>Tipo de Lançamento</Label>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSave();
+          }}
+        >
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Tipo</legend>
             <RadioGroup
               value={type}
               onValueChange={(value) => setType(value as "credit" | "debit")}
-              className="flex gap-4"
+              className="grid grid-cols-2 gap-3"
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="credit" id="credit" />
-                <Label htmlFor="credit" className="cursor-pointer text-success font-medium">
-                  Crédito (+)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="debit" id="debit" />
-                <Label htmlFor="debit" className="cursor-pointer text-destructive font-medium">
-                  Débito (-)
-                </Label>
-              </div>
+              {typeOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <Label
+                    key={option.value}
+                    htmlFor={option.id}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors duration-fast hover:bg-accent",
+                      type === option.value && "border-primary/50 bg-primary/5",
+                    )}
+                  >
+                    <RadioGroupItem value={option.value} id={option.id} className="mt-0.5" />
+                    <span className="space-y-0.5">
+                      <span className={cn("flex items-center gap-1 font-semibold", option.tone)}>
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {option.label}
+                      </span>
+                      <span className="block text-xs font-normal text-muted-foreground">{option.hint}</span>
+                    </span>
+                  </Label>
+                );
+              })}
             </RadioGroup>
-          </div>
+          </fieldset>
 
-          {/* Category */}
           <div className="space-y-2">
-            <Label htmlFor="category">Categoria</Label>
+            <Label htmlFor="tx-category">Categoria</Label>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a categoria" />
+              <SelectTrigger id="tx-category">
+                <SelectValue placeholder="Escolha a categoria" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(categoryLabels).map(([key, label]) => (
@@ -154,62 +155,51 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
             </Select>
           </div>
 
-          {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+            <Label htmlFor="tx-description">Descrição</Label>
             <Input
-              id="description"
+              id="tx-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: Ajuste de combustível, Bônus por desempenho..."
+              placeholder="Ex: ajuste de combustível, bônus por desempenho"
             />
           </div>
 
-          {/* Value */}
           <div className="space-y-2">
-            <Label htmlFor="value">Valor (R$)</Label>
+            <Label htmlFor="tx-value">Valor (R$)</Label>
             <Input
-              id="value"
-              type="number"
-              step="0.01"
-              min="0"
+              id="tx-value"
+              inputMode="decimal"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="0,00"
+              className="font-data"
             />
           </div>
 
-          {/* Observation */}
           <div className="space-y-2">
-            <Label htmlFor="observation">Observação / Motivo</Label>
+            <Label htmlFor="tx-observation">
+              Motivo <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
             <Textarea
-              id="observation"
+              id="tx-observation"
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
-              placeholder="Ex: Desconto referente a avaria na NF 12345..."
+              placeholder="Ex: desconto pela avaria na NF 12345"
               rows={2}
             />
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Salvar
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+              {isSaving ? "Salvando" : "Salvar lançamento"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

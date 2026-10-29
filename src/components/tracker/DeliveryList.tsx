@@ -1,312 +1,91 @@
-import { useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  MapPin, 
-  Navigation, 
-  CheckCircle, 
-  Clock, 
-  AlertCircle,
-  Package,
-  ExternalLink,
-  AlertTriangle,
-  RefreshCw,
-  Loader2
-} from 'lucide-react';
-import { DriverDelivery } from '@/hooks/useDriverManifest';
+import { CircleCheck, PackageOpen } from "lucide-react";
+import { EmptyState } from "@/components/patterns";
+import type { DriverDelivery } from "@/hooks/useDriverManifest";
+import { FinishedDeliveryRow, NextDeliveryCard, UpcomingDeliveryCard, type DeliveryActions } from "./DeliveryCard";
+import { isOpen } from "./deliveryStatus";
 
-interface DeliveryListProps {
+interface DeliveryListProps extends DeliveryActions {
+  /** Na ordem da rota (abertas primeiro), como vem de useDriverManifest. */
   deliveries: DriverDelivery[];
-  onNavigate: (delivery: DriverDelivery) => void;
-  onFinishDelivery?: (delivery: DriverDelivery) => void;
-  onRegisterOccurrence?: (delivery: DriverDelivery) => void;
-  onForceSync?: () => Promise<void>;
 }
 
-const statusConfig: Record<string, { 
-  label: string; 
-  icon: React.ElementType; 
-  color: string;
-  bgColor: string;
-}> = {
-  pending: { 
-    label: 'Pendente', 
-    icon: Clock, 
-    color: 'text-warning',
-    bgColor: 'bg-warning/15'
-  },
-  in_transit: { 
-    label: 'Em Trânsito', 
-    icon: Navigation, 
-    color: 'text-info',
-    bgColor: 'bg-info/15'
-  },
-  loaded: { 
-    label: 'Carregado', 
-    icon: Package, 
-    color: 'text-info',
-    bgColor: 'bg-info/15'
-  },
-  delivered: { 
-    label: 'Entregue', 
-    icon: CheckCircle, 
-    color: 'text-success',
-    bgColor: 'bg-success/15'
-  },
-  occurrence: { 
-    label: 'Ocorrência', 
-    icon: AlertCircle, 
-    color: 'text-destructive',
-    bgColor: 'bg-destructive/15'
-  },
-  returned: { 
-    label: 'Devolvido', 
-    icon: AlertTriangle, 
-    color: 'text-warning',
-    bgColor: 'bg-warning/15'
-  },
-};
+// Mesma ordem de antes: pendentes, em rota, com problema e entregues (ordenacao estavel).
+// Novo: entrega onde o motorista ja chegou (raio de 100 m) sobe para "Proxima entrega".
+const STATUS_ORDER: Record<string, number> = { pending: 0, in_transit: 1, loaded: 1, occurrence: 2, returned: 2, delivered: 3 };
+const rank = (delivery: DriverDelivery) => (isOpen(delivery) && delivery.arrived_at ? -1 : STATUS_ORDER[delivery.status] ?? 1);
+const byStatus = (a: DriverDelivery, b: DriverDelivery) => rank(a) - rank(b);
 
-function DeliveryItem({ 
-  delivery, 
-  index,
-  onNavigate,
-  onFinishDelivery,
-  onRegisterOccurrence
-}: { 
-  delivery: DriverDelivery; 
-  index: number;
-  onNavigate: (delivery: DriverDelivery) => void;
-  onFinishDelivery?: (delivery: DriverDelivery) => void;
-  onRegisterOccurrence?: (delivery: DriverDelivery) => void;
-}) {
-  const status = statusConfig[delivery.status] || statusConfig.pending;
-  const StatusIcon = status.icon;
-  const isDelivered = delivery.status === 'delivered';
-  const hasOccurrence = delivery.status === 'occurrence' || delivery.status === 'returned';
-  const isPending = !isDelivered && !hasOccurrence;
-  
-  // Build display address
-  const displayAddress = delivery.address_street && delivery.address_number
-    ? `${delivery.address_street}, ${delivery.address_number}`
-    : delivery.address_full?.split(',').slice(0, 2).join(',') || 'Endereço não disponível';
-
-  const cityInfo = delivery.address_city || '';
-
-  return (
-    <Card className={`p-4 ${isDelivered ? 'opacity-60 bg-muted/30' : hasOccurrence ? 'bg-warning/10' : 'bg-card'}`}>
-      <div className="flex gap-3">
-        {/* Index Number */}
-        <div className={`
-          flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
-          ${isDelivered 
-            ? 'bg-success text-success-foreground' 
-            : hasOccurrence 
-              ? 'bg-warning text-warning-foreground'
-              : 'bg-primary text-primary-foreground'}
-        `}>
-          {isDelivered ? (
-            <CheckCircle className="h-4 w-4" />
-          ) : hasOccurrence ? (
-            <AlertTriangle className="h-4 w-4" />
-          ) : (
-            index
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Header with name and status */}
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <div className="flex-1 min-w-0">
-              <h3 className={`font-semibold truncate ${isDelivered ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                {delivery.recipient_name}
-              </h3>
-              {delivery.nfe_number && (
-                <p className="text-[10px] text-muted-foreground">NF-e: {delivery.nfe_number}</p>
-              )}
-              {delivery.arrived_at && !isDelivered && !hasOccurrence && (
-                <p className="text-[10px] font-medium text-info flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  Você chegou às {new Date(delivery.arrived_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                </p>
-              )}
-            </div>
-            <Badge 
-              variant="outline" 
-              className={`${status.bgColor} ${status.color} border-0 text-[10px] px-2 py-0.5 flex-shrink-0`}
-            >
-              <StatusIcon className="h-3 w-3 mr-1" />
-              {status.label}
-            </Badge>
-          </div>
-
-          {/* Address */}
-          <div className="flex items-start gap-1.5 text-sm text-muted-foreground mb-3">
-            <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="line-clamp-2">{displayAddress}</p>
-              {cityInfo && <p className="text-xs">{cityInfo}</p>}
-            </div>
-          </div>
-
-          {/* Action Buttons - Only for pending deliveries */}
-          {isPending && (
-            <div className="space-y-2">
-              {/* Navigation Button */}
-              <Button
-                onClick={() => onNavigate(delivery)}
-                size="lg"
-                className="w-full h-12 gap-2 bg-info text-info-foreground hover:bg-info/90 font-bold"
-              >
-                <Navigation className="h-5 w-5" />
-                Navegar
-                <ExternalLink className="h-4 w-4" />
-              </Button>
-              
-              {/* Action Buttons Row */}
-              <div className="grid grid-cols-2 gap-2">
-                {/* Finish Delivery Button */}
-                {onFinishDelivery && (
-                  <Button
-                    onClick={() => onFinishDelivery(delivery)}
-                    size="lg"
-                    className="h-12 gap-2 bg-success hover:bg-success/90 text-success-foreground font-semibold"
-                  >
-                    <CheckCircle className="h-5 w-5" />
-                    Finalizar
-                  </Button>
-                )}
-                
-                {/* Occurrence Button */}
-                {onRegisterOccurrence && (
-                  <Button
-                    onClick={() => onRegisterOccurrence(delivery)}
-                    size="lg"
-                    variant="outline"
-                    className="h-12 gap-2 border-warning text-warning hover:bg-warning/10 font-semibold"
-                  >
-                    <AlertTriangle className="h-5 w-5" />
-                    Ocorrência
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Delivered/Occurrence status message */}
-          {isDelivered && (
-            <div className="flex items-center gap-2 text-sm text-success bg-success/10 p-2 rounded-lg">
-              <CheckCircle className="h-4 w-4" />
-              <span>Entrega concluída</span>
-            </div>
-          )}
-          
-          {hasOccurrence && (
-            <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 p-2 rounded-lg">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Ocorrência registrada</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-export function DeliveryList({ 
-  deliveries, 
-  onNavigate, 
-  onFinishDelivery,
-  onRegisterOccurrence,
-  onForceSync
-}: DeliveryListProps) {
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const handleForceSync = async () => {
-    if (!onForceSync) return;
-    setIsSyncing(true);
-    try {
-      await onForceSync();
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
+/** Entregas do romaneio: a proxima em destaque, depois as outras e as concluidas. */
+export function DeliveryList({ deliveries, onNavigate, onFinishDelivery, onRegisterOccurrence }: DeliveryListProps) {
   if (deliveries.length === 0) {
     return (
-      <Card className="p-8 text-center">
-        <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <h3 className="font-semibold text-lg mb-2">Nenhuma entrega encontrada</h3>
-        <p className="text-sm text-muted-foreground">
-          Nenhuma entrega vinculada a este romaneio.
-          <br />
-          Contate a base para mais informações.
-        </p>
-      </Card>
+      <EmptyState
+        icon={PackageOpen}
+        title="Nenhuma entrega neste romaneio"
+        description="A base ainda não colocou notas no seu romaneio. Se achar que é um erro, ligue para a base."
+      />
     );
   }
 
-  // Sort: pending first, then in_transit, then occurrence, then delivered
-  const sortedDeliveries = [...deliveries].sort((a, b) => {
-    const order = { pending: 0, in_transit: 1, loaded: 1, occurrence: 2, returned: 2, delivered: 3 };
-    return (order[a.status as keyof typeof order] ?? 1) - (order[b.status as keyof typeof order] ?? 1);
-  });
-
-  const pendingCount = deliveries.filter(d => d.status !== 'delivered' && d.status !== 'occurrence' && d.status !== 'returned').length;
-  const deliveredCount = deliveries.filter(d => d.status === 'delivered').length;
-  const occurrenceCount = deliveries.filter(d => d.status === 'occurrence' || d.status === 'returned').length;
+  const sorted = [...deliveries].sort(byStatus);
+  const open = sorted.filter(isOpen);
+  const finished = sorted.filter((delivery) => !isOpen(delivery));
+  const [next, ...upcoming] = open;
+  const actions = { onNavigate, onFinishDelivery, onRegisterOccurrence };
 
   return (
-    <div className="space-y-3">
-      {/* Header with Sync Button */}
-      <div className="flex items-center justify-between px-1">
-        <h2 className="font-semibold text-lg flex items-center gap-2">
-          <Package className="h-5 w-5 text-primary" />
-          Entregas
-        </h2>
-        <div className="flex gap-2 items-center">
-          {onForceSync && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleForceSync}
-              disabled={isSyncing}
-              className="h-7 px-2 gap-1 text-xs"
-            >
-              {isSyncing ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
-              Sincronizar
-            </Button>
-          )}
-          {occurrenceCount > 0 && (
-            <Badge variant="outline" className="text-xs text-warning border-warning/30">
-              {occurrenceCount} ocorrência{occurrenceCount !== 1 ? 's' : ''}
-            </Badge>
-          )}
-          <Badge variant="secondary" className="text-xs">
-            {deliveredCount}/{deliveries.length} feitas
-          </Badge>
-        </div>
-      </div>
+    <div className="space-y-8">
+      {next ? (
+        <section aria-labelledby="proxima-titulo" className="space-y-3">
+          <h2 id="proxima-titulo" className="text-lg font-semibold text-foreground">
+            Próxima entrega
+          </h2>
+          <NextDeliveryCard key={next.id} delivery={next} stop={1} totalOpen={open.length} {...actions} />
+        </section>
+      ) : (
+        <section
+          aria-labelledby="tudo-entregue-titulo"
+          className="flex flex-col items-center gap-3 rounded-2xl border border-success/30 bg-success/10 px-6 py-10 text-center"
+        >
+          <span aria-hidden="true" className="flex h-14 w-14 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
+            <CircleCheck className="h-7 w-7" />
+          </span>
+          <h2 id="tudo-entregue-titulo" className="text-xl font-semibold text-foreground">
+            Todas as paradas foram feitas
+          </h2>
+          <p className="max-w-xs text-[0.9375rem] text-muted-foreground">
+            Não falta nenhuma entrega neste romaneio. Se alguma teve problema, a base vai orientar o próximo passo.
+          </p>
+        </section>
+      )}
 
-      {/* Delivery Items */}
-      <div className="space-y-3">
-        {sortedDeliveries.map((delivery, index) => (
-          <DeliveryItem
-            key={delivery.id}
-            delivery={delivery}
-            index={index + 1}
-            onNavigate={onNavigate}
-            onFinishDelivery={onFinishDelivery}
-            onRegisterOccurrence={onRegisterOccurrence}
-          />
-        ))}
-      </div>
+      {upcoming.length > 0 && (
+        <section aria-labelledby="depois-titulo" className="space-y-3">
+          <h2 id="depois-titulo" className="flex items-baseline gap-2 text-lg font-semibold text-foreground">
+            Depois desta
+            <span className="font-data text-sm font-medium text-muted-foreground">{upcoming.length}</span>
+          </h2>
+          <div className="stagger space-y-3">
+            {upcoming.map((delivery, index) => (
+              <UpcomingDeliveryCard key={delivery.id} delivery={delivery} stop={index + 2} {...actions} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {finished.length > 0 && (
+        <section aria-labelledby="concluidas-titulo" className="space-y-3">
+          <h2 id="concluidas-titulo" className="flex items-baseline gap-2 text-lg font-semibold text-foreground">
+            Concluídas
+            <span className="font-data text-sm font-medium text-muted-foreground">{finished.length}</span>
+          </h2>
+          <ul className="space-y-2">
+            {finished.map((delivery) => (
+              <FinishedDeliveryRow key={delivery.id} delivery={delivery} />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

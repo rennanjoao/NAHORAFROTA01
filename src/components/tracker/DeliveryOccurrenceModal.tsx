@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Camera, Loader2, Save, X } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
+import { DELIVERY_OCCURRENCE_TYPES } from "./occurrenceTypes";
+import { OptionTiles } from "./OptionTiles";
+import { PhotoField } from "./PhotoField";
 
 interface DeliveryOccurrenceModalProps {
   open: boolean;
@@ -20,17 +22,6 @@ interface DeliveryOccurrenceModalProps {
   longitude?: number;
   onSuccess: () => void;
 }
-
-const OCCURRENCE_TYPES = [
-  { value: "cliente_ausente", label: "Cliente Ausente" },
-  { value: "recusado", label: "Recusado pelo Cliente" },
-  { value: "endereco_errado", label: "Endereço Errado/Não Encontrado" },
-  { value: "area_risco", label: "Área de Risco" },
-  { value: "horario_restrito", label: "Fora do Horário de Entrega" },
-  { value: "avaria", label: "Mercadoria Avariada" },
-  { value: "extravio", label: "Mercadoria Extraviada" },
-  { value: "outros", label: "Outros" },
-];
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
 
@@ -83,13 +74,13 @@ export function DeliveryOccurrenceModal({
       setPhotoPreview(URL.createObjectURL(preparedFile));
     } catch (error) {
       console.error("Error preparing occurrence image:", error);
-      toast.error("Erro ao processar imagem. Tente outra foto ou use a galeria.");
+      toast.error("Não foi possível usar essa foto. Tente outra ou escolha da galeria.");
     }
   };
 
   const handleSubmit = async () => {
     if (!occurrenceType) {
-      toast.error("Selecione o tipo de ocorrência");
+      toast.error("Escolha o que aconteceu");
       return;
     }
 
@@ -182,17 +173,17 @@ export function DeliveryOccurrenceModal({
 
       if (occurrenceError) {
         console.warn("Occurrence record failed after invoice status update:", occurrenceError);
-        toast.warning("Ocorrência registrada, mas a foto não foi salva nos detalhes.");
+        toast.warning("Problema registrado, mas a foto não foi salva. Avise a base.");
       }
 
-      const typeLabel = OCCURRENCE_TYPES.find((item) => item.value === occurrenceType)?.label || occurrenceType;
-      toast.success(`Ocorrência registrada: ${typeLabel}`);
+      const typeLabel = DELIVERY_OCCURRENCE_TYPES.find((item) => item.value === occurrenceType)?.label || occurrenceType;
+      toast.success(`Problema registrado: ${typeLabel}`);
 
       resetAndClose();
       onSuccess();
     } catch (error: any) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Erro ao registrar ocorrência");
+      toast.error(error.message || "Não foi possível registrar. Confira a internet e tente de novo.");
     } finally {
       setIsLoading(false);
     }
@@ -208,6 +199,12 @@ export function DeliveryOccurrenceModal({
     onClose();
   };
 
+  const removePhoto = () => {
+    setPhotoFile(null);
+    revokeObjectUrl(photoPreview);
+    setPhotoPreview(null);
+  };
+
   return (
     <Dialog
       open={open}
@@ -218,111 +215,61 @@ export function DeliveryOccurrenceModal({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-warning">
-            <AlertTriangle className="h-5 w-5" />
-            Registrar Ocorrência
-          </DialogTitle>
+          <DialogTitle>Reportar problema na entrega</DialogTitle>
+          <DialogDescription>
+            <span className="font-medium text-foreground">{recipientName}</span>
+            {nfeNumber && <span className="font-data"> · NF-e: {nfeNumber}</span>}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm space-y-1">
-            <p>
-              <span className="text-muted-foreground">NF-e: </span>
-              <span className="font-mono font-semibold">{nfeNumber || "N/A"}</span>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Destinatario: </span>
-              <span className="font-medium">{recipientName}</span>
-            </p>
-          </div>
+        <div className="space-y-5">
+          <OptionTiles
+            name="tipo-problema-entrega"
+            legend="Por que não deu para entregar?"
+            options={DELIVERY_OCCURRENCE_TYPES}
+            value={occurrenceType}
+            onChange={setOccurrenceType}
+            disabled={isLoading}
+          />
 
           <div className="space-y-2">
-            <Label>Tipo de Ocorrência *</Label>
-            <Select value={occurrenceType} onValueChange={setOccurrenceType}>
-              <SelectTrigger className="h-12">
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {OCCURRENCE_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value} className="py-3">
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Descricao</Label>
+            <Label htmlFor="delivery-occurrence-description">
+              Explique em poucas palavras <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
             <Textarea
+              id="delivery-occurrence-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Descreva o que aconteceu..."
+              placeholder="Ex.: portão fechado, ninguém atendeu"
               rows={3}
-              className="resize-none"
+              className="resize-none text-base"
+              disabled={isLoading}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Foto (opcional)</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoCapture}
-              className="hidden"
-            />
-
-            {photoPreview ? (
-              <div className="relative">
-                <img src={photoPreview} alt="Preview da ocorrencia" className="h-32 w-full rounded-lg object-cover" />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute right-2 top-2 h-6 w-6"
-                  onClick={() => {
-                    setPhotoFile(null);
-                    revokeObjectUrl(photoPreview);
-                    setPhotoPreview(null);
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-              <Button variant="outline" className="w-full gap-2" onClick={openFilePicker}>
-                <Camera className="h-4 w-4" />
-                Anexar Foto
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={resetAndClose} className="flex-1 h-12" disabled={isLoading}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading || !occurrenceType}
-              className="flex-1 h-12 gap-2 bg-warning hover:bg-warning/90"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save className="h-5 w-5" />
-                  Registrar
-                </>
-              )}
-            </Button>
-          </div>
+          <PhotoField
+            ref={fileInputRef}
+            id="delivery-occurrence-photo"
+            label="Foto"
+            hint="Opcional"
+            preview={photoPreview}
+            previewAlt="Foto do problema na entrega"
+            onPick={openFilePicker}
+            onChange={handlePhotoCapture}
+            onRemove={removePhoto}
+          />
         </div>
+
+        <DialogFooter className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 sm:flex">
+          <Button variant="outline" size="lg" onClick={resetAndClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button size="lg" onClick={handleSubmit} disabled={isLoading || !occurrenceType}>
+            {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
+            {isLoading ? "Registrando" : "Registrar problema"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
-export { OCCURRENCE_TYPES };

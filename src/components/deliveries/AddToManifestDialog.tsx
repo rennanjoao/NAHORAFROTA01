@@ -8,23 +8,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Search,
-  FileText,
-  Truck,
-  Calendar,
-  CheckCircle2,
-  Printer,
-  Send,
-  Lock,
-} from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ChevronRight, ClipboardList, Plus, Printer, Send, Truck } from "lucide-react";
+import { EmptyState, SearchInput } from "@/components/patterns";
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/timezone";
+import { ManifestStatusBadge } from "./status";
 
 interface AddToManifestDialogProps {
   open: boolean;
@@ -34,15 +26,6 @@ interface AddToManifestDialogProps {
   manifests: DBManifest[]; // DB manifests from parent
   onConfirm: (manifestId: string, action: "print" | "resend" | "none") => void;
 }
-
-// Status labels for display
-const statusLabels: Record<string, string> = {
-  pending: "Pendente",
-  in_progress: "Em Rota",
-  completed: "Concluído",
-  paid: "Pago",
-  cancelled: "Cancelado",
-};
 
 export function AddToManifestDialog({
   open,
@@ -118,127 +101,90 @@ export function AddToManifestDialog({
     });
   };
 
+  const actionOptions: { action: "print" | "resend" | "none"; title: string; description: string; icon: typeof Printer }[] = [
+    { action: "print", title: "Reimprimir romaneio", description: "Abre a impressão já com esta nota.", icon: Printer },
+    { action: "resend", title: "Reenviar para motorista", description: "A nota aparece na lista do app do motorista.", icon: Send },
+    { action: "none", title: "Apenas adicionar", description: "Sem imprimir nem avisar agora.", icon: Plus },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            {step === "select"
-              ? "Adicionar NF a Romaneio Existente"
-              : "Ação Após Inclusão"}
+          <DialogTitle>
+            {step === "select" ? `Adicionar a NF ${deliveryNfe} a um romaneio` : "O que fazer depois?"}
           </DialogTitle>
           <DialogDescription>
-            {step === "select" ? (
-              <>
-                Selecione um romaneio <strong className="text-foreground">ativo</strong> para adicionar a{" "}
-                <strong className="text-foreground">NF {deliveryNfe}</strong>
-              </>
-            ) : (
-              <>
-                A NF será adicionada ao Romaneio{" "}
-                <strong className="text-primary">
-                  nº {selectedManifest ? formatManifestNumber(selectedManifest) : ""}
-                </strong>
-                . O que deseja fazer em seguida?
-              </>
-            )}
+            {step === "select"
+              ? "Escolha um romaneio que ainda não terminou (aguardando saída ou em rota)."
+              : `A nota entra no romaneio ${selectedManifest ? formatManifestNumber(selectedManifest) : ""}. Escolha o próximo passo.`}
           </DialogDescription>
         </DialogHeader>
 
         {step === "select" ? (
           <>
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por código, motorista ou placa..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              label="Buscar romaneio"
+              placeholder="Número, motorista ou placa"
+              value={search}
+              onChange={setSearch}
+              className="sm:max-w-none"
+            />
 
-            {/* Info about filtered results */}
-            <p className="text-xs text-muted-foreground">
-              Mostrando apenas romaneios com status <strong>Pendente</strong> ou <strong>Em Rota</strong> (os mais recentes primeiro)
-            </p>
-
-            {/* Manifest List */}
-            <ScrollArea className="h-[300px] border rounded-lg">
-              <div className="p-2 space-y-2">
-                {availableManifests.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Lock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Nenhum romaneio ativo encontrado</p>
-                    <p className="text-xs mt-1">
-                      Apenas romaneios Pendentes ou Em Rota podem receber novas NFs
-                    </p>
-                  </div>
-                ) : (
-                  availableManifests.map((manifest) => (
-                    <div
-                      key={manifest.id}
-                      onClick={() => handleSelect(manifest)}
-                      className={cn(
-                        "p-3 rounded-lg border cursor-pointer transition-all",
-                        selectedManifest?.id === manifest.id
-                          ? "border-primary bg-primary/5 ring-2 ring-primary"
-                          : "hover:bg-muted/50"
-                      )}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-primary">
-                              Nº {formatManifestNumber(manifest)}
-                            </span>
-                            <Badge 
-                              variant={manifest.status === "pending" ? "outline" : "default"}
-                              className={cn(
-                                "text-xs",
-                                manifest.status === "in_progress" && "bg-primary"
-                              )}
-                            >
-                              {statusLabels[manifest.status] || manifest.status}
-                            </Badge>
-                            {selectedManifest?.id === manifest.id && (
-                              <CheckCircle2 className="h-4 w-4 text-primary" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Truck className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-medium">{manifest.driver_name}</span>
+            <div className="max-h-[min(20rem,45vh)] overflow-y-auto rounded-lg border p-2">
+              {availableManifests.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon={ClipboardList}
+                  title="Nenhum romaneio em aberto"
+                  description="Só romaneios aguardando saída ou em rota recebem notas novas. Gere um romaneio novo na lista de notas."
+                />
+              ) : (
+                <RadioGroup
+                  value={selectedManifest?.id ?? ""}
+                  onValueChange={(id) => handleSelect(availableManifests.find((m) => m.id === id) as DBManifest)}
+                  aria-label="Romaneios em aberto"
+                  className="gap-2"
+                >
+                  {availableManifests.map((manifest) => {
+                    const selected = selectedManifest?.id === manifest.id;
+                    const id = `add-manifest-${manifest.id}`;
+                    return (
+                      <Label
+                        key={manifest.id}
+                        htmlFor={id}
+                        className={cn(
+                          "flex cursor-pointer items-start gap-3 rounded-lg border p-3 font-normal transition-colors duration-fast",
+                          selected ? "border-primary bg-primary/5" : "border-transparent hover:bg-accent",
+                        )}
+                      >
+                        <RadioGroupItem id={id} value={manifest.id} className="mt-1" />
+                        <span className="min-w-0 flex-1 space-y-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="font-data font-semibold text-foreground">Romaneio {formatManifestNumber(manifest)}</span>
+                            <ManifestStatusBadge status={manifest.status} />
+                          </span>
+                          <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
+                            <Truck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            <span className="truncate">{manifest.driver_name}</span>
                             {manifest.vehicle_plate && (
-                              <span className="text-muted-foreground font-mono text-xs">
-                                {manifest.vehicle_plate}
-                              </span>
+                              <span className="shrink-0 font-data text-xs text-muted-foreground">{manifest.vehicle_plate}</span>
                             )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Calendar className="h-3 w-3" />
-                            <span>Criado: {formatDate(manifest.created_at)}</span>
-                            <span className="mx-1">•</span>
-                            <span>Agendado: {formatDateOnly(manifest.scheduled_date)}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground font-mono mt-1">
-                            {manifest.manifest_code}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant="secondary" className="mb-1">
-                            {manifest.deliveries_count} NFs
-                          </Badge>
-                          <div className="text-sm font-medium">
-                            {formatCurrency(manifest.total_value || 0)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            Saída {formatDateOnly(manifest.scheduled_date)} · criado {formatDate(manifest.created_at)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right text-sm">
+                          <span className="block text-muted-foreground">{manifest.deliveries_count} notas</span>
+                          <span className="block font-data font-semibold text-foreground">{formatCurrency(manifest.total_value || 0)}</span>
+                        </span>
+                      </Label>
+                    );
+                  })}
+                </RadioGroup>
+              )}
+            </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={handleClose}>
@@ -251,67 +197,30 @@ export function AddToManifestDialog({
           </>
         ) : (
           <>
-            {/* Action Selection */}
-            <div className="space-y-3 py-4">
-              <div className="p-4 border rounded-lg bg-muted/30">
-                <div className="text-sm text-muted-foreground mb-1">
-                  Romaneio selecionado
-                </div>
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className="font-bold text-primary text-lg">
-                      Nº {selectedManifest ? formatManifestNumber(selectedManifest) : ""}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedManifest?.driver_name} • {selectedManifest?.deliveries_count} NFs
-                    </div>
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {selectedManifest?.manifest_code}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3">
-                <Button
-                  variant="outline"
-                  className="h-auto py-4 justify-start gap-3"
-                  onClick={() => handleAction("print")}
-                >
-                  <Printer className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Reimprimir Romaneio</div>
-                    <div className="text-xs text-muted-foreground">
-                      Gera nova impressão com a NF adicionada
-                    </div>
-                  </div>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="h-auto py-4 justify-start gap-3"
-                  onClick={() => handleAction("resend")}
-                >
-                  <Send className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Reenviar para Motorista</div>
-                    <div className="text-xs text-muted-foreground">
-                      Notifica o motorista sobre a atualização
-                    </div>
-                  </div>
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  className="h-auto py-3 justify-start gap-3 text-muted-foreground"
-                  onClick={() => handleAction("none")}
-                >
-                  <div className="text-left">
-                    <div className="font-medium">Apenas adicionar</div>
-                    <div className="text-xs">Sem reimpressão ou reenvio</div>
-                  </div>
-                </Button>
-              </div>
+            <div className="space-y-2">
+              {actionOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.action}
+                    type="button"
+                    onClick={() => handleAction(option.action)}
+                    className={cn(
+                      "card-interactive flex w-full items-center gap-3 rounded-lg border bg-card p-4 text-left",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
+                    )}
+                  >
+                    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-foreground">{option.title}</span>
+                      <span className="block text-sm text-muted-foreground">{option.description}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </button>
+                );
+              })}
             </div>
 
             <DialogFooter>

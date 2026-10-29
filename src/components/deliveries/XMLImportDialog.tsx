@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -20,15 +18,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StatusBadge } from "@/components/patterns";
 import {
   Upload,
-  FileText,
+  FileUp,
   CheckCircle2,
-  XCircle,
-  AlertTriangle,
   Loader2,
-  FileWarning,
   MapPin,
+  MapPinOff,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -37,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { calculateRegiaoLogistica } from "@/lib/cepRegionMapping";
 import { requireCurrentTenantId } from "@/lib/tenant";
+import { WizardSteps } from "./WizardSteps";
 
 interface XMLImportDialogProps {
   open: boolean;
@@ -69,6 +67,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [errorCount, setErrorCount] = useState(0);
   const [importErrorDetails, setImportErrorDetails] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset state when dialog closes
   const handleOpenChange = (open: boolean) => {
@@ -112,7 +111,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
     if (droppedFiles.length === 0) {
       toast({
         title: "Nenhum arquivo XML",
-        description: "Por favor, selecione arquivos .xml válidos.",
+        description: "Escolha os arquivos das notas fiscais, com final .xml.",
         variant: "destructive",
       });
       return;
@@ -130,7 +129,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
     if (selectedFiles.length === 0) {
       toast({
         title: "Nenhum arquivo XML",
-        description: "Por favor, selecione arquivos .xml válidos.",
+        description: "Escolha os arquivos das notas fiscais, com final .xml.",
         variant: "destructive",
       });
       return;
@@ -169,7 +168,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
           ? `Erros: ${failedResults.map(f => f.error).join("; ")}`
           : "Não foi possível processar nenhum arquivo XML.";
         toast({
-          title: "Nenhuma NF-e válida",
+          title: "Nenhuma nota válida",
           description: errorDetails,
           variant: "destructive",
         });
@@ -197,7 +196,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
       const seenBatchKeys = new Set<string>();
       setProgress(50);
 
-      setProgressMessage("Geocodificando endereços...");
+      setProgressMessage("Localizando os endereços no mapa...");
 
       // Process and geocode each invoice - with concurrency limit to avoid rate limiting
       const processed: ProcessedInvoice[] = [];
@@ -272,8 +271,8 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
     } catch (error) {
       console.error("Error processing files:", error);
       toast({
-        title: "Erro no processamento",
-        description: error instanceof Error ? error.message : "Ocorreu um erro ao processar os arquivos.",
+        title: "Não foi possível ler os arquivos",
+        description: error instanceof Error ? error.message : "Confira se são XML de nota fiscal e tente de novo.",
         variant: "destructive",
       });
       setStep("upload");
@@ -302,8 +301,8 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
 
     if (toImport.length === 0) {
       toast({
-        title: "Nenhuma NF selecionada",
-        description: "Selecione pelo menos uma NF para importar.",
+        title: "Nenhuma nota marcada",
+        description: "Marque pelo menos uma nota para importar.",
         variant: "destructive",
       });
       return;
@@ -358,11 +357,12 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
       setStep("complete");
 
       toast({
-        title: "Importação concluída",
+        title: "Notas importadas",
         description:
           skippedNow > 0
-            ? `${importedNow} nota(s) importada(s) e ${skippedNow} ignorada(s) por duplicidade.`
-            : `${importedNow} nota(s) fiscal(is) importada(s) com sucesso.`,
+            ? `${importedNow} nota(s) importada(s); ${skippedNow} já existia(m) e ficou(aram) de fora.`
+            : `${importedNow} nota(s) fiscal(is) importada(s).`,
+        variant: "success",
       });
 
       onImportComplete(importedNow, duplicateCount + skippedNow);
@@ -380,8 +380,8 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
       setImportErrorDetails(JSON.stringify(detailsPayload, null, 2));
 
       toast({
-        title: "Erro na importação",
-        description: `${anyErr?.message || "Não foi possível salvar as notas fiscais."}${anyErr?.code ? ` (código: ${anyErr.code})` : ""}`,
+        title: "Não foi possível importar as notas",
+        description: `${anyErr?.message || "Tente de novo em instantes."}${anyErr?.code ? ` (código: ${anyErr.code})` : ""}`,
         variant: "destructive",
       });
       setStep("review");
@@ -391,39 +391,43 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
   const selectedCount = processedInvoices.filter((inv) => inv.selected && !inv.isDuplicate).length;
   const nonDuplicateCount = processedInvoices.filter((inv) => !inv.isDuplicate).length;
   const failedParseResults = parseResults.filter((result) => !result.success);
+  const notGeocodedCount = processedInvoices.filter((inv) => !inv.isDuplicate && !inv.isGeocoded).length;
+  const headerChecked: boolean | "indeterminate" =
+    nonDuplicateCount > 0 && selectedCount === nonDuplicateCount ? true : selectedCount > 0 ? "indeterminate" : false;
+
+  const stepIndex = step === "upload" || step === "processing" ? 0 : step === "complete" ? 2 : 1;
+  const stepDescription: Record<ImportStep, string> = {
+    upload: "Escolha os arquivos XML das notas fiscais (NF-e). Pode enviar vários de uma vez.",
+    processing: "Lendo os arquivos e conferindo os endereços.",
+    review: "Confira as notas antes de importar. Notas repetidas ficam de fora.",
+    importing: "Salvando as notas fiscais.",
+    complete: "Pronto. As notas já estão na lista.",
+  };
+  const notesLabel = (count: number) => (count === 1 ? "1 nota" : `${count} notas`);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Importar Notas Fiscais (XML)
-          </DialogTitle>
-          <DialogDescription>
-            {step === "upload" && "Arraste e solte arquivos XML de NF-e ou clique para selecionar."}
-            {step === "processing" && "Processando arquivos..."}
-            {step === "review" && "Revise as notas antes de confirmar a importação."}
-            {step === "importing" && "Salvando notas fiscais..."}
-            {step === "complete" && "Importação concluída."}
-          </DialogDescription>
+          <DialogTitle>Importar notas fiscais</DialogTitle>
+          <DialogDescription>{stepDescription[step]}</DialogDescription>
         </DialogHeader>
 
-        {/* Upload Step */}
+        <WizardSteps steps={["Escolher arquivos", "Conferir notas", "Pronto"]} current={stepIndex} />
+
+        {/* Etapa 1: escolher arquivos */}
         {step === "upload" && (
           <div
             className={cn(
-              "border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25 hover:border-primary/50"
+              "flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors duration",
+              isDragging ? "border-primary bg-primary/5" : "border-border",
             )}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onClick={() => document.getElementById("xml-file-input")?.click()}
           >
             <input
+              ref={fileInputRef}
               id="xml-file-input"
               type="file"
               accept=".xml"
@@ -431,179 +435,171 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
               className="hidden"
               onChange={handleFileSelect}
             />
-            <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Arraste arquivos XML aqui</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              ou clique para selecionar arquivos
-            </p>
-            <Badge variant="outline">Aceita múltiplos arquivos</Badge>
+            <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <FileUp className="h-6 w-6" />
+            </span>
+            <div className="space-y-1">
+              <p className="font-heading text-base font-semibold text-foreground">Arraste os arquivos XML para cá</p>
+              <p className="text-sm text-muted-foreground">ou escolha no computador ou celular</p>
+            </div>
+            <Button onClick={() => fileInputRef.current?.click()}>
+              <Upload aria-hidden="true" />
+              Escolher arquivos
+            </Button>
+            <p className="text-xs text-muted-foreground">Aceita vários arquivos .xml de uma vez.</p>
           </div>
         )}
 
-        {/* Processing Step */}
-        {step === "processing" && (
-          <div className="py-12 text-center">
-            <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin mb-4" />
-            <h3 className="text-lg font-medium mb-2">{progressMessage}</h3>
-            <Progress value={progress} className="w-full max-w-md mx-auto" />
-            <p className="text-sm text-muted-foreground mt-2">{Math.round(progress)}%</p>
+        {/* Lendo / salvando */}
+        {(step === "processing" || step === "importing") && (
+          <div className="flex flex-col items-center gap-4 py-10 text-center" role="status" aria-live="polite">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden="true" />
+            <p className="font-heading text-base font-semibold text-foreground">{progressMessage}</p>
+            <div className="w-full max-w-sm space-y-2">
+              <Progress value={progress} aria-label="Andamento da importação" />
+              <p className="font-data text-sm text-muted-foreground">{Math.round(progress)}%</p>
+            </div>
           </div>
         )}
 
-        {/* Review Step */}
+        {/* Etapa 2: conferir */}
         {step === "review" && (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-w-0 space-y-4">
             {importErrorDetails && (
-              <div className="mb-4 shrink-0 rounded-md border p-3 text-sm">
-                <p className="font-medium">Detalhes do erro (para debug)</p>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground">
+              <details className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <summary className="cursor-pointer font-medium text-foreground">Detalhes técnicos do erro</summary>
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words font-data text-xs text-muted-foreground">
                   {importErrorDetails}
                 </pre>
-              </div>
+              </details>
             )}
 
-            {/* Summary badges */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Badge variant="default" className="gap-1">
-                <CheckCircle2 className="h-3 w-3" />
-                {nonDuplicateCount} válida(s)
-              </Badge>
-              {duplicateCount > 0 && (
-                <Badge variant="secondary" className="gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  {duplicateCount} duplicada(s)
-                </Badge>
-              )}
-              {errorCount > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <XCircle className="h-3 w-3" />
-                  {errorCount} com erro
-                </Badge>
-              )}
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge tone="success">{notesLabel(nonDuplicateCount)} para importar</StatusBadge>
+              {duplicateCount > 0 && <StatusBadge tone="neutral">{notesLabel(duplicateCount)} já importada(s)</StatusBadge>}
+              {notGeocodedCount > 0 && <StatusBadge tone="warning">{notesLabel(notGeocodedCount)} sem local no mapa</StatusBadge>}
+              {errorCount > 0 && <StatusBadge tone="danger">{errorCount} arquivo(s) com erro</StatusBadge>}
             </div>
 
-            {/* Review table */}
-            <ScrollArea className="h-[280px] max-h-[42vh] min-h-[220px] rounded-lg border">
+            <div
+              role="region"
+              aria-label="Notas encontradas nos arquivos"
+              tabIndex={0}
+              className="max-h-[42vh] min-h-[12rem] overflow-y-auto rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>
-                    <TableHead className="w-12">
+                    <TableHead className="w-12 pr-0">
                       <Checkbox
-                        checked={selectedCount === nonDuplicateCount && nonDuplicateCount > 0}
-                        onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                        checked={headerChecked}
+                        disabled={nonDuplicateCount === 0}
+                        onCheckedChange={(checked) => toggleSelectAll(checked === true)}
+                        aria-label="Marcar todas as notas novas"
+                        className="h-5 w-5 rounded-[0.375rem]"
                       />
                     </TableHead>
-                    <TableHead>NF-e</TableHead>
-                    <TableHead>Destinatário</TableHead>
-                    <TableHead>Cidade/UF</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-center">Geo</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead className="px-2 sm:px-4">Nota</TableHead>
+                    <TableHead className="px-2 sm:px-4">Cliente</TableHead>
+                    <TableHead className="hidden px-2 text-right sm:table-cell sm:px-4">Valor</TableHead>
+                    <TableHead className="px-2 sm:px-4">Situação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {processedInvoices.map((invoice) => (
-                    <TableRow
-                      key={invoice.id}
-                      className={cn(
-                        invoice.isDuplicate && "opacity-50 bg-muted/30"
-                      )}
-                    >
+                    <TableRow key={invoice.id} data-state={invoice.selected ? "selected" : undefined}>
                       <TableCell>
                         <Checkbox
                           checked={invoice.selected}
                           disabled={invoice.isDuplicate}
                           onCheckedChange={() => toggleSelection(invoice.id)}
+                          aria-label={`Importar NF ${invoice.nfeNumber}`}
+                          className="h-5 w-5 rounded-[0.375rem]"
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {invoice.nfeNumber}
+                      <TableCell className="whitespace-nowrap px-2 font-data font-medium sm:px-4">{invoice.nfeNumber}</TableCell>
+                      <TableCell className="w-full max-w-0 px-2 sm:px-4">
+                        <p className="truncate text-foreground">{invoice.recipientName}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {invoice.addressCity}/{invoice.addressState}
+                          <span className="font-data sm:hidden"> · {formatCurrency(invoice.totalValue)}</span>
+                        </p>
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {invoice.recipientName}
-                      </TableCell>
-                      <TableCell>
-                        {invoice.addressCity}/{invoice.addressState}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="hidden whitespace-nowrap px-2 text-right font-data sm:table-cell sm:px-4">
                         {formatCurrency(invoice.totalValue)}
                       </TableCell>
-                      <TableCell className="text-center">
-                        {invoice.isDuplicate ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : invoice.isGeocoded ? (
-                          <MapPin className="h-4 w-4 text-success mx-auto" />
-                        ) : (
-                          <FileWarning className="h-4 w-4 text-warning mx-auto" />
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {invoice.isDuplicate ? (
-                          <Badge variant="secondary">
-                            {invoice.duplicateSource === "batch" ? "Duplicada no lote" : "Duplicada"}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Nova</Badge>
-                        )}
+                      <TableCell className="px-2 sm:px-4">
+                        <div className="flex flex-col items-start gap-1">
+                          {invoice.isDuplicate ? (
+                            <StatusBadge tone="neutral">{invoice.duplicateSource === "batch" ? "Repetida" : "Já importada"}</StatusBadge>
+                          ) : (
+                            <StatusBadge tone="success">Nova</StatusBadge>
+                          )}
+                          {!invoice.isDuplicate &&
+                            (invoice.isGeocoded ? (
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3" aria-hidden="true" />
+                                No mapa
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-warning" title={invoice.geocodeError}>
+                                <MapPinOff className="h-3 w-3" aria-hidden="true" />
+                                Sem local no mapa
+                              </span>
+                            ))}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
                   {failedParseResults.map((result, index) => (
-                    <TableRow key={`error-${result.fileName}-${index}`} className="bg-destructive/5">
+                    <TableRow key={`error-${result.fileName}-${index}`}>
                       <TableCell>
-                        <Checkbox checked={false} disabled />
+                        <span className="sr-only">Não pode ser importada</span>
                       </TableCell>
-                      <TableCell className="max-w-[160px] truncate font-mono text-xs">
-                        {result.fileName}
+                      <TableCell className="max-w-[8rem] truncate px-2 font-data text-xs sm:px-4">{result.fileName}</TableCell>
+                      <TableCell colSpan={2} className="px-2 text-sm text-muted-foreground sm:px-4">
+                        {result.error || "Não foi possível ler este XML."}
                       </TableCell>
-                      <TableCell colSpan={4} className="text-sm text-muted-foreground">
-                        {result.error || "Não foi possível processar este XML."}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="destructive">Erro</Badge>
+                      <TableCell className="px-2 sm:px-4">
+                        <StatusBadge tone="danger">Erro</StatusBadge>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
 
-            <DialogFooter className="mt-4 shrink-0">
+            <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancelar
               </Button>
               <Button onClick={handleImport} disabled={selectedCount === 0}>
-                Importar {selectedCount} NF(s)
+                Importar {notesLabel(selectedCount)}
               </Button>
             </DialogFooter>
           </div>
         )}
 
-        {/* Importing Step */}
-        {step === "importing" && (
-          <div className="py-12 text-center">
-            <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin mb-4" />
-            <h3 className="text-lg font-medium mb-2">{progressMessage}</h3>
-            <Progress value={progress} className="w-full max-w-md mx-auto" />
-          </div>
-        )}
-
-        {/* Complete Step */}
+        {/* Etapa 3: pronto */}
         {step === "complete" && (
-          <div className="py-12 text-center">
-            <CheckCircle2 className="h-16 w-16 mx-auto text-success mb-4" />
-            <h3 className="text-xl font-medium mb-2">Importação Concluída!</h3>
-            <div className="flex justify-center gap-4 mb-6">
-              <Badge variant="default" className="text-base px-4 py-2">
-                {importedCount} importada(s)
-              </Badge>
-              {duplicateCount > 0 && (
-                <Badge variant="secondary" className="text-base px-4 py-2">
-                  {duplicateCount} ignorada(s) por duplicidade
-                </Badge>
-              )}
-            </div>
-            <Button onClick={() => handleOpenChange(false)}>Fechar</Button>
+          <div className="flex flex-col items-center gap-3 py-8 text-center" role="status">
+            <span aria-hidden="true" className="flex h-16 w-16 animate-pop-in items-center justify-center rounded-full bg-success/10 text-success">
+              <CheckCircle2 className="h-8 w-8" />
+            </span>
+            <p className="font-heading text-lg font-semibold text-foreground">
+              {importedCount === 1 ? "1 nota importada" : `${importedCount} notas importadas`}
+            </p>
+            {duplicateCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {notesLabel(duplicateCount)} já existia(m) e ficou(aram) de fora.
+              </p>
+            )}
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Próximo passo: marque as notas na lista e toque em Gerar romaneio.
+            </p>
+            <Button className="mt-2" onClick={() => handleOpenChange(false)}>
+              Ver notas
+            </Button>
           </div>
         )}
       </DialogContent>

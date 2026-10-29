@@ -1,9 +1,9 @@
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type { ReactNode } from "react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
@@ -14,29 +14,25 @@ import {
   User,
   MapPin,
   Phone,
-  Calendar,
   Clock,
   Truck,
   AlertTriangle,
   CheckCircle2,
   FileText,
   History,
-  UserCheck,
   RotateCcw,
   Plus,
   Minus,
-  Weight,
-  DollarSign,
   Image as ImageIcon,
   ExternalLink,
   Pencil,
   Save,
-  X,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { getOccurrenceLabel } from "@/hooks/useSLADB";
+import { DeliveryStatusBadge } from "./status";
 
 interface AuditLogEntry {
   id: string;
@@ -91,16 +87,6 @@ interface DeliveryDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onAddressUpdated?: () => void | Promise<void>;
 }
-
-const statusConfig = {
-  pending: { label: "Pendente", color: "bg-muted text-muted-foreground" },
-  in_transit: { label: "Em Rota", color: "bg-info text-info-foreground" },
-  delivered: { label: "Entregue", color: "bg-success text-success-foreground" },
-  delayed: { label: "Atrasado", color: "bg-destructive text-destructive-foreground" },
-  occurrence: { label: "Ocorrência", color: "bg-warning text-warning-foreground" },
-  returning: { label: "Em Devolução", color: "bg-info text-info-foreground" },
-  returned: { label: "Devolvido", color: "bg-idle text-idle-foreground" },
-};
 
 const actionIcons = {
   invoice_added: Plus,
@@ -195,8 +181,6 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
 
   if (!delivery) return null;
 
-  const status = statusConfig[delivery.status];
-
   // Format date for display
   const formatDateTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -242,7 +226,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     if (!address || !city || !state) {
       toast({
         title: "Endereço incompleto",
-        description: "Preencha endereço, cidade e UF antes de salvar.",
+        description: "Preencha rua, cidade e UF antes de salvar.",
         variant: "destructive",
       });
       return;
@@ -272,7 +256,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
 
       toast({
         title: "Endereço atualizado",
-        description: "As coordenadas antigas foram limpas para recalculo da rota.",
+        description: "A localização no mapa será refeita na próxima rota.",
+        variant: "success",
       });
 
       setIsEditingAddress(false);
@@ -280,8 +265,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     } catch (error: any) {
       console.error("Error updating invoice address:", error);
       toast({
-        title: "Erro ao salvar endereço",
-        description: error.message || "Não foi possível atualizar o endereço.",
+        title: "Não foi possível salvar o endereço",
+        description: error.message || "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -289,77 +274,57 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     }
   };
 
+  const resetAddressForm = () => {
+    setAddressForm({
+      address: delivery.address || "",
+      city: delivery.city || "",
+      state: delivery.state || "",
+      zipCode: delivery.zipCode || "",
+    });
+    setIsEditingAddress(false);
+  };
+
+  const sectionTitle = (id: string, Icon: typeof User, title: string, extra?: ReactNode) => (
+    <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-foreground">
+      <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      {title}
+      {extra}
+    </h3>
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-hidden flex flex-col">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Detalhes da Nota Fiscal
-          </SheetTitle>
+      <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <SheetHeader className="space-y-2 border-b px-6 pb-5 pr-14 pt-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <SheetTitle className="font-data text-xl">NF {delivery.nfe}</SheetTitle>
+            <DeliveryStatusBadge status={delivery.status} live />
+          </div>
+          <SheetDescription>
+            Importada em {delivery.scheduledDate.toLocaleDateString("pt-BR")}
+            {delivery.manifestId ? ` · Romaneio ${delivery.manifestId}` : " · Sem romaneio"}
+          </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <div className="space-y-6 pb-6">
-            {/* Header Info */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-mono text-lg font-bold">{delivery.nfe}</p>
-                <p className="text-sm text-muted-foreground">
-                  Importada em {delivery.scheduledDate.toLocaleDateString('pt-BR')}
-                </p>
-              </div>
-              <Badge className={cn("gap-1", status.color)}>
-                {status.label}
-              </Badge>
-            </div>
-
-            <Separator />
-
-            {/* Recipient Info */}
-            <div className="space-y-3">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-6 px-6 py-6">
+            {/* Cliente */}
+            <section aria-labelledby="detail-recipient" className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
-                Destinatário
-              </h4>
-              {isEditingAddress ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setAddressForm({
-                        address: delivery.address || "",
-                        city: delivery.city || "",
-                        state: delivery.state || "",
-                        zipCode: delivery.zipCode || "",
-                      });
-                      setIsEditingAddress(false);
-                    }}
-                    disabled={isSavingAddress}
-                  >
-                    <X className="h-4 w-4" />
+                {sectionTitle("detail-recipient", User, "Cliente")}
+                {!isEditingAddress && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setIsEditingAddress(true)}>
+                    <Pencil aria-hidden="true" />
+                    Corrigir endereço
                   </Button>
-                  <Button type="button" size="sm" onClick={handleSaveAddress} disabled={isSavingAddress}>
-                    {isSavingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Salvar
-                  </Button>
-                </div>
-              ) : (
-                <Button type="button" size="sm" variant="outline" onClick={() => setIsEditingAddress(true)}>
-                  <Pencil className="h-4 w-4" />
-                  Editar
-                </Button>
-              )}
+                )}
               </div>
-              <div className="pl-6 space-y-2 text-sm">
-                <p className="font-medium">{delivery.recipient}</p>
+              <div className="space-y-2 rounded-lg border p-4 text-sm">
+                <p className="font-medium text-foreground">{delivery.recipient}</p>
                 {isEditingAddress ? (
-                  <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+                  <div className="space-y-3 pt-1 animate-fade-in">
                     <div className="space-y-1.5">
-                      <Label htmlFor="invoice-address">Endereço</Label>
+                      <Label htmlFor="invoice-address">Rua e número</Label>
                       <Input
                         id="invoice-address"
                         value={addressForm.address}
@@ -367,14 +332,13 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                         placeholder="Rua, avenida, número e complemento"
                       />
                     </div>
-                    <div className="grid grid-cols-[1fr_72px] gap-2">
+                    <div className="grid grid-cols-[1fr_5rem] gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="invoice-city">Cidade</Label>
                         <Input
                           id="invoice-city"
                           value={addressForm.city}
                           onChange={(event) => setAddressForm((current) => ({ ...current, city: event.target.value }))}
-                          placeholder="Cidade"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -395,302 +359,249 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                         value={addressForm.zipCode}
                         onChange={(event) => setAddressForm((current) => ({ ...current, zipCode: event.target.value }))}
                         placeholder="00000-000"
+                        inputMode="numeric"
                       />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Ao salvar, a localização no mapa é refeita na próxima rota.</p>
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                      <Button type="button" variant="outline" onClick={resetAddressForm} disabled={isSavingAddress}>
+                        Cancelar
+                      </Button>
+                      <Button type="button" onClick={handleSaveAddress} disabled={isSavingAddress}>
+                        {isSavingAddress ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+                        Salvar endereço
+                      </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p>{delivery.address}</p>
-                      <p>{delivery.city} - {delivery.state}, {delivery.zipCode}</p>
-                    </div>
-                  </div>
+                  <p className="flex items-start gap-2 text-muted-foreground">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      {delivery.address}
+                      <br />
+                      {delivery.city} - {delivery.state}
+                      {delivery.zipCode ? `, ${delivery.zipCode}` : ""}
+                    </span>
+                  </p>
                 )}
                 {delivery.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-4 w-4" />
-                    <p>{delivery.phone}</p>
-                  </div>
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="font-data">{delivery.phone}</span>
+                  </p>
                 )}
               </div>
-            </div>
+            </section>
 
-            <Separator />
-
-            {/* Package Info */}
-            <div className="space-y-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary" />
-                Dados da Carga
-              </h4>
-              <div className="pl-6 grid grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <Weight className="h-4 w-4 text-muted-foreground" />
-                  <span>Peso: <strong>{delivery.weight}</strong></span>
+            {/* Carga */}
+            <section aria-labelledby="detail-cargo" className="space-y-3">
+              {sectionTitle("detail-cargo", Package, "Carga")}
+              <dl className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <dt className="text-xs text-muted-foreground">Peso</dt>
+                  <dd className="font-data text-base font-semibold text-foreground">{delivery.weight}</dd>
                 </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span>Valor: <strong>{delivery.value}</strong></span>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <dt className="text-xs text-muted-foreground">Valor</dt>
+                  <dd className="font-data text-base font-semibold text-foreground">{delivery.value}</dd>
                 </div>
-              </div>
-            </div>
+              </dl>
+            </section>
 
-            {/* Delivery Confirmation - if delivered */}
+            {/* Entrega confirmada */}
             {delivery.status === "delivered" && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-success">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Confirmação de Entrega
-                  </h4>
-                  <div className="pl-6 space-y-2 text-sm bg-success/10 rounded-lg p-3 border border-success/20">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="h-4 w-4 text-success" />
-                      <span>Recebido por: <strong>{delivery.receivedBy || "Nome não informado"}</strong></span>
-                    </div>
-                    {(delivery as any).receiverDocument && (
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span>Documento: <strong>{(delivery as any).receiverDocument}</strong></span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      {/* Sem data registrada mostra "—" (antes caia para a data de hoje). */}
-                      <span>Data: <strong>{delivery.receivedAt?.toLocaleDateString('pt-BR') || "—"}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>Hora: <strong>{delivery.receivedAt?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) || "—"}</strong></span>
-                    </div>
-                    {delivery.driver && (
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-muted-foreground" />
-                        <span>Motorista: <strong>{delivery.driver}</strong></span>
-                      </div>
-                    )}
-                    {delivery.deliveryNotes && (
-                      <div className="mt-2 pt-2 border-t border-success/20">
-                        <p className="text-muted-foreground">{delivery.deliveryNotes}</p>
-                      </div>
-                    )}
+              <section aria-labelledby="detail-proof" className="space-y-3">
+                {sectionTitle("detail-proof", CheckCircle2, "Entrega confirmada")}
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-success/30 bg-success/5 p-4 text-sm">
+                  <div className="col-span-2">
+                    <dt className="text-xs text-muted-foreground">Recebido por</dt>
+                    <dd className="font-medium text-foreground">{delivery.receivedBy || "Nome não informado"}</dd>
                   </div>
-                  {proofImages.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2 pl-6">
-                      {proofImages.map((image) => (
+                  {delivery.receiverDocument && (
+                    <div className="col-span-2">
+                      <dt className="text-xs text-muted-foreground">Documento</dt>
+                      <dd className="font-data text-foreground">{delivery.receiverDocument}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Data</dt>
+                    {/* Sem data registrada mostra "—" (antes caia para a data de hoje). */}
+                    <dd className="font-data text-foreground">{delivery.receivedAt?.toLocaleDateString("pt-BR") || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Hora</dt>
+                    <dd className="font-data text-foreground">
+                      {delivery.receivedAt?.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) || "—"}
+                    </dd>
+                  </div>
+                  {delivery.driver && (
+                    <div className="col-span-2">
+                      <dt className="text-xs text-muted-foreground">Motorista</dt>
+                      <dd className="text-foreground">{delivery.driver}</dd>
+                    </div>
+                  )}
+                  {delivery.deliveryNotes && (
+                    <div className="col-span-2 border-t border-success/20 pt-3">
+                      <dt className="text-xs text-muted-foreground">Recado da entrega</dt>
+                      <dd className="text-foreground">{delivery.deliveryNotes}</dd>
+                    </div>
+                  )}
+                </dl>
+                {proofImages.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {proofImages.map((image) => (
+                      <a
+                        key={image.url}
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="card-interactive block overflow-hidden rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.label}
+                          // Assinatura e papel: fundo claro nos dois temas.
+                          className={cn("h-32 w-full", image.kind === "signature" ? "light bg-card object-contain" : "object-cover")}
+                          onError={(event) => {
+                            event.currentTarget.src = "/placeholder.svg";
+                          }}
+                        />
+                        <span className="flex items-center justify-between gap-1 px-2 py-1.5 text-xs text-muted-foreground">
+                          {image.label}
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span className="sr-only">(abre em nova aba)</span>
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Romaneio atual */}
+            {delivery.manifestId && (
+              <section aria-labelledby="detail-manifest" className="space-y-3">
+                {sectionTitle("detail-manifest", Truck, "Romaneio")}
+                <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                  <p className="font-data text-base font-semibold text-foreground">Romaneio {delivery.manifestId}</p>
+                  {delivery.driver && (
+                    <p className="mt-1 text-muted-foreground">
+                      Motorista: <span className="font-medium text-foreground">{delivery.driver}</span>
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Ocorrencia */}
+            {delivery.occurrenceType && (
+              <section aria-labelledby="detail-occurrence" className="space-y-3">
+                {sectionTitle("detail-occurrence", AlertTriangle, "Ocorrência registrada")}
+                <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                  <p className="font-medium text-foreground">{getOccurrenceLabel(delivery.occurrenceType)}</p>
+                  {delivery.observation && <p className="text-muted-foreground">{delivery.observation}</p>}
+                  {occurrenceEntries.map((occurrence) => (
+                    <div key={occurrence.id} className="space-y-2 rounded-lg border bg-card p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-foreground">{getOccurrenceLabel(occurrence.type)}</span>
+                        <span className="font-data text-xs text-muted-foreground">{formatDateTime(occurrence.created_at)}</span>
+                      </div>
+                      {occurrence.description && <p className="text-xs text-muted-foreground">{occurrence.description}</p>}
+                      {occurrence.photo_url ? (
                         <a
-                          key={image.url}
-                          href={image.url}
+                          href={occurrence.photo_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="group block overflow-hidden rounded-lg border"
-                          title={`Abrir ${image.label.toLowerCase()}`}
+                          className="block overflow-hidden rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <img
-                            src={image.url}
-                            alt={image.label}
-                            className={cn("h-32 w-full", image.kind === "signature" ? "object-contain bg-white" : "object-cover")}
+                            src={occurrence.photo_url}
+                            alt="Foto da ocorrência"
+                            className="h-40 w-full object-cover"
                             onError={(event) => {
                               event.currentTarget.src = "/placeholder.svg";
                             }}
                           />
-                          <p className="px-2 py-1 text-xs text-muted-foreground">{image.label}</p>
+                          <span className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-foreground">
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                            Abrir ou baixar a foto
+                            <span className="sr-only">(abre em nova aba)</span>
+                          </span>
                         </a>
-                      ))}
+                      ) : (
+                        <p className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                          <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                          Nenhuma foto nesta ocorrência.
+                        </p>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              </>
+              </section>
             )}
 
-            {/* Current Manifest */}
-            {delivery.manifestId && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-primary" />
-                    Romaneio Atual
-                  </h4>
-                  <div className="pl-6 text-sm bg-primary/10 rounded-lg p-3 border border-primary/20">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-lg">Romaneio nº {delivery.manifestId}</span>
-                      <Badge variant="outline">Em Rota</Badge>
-                    </div>
-                    {delivery.driver && (
-                      <div className="flex items-center gap-2 mt-2 text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        <span>Motorista: <strong className="text-foreground">{delivery.driver}</strong></span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
+            {/* Observacoes */}
+            {delivery.observation && !delivery.occurrenceType && (
+              <section aria-labelledby="detail-observation" className="space-y-3">
+                {sectionTitle("detail-observation", FileText, "Observação para o motorista")}
+                <p className="rounded-lg bg-muted/50 p-3 text-sm text-foreground">{delivery.observation}</p>
+              </section>
             )}
 
-            {/* Occurrence Info */}
-            {delivery.occurrenceType && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-warning">
-                    <AlertTriangle className="h-4 w-4" />
-                    Ocorrência Registrada
-                  </h4>
-                  <div className="pl-6 space-y-2 text-sm bg-warning/10 rounded-lg p-3 border border-warning/30">
-                    <p className="font-medium">{getOccurrenceLabel(delivery.occurrenceType)}</p>
-                    {delivery.observation && (
-                      <p className="text-muted-foreground">{delivery.observation}</p>
-                    )}
-                    {occurrenceEntries.length > 0 && (
-                      <div className="space-y-3 pt-2">
-                        {occurrenceEntries.map((occurrence) => (
-                          <div key={occurrence.id} className="space-y-2 rounded-lg border border-warning/30 bg-background p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-medium text-warning">
-                                {getOccurrenceLabel(occurrence.type)}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {formatDateTime(occurrence.created_at)}
-                              </span>
-                            </div>
+            {/* Historico */}
+            <section aria-labelledby="detail-history" className="space-y-3">
+              {sectionTitle(
+                "detail-history",
+                History,
+                "Histórico",
+                auditLogs.length > 0 ? <Badge variant="secondary">{auditLogs.length}</Badge> : null,
+              )}
 
-                            {occurrence.description && (
-                              <p className="text-xs text-muted-foreground">{occurrence.description}</p>
-                            )}
-
-                            {occurrence.photo_url ? (
-                              <a
-                                href={occurrence.photo_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group block overflow-hidden rounded-lg border"
-                              >
-                                <div className="relative">
-                                  <img
-                                    src={occurrence.photo_url}
-                                    alt="Foto da ocorrência"
-                                    className="h-40 w-full object-cover"
-                                    onError={(event) => {
-                                      event.currentTarget.src = "/placeholder.svg";
-                                    }}
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
-                                    <ExternalLink className="h-5 w-5 text-white" />
-                                  </div>
-                                </div>
-                              </a>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                                <ImageIcon className="h-4 w-4" />
-                                Nenhuma foto anexada nesta ocorrência.
-                              </div>
-                            )}
-                            {occurrence.photo_url && (
-                              <a
-                                href={occurrence.photo_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium hover:bg-muted"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                                Abrir ou baixar imagem
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Complete History Timeline - from Database */}
-            <Separator />
-            <div className="space-y-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <History className="h-4 w-4 text-primary" />
-                Histórico de Movimentação
-                {auditLogs.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">{auditLogs.length}</Badge>
-                )}
-              </h4>
-              
               {isLoadingLogs ? (
-                <div className="pl-6 space-y-3">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
+                <div className="space-y-3" role="status" aria-label="Carregando histórico">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
                 </div>
               ) : auditLogs.length === 0 ? (
-                <div className="pl-6 text-sm text-muted-foreground">
-                  Nenhum histórico registrado para esta nota fiscal.
-                </div>
+                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Nada registrado ainda para esta nota.
+                </p>
               ) : (
-                <div className="pl-6 space-y-1">
+                <ol className="space-y-0">
                   {auditLogs.map((log, idx) => {
                     const Icon = actionIcons[log.action_type as keyof typeof actionIcons] || RotateCcw;
                     const colorClass = actionColors[log.action_type as keyof typeof actionColors] || "text-primary";
-                    
+
                     return (
-                      <div key={log.id} className="relative pl-6 pb-4 last:pb-0">
-                        {/* Timeline line */}
+                      <li key={log.id} className="relative pb-4 pl-8 last:pb-0">
                         {idx < auditLogs.length - 1 && (
-                          <div className="absolute left-[9px] top-5 bottom-0 w-0.5 bg-border" />
+                          <span aria-hidden="true" className="absolute bottom-0 left-[11px] top-6 w-px bg-border" />
                         )}
-                        
-                        {/* Timeline dot */}
-                        <div className={cn(
-                          "absolute left-0 top-1 w-[18px] h-[18px] rounded-full bg-background border-2 flex items-center justify-center",
-                          colorClass
-                        )}>
-                          <Icon className="h-3 w-3" />
-                        </div>
-                        
-                        {/* Content */}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium">{getDescription(log)}</p>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {formatDateTime(log.created_at)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              Por: <strong>{getUserName(log)}</strong>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "absolute left-0 top-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-card",
+                            colorClass,
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <p className="text-sm font-medium text-foreground">{getDescription(log)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-data">{formatDateTime(log.created_at)}</span> · por {getUserName(log)}
+                        </p>
+                      </li>
                     );
                   })}
-                </div>
+                </ol>
               )}
-            </div>
+            </section>
 
-            {/* Observation */}
-            {delivery.observation && !delivery.occurrenceType && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">Observações</h4>
-                  <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                    {delivery.observation}
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* Audit Footer */}
             {delivery.lastUpdatedAt && (
-              <div className="text-xs text-muted-foreground pt-4 border-t flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                Última atualização em {delivery.lastUpdatedAt?.toLocaleString('pt-BR')}
-              </div>
+              <p className="flex items-center gap-1.5 border-t pt-4 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                Última atualização em {delivery.lastUpdatedAt?.toLocaleString("pt-BR")}
+              </p>
             )}
           </div>
         </ScrollArea>

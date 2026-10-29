@@ -1,5 +1,7 @@
-import { Clock, Truck, CheckCircle2, AlertTriangle, Warehouse } from "lucide-react";
+import { useCountUp } from "@/hooks/useCountUp";
+import { toneDot, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
+import { DELIVERY_STATUS } from "./status";
 
 export type KPIStatusFilter = "all" | "pending" | "in_transit" | "delivered" | "occurrence" | "returned";
 
@@ -17,107 +19,80 @@ interface DeliveryKPICardsProps {
   onFilterChange: (filter: KPIStatusFilter) => void;
 }
 
-const kpiConfig = [
-  {
-    key: "pending" as const,
-    label: "Pendentes",
-    icon: Clock,
-    bgColor: "bg-muted",
-    iconBg: "bg-muted",
-    iconColor: "text-muted-foreground",
-    activeRing: "ring-border",
-    valueBg: "bg-idle",
-  },
-  {
-    key: "in_transit" as const,
-    label: "Em Rota",
-    icon: Truck,
-    bgColor: "bg-info/10",
-    iconBg: "bg-info/15",
-    iconColor: "text-info",
-    activeRing: "ring-info",
-    valueBg: "bg-info",
-  },
-  {
-    key: "delivered" as const,
-    label: "Entregue",
-    icon: CheckCircle2,
-    bgColor: "bg-success/10",
-    iconBg: "bg-success/15",
-    iconColor: "text-success",
-    activeRing: "ring-success",
-    valueBg: "bg-success",
-  },
-  {
-    key: "occurrence" as const,
-    label: "Ocorrência",
-    icon: AlertTriangle,
-    bgColor: "bg-warning/10",
-    iconBg: "bg-warning/15",
-    iconColor: "text-warning",
-    activeRing: "ring-warning",
-    valueBg: "bg-warning",
-  },
-  {
-    key: "returned" as const,
-    label: "Devolvido",
-    icon: Warehouse,
-    bgColor: "bg-muted",
-    iconBg: "bg-idle",
-    iconColor: "text-muted-foreground",
-    activeRing: "ring-border",
-    valueBg: "bg-secondary",
-  },
+const TILES: { key: Exclude<KPIStatusFilter, "all">; label: string }[] = [
+  { key: "pending", label: "Pendentes" },
+  { key: "in_transit", label: "Em rota" },
+  { key: "delivered", label: "Entregues" },
+  { key: "occurrence", label: "Ocorrências" },
+  { key: "returned", label: "Devolvidas" },
 ];
 
-export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: DeliveryKPICardsProps) {
-  const handleClick = (key: KPIStatusFilter) => {
-    // Toggle filter: if same filter is clicked, clear it
-    onFilterChange(activeFilter === key ? "all" : key);
-  };
+// Classes completas por cor (o Tailwind precisa ver o nome inteiro).
+const activeTone: Record<Tone, string> = {
+  neutral: "border-foreground/30 ring-foreground/10",
+  brand: "border-primary/50 ring-primary/15",
+  success: "border-success/50 ring-success/15",
+  warning: "border-warning/50 ring-warning/15",
+  danger: "border-destructive/50 ring-destructive/15",
+  info: "border-info/50 ring-info/15",
+};
 
+function Count({ value }: { value: number }) {
+  const display = useCountUp(value);
+  return <>{Math.round(display).toLocaleString("pt-BR")}</>;
+}
+
+/** Contagem por status. Cada cartao filtra a lista; tocar de novo tira o filtro. */
+export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: DeliveryKPICardsProps) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-      {kpiConfig.map((config) => {
-        const Icon = config.icon;
-        const count = stats[config.key] || 0;
-        const isActive = activeFilter === config.key;
+    <div
+      role="group"
+      aria-label="Filtrar notas por status"
+      className="stagger grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-5"
+    >
+      {TILES.map((tile) => {
+        const meta = DELIVERY_STATUS[tile.key];
+        const Icon = meta.icon;
+        const count = stats[tile.key] || 0;
+        const active = activeFilter === tile.key;
 
         return (
           <button
-            key={config.key}
-            onClick={() => handleClick(config.key)}
+            key={tile.key}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onFilterChange(active ? "all" : tile.key)}
             className={cn(
-              "relative p-4 rounded-xl transition-all duration-200",
-              "hover:scale-[1.02] active:scale-[0.98]",
-              "text-left w-full",
-              config.bgColor,
-              isActive && `ring-2 ring-offset-2 ${config.activeRing} shadow-lg`
+              "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card p-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
+              active && cn("ring-4", activeTone[meta.tone]),
             )}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className={cn("p-2 rounded-lg", config.iconBg)}>
-                <Icon className={cn("h-5 w-5", config.iconColor)} />
-              </div>
-              <div className={cn(
-                "text-2xl font-bold font-data px-3 py-1 rounded-full min-w-[3rem] text-center",
-                config.valueBg === "bg-secondary" ? "text-foreground" : "text-nhf-ink",
-                config.valueBg
-              )}>
-                {count}
-              </div>
-            </div>
-            <p className={cn(
-              "text-sm font-medium",
-              config.iconColor
-            )}>
-              {config.label}
-            </p>
-            {isActive && (
-              <div className="absolute top-2 right-2">
-                <div className={cn("w-2 h-2 rounded-full animate-pulse", config.valueBg)} />
-              </div>
-            )}
+            <span className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-[0.8125rem] font-medium text-muted-foreground sm:gap-2 sm:text-sm">
+                <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", toneDot[meta.tone])} />
+                <span className="truncate">{tile.label}</span>
+              </span>
+              <span
+                aria-hidden="true"
+                className={cn("hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:flex", toneSoftBg[meta.tone], toneText[meta.tone])}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+            </span>
+            <span className="flex items-end justify-between gap-2">
+              <span className="font-data text-2xl font-semibold leading-none tracking-tight text-foreground sm:text-[1.75rem]">
+                <Count value={count} />
+              </span>
+              <span
+                className={cn(
+                  "hidden text-xs font-medium transition-opacity duration sm:inline",
+                  active ? "text-foreground" : "text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                )}
+              >
+                {active ? "Filtro ativo" : "Filtrar lista"}
+              </span>
+            </span>
           </button>
         );
       })}

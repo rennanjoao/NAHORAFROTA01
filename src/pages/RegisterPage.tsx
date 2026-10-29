@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Building2, User, Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, CheckCircle, Receipt, Gift } from "lucide-react";
+import { Building2, User, Mail, Loader2, ArrowRight, CircleCheck, Gift, CreditCard, ShieldCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { AuthField, AuthInput, PasswordInput } from "@/components/auth/AuthFields";
 import { detectDocumentType, formatDocument, isValidCNPJ, onlyDigits } from "@/lib/documentValidation";
 import { TRIAL_DAYS } from "@/lib/billingStatus";
 import { getVisitorId, trackFunnelEvent } from "@/lib/funnel";
@@ -24,12 +24,31 @@ function formatCNPJ(value: string): string {
 }
 
 const registerSchema = z.object({
-  cnpj: z.string().refine((v) => isValidCNPJ(v), "CNPJ inválido"),
-  razaoSocial: z.string().min(3, "Razão Social deve ter ao menos 3 caracteres"),
-  name: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
-  email: z.string().email("E-mail inválido"),
-  password: z.string().min(8, "Senha deve ter ao menos 8 caracteres"),
+  cnpj: z.string().refine((v) => isValidCNPJ(v), "CNPJ inválido. Confira os 14 números."),
+  razaoSocial: z.string().min(3, "Digite a razão social (pelo menos 3 letras)."),
+  name: z.string().min(2, "Digite o seu nome."),
+  email: z.string().email("Digite um e-mail válido, como nome@empresa.com.br."),
+  password: z.string().min(8, "A senha precisa de pelo menos 8 caracteres."),
 });
+
+type RegisterField = keyof z.infer<typeof registerSchema> | "billingDocument";
+type RegisterErrors = Partial<Record<RegisterField, string>>;
+// Ordem dos campos na tela (o foco vai para o primeiro com erro).
+const FIELD_IDS: Record<RegisterField, string> = {
+  cnpj: "cnpj",
+  billingDocument: "billing-document",
+  razaoSocial: "razao",
+  name: "name",
+  email: "email",
+  password: "password",
+};
+const FIELD_ORDER: RegisterField[] = ["cnpj", "billingDocument", "razaoSocial", "name", "email", "password"];
+
+const TRIAL_POINTS = [
+  { icon: Gift, title: `${TRIAL_DAYS} dias grátis`, text: "Use tudo, sem cartão de crédito e sem compromisso." },
+  { icon: Clock, title: "Pronto em 2 minutos", text: "Cadastre a empresa e já comece a importar as notas." },
+  { icon: ShieldCheck, title: "Seus dados protegidos", text: "Cada empresa só vê os próprios motoristas e entregas." },
+];
 
 async function getFunctionErrorMessage(error: any): Promise<string> {
   const fallback = error?.message || "Erro ao processar cadastro";
@@ -58,8 +77,14 @@ async function getFunctionErrorMessage(error: any): Promise<string> {
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [errors, setErrors] = useState<RegisterErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const formErrorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (formError) formErrorRef.current?.focus();
+  }, [formError]);
 
   const [cnpj, setCnpj] = useState("");
   const [razaoSocial, setRazaoSocial] = useState("");
@@ -83,19 +108,28 @@ export default function RegisterPage() {
     trackFunnelEvent("register_started");
   };
 
+  const showErrors = (next: RegisterErrors) => {
+    setErrors(next);
+    const first = FIELD_ORDER.find((field) => next[field]);
+    if (first) document.getElementById(FIELD_IDS[first])?.focus();
+  };
+
+  // Limpa o erro do campo assim que a pessoa corrige.
+  const clearError = (field: RegisterField) => {
+    if (errors[field]) setErrors((current) => ({ ...current, [field]: undefined }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrors({});
+    setFormError(null);
 
     const cleanCnpj = cnpj.replace(/\D/g, "");
     const cleanBillingDocument = useOtherBillingDocument ? onlyDigits(billingDocument) : cleanCnpj;
 
     if (useOtherBillingDocument && !detectDocumentType(cleanBillingDocument)) {
-      toast({
-        title: "Erro de validação",
-        description: "Informe um CPF ou CNPJ de cobrança válido.",
-        variant: "destructive",
-      });
+      showErrors({ billingDocument: "Digite um CPF ou CNPJ válido para a cobrança." });
       setIsLoading(false);
       return;
     }
@@ -109,11 +143,12 @@ export default function RegisterPage() {
     });
 
     if (!validation.success) {
-      toast({
-        title: "Erro de validação",
-        description: validation.error.errors[0].message,
-        variant: "destructive",
+      const fieldErrors: RegisterErrors = {};
+      validation.error.errors.forEach((issue) => {
+        const field = issue.path[0] as RegisterField;
+        fieldErrors[field] ??= issue.message;
       });
+      showErrors(fieldErrors);
       setIsLoading(false);
       return;
     }
@@ -134,21 +169,13 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        toast({
-          title: "Erro no cadastro",
-          description: await getFunctionErrorMessage(error),
-          variant: "destructive",
-        });
+        setFormError(await getFunctionErrorMessage(error));
         setIsLoading(false);
         return;
       }
 
       if (data?.error) {
-        toast({
-          title: "Erro no cadastro",
-          description: data.error,
-          variant: "destructive",
-        });
+        setFormError(data.error);
         setIsLoading(false);
         return;
       }
@@ -164,7 +191,7 @@ export default function RegisterPage() {
       if (!signInError) {
         toast({
           title: `Teste grátis de ${TRIAL_DAYS} dias liberado`,
-          description: "Bem-vindo ao Na Hora Frota. Seu teste grátis já começou.",
+          description: "Bem-vindo ao Na Hora Frota. Seu teste já começou.",
         });
         navigate("/", { replace: true });
         return;
@@ -172,11 +199,7 @@ export default function RegisterPage() {
 
       setSuccess(true);
     } catch (err: any) {
-      toast({
-        title: "Erro",
-        description: await getFunctionErrorMessage(err),
-        variant: "destructive",
-      });
+      setFormError(await getFunctionErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -184,210 +207,204 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md border-border/50 shadow-xl">
-          <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <CheckCircle className="h-16 w-16 text-success mx-auto" />
-            <h2 className="text-xl font-semibold">Teste grátis liberado!</h2>
-            <p className="text-muted-foreground text-sm">
-              Sua empresa foi cadastrada e você já pode usar o Na Hora Frota por {TRIAL_DAYS} dias sem custo.
+      <AuthLayout variant="centered">
+        <div className="space-y-4 text-center">
+          <span aria-hidden="true" className="mx-auto flex h-16 w-16 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
+            <CircleCheck className="h-8 w-8" />
+          </span>
+          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">Teste grátis liberado</h1>
+          <p className="text-[0.9375rem] text-muted-foreground">
+            Sua empresa foi cadastrada. Você pode usar o Na Hora Frota por {TRIAL_DAYS} dias sem pagar nada.
+          </p>
+          {trialEndsAt && (
+            <p className="text-sm text-muted-foreground">
+              O teste vai até <span className="font-data font-medium text-foreground">{new Date(trialEndsAt).toLocaleDateString("pt-BR")}</span>.
             </p>
-            {trialEndsAt && (
-              <p className="text-muted-foreground text-xs">
-                Seu teste vai até {new Date(trialEndsAt).toLocaleDateString("pt-BR")}.
-              </p>
-            )}
-            <Button onClick={() => navigate("/login")} className="w-full mt-4">
-              Entrar agora
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+          <Button onClick={() => navigate("/login")} size="lg" className="mt-2 w-full">
+            Entrar agora
+            <ArrowRight aria-hidden="true" />
+          </Button>
+        </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
-      {/* Linhas de rota a 45 graus (manual da marca, elementos graficos). */}
-      <div className="absolute inset-0 nhf-routes pointer-events-none" aria-hidden="true" />
-
-      <div className="w-full max-w-md relative z-10">
-        <div className="mb-6">
-          <BrandLogo arrangement="horizontal" className="w-[200px]" />
-        </div>
-
-        <Card className="shadow-xl">
-          <CardHeader className="pb-3">
-            <h2 className="text-xl font-bold">Cadastre sua empresa</h2>
-            <p className="text-sm text-muted-foreground">
-              Preencha os dados para criar sua conta.
-            </p>
-            <div className="mt-2 inline-flex self-start items-center gap-2 rounded-sm border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              <Gift className="h-3.5 w-3.5" />
-              {TRIAL_DAYS} dias grátis, sem cartão de crédito
-            </div>
-          </CardHeader>
-
-          <CardContent>
-            <form onSubmit={handleSubmit} onChange={markStarted} className="space-y-4">
-              {/* CNPJ */}
-              <div className="space-y-1.5">
-                <Label htmlFor="cnpj">CNPJ</Label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="cnpj"
-                    placeholder="00.000.000/0000-00"
-                    value={cnpj}
-                    onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
-                    className="pl-10"
-                    disabled={isLoading}
-                    required
-                    maxLength={18}
-                  />
-                </div>
-              </div>
-
-              {/* Documento de cobrança */}
-              <div className="space-y-2 rounded-lg border border-border/60 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="other-billing" className="flex items-center gap-2 text-sm font-normal">
-                    <Receipt className="h-4 w-4 text-muted-foreground" />
-                    Cobrar em outro CNPJ/CPF
-                  </Label>
-                  <Switch
-                    id="other-billing"
-                    checked={useOtherBillingDocument}
-                    onCheckedChange={(checked) => {
-                      markStarted();
-                      setUseOtherBillingDocument(checked);
-                    }}
-                    disabled={isLoading}
-                  />
-                </div>
-                {useOtherBillingDocument ? (
-                  <Input
-                    id="billing-document"
-                    placeholder="CPF ou CNPJ de cobrança"
-                    value={billingDocument}
-                    onChange={(e) => setBillingDocument(formatDocument(e.target.value))}
-                    disabled={isLoading}
-                    maxLength={18}
-                    required
-                  />
-                ) : (
-                  <p className="text-xs text-muted-foreground">A cobrança será feita no CNPJ da empresa.</p>
-                )}
-                <p className="text-[11px] text-muted-foreground">
-                  O teste grátis é liberado uma única vez por CNPJ/CPF.
-                </p>
-              </div>
-
-              {/* Razão Social */}
-              <div className="space-y-1.5">
-                <Label htmlFor="razao">Razão Social</Label>
-                <Input
-                  id="razao"
-                  placeholder="Nome da Empresa LTDA"
-                  value={razaoSocial}
-                  onChange={(e) => setRazaoSocial(e.target.value)}
-                  disabled={isLoading}
-                  required
-                />
-              </div>
-
-              {/* Nome do Responsável */}
-              <div className="space-y-1.5">
-                <Label htmlFor="name">Nome do Responsável</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="name"
-                    placeholder="Seu nome completo"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-10"
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Email */}
-              <div className="space-y-1.5">
-                <Label htmlFor="email">E-mail</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="empresa@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Senha */}
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Mínimo 8 caracteres"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10"
-                    disabled={isLoading}
-                    required
-                    minLength={8}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full gap-2" disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-                {isLoading ? "Cadastrando..." : `Começar teste grátis de ${TRIAL_DAYS} dias`}
-              </Button>
-            </form>
-
-            <div className="relative my-5">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Já tem conta?</span>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <Link to="/login" className="text-sm text-primary hover:underline">
-                Fazer login
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          © {new Date().getFullYear()} Na Hora Frota. Todos os direitos reservados.
-        </p>
+    <AuthLayout
+      width="md"
+      points={TRIAL_POINTS}
+      headline={
+        <>
+          Sua frota organizada <span className="text-primary">a partir de hoje.</span>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          <Gift className="h-3.5 w-3.5" aria-hidden="true" />
+          {TRIAL_DAYS} dias grátis, sem cartão de crédito
+        </span>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground">Cadastre sua empresa</h1>
+        <p className="text-[0.9375rem] text-muted-foreground">Leva uns 2 minutos. Depois você já entra no sistema.</p>
       </div>
-    </div>
+
+      <form onSubmit={handleSubmit} onChange={markStarted} noValidate className="mt-8 space-y-8">
+        {formError && (
+          <Alert ref={formErrorRef} tabIndex={-1} variant="destructive" className="animate-fade-in outline-none">
+            <p className="mb-1 font-semibold leading-snug text-foreground">Não foi possível concluir o cadastro</p>
+            <AlertDescription>{formError}</AlertDescription>
+          </Alert>
+        )}
+
+        <fieldset className="space-y-5" disabled={isLoading}>
+          <legend className="nhf-label text-muted-foreground">Sua empresa</legend>
+
+          <AuthField id="cnpj" label="CNPJ" icon={Building2} error={errors.cnpj}>
+            {(a11y) => (
+              <AuthInput
+                {...a11y}
+                withIcon
+                inputMode="numeric"
+                placeholder="00.000.000/0000-00"
+                value={cnpj}
+                onChange={(e) => {
+                  setCnpj(formatCNPJ(e.target.value));
+                  clearError("cnpj");
+                }}
+                required
+                maxLength={18}
+              />
+            )}
+          </AuthField>
+
+          <AuthField id="razao" label="Razão social" error={errors.razaoSocial}>
+            {(a11y) => (
+              <AuthInput
+                {...a11y}
+                placeholder="Nome da empresa LTDA"
+                autoComplete="organization"
+                value={razaoSocial}
+                onChange={(e) => {
+                  setRazaoSocial(e.target.value);
+                  clearError("razaoSocial");
+                }}
+                required
+              />
+            )}
+          </AuthField>
+
+          <div className="space-y-3 rounded-lg border bg-card p-4">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="other-billing" className="flex items-center gap-2.5 font-normal">
+                <CreditCard className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                Cobrar em outro CNPJ ou CPF
+              </Label>
+              <Switch
+                id="other-billing"
+                checked={useOtherBillingDocument}
+                onCheckedChange={(checked) => {
+                  markStarted();
+                  setUseOtherBillingDocument(checked);
+                  clearError("billingDocument");
+                }}
+              />
+            </div>
+            {useOtherBillingDocument ? (
+              <div className="animate-fade-in">
+                <AuthField id="billing-document" label="CPF ou CNPJ da cobrança" error={errors.billingDocument}>
+                  {(a11y) => (
+                    <AuthInput
+                      {...a11y}
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      value={billingDocument}
+                      onChange={(e) => {
+                        setBillingDocument(formatDocument(e.target.value));
+                        clearError("billingDocument");
+                      }}
+                      maxLength={18}
+                      required
+                    />
+                  )}
+                </AuthField>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">A cobrança sai no CNPJ da empresa.</p>
+            )}
+            <p className="text-xs text-muted-foreground">O teste grátis vale uma vez por CNPJ ou CPF.</p>
+          </div>
+        </fieldset>
+
+        <fieldset className="space-y-5" disabled={isLoading}>
+          <legend className="nhf-label text-muted-foreground">Seu acesso</legend>
+
+          <AuthField id="name" label="Seu nome" icon={User} error={errors.name}>
+            {(a11y) => (
+              <AuthInput
+                {...a11y}
+                withIcon
+                placeholder="Nome e sobrenome"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  clearError("name");
+                }}
+                required
+              />
+            )}
+          </AuthField>
+
+          <AuthField id="email" label="E-mail" icon={Mail} error={errors.email} hint="Você vai usar este e-mail para entrar.">
+            {(a11y) => (
+              <AuthInput
+                {...a11y}
+                withIcon
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="nome@empresa.com.br"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  clearError("email");
+                }}
+                required
+              />
+            )}
+          </AuthField>
+
+          <AuthField id="password" label="Crie uma senha" error={errors.password} hint="Pelo menos 8 caracteres.">
+            {(a11y) => (
+              <PasswordInput
+                {...a11y}
+                autoComplete="new-password"
+                placeholder="Mínimo 8 caracteres"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  clearError("password");
+                }}
+                required
+                minLength={8}
+              />
+            )}
+          </AuthField>
+        </fieldset>
+
+        <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+          {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
+          {isLoading ? "Cadastrando" : `Começar teste grátis de ${TRIAL_DAYS} dias`}
+        </Button>
+      </form>
+
+      <p className="mt-8 border-t pt-6 text-sm text-muted-foreground">
+        Já tem conta?{" "}
+        <Link to="/login" className="font-semibold text-primary underline-offset-4 hover:underline">
+          Entrar
+        </Link>
+      </p>
+    </AuthLayout>
   );
 }

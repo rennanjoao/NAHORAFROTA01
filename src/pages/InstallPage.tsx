@@ -1,22 +1,21 @@
 import { useState, useEffect } from 'react';
-import { BrandLogo } from "@/components/brand/BrandLogo";
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Download, 
-  Smartphone, 
-  Check, 
-  Share, 
-  Plus,
+import { AuthLayout } from '@/components/auth/AuthLayout';
+import {
   ArrowRight,
-  Truck,
-  MapPin,
-  Wifi,
-  Battery,
+  BatteryCharging,
   Bell,
+  Check,
+  CircleCheck,
+  Download,
+  EllipsisVertical,
+  MapPin,
+  Share,
+  Smartphone,
+  SquarePlus,
+  WifiOff,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { trackFunnelEvent } from '@/lib/funnel';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -77,137 +76,109 @@ export default function InstallPage() {
   };
 
   const features = [
-    { icon: MapPin, title: 'Rastreamento GPS', description: 'Acompanhe sua frota em tempo real' },
-    { icon: Wifi, title: 'Funciona Offline', description: 'Acesse dados mesmo sem internet' },
-    { icon: Bell, title: 'Notificações', description: 'Receba alertas importantes' },
-    { icon: Battery, title: 'Otimizado', description: 'Baixo consumo de bateria' },
+    { icon: MapPin, title: 'GPS da entrega', description: 'A base acompanha a rota em tempo real' },
+    { icon: WifiOff, title: 'Abre sem internet', description: 'O app carrega mesmo com sinal fraco' },
+    { icon: Bell, title: 'Avisos', description: 'Novidades do romaneio na hora' },
+    { icon: BatteryCharging, title: 'Leve', description: 'Gasta pouca bateria e espaço' },
   ];
+
+  const steps = isIOS
+    ? [
+        { icon: Share, title: 'Toque em Compartilhar', text: 'No Safari, é o quadrado com a seta para cima, embaixo da tela.' },
+        { icon: SquarePlus, title: 'Toque em "Adicionar à Tela de Início"', text: 'Role a lista para baixo até encontrar.' },
+        { icon: Check, title: 'Toque em "Adicionar"', text: 'O ícone do Na Hora Frota aparece na tela do celular.' },
+      ]
+    : [
+        { icon: EllipsisVertical, title: 'Abra o menu do navegador', text: 'No Chrome, são os três pontinhos no canto de cima.' },
+        { icon: Download, title: 'Toque em "Instalar app"', text: 'Pode aparecer como "Adicionar à tela inicial".' },
+        { icon: Check, title: 'Confirme', text: 'O ícone do Na Hora Frota aparece na tela do celular.' },
+      ];
 
   if (isStandalone || isInstalled) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 rounded-2xl bg-success/20 flex items-center justify-center mb-6">
-          <Check className="h-10 w-10 text-success" />
+      <AuthLayout variant="centered">
+        <div className="space-y-4 text-center">
+          <span aria-hidden="true" className="mx-auto flex h-16 w-16 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
+            <CircleCheck className="h-8 w-8" />
+          </span>
+          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">App instalado</h1>
+          <p className="text-[0.9375rem] text-muted-foreground">
+            O Na Hora Frota já está no seu celular. Abra pelo ícone na tela inicial.
+          </p>
+          <Button asChild size="lg" className="mt-2 w-full">
+            <Link to="/">
+              Abrir o app
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
         </div>
-        <h1 className="text-2xl font-bold mb-2">App Instalado!</h1>
-        <p className="text-muted-foreground mb-6">
-          O Na Hora Frota está instalado no seu dispositivo.
-        </p>
-        <Button onClick={() => window.location.href = '/'} className="gap-2">
-          Abrir App
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="p-6 text-center">
-        <div className="flex justify-center mb-4">
-          <BrandLogo arrangement="horizontal" className="w-[200px]" />
+    <AuthLayout variant="centered" width="md">
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+            <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
+            App para celular
+          </span>
+          <h1 className="pt-2 text-[1.75rem] font-semibold leading-tight tracking-tight">Instale o Na Hora Frota no celular</h1>
+          <p className="text-[0.9375rem] text-muted-foreground">
+            Fica na tela inicial, como qualquer app, sem precisar baixar da loja.
+          </p>
         </div>
-        <Badge variant="outline" className="mb-2">
-          Versão PWA
-        </Badge>
-      </header>
 
-      {/* Main Content */}
-      <main className="flex-1 px-6 pb-6 flex flex-col">
-        <Card className="flex-1 p-6 flex flex-col">
-          <div className="text-center mb-8">
-            <div className="w-24 h-24 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Smartphone className="h-12 w-12 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold mb-2">Instale o App</h1>
-            <p className="text-muted-foreground">
-              Acesse rapidamente direto da sua tela inicial
-            </p>
-          </div>
+        <ul className="stagger grid grid-cols-2 gap-3">
+          {features.map(({ icon: Icon, title, description }) => (
+            <li key={title} className="rounded-xl border bg-card p-4 shadow-xs">
+              <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+              <p className="mt-3 text-sm font-semibold text-foreground">{title}</p>
+              <p className="text-xs text-muted-foreground">{description}</p>
+            </li>
+          ))}
+        </ul>
 
-          {/* Features */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            {features.map((feature, idx) => (
-              <div key={idx} className="p-4 rounded-lg bg-muted/50 text-center">
-                <feature.icon className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <p className="font-medium text-sm">{feature.title}</p>
-                <p className="text-xs text-muted-foreground">{feature.description}</p>
-              </div>
-            ))}
-          </div>
+        {deferredPrompt ? (
+          <Button onClick={handleInstall} size="lg" className="h-14 w-full text-base [&_svg]:size-5">
+            <Download aria-hidden="true" />
+            Instalar agora
+          </Button>
+        ) : (
+          <section aria-labelledby="como-instalar" className="space-y-4">
+            <h2 id="como-instalar" className="text-lg font-semibold">
+              {isIOS ? 'Como instalar no iPhone' : 'Como instalar'}
+            </h2>
+            <ol className="space-y-3">
+              {steps.map(({ icon: Icon, title, text }, index) => (
+                <li key={title} className="flex items-start gap-3 rounded-xl border bg-card p-4">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 font-data text-sm font-semibold text-primary"
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2 text-[0.9375rem] font-medium text-foreground">
+                      {title}
+                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    </span>
+                    <span className="block text-sm text-muted-foreground">{text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
-          {/* Install Instructions */}
-          <div className="flex-1 flex flex-col justify-end">
-            {isIOS ? (
-              <div className="space-y-4">
-                <p className="text-sm text-center text-muted-foreground mb-4">
-                  Para instalar no iPhone/iPad:
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Share className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">1. Toque em Compartilhar</p>
-                      <p className="text-xs text-muted-foreground">No Safari, toque no ícone de compartilhamento</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Plus className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">2. Adicionar à Tela de Início</p>
-                      <p className="text-xs text-muted-foreground">Role e toque em "Adicionar à Tela de Início"</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                    <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center">
-                      <Check className="h-4 w-4 text-success" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">3. Confirme</p>
-                      <p className="text-xs text-muted-foreground">Toque em "Adicionar" para confirmar</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : deferredPrompt ? (
-              <Button 
-                onClick={handleInstall} 
-                size="lg" 
-                className="w-full h-14 text-lg gap-2"
-              >
-                <Download className="h-5 w-5" />
-                Instalar Agora
-              </Button>
-            ) : (
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Para instalar, abra o menu do navegador e selecione "Instalar app" ou "Adicionar à tela inicial"
-                </p>
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.location.href = '/'}
-                  className="gap-2"
-                >
-                  Continuar no Navegador
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </Card>
-      </main>
-
-      {/* Footer */}
-      <footer className="p-4 text-center">
-        <p className="text-xs text-muted-foreground">
-          © 2025 Na Hora Frota • Gestão de Frota Inteligente
-        </p>
-      </footer>
-    </div>
+        <Button asChild variant="outline" size="lg" className="w-full">
+          <Link to="/">
+            Continuar no navegador
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+      </div>
+    </AuthLayout>
   );
 }

@@ -1,358 +1,166 @@
-﻿import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+﻿import { useSearchParams } from "react-router-dom";
+import { Building2, Palette, Settings, Shield, User, Users, type LucideIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, User, Save, Building2, Users, Eye, EyeOff, LogOut } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/patterns";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { CompanySettingsTab } from "@/components/settings/CompanySettingsTab";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import { UserHierarchyTab } from "@/components/settings/UserHierarchyTab";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
-const roleLabels: Record<string, string> = {
-  admin: "Administrador",
-  fleet_manager: "Gestor de Frota",
-  dispatcher: "Despachante",
-  viewer: "Visualizador",
+type SettingsTab = "profile" | "security" | "appearance" | "company" | "users";
+
+interface TabItem {
+  value: SettingsTab;
+  label: string;
+  /** Rotulo curto da grade do celular. */
+  short: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+const GROUPS: { id: string; label: string; items: TabItem[] }[] = [
+  {
+    id: "conta",
+    label: "Sua conta",
+    items: [
+      { value: "profile", label: "Perfil", short: "Perfil", description: "Nome e telefone", icon: User },
+      { value: "security", label: "Segurança", short: "Segurança", description: "Senha e aparelhos", icon: Shield },
+      { value: "appearance", label: "Aparência", short: "Aparência", description: "Tema, texto e contraste", icon: Palette },
+    ],
+  },
+  {
+    id: "empresa",
+    label: "Empresa",
+    items: [
+      { value: "company", label: "Dados da empresa", short: "Empresa", description: "Cadastro e endereço", icon: Building2 },
+      { value: "users", label: "Usuários e acesso", short: "Usuários", description: "Quem pode fazer o quê", icon: Users },
+    ],
+  },
+];
+
+const TAB_VALUES = GROUPS.flatMap((group) => group.items.map((item) => item.value));
+
+// Links antigos e nomes em portugues tambem abrem a aba certa (?tab=...).
+const TAB_ALIASES: Record<string, SettingsTab> = {
+  perfil: "profile",
+  account: "profile",
+  seguranca: "security",
+  senha: "security",
+  password: "security",
+  aparencia: "appearance",
+  acessibilidade: "appearance",
+  theme: "appearance",
+  tema: "appearance",
+  empresa: "company",
+  usuarios: "users",
+  equipe: "users",
+  team: "users",
 };
 
-const MIN_PASSWORD_LENGTH = 8;
-
-/** Navegador e sistema do aparelho atual, para a lista de sessoes. */
-function describeThisDevice(): string {
-  const ua = navigator.userAgent;
-  const browser = /Edg\//.test(ua)
-    ? "Edge"
-    : /Chrome\//.test(ua)
-      ? "Chrome"
-      : /Firefox\//.test(ua)
-        ? "Firefox"
-        : /Safari\//.test(ua)
-          ? "Safari"
-          : "Navegador";
-  const os = /Android/.test(ua)
-    ? "Android"
-    : /iPhone|iPad/.test(ua)
-      ? "iOS"
-      : /Windows/.test(ua)
-        ? "Windows"
-        : /Mac OS/.test(ua)
-          ? "macOS"
-          : /Linux/.test(ua)
-            ? "Linux"
-            : "";
-  return os ? `${browser} • ${os}` : browser;
+function resolveTab(param: string | null): SettingsTab {
+  if (!param) return "profile";
+  const key = param.toLowerCase();
+  if ((TAB_VALUES as string[]).includes(key)) return key as SettingsTab;
+  return TAB_ALIASES[key] ?? "profile";
 }
 
 export default function SettingsPage() {
-  const { user, profile: authProfile, roles } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = resolveTab(searchParams.get("tab"));
 
-  const [profileForm, setProfileForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    role: "",
-  });
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [isSigningOutOthers, setIsSigningOutOthers] = useState(false);
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    next: false,
-    confirm: false,
-  });
-
-  useEffect(() => {
-    setProfileForm((prev) => ({
-      ...prev,
-      name: authProfile?.name || "",
-      email: authProfile?.email || user?.email || "",
-      // profiles nao tem telefone: fica nos dados do login
-      phone: (user?.user_metadata?.phone as string | undefined) || "",
-      role: roles.map((role) => roleLabels[role] || role).join(", "),
-    }));
-  }, [authProfile, roles, user]);
-
-  const handleSaveProfile = async () => {
-    if (!user?.id) {
-      toast({
-        title: "Sessão expirada",
-        description: "Faça login novamente para salvar seu perfil.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!profileForm.name.trim()) {
-      toast({ title: "Nome obrigatório", description: "Informe seu nome completo.", variant: "destructive" });
-      return;
-    }
-
-    setIsSavingProfile(true);
-    const [{ error }, { error: metadataError }] = await Promise.all([
-      supabase
-        .from("profiles")
-        .update({
-          name: profileForm.name.trim(),
-          full_name: profileForm.name.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id),
-      // Antes o telefone era descartado ao salvar.
-      supabase.auth.updateUser({ data: { name: profileForm.name.trim(), phone: profileForm.phone.trim() || null } }),
-    ]);
-    setIsSavingProfile(false);
-
-    if (error || metadataError) {
-      toast({
-        title: "Erro ao salvar",
-        description: (error || metadataError)?.message || "Não foi possível atualizar seu perfil.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Perfil atualizado",
-      description: "Suas informações foram salvas com sucesso.",
-    });
+  const changeTab = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", value);
+    setSearchParams(next, { replace: true });
   };
-
-  // Antes o botao so mostrava "Senha alterada" sem mudar nada.
-  const handleChangePassword = async () => {
-    const email = user?.email;
-    if (!email) {
-      toast({ title: "Sessão expirada", description: "Faça login novamente.", variant: "destructive" });
-      return;
-    }
-    if (!passwordForm.current) {
-      toast({ title: "Informe a senha atual", variant: "destructive" });
-      return;
-    }
-    if (passwordForm.next.length < MIN_PASSWORD_LENGTH) {
-      toast({
-        title: "Senha muito curta",
-        description: `A nova senha precisa ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    if (passwordForm.next !== passwordForm.confirm) {
-      toast({ title: "As senhas não conferem", description: "Repita a nova senha igual nos dois campos.", variant: "destructive" });
-      return;
-    }
-    if (passwordForm.next === passwordForm.current) {
-      toast({ title: "Escolha uma senha diferente da atual", variant: "destructive" });
-      return;
-    }
-
-    setIsChangingPassword(true);
-    try {
-      // Confere a senha atual antes de trocar.
-      const { error: checkError } = await supabase.auth.signInWithPassword({ email, password: passwordForm.current });
-      if (checkError) {
-        toast({ title: "Senha atual incorreta", variant: "destructive" });
-        return;
-      }
-
-      const { error } = await supabase.auth.updateUser({ password: passwordForm.next });
-      if (error) {
-        toast({ title: "Não foi possível alterar a senha", description: error.message, variant: "destructive" });
-        return;
-      }
-
-      setPasswordForm({ current: "", next: "", confirm: "" });
-      toast({ title: "Senha alterada", description: "Use a nova senha no próximo acesso." });
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
-  const handleSignOutOthers = async () => {
-    setIsSigningOutOthers(true);
-    const { error } = await supabase.auth.signOut({ scope: "others" });
-    setIsSigningOutOthers(false);
-    if (error) {
-      toast({ title: "Não foi possível encerrar as sessões", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({
-      title: "Sessões encerradas",
-      description: "Os outros aparelhos conectados a esta conta foram desconectados.",
-    });
-  };
-
-  const passwordField = (
-    id: string,
-    label: string,
-    key: keyof typeof passwordForm,
-    autoComplete: string,
-  ) => (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <div className="relative">
-        <Input
-          id={id}
-          type={showPasswords[key] ? "text" : "password"}
-          placeholder="••••••••"
-          className="pr-10"
-          autoComplete={autoComplete}
-          value={passwordForm[key]}
-          onChange={(e) => setPasswordForm((prev) => ({ ...prev, [key]: e.target.value }))}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
-          onClick={() => setShowPasswords((prev) => ({ ...prev, [key]: !prev[key] }))}
-          aria-label={showPasswords[key] ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`}
-        >
-          {showPasswords[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-      </div>
-    </div>
-  );
 
   return (
     <>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-          <p className="text-muted-foreground">Gerencie sua empresa, os usuários e a sua conta</p>
-        </div>
+      <PageHeader
+        icon={Settings}
+        title="Configurações"
+        description="Seu perfil, a aparência do sistema e os dados da empresa."
+      />
 
-        <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-auto">
-            <TabsTrigger value="company" className="gap-2 py-3">
-              <Building2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Empresa</span>
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2 py-3">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Usuários</span>
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-2 py-3">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Perfil</span>
-            </TabsTrigger>
-            <TabsTrigger value="security" className="gap-2 py-3">
-              <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Segurança</span>
-            </TabsTrigger>
-          </TabsList>
+      <Tabs
+        value={tab}
+        onValueChange={changeTab}
+        orientation="vertical"
+        // Manual: com duas listas (Sua conta / Empresa), o Tab entre elas nao troca a secao sozinho.
+        activationMode="manual"
+        className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10"
+      >
+        <nav aria-label="Seções das configurações" className="lg:sticky lg:top-[calc(var(--topbar-height)+2rem)] lg:self-start">
+          <div className="space-y-4 lg:space-y-6">
+            {GROUPS.map((group) => (
+              <div key={group.id} className="space-y-1.5">
+                <p id={`config-grupo-${group.id}`} className="nhf-label px-1 text-muted-foreground lg:px-3">
+                  {group.label}
+                </p>
+                <TabsList
+                  aria-labelledby={`config-grupo-${group.id}`}
+                  className={cn(
+                    "grid h-auto w-full gap-1.5 bg-transparent p-0",
+                    group.items.length === 3 ? "grid-cols-3" : "grid-cols-2",
+                    "lg:flex lg:flex-col lg:items-stretch lg:gap-0.5",
+                  )}
+                >
+                  {group.items.map(({ value, label, short, description, icon: Icon }) => (
+                    <TabsTrigger
+                      key={value}
+                      value={value}
+                      className={cn(
+                        "group relative flex-col gap-1.5 rounded-lg border bg-card px-2 py-3 text-[0.8125rem] text-muted-foreground shadow-xs",
+                        "hover:bg-accent hover:text-foreground",
+                        "data-[state=active]:border-primary/40 data-[state=active]:bg-primary/5 data-[state=active]:text-foreground data-[state=active]:shadow-xs",
+                        "lg:min-h-0 lg:flex-row lg:items-center lg:justify-start lg:gap-3 lg:whitespace-normal lg:border-transparent lg:bg-transparent lg:px-3 lg:py-2 lg:text-left lg:text-sm lg:shadow-none",
+                        "lg:data-[state=active]:border-transparent lg:data-[state=active]:bg-accent lg:data-[state=active]:shadow-none",
+                      )}
+                    >
+                      {/* Indicador verde da aba ativa no computador */}
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 hidden w-[3px] rounded-full bg-brand opacity-0 transition-opacity duration ease-out group-data-[state=active]:opacity-100 lg:block"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-fast group-hover:text-foreground group-data-[state=active]:text-primary lg:bg-muted/60 lg:group-data-[state=active]:bg-primary/10"
+                      >
+                        <Icon className="h-[1.125rem] w-[1.125rem]" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium lg:hidden">{short}</span>
+                        <span className="hidden font-medium lg:block">{label}</span>
+                        <span className="hidden text-xs font-normal text-muted-foreground lg:block">{description}</span>
+                      </span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+            ))}
+          </div>
+        </nav>
 
-          {/* Company Tab */}
-          <TabsContent value="company">
+        <div className="min-w-0 max-w-4xl">
+          <TabsContent value="profile" className="mt-0">
+            <ProfileSettings />
+          </TabsContent>
+          <TabsContent value="security" className="mt-0">
+            <SecuritySettings />
+          </TabsContent>
+          <TabsContent value="appearance" className="mt-0">
+            <AppearanceSettings />
+          </TabsContent>
+          <TabsContent value="company" className="mt-0">
             <CompanySettingsTab />
           </TabsContent>
-
-          {/* Users Tab: hierarquia de acesso */}
-          <TabsContent value="users">
+          <TabsContent value="users" className="mt-0">
             <UserHierarchyTab />
           </TabsContent>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Informações do Perfil
-                </CardTitle>
-                <CardDescription>Atualize suas informações pessoais</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
-                    <Input
-                      id="name"
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input id="email" type="email" value={profileForm.email} disabled className="bg-muted" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input
-                      id="phone"
-                      value={profileForm.phone}
-                      placeholder="(11) 99999-0000"
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Nível de acesso</Label>
-                    <Input id="role" value={profileForm.role} disabled className="bg-muted" />
-                  </div>
-                </div>
-                <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="gap-2">
-                  <Save className="h-4 w-4" />
-                  {isSavingProfile ? "Salvando..." : "Salvar Alterações"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Security Tab */}
-          <TabsContent value="security">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Segurança da Conta
-                </CardTitle>
-                <CardDescription>Troque sua senha e desconecte outros aparelhos</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  {passwordField("current-password", "Senha Atual", "current", "current-password")}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {passwordField("new-password", "Nova Senha", "next", "new-password")}
-                    {passwordField("confirm-password", "Confirmar Nova Senha", "confirm", "new-password")}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Mínimo de {MIN_PASSWORD_LENGTH} caracteres.</p>
-                </div>
-
-                <Button onClick={handleChangePassword} disabled={isChangingPassword} className="gap-2">
-                  <Save className="h-4 w-4" />
-                  {isChangingPassword ? "Alterando..." : "Alterar Senha"}
-                </Button>
-
-                <div className="border-t pt-6 space-y-4">
-                  <h4 className="text-sm font-medium">Sessões</h4>
-                  <div className="rounded-lg border p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Este aparelho</p>
-                        <p className="text-sm text-muted-foreground">{describeThisDevice()}</p>
-                      </div>
-                      <span className="text-sm text-success">Ativo agora</span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="gap-2 text-destructive hover:text-destructive"
-                    onClick={handleSignOutOthers}
-                    disabled={isSigningOutOthers}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    {isSigningOutOthers ? "Encerrando..." : "Encerrar Sessões em Outros Aparelhos"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </>
   );
 }

@@ -1,7 +1,9 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { RefreshCw, UserCog } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BrandedLoader } from "@/components/auth/BrandedLoader";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { SubscriptionBlockScreen, type BlockReason } from "@/components/auth/SubscriptionBlockScreen";
 
@@ -62,14 +64,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
 
   // PHASE 1: Show loading while checking authentication
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
+    return <BrandedLoader label="Abrindo o Na Hora Frota" />;
   }
 
   // PHASE 2: Redirect to login if not authenticated
@@ -79,14 +74,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
 
   // PHASE 3: Wait for roles to load before making access decisions
   if (rolesLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <ShieldAlert className="h-8 w-8 animate-pulse text-primary" />
-          <p className="text-muted-foreground">Verificando permissões...</p>
-        </div>
-      </div>
-    );
+    return <BrandedLoader label="Conferindo seu acesso" />;
   }
 
   // PHASE 4: CRITICAL - Check driver email FIRST before any role checks
@@ -147,21 +135,25 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
   if (isAdminRoute && !hasOperationalRole) {
     console.log("[SECURITY] User without operational roles attempting admin access:", userEmail);
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4 max-w-md px-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-xl font-semibold text-foreground">Configurando seu acesso...</h2>
-          <p className="text-muted-foreground">
-            Sua conta está sendo preparada. Se o problema persistir, entre em contato com o administrador.
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="text-sm text-primary hover:underline mt-2"
+      <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
+        <div role="status" className="w-full max-w-md animate-fade-in rounded-2xl border bg-card p-6 text-center shadow-lg sm:p-8">
+          <span
+            aria-hidden="true"
+            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary"
           >
-            Tentar novamente
-          </button>
+            <UserCog className="h-7 w-7" />
+          </span>
+          <h1 className="text-xl font-semibold text-foreground">Estamos preparando seu acesso</h1>
+          <p className="mt-2 text-[0.9375rem] text-muted-foreground">
+            Sua conta ainda não tem uma função liberada. Tente de novo daqui a pouco. Se continuar assim, peça ao
+            administrador da sua empresa para liberar o seu acesso.
+          </p>
+          <Button onClick={() => window.location.reload()} size="lg" className="mt-6 w-full sm:w-auto">
+            <RefreshCw aria-hidden="true" />
+            Tentar de novo
+          </Button>
         </div>
-      </div>
+      </main>
     );
   }
 

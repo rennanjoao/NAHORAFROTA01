@@ -8,7 +8,9 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyState } from "@/components/patterns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,14 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,27 +40,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
-  FileText,
   User,
   Truck,
   Package,
   CheckCircle2,
   AlertTriangle,
-  Plus,
   Minus,
   Printer,
   Clock,
   MapPin,
-  DollarSign,
-  Scale,
   History,
   Flag,
+  Loader2,
   MessageCircle,
   Phone,
   Eye,
-  Image as ImageIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
@@ -78,6 +67,7 @@ import { ManifestPrintPreview } from "./ManifestPrintPreview";
 import { DeliveryProofViewer } from "./DeliveryProofViewer";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { recalculateManifestTotals } from "@/lib/manifestTotals";
+import { DeliveryStatusBadge, ManifestStatusBadge, getDeliveryStatus, vehicleTypeLabel } from "./status";
 
 interface ManifestDetailSheetProps {
   open: boolean;
@@ -91,13 +81,13 @@ interface ManifestInvoice extends DBInvoice {
 }
 
 const OCCURRENCE_TYPES = [
-  { value: "ausente", label: "Cliente Ausente" },
-  { value: "recusado", label: "Recusado pelo Cliente" },
-  { value: "endereco_nao_localizado", label: "Endereço Não Localizado" },
-  { value: "avaria", label: "Mercadoria Avariada" },
-  { value: "extravio", label: "Mercadoria Extraviada" },
-  { value: "area_risco", label: "Área de Risco" },
-  { value: "fora_horario", label: "Fora do Horário" },
+  { value: "ausente", label: "Cliente ausente" },
+  { value: "recusado", label: "Recusado pelo cliente" },
+  { value: "endereco_nao_localizado", label: "Endereço não localizado" },
+  { value: "avaria", label: "Mercadoria avariada" },
+  { value: "extravio", label: "Mercadoria extraviada" },
+  { value: "area_risco", label: "Área de risco" },
+  { value: "fora_horario", label: "Fora do horário" },
   { value: "outro", label: "Outro" },
 ];
 
@@ -113,19 +103,13 @@ export function ManifestDetailSheet({
   const [isPrintOpen, setIsPrintOpen] = useState(false);
 
   // Dialogs state
-  const [confirmDialog, setConfirmDialog] = useState<{
-    open: boolean;
-    title: string;
-    description: string;
-    action: () => Promise<void>;
-  }>({ open: false, title: "", description: "", action: async () => {} });
-
   const [deliveryDialog, setDeliveryDialog] = useState<{
     open: boolean;
     invoice: ManifestInvoice | null;
   }>({ open: false, invoice: null });
   const [receiverName, setReceiverName] = useState("");
   const [receiverDocument, setReceiverDocument] = useState("");
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
 
   const [occurrenceDialog, setOccurrenceDialog] = useState<{
     open: boolean;
@@ -133,6 +117,7 @@ export function ManifestDetailSheet({
   }>({ open: false, invoice: null });
   const [occurrenceType, setOccurrenceType] = useState("");
   const [occurrenceNotes, setOccurrenceNotes] = useState("");
+  const [occurrenceError, setOccurrenceError] = useState<string | null>(null);
 
   // Remove invoice dialog state
   const [removeDialog, setRemoveDialog] = useState<{
@@ -246,11 +231,7 @@ export function ManifestDetailSheet({
   // Confirm delivery
   const handleConfirmDelivery = async () => {
     if (!deliveryDialog.invoice || !receiverName.trim()) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Nome do recebedor é obrigatório.",
-        variant: "destructive",
-      });
+      setDeliveryError("Informe quem recebeu.");
       return;
     }
 
@@ -269,8 +250,8 @@ export function ManifestDetailSheet({
 
     if (error) {
       toast({
-        title: "Erro",
-        description: "Não foi possível confirmar a entrega.",
+        title: "Não foi possível confirmar a entrega",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
       return;
@@ -298,11 +279,7 @@ export function ManifestDetailSheet({
   // Register occurrence
   const handleRegisterOccurrence = async () => {
     if (!occurrenceDialog.invoice || !occurrenceType) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Selecione o tipo de ocorrência.",
-        variant: "destructive",
-      });
+      setOccurrenceError("Escolha o que aconteceu.");
       return;
     }
 
@@ -321,8 +298,8 @@ export function ManifestDetailSheet({
 
     if (error) {
       toast({
-        title: "Erro",
-        description: "Não foi possível registrar a ocorrência.",
+        title: "Não foi possível registrar a ocorrência",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
       return;
@@ -381,8 +358,8 @@ export function ManifestDetailSheet({
 
     if (error) {
       toast({
-        title: "Erro",
-        description: "Não foi possível remover a NF.",
+        title: "Não foi possível remover a nota",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
       return;
@@ -481,8 +458,9 @@ export function ManifestDetailSheet({
           `Romaneio finalizado - ${delivered} entregas, ${returned} ocorrências`
         );
         toast({
-          title: "Romaneio Finalizado",
-          description: `${delivered} entrega(s) concluída(s), ${returned} NF(s) retornaram para roteirização.`,
+          title: "Romaneio finalizado",
+          description: `${delivered} entrega(s) concluída(s); ${returned} nota(s) voltaram para a fila de romaneio.`,
+          variant: "success",
         });
       }
 
@@ -513,456 +491,345 @@ export function ManifestDetailSheet({
     ),
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "delivered":
-        return (
-          <Badge className="bg-success text-success-foreground">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Entregue
-          </Badge>
-        );
-      case "occurrence":
-        return (
-          <Badge className="bg-warning text-warning-foreground">
-            <AlertTriangle className="h-3 w-3 mr-1" />
-            Ocorrência
-          </Badge>
-        );
-      case "in_transit":
-        return (
-          <Badge className="bg-primary text-primary-foreground">
-            <Truck className="h-3 w-3 mr-1" />
-            Em Rota
-          </Badge>
-        );
-      case "pending":
-        return (
-          <Badge className="bg-muted text-muted-foreground">
-            <Clock className="h-3 w-3 mr-1" />
-            Pendente
-          </Badge>
-        );
-      case "returned":
-        return (
-          <Badge className="bg-secondary text-secondary-foreground">
-            <Package className="h-3 w-3 mr-1" />
-            Devolvido
-          </Badge>
-        );
-      default:
-        return (
-          <Badge className="bg-muted text-muted-foreground">
-            <Truck className="h-3 w-3 mr-1" />
-            {status}
-          </Badge>
-        );
-    }
+  if (!manifest) return null;
+
+  const status = currentStatus ?? manifest.status;
+  const canFinalize = !["completed", "paid", "cancelled"].includes(status);
+  const createdAt = new Date(manifest.created_at);
+
+  const closeDeliveryDialog = () => {
+    setDeliveryDialog({ open: false, invoice: null });
+    setDeliveryError(null);
+  };
+  const closeOccurrenceDialog = () => {
+    setOccurrenceDialog({ open: false, invoice: null });
+    setOccurrenceError(null);
+  };
+  const closeRemoveDialog = () => {
+    setRemoveDialog({ open: false, invoice: null });
+    setRemoveReason("");
   };
 
-  if (!manifest) return null;
+  const statTiles = [
+    { label: "Notas", value: String(stats.total), tone: "text-foreground" },
+    { label: "Entregues", value: String(stats.delivered), tone: "text-success" },
+    { label: "Ocorrências", value: String(stats.occurrence), tone: stats.occurrence > 0 ? "text-destructive" : "text-foreground" },
+    { label: "Valor", value: formatCurrency(stats.totalValue), tone: "text-foreground" },
+  ];
 
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-3xl p-0 overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border p-6">
-            <SheetHeader className="space-y-1">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <SheetTitle className="text-xl">
-                    Romaneio nº <span className="text-primary font-bold">{formatManifestNumber(manifest)}</span>
-                  </SheetTitle>
-                  <SheetDescription className="text-xs">
-                    <span className="font-mono">{manifest.manifest_code}</span> • Criado em{" "}
-                    {new Date(manifest.created_at).toLocaleDateString("pt-BR")} às{" "}
-                    {new Date(manifest.created_at).toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </SheetDescription>
-                </div>
+        <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+          {/* Cabecalho */}
+          <div className="space-y-4 border-b px-6 pb-5 pt-6">
+            <SheetHeader className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <SheetTitle className="font-data text-xl">Romaneio {formatManifestNumber(manifest)}</SheetTitle>
+                <ManifestStatusBadge status={status} live />
               </div>
+              <SheetDescription>
+                <span className="font-data">{manifest.manifest_code}</span> · criado em {createdAt.toLocaleDateString("pt-BR")} às{" "}
+                {createdAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </SheetDescription>
             </SheetHeader>
 
-            {/* Driver & Vehicle Info - Compact */}
-            <div className="flex flex-wrap items-center gap-4 mt-4 text-sm">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-lg border border-border">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{manifest.driver_name}</span>
-                {manifest.driver_cpf && (
-                  <span className="text-xs text-muted-foreground font-mono">({manifest.driver_cpf})</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-card rounded-lg border border-border">
-                <Truck className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{manifest.vehicle_type || "Veículo"}</span>
-                <span className="text-xs text-muted-foreground font-mono">{manifest.vehicle_plate || "-"}</span>
-              </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="inline-flex min-w-0 items-center gap-2 rounded-full border bg-card px-3 py-1.5">
+                <User className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="truncate font-medium text-foreground">{manifest.driver_name}</span>
+                {manifest.driver_cpf && <span className="font-data text-xs text-muted-foreground">{manifest.driver_cpf}</span>}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5">
+                <Truck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="font-medium text-foreground">{vehicleTypeLabel(manifest.vehicle_type)}</span>
+                <span className="font-data text-xs text-muted-foreground">{manifest.vehicle_plate || "sem placa"}</span>
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setIsPrintOpen(true)} className="flex-1 sm:flex-none">
+                <Printer aria-hidden="true" />
+                Imprimir romaneio
+              </Button>
+              {canFinalize && (
+                <Button onClick={handleFinalizeManifest} disabled={isFinalizing} className="flex-1 sm:flex-none">
+                  {isFinalizing ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Flag aria-hidden="true" />}
+                  Finalizar romaneio
+                </Button>
+              )}
             </div>
           </div>
 
-          {/* Content */}
-          <ScrollArea className="flex-1">
-            <div className="p-6 space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-4 rounded-xl border border-border bg-card shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Total NFs</span>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="space-y-6 p-6">
+              <dl className="stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {statTiles.map((tile) => (
+                  <div key={tile.label} className="rounded-lg border bg-card p-3 shadow-xs">
+                    <dt className="text-xs font-medium text-muted-foreground">{tile.label}</dt>
+                    <dd className={cn("mt-1 break-words font-data text-xl font-semibold", tile.tone)}>{tile.value}</dd>
                   </div>
-                  <div className="text-2xl font-bold text-foreground">{stats.total}</div>
-                </div>
-                <div className="p-4 rounded-xl border border-success/30 bg-success/5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="h-4 w-4 text-success" />
-                    <span className="text-xs text-success font-medium uppercase tracking-wide">Entregues</span>
-                  </div>
-                  <div className="text-2xl font-bold text-success">{stats.delivered}</div>
-                </div>
-                <div className="p-4 rounded-xl border border-warning/30 bg-warning/5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="h-4 w-4 text-warning" />
-                    <span className="text-xs text-warning font-medium uppercase tracking-wide">Ocorrências</span>
-                  </div>
-                  <div className="text-2xl font-bold text-warning">{stats.occurrence}</div>
-                </div>
-                <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="h-4 w-4 text-primary" />
-                    <span className="text-xs text-primary font-medium uppercase tracking-wide">Valor</span>
-                  </div>
-                  <div className="text-lg font-bold text-primary font-mono">{formatCurrency(stats.totalValue)}</div>
-                </div>
-              </div>
+                ))}
+              </dl>
 
-              {/* Actions */}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsPrintOpen(true)}
-                  className="gap-2"
-                >
-                  <Printer className="h-4 w-4" />
-                  Reimprimir
-                </Button>
-                {!["completed", "paid", "cancelled"].includes(currentStatus ?? manifest.status) && (
-                    <Button
-                      size="sm"
-                      className="bg-success hover:bg-success/90 text-success-foreground gap-2"
-                      onClick={handleFinalizeManifest}
-                      disabled={isFinalizing}
-                    >
-                      <Flag className="h-4 w-4" />
-                      Finalizar Romaneio
-                    </Button>
-                  )}
-              </div>
-
-              <Separator />
-
-              {/* Invoices List - Card Layout */}
-              <div>
-                <h3 className="font-semibold mb-4 flex items-center gap-2 text-foreground">
-                  <Package className="h-5 w-5 text-primary" />
-                  Notas Fiscais
-                  <Badge variant="secondary" className="ml-auto">
-                    {stats.total} NFs
-                  </Badge>
+              {/* Notas do romaneio */}
+              <section aria-labelledby="manifest-invoices-title" className="space-y-3">
+                <h3 id="manifest-invoices-title" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Package className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  Paradas, na ordem da rota
                 </h3>
 
-                <div className="space-y-3">
-                  {invoices.map((invoice) => {
-                    // Format phone for display and WhatsApp link
-                    const rawPhone = invoice.recipient_phone?.replace(/\D/g, '') || '';
-                    const hasPhone = rawPhone.length >= 10;
-                    const formattedPhone = hasPhone
-                      ? rawPhone.length === 11
-                        ? `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2, 7)}-${rawPhone.slice(7)}`
-                        : `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2, 6)}-${rawPhone.slice(6)}`
-                      : null;
-                    const whatsappLink = hasPhone ? whatsappUrl(rawPhone) : null;
-
-                    return (
-                      <div
-                        key={invoice.id}
-                        className={cn(
-                          "p-4 rounded-xl border bg-card transition-all hover:shadow-md",
-                          invoice.status === "delivered" && "border-success/30 bg-success/5",
-                          invoice.status === "occurrence" && "border-warning/30 bg-warning/5",
-                          invoice.status === "in_transit" && "border-primary/30 bg-primary/5"
-                        )}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                          {/* Main Info */}
-                          <div className="flex-1 min-w-0 space-y-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono font-bold text-foreground">
-                                NF {invoice.nfe_number}
-                              </span>
-                              {getStatusBadge(invoice.status)}
-                              <span className="font-mono text-sm font-semibold text-primary ml-auto sm:ml-0">
-                                {formatCurrency(invoice.total_value)}
-                              </span>
-                            </div>
-                            
-                            <p className="text-sm font-medium text-foreground">
-                              {invoice.recipient_name}
-                            </p>
-
-                            {invoice.arrived_at && (
-                              <p className="text-xs font-medium text-info flex items-center gap-1.5">
-                                <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                                Motorista chegou às{" "}
-                                {new Date(invoice.arrived_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                                {invoice.arrival_distance_m != null && ` (a ${Math.round(Number(invoice.arrival_distance_m))} m)`}
-                              </p>
-                            )}
-                            
-                            <p className="text-xs text-muted-foreground flex items-start gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-                              <span className="break-words">{invoice.address_full || invoice.address_city}</span>
-                            </p>
-
-                            {hasPhone && (
-                              <div className="flex items-center gap-2 text-xs">
-                                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="font-mono text-muted-foreground">{formattedPhone}</span>
-                                <a
-                                  href={whatsappLink!}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1 rounded-md bg-success/10 hover:bg-success/20 transition-colors"
-                                  title="Abrir WhatsApp"
-                                >
-                                  <MessageCircle className="h-3.5 w-3.5 text-success" />
-                                </a>
-                              </div>
-                            )}
-
-                            {invoice.status === "delivered" && invoice.receiver_name && (
-                              <p className="text-xs text-success flex items-center gap-1.5 pt-1">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Recebido por: <span className="font-medium">{invoice.receiver_name}</span>
-                              </p>
-                            )}
-
-                            {invoice.status === "occurrence" && invoice.occurrence_type && (
-                              <p className="text-xs text-warning flex items-center gap-1.5 pt-1">
-                                <AlertTriangle className="h-3.5 w-3.5" />
-                                {OCCURRENCE_TYPES.find(t => t.value === invoice.occurrence_type)?.label || getOccurrenceLabel(invoice.occurrence_type)}
-                              </p>
-                            )}
-
-                            {/* View Proof Button for delivered or occurrence invoices */}
-                            {(invoice.status === "delivered" || invoice.status === "occurrence") && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 mt-2 gap-1.5 text-xs"
-                                onClick={() => setProofViewerInvoice(invoice)}
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                Ver Comprovante
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Actions */}
-                          {invoice.status === "in_transit" && (
-                            <div className="flex sm:flex-col gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 sm:border-l border-border sm:pl-3">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-9 px-3 text-success hover:bg-success/10 hover:text-success gap-1.5"
-                                onClick={() => setDeliveryDialog({ open: true, invoice })}
-                              >
-                                <CheckCircle2 className="h-4 w-4" />
-                                <span className="text-xs">Entregar</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-9 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive gap-1.5"
-                                onClick={() => setOccurrenceDialog({ open: true, invoice })}
-                              >
-                                <AlertTriangle className="h-4 w-4" />
-                                <span className="text-xs">Ocorrência</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-9 px-3 hover:bg-muted gap-1.5"
-                                onClick={() => handleRemoveInvoice(invoice)}
-                              >
-                                <Minus className="h-4 w-4" />
-                                <span className="text-xs">Remover</span>
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {invoices.length === 0 && (
-                    <div className="py-12 text-center text-muted-foreground">
-                      Nenhuma nota fiscal neste romaneio
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Audit Log */}
-              {auditLogs.length > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <h3 className="font-semibold mb-4 flex items-center gap-2 text-foreground">
-                      <History className="h-5 w-5 text-muted-foreground" />
-                      Histórico de Alterações
-                    </h3>
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {auditLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className="flex items-start gap-3 text-sm p-3 bg-muted/30 rounded-lg border border-border/50"
-                        >
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-foreground">
-                              {log.performed_by_name || "Sistema"}
-                            </div>
-                            <div className="text-xs text-muted-foreground break-words">
-                              {new Date(log.created_at).toLocaleString("pt-BR")} - {log.notes || log.action_type}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                {isLoading && invoices.length === 0 ? (
+                  <div className="space-y-3" role="status" aria-label="Carregando notas">
+                    <Skeleton className="h-28 w-full" />
+                    <Skeleton className="h-28 w-full" />
                   </div>
-                </>
+                ) : invoices.length === 0 ? (
+                  <EmptyState compact icon={Package} title="Nenhuma nota neste romaneio" className="rounded-lg border border-dashed" />
+                ) : (
+                  <ol className="space-y-3">
+                    {invoices.map((invoice, index) => {
+                      // Telefone formatado e link do WhatsApp
+                      const rawPhone = invoice.recipient_phone?.replace(/\D/g, '') || '';
+                      const hasPhone = rawPhone.length >= 10;
+                      const formattedPhone = hasPhone
+                        ? rawPhone.length === 11
+                          ? `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2, 7)}-${rawPhone.slice(7)}`
+                          : `(${rawPhone.slice(0, 2)}) ${rawPhone.slice(2, 6)}-${rawPhone.slice(6)}`
+                        : null;
+                      const whatsappLink = hasPhone ? whatsappUrl(rawPhone) : null;
+                      const tone = getDeliveryStatus(invoice.status).tone;
+
+                      return (
+                        <li
+                          key={invoice.id}
+                          className={cn(
+                            "rounded-lg border bg-card p-4 shadow-xs",
+                            tone === "danger" && "shadow-[inset_3px_0_0_hsl(var(--destructive))]",
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span
+                              aria-hidden="true"
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted font-data text-xs font-bold text-foreground"
+                            >
+                              {index + 1}
+                            </span>
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-data font-semibold text-foreground">
+                                  <span className="sr-only">Parada {index + 1}: </span>NF {invoice.nfe_number}
+                                </span>
+                                <DeliveryStatusBadge status={invoice.status} />
+                                <span className="ml-auto font-data text-sm font-semibold text-foreground">{formatCurrency(invoice.total_value)}</span>
+                              </div>
+                              <p className="text-sm font-medium text-foreground">{invoice.recipient_name}</p>
+                              <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                <span className="break-words">{invoice.address_full || invoice.address_city}</span>
+                              </p>
+
+                              {invoice.arrived_at && (
+                                <p className="flex items-center gap-1.5 text-xs font-medium text-info">
+                                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                  Motorista chegou às{" "}
+                                  {new Date(invoice.arrived_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                  {invoice.arrival_distance_m != null && ` (a ${Math.round(Number(invoice.arrival_distance_m))} m)`}
+                                </p>
+                              )}
+
+                              {hasPhone && (
+                                <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                  <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                                  <span className="font-data">{formattedPhone}</span>
+                                  <a
+                                    href={whatsappLink!}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-success transition-colors hover:bg-success/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  >
+                                    <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                                    WhatsApp
+                                    <span className="sr-only">de {invoice.recipient_name} (abre em nova aba)</span>
+                                  </a>
+                                </p>
+                              )}
+
+                              {invoice.status === "delivered" && invoice.receiver_name && (
+                                <p className="flex items-center gap-1.5 text-sm text-success">
+                                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Recebido por <span className="font-medium">{invoice.receiver_name}</span>
+                                </p>
+                              )}
+
+                              {invoice.status === "occurrence" && invoice.occurrence_type && (
+                                <p className="flex items-center gap-1.5 text-sm text-destructive">
+                                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                                  {OCCURRENCE_TYPES.find(t => t.value === invoice.occurrence_type)?.label || getOccurrenceLabel(invoice.occurrence_type)}
+                                </p>
+                              )}
+
+                              {(invoice.status === "delivered" || invoice.status === "occurrence" || invoice.status === "in_transit") && (
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                  {(invoice.status === "delivered" || invoice.status === "occurrence") && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setProofViewerInvoice(invoice)}
+                                      aria-label={`Ver comprovante da NF ${invoice.nfe_number}`}
+                                    >
+                                      <Eye aria-hidden="true" />
+                                      Ver comprovante
+                                    </Button>
+                                  )}
+                                  {invoice.status === "in_transit" && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="soft"
+                                        onClick={() => setDeliveryDialog({ open: true, invoice })}
+                                        aria-label={`Confirmar entrega da NF ${invoice.nfe_number}`}
+                                      >
+                                        <CheckCircle2 aria-hidden="true" />
+                                        Entregue
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setOccurrenceDialog({ open: true, invoice })}
+                                        aria-label={`Registrar ocorrência na NF ${invoice.nfe_number}`}
+                                      >
+                                        <AlertTriangle aria-hidden="true" />
+                                        Ocorrência
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleRemoveInvoice(invoice)}
+                                        aria-label={`Remover a NF ${invoice.nfe_number} do romaneio`}
+                                        className="text-muted-foreground"
+                                      >
+                                        <Minus aria-hidden="true" />
+                                        Remover
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </section>
+
+              {/* Historico */}
+              {auditLogs.length > 0 && (
+                <section aria-labelledby="manifest-history-title" className="space-y-3">
+                  <h3 id="manifest-history-title" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                    Histórico de alterações
+                  </h3>
+                  <ol className="space-y-2">
+                    {auditLogs.map((log) => (
+                      <li key={log.id} className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
+                        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">{log.performed_by_name || "Sistema"}</p>
+                          <p className="break-words text-xs text-muted-foreground">
+                            <span className="font-data">{new Date(log.created_at).toLocaleString("pt-BR")}</span> · {log.notes || log.action_type}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
               )}
             </div>
           </ScrollArea>
         </SheetContent>
       </Sheet>
 
-      {/* Confirm Dialog */}
-      <AlertDialog
-        open={confirmDialog.open}
-        onOpenChange={(open) =>
-          setConfirmDialog((prev) => ({ ...prev, open }))
-        }
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmDialog.description}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                await confirmDialog.action();
-                setConfirmDialog((prev) => ({ ...prev, open: false }));
-              }}
-            >
-              Confirmar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delivery Confirmation Dialog */}
-      <Dialog
-        open={deliveryDialog.open}
-        onOpenChange={(open) =>
-          setDeliveryDialog((prev) => ({ ...prev, open }))
-        }
-      >
-        <DialogContent>
+      {/* Confirmar entrega */}
+      <Dialog open={deliveryDialog.open} onOpenChange={(isOpen) => (isOpen ? setDeliveryDialog((prev) => ({ ...prev, open: true })) : closeDeliveryDialog())}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-success" />
-              Confirmar Entrega
-            </DialogTitle>
-            <DialogDescription>
-              NF: {deliveryDialog.invoice?.nfe_number} -{" "}
-              {deliveryDialog.invoice?.recipient_name}
-            </DialogDescription>
+            <DialogTitle>Confirmar entrega da NF {deliveryDialog.invoice?.nfe_number}</DialogTitle>
+            <DialogDescription>{deliveryDialog.invoice?.recipient_name}. Informe quem recebeu a mercadoria.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="receiver_name">Nome do Recebedor *</Label>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="receiver_name">Nome de quem recebeu</Label>
               <Input
                 id="receiver_name"
                 value={receiverName}
-                onChange={(e) => setReceiverName(e.target.value)}
-                placeholder="Nome completo de quem recebeu"
+                onChange={(e) => {
+                  setReceiverName(e.target.value);
+                  setDeliveryError(null);
+                }}
+                placeholder="Nome completo"
+                autoComplete="off"
+                aria-invalid={!!deliveryError || undefined}
+                aria-describedby={deliveryError ? "receiver_name-error" : undefined}
               />
+              {deliveryError && (
+                <p id="receiver_name-error" className="text-sm font-medium text-destructive">
+                  {deliveryError}
+                </p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="receiver_document">Documento (RG/CPF)</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="receiver_document">Documento (RG ou CPF, opcional)</Label>
               <Input
                 id="receiver_document"
                 value={receiverDocument}
                 onChange={(e) => setReceiverDocument(e.target.value)}
-                placeholder="CPF ou RG do recebedor"
+                placeholder="Número do documento"
+                autoComplete="off"
+                className="font-data"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeliveryDialog({ open: false, invoice: null })}
-            >
+            <Button variant="outline" onClick={closeDeliveryDialog}>
               Cancelar
             </Button>
-            <Button
-              onClick={handleConfirmDelivery}
-              className="bg-success hover:bg-success/90 text-success-foreground"
-            >
-              Confirmar Entrega
+            <Button onClick={handleConfirmDelivery}>
+              <CheckCircle2 aria-hidden="true" />
+              Confirmar entrega
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Occurrence Dialog */}
-      <Dialog
-        open={occurrenceDialog.open}
-        onOpenChange={(open) =>
-          setOccurrenceDialog((prev) => ({ ...prev, open }))
-        }
-      >
-        <DialogContent>
+      {/* Registrar ocorrencia */}
+      <Dialog open={occurrenceDialog.open} onOpenChange={(isOpen) => (isOpen ? setOccurrenceDialog((prev) => ({ ...prev, open: true })) : closeOccurrenceDialog())}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Registrar Ocorrência
-            </DialogTitle>
-            <DialogDescription>
-              NF: {occurrenceDialog.invoice?.nfe_number} -{" "}
-              {occurrenceDialog.invoice?.recipient_name}
-            </DialogDescription>
+            <DialogTitle>Registrar ocorrência na NF {occurrenceDialog.invoice?.nfe_number}</DialogTitle>
+            <DialogDescription>{occurrenceDialog.invoice?.recipient_name}. Conte o que impediu a entrega.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Tipo de Ocorrência *</Label>
-              <Select value={occurrenceType} onValueChange={setOccurrenceType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="manifest-occurrence-type">O que aconteceu</Label>
+              <Select
+                value={occurrenceType}
+                onValueChange={(value) => {
+                  setOccurrenceType(value);
+                  setOccurrenceError(null);
+                }}
+              >
+                <SelectTrigger
+                  id="manifest-occurrence-type"
+                  aria-invalid={!!occurrenceError || undefined}
+                  aria-describedby={occurrenceError ? "manifest-occurrence-error" : undefined}
+                  className={occurrenceError ? "border-destructive" : undefined}
+                >
+                  <SelectValue placeholder="Escolher o motivo" />
                 </SelectTrigger>
                 <SelectContent>
                   {OCCURRENCE_TYPES.map((type) => (
@@ -972,123 +839,86 @@ export function ManifestDetailSheet({
                   ))}
                 </SelectContent>
               </Select>
+              {occurrenceError && (
+                <p id="manifest-occurrence-error" className="text-sm font-medium text-destructive">
+                  {occurrenceError}
+                </p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="occurrence_notes">Descrição</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="occurrence_notes">Detalhes (opcional)</Label>
               <Textarea
                 id="occurrence_notes"
                 value={occurrenceNotes}
                 onChange={(e) => setOccurrenceNotes(e.target.value)}
-                placeholder="Detalhes adicionais sobre a ocorrência..."
+                placeholder="Ex.: Portão fechado, ninguém atendeu."
                 rows={3}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setOccurrenceDialog({ open: false, invoice: null })
-              }
-            >
+            <Button variant="outline" onClick={closeOccurrenceDialog}>
               Cancelar
             </Button>
-            <Button onClick={handleRegisterOccurrence} variant="destructive">
-              Registrar Ocorrência
+            <Button onClick={handleRegisterOccurrence}>
+              <AlertTriangle aria-hidden="true" />
+              Registrar ocorrência
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Finalize Warning Dialog */}
+      {/* Aviso antes de finalizar com ocorrencias */}
       <AlertDialog open={finalizeDialog} onOpenChange={setFinalizeDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-warning">
-              <AlertTriangle className="h-5 w-5" />
-              Romaneio com Ocorrências
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                Este romaneio possui{" "}
-                <strong>{stats.occurrence} NF(s) com ocorrência</strong>.
-              </p>
-              <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning">
-                <strong>Certifique-se de que a mercadoria voltou para o galpão</strong>{" "}
-                antes de finalizar.
-              </div>
-              <p className="text-sm">
-                As NFs com ocorrência serão marcadas como "Devolvidas" e voltarão
-                para a fila de roteirização.
-              </p>
+            <AlertDialogTitle>Finalizar romaneio com ocorrências?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este romaneio tem {stats.occurrence} nota(s) com ocorrência. Elas ficam como devolvidas e voltam para a fila
+              de romaneio.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <Alert variant="warning">
+            <AlertTriangle aria-hidden="true" />
+            <AlertDescription className="text-foreground">
+              <span className="font-semibold">Confira antes:</span> a mercadoria dessas notas já voltou para o galpão?
+            </AlertDescription>
+          </Alert>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={executeFinalization}
-              className="bg-warning hover:bg-warning/90 text-warning-foreground"
-            >
-              Confirmar Finalização
+            <AlertDialogAction onClick={executeFinalization}>
+              Sim, finalizar romaneio
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Remove Invoice Dialog with Reason */}
-      <Dialog
-        open={removeDialog.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRemoveDialog({ open: false, invoice: null });
-            setRemoveReason("");
-          }
-        }}
-      >
-        <DialogContent>
+      {/* Remover nota do romaneio (com motivo) */}
+      <Dialog open={removeDialog.open} onOpenChange={(isOpen) => { if (!isOpen) closeRemoveDialog(); }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Minus className="h-5 w-5" />
-              Remover NF do Romaneio
-            </DialogTitle>
+            <DialogTitle>Tirar a NF {removeDialog.invoice?.nfe_number} do romaneio?</DialogTitle>
             <DialogDescription>
-              NF: {removeDialog.invoice?.nfe_number} - {removeDialog.invoice?.recipient_name}
+              {removeDialog.invoice?.recipient_name}. A nota volta para pendente e a mudança fica no histórico.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning text-sm">
-              <div className="flex items-center gap-2 mb-1 font-semibold">
-                <AlertTriangle className="h-4 w-4" />
-                Atenção
-              </div>
-              <p>
-                Esta ação irá desvincular a NF do romaneio e retornar seu status para
-                <strong> Pendente</strong>. Um registro será criado no histórico.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="remove_reason">Motivo da Remoção</Label>
-              <Textarea
-                id="remove_reason"
-                value={removeReason}
-                onChange={(e) => setRemoveReason(e.target.value)}
-                placeholder="Ex: Não coube no veículo, Mercadoria avariada, Erro na atribuição..."
-                rows={2}
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="remove_reason">Motivo (opcional)</Label>
+            <Textarea
+              id="remove_reason"
+              value={removeReason}
+              onChange={(e) => setRemoveReason(e.target.value)}
+              placeholder="Ex.: Não coube no veículo, mercadoria avariada."
+              rows={2}
+            />
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setRemoveDialog({ open: false, invoice: null });
-                setRemoveReason("");
-              }}
-            >
+            <Button variant="outline" onClick={closeRemoveDialog}>
               Cancelar
             </Button>
             <Button onClick={executeRemoveInvoice} variant="destructive">
-              Confirmar Remoção
+              <Minus aria-hidden="true" />
+              Remover do romaneio
             </Button>
           </DialogFooter>
         </DialogContent>

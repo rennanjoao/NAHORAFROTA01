@@ -1,27 +1,15 @@
 import { useEffect, useState } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-  AlertTriangle, 
-  Clock, 
-  Wrench, 
-  FileText, 
-  MapPin,
-  Calendar,
-  Image as ImageIcon
-} from "lucide-react";
+import { EmptyState, toneSoftBg, toneText } from "@/components/patterns";
+import { Expand, History, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { driverOccurrenceType } from "./occurrenceTypes";
 
 interface DriverOccurrence {
   id: string;
@@ -40,19 +28,8 @@ interface DriverOccurrencesSheetProps {
   driverName: string;
 }
 
-const occurrenceTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  accident: { label: "Acidente", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
-  delay: { label: "Atraso", icon: Clock, color: "text-warning bg-warning/10" },
-  mechanical: { label: "Problema Mecânico", icon: Wrench, color: "text-warning bg-warning/10" },
-  other: { label: "Outro", icon: FileText, color: "text-info bg-info/10" },
-};
-
-export function DriverOccurrencesSheet({
-  open,
-  onOpenChange,
-  driverId,
-  driverName,
-}: DriverOccurrencesSheetProps) {
+/** Problemas que o motorista ja enviou (aba Reportar > Ver o que ja reportei). */
+export function DriverOccurrencesSheet({ open, onOpenChange, driverId, driverName }: DriverOccurrencesSheetProps) {
   const [occurrences, setOccurrences] = useState<DriverOccurrence[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -81,140 +58,107 @@ export function DriverOccurrencesSheet({
     }
   };
 
-  const getTypeConfig = (type: string) => {
-    return occurrenceTypeConfig[type] || occurrenceTypeConfig.other;
-  };
-
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="h-[85vh] rounded-t-2xl">
-          <SheetHeader className="pb-4 border-b">
-            <SheetTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              Ocorrências de {driverName}
-            </SheetTitle>
+        <SheetContent side="bottom" className="flex h-[88dvh] flex-col gap-0 px-0 pb-0 pt-3">
+          <div aria-hidden="true" className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted-foreground/25" />
+          <SheetHeader className="border-b px-5 pb-4">
+            <SheetTitle>O que você já reportou</SheetTitle>
+            <SheetDescription>Problemas enviados por {driverName}, do mais novo para o mais antigo.</SheetDescription>
           </SheetHeader>
 
-          <ScrollArea className="h-[calc(85vh-100px)] mt-4">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
             {isLoading ? (
-              <div className="space-y-4">
+              <div role="status" aria-label="Carregando ocorrências" className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <Card key={i} className="p-4">
-                    <div className="flex gap-3">
-                      <Skeleton className="h-12 w-12 rounded-lg" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-3 w-full" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                    </div>
-                  </Card>
+                  <Skeleton key={i} className="h-24 rounded-xl" />
                 ))}
               </div>
             ) : occurrences.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="p-4 bg-muted rounded-full mb-4">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="font-semibold text-lg mb-1">Nenhuma Ocorrência</h3>
-                <p className="text-sm text-muted-foreground">
-                  Este motorista ainda não registrou ocorrências.
-                </p>
-              </div>
+              <EmptyState
+                icon={History}
+                title="Nada reportado ainda"
+                description="Quando você enviar um problema pela aba Reportar, ele aparece aqui."
+                compact
+              />
             ) : (
-              <div className="space-y-4 pb-6">
+              <ul className="space-y-3">
                 {occurrences.map((occurrence) => {
-                  const config = getTypeConfig(occurrence.type);
+                  const config = driverOccurrenceType(occurrence.type);
                   const Icon = config.icon;
 
                   return (
-                    <Card key={occurrence.id} className="p-4 space-y-3">
-                      {/* Header */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${config.color}`}>
-                            <Icon className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <Badge variant="outline" className="mb-1">
-                              {config.label}
-                            </Badge>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="h-3 w-3" />
-                              {format(new Date(occurrence.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                            </div>
-                          </div>
+                    <li key={occurrence.id} className="space-y-3 rounded-xl border bg-card p-4">
+                      <div className="flex items-center gap-3">
+                        <span
+                          aria-hidden="true"
+                          className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", toneSoftBg[config.tone], toneText[config.tone])}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground">{config.label}</p>
+                          <p className="font-data text-xs text-muted-foreground">
+                            {format(new Date(occurrence.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </p>
                         </div>
                       </div>
 
-                      {/* Description */}
                       {occurrence.description && (
-                        <p className="text-sm text-foreground bg-muted/50 p-3 rounded-lg">
-                          {occurrence.description}
-                        </p>
+                        <p className="rounded-lg bg-muted/60 p-3 text-sm text-foreground">{occurrence.description}</p>
                       )}
 
-                      {/* Photo */}
                       {occurrence.photo_url && (
-                        <div 
-                          className="relative cursor-pointer group"
+                        <button
+                          type="button"
                           onClick={() => setSelectedImage(occurrence.photo_url)}
+                          className="group relative block w-full overflow-hidden rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <img
                             src={occurrence.photo_url}
-                            alt="Foto da ocorrência"
-                            className="w-full h-48 object-cover rounded-lg border"
+                            alt={`Foto da ocorrência: ${config.label}`}
+                            className="h-44 w-full object-cover transition-transform duration-slow ease-out group-hover:scale-[1.02]"
                             onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.style.display = "none";
                             }}
                           />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg flex items-center justify-center">
-                            <ImageIcon className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
+                          <span className="surface-glass absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-foreground">
+                            <Expand className="h-3.5 w-3.5" aria-hidden="true" />
+                            Ampliar foto
+                          </span>
+                        </button>
                       )}
 
-                      {/* Location */}
                       {occurrence.latitude && occurrence.longitude && (
                         <a
                           href={`https://www.google.com/maps?q=${occurrence.latitude},${occurrence.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-xs text-primary hover:underline"
+                          className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
                         >
-                          <MapPin className="h-3 w-3" />
-                          Ver localização no mapa
+                          <MapPin className="h-4 w-4" aria-hidden="true" />
+                          Ver o local no mapa
                         </a>
                       )}
-                    </Card>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
-          </ScrollArea>
+          </div>
         </SheetContent>
       </Sheet>
 
-      {/* Full-screen image viewer */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
-        >
-          <img
-            src={selectedImage}
-            alt="Foto ampliada"
-            className="max-w-full max-h-full object-contain rounded-lg"
-          />
-          <button
-            className="absolute top-4 right-4 text-white text-xl font-bold p-2"
-            onClick={() => setSelectedImage(null)}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      {/* Foto ampliada */}
+      <Dialog open={Boolean(selectedImage)} onOpenChange={(next) => !next && setSelectedImage(null)}>
+        <DialogContent className="sm:max-w-2xl" aria-describedby={undefined}>
+          <DialogTitle>Foto da ocorrência</DialogTitle>
+          {selectedImage && (
+            <img src={selectedImage} alt="Foto da ocorrência ampliada" className="max-h-[70dvh] w-full rounded-lg object-contain" />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

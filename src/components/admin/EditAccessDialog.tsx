@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Shield, UserCog } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
+import { FormField } from "@/components/settings/FormField";
+import { looksLikeEmail } from "./roleOptions";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemUser } from "@/hooks/useSystemUsers";
@@ -36,9 +37,9 @@ const ROLES = [
 
 const DRIVER_STATUS = [
   { value: "active", label: "Disponível" },
-  { value: "in_route", label: "Em Rota" },
+  { value: "in_route", label: "Em rota" },
   { value: "inactive", label: "Inativo" },
-  { value: "pending_approval", label: "Pendente" },
+  { value: "pending_approval", label: "Aguardando aprovação" },
 ] as const;
 
 const VEHICLE_TYPES = [
@@ -62,6 +63,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
   const [vehiclePlate, setVehiclePlate] = useState("");
   const [vehicleType, setVehicleType] = useState("van");
   const [status, setStatus] = useState("active");
+  const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({});
 
   const getFunctionErrorMessage = async (error: unknown, fallback = "Erro ao salvar alterações") => {
     const anyError = error as {
@@ -99,6 +101,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     if (!target) return;
 
     setPassword("");
+    setErrors({});
 
     if (target.type === "user") {
       setName(target.record.name || "");
@@ -122,7 +125,8 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     setStatus(target.record.status || "active");
   }, [target]);
 
-  const handleSave = async () => {
+  const handleSave = async (event?: FormEvent) => {
+    event?.preventDefault();
     if (!target || isSaving) return;
 
     const targetUserId = target.type === "user" ? target.record.user_id : target.record.user_id;
@@ -135,21 +139,16 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
       return;
     }
 
-    if (!name.trim() || !email.trim()) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Informe nome e e-mail.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (password.trim() && password.trim().length < 8) {
-      toast({
-        title: "Senha muito curta",
-        description: "A nova senha precisa ter pelo menos 8 caracteres. Exemplo: 123456Na",
-        variant: "destructive",
-      });
+    const nextErrors: typeof errors = {};
+    if (!name.trim()) nextErrors.name = "Digite o nome.";
+    if (!email.trim()) nextErrors.email = "Digite o e-mail de login.";
+    else if (!looksLikeEmail(email)) nextErrors.email = "Confira o e-mail. Exemplo: nome@empresa.com.br";
+    if (password.trim() && password.trim().length < 8)
+      nextErrors.password = "A nova senha precisa ter pelo menos 8 caracteres. Exemplo: 123456Na";
+    setErrors(nextErrors);
+    const firstError = (["name", "email", "password"] as const).find((key) => nextErrors[key]);
+    if (firstError) {
+      document.getElementById(`edit-${firstError}`)?.focus();
       return;
     }
 
@@ -196,7 +195,8 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
 
       toast({
         title: "Acesso atualizado",
-        description: "As configurações foram salvas.",
+        description: "As alterações foram salvas.",
+        variant: "success",
       });
 
       onSaved();
@@ -213,132 +213,157 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
   };
 
   const isDriver = target?.type === "driver";
+  const clearError = (key: keyof typeof errors) => errors[key] && setErrors((prev) => ({ ...prev, [key]: undefined }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserCog className="h-5 w-5 text-primary" />
-            {isDriver ? "Editar Acesso do Motorista" : "Editar Usuário"}
-          </DialogTitle>
+          <DialogTitle>{isDriver ? "Editar acesso do motorista" : "Editar usuário"}</DialogTitle>
           <DialogDescription>
-            Altere e-mail, senha e configurações de acesso. Senha em branco mantém a atual.
+            Troque nome, e-mail de login ou senha. Deixe a senha em branco para manter a atual.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="edit-name">Nome</Label>
-            <Input id="edit-name" value={name} onChange={(event) => setName(event.target.value)} />
-          </div>
+        <form id="edit-access-form" onSubmit={handleSave} noValidate className="space-y-4">
+          <FormField id="edit-name" label="Nome" error={errors.name}>
+            {(control) => (
+              <Input
+                {...control}
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  clearError("name");
+                }}
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-email">E-mail de Login</Label>
-            <Input
-              id="edit-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
+          <FormField id="edit-email" label="E-mail de login" error={errors.email}>
+            {(control) => (
+              <Input
+                {...control}
+                type="email"
+                inputMode="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  clearError("email");
+                }}
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-password">Nova Senha</Label>
-            <Input
-              id="edit-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Deixe em branco para manter"
-            />
-          </div>
+          <FormField
+            id="edit-password"
+            label="Nova senha"
+            optional
+            error={errors.password}
+            hint="Em branco, a senha atual continua valendo."
+          >
+            {(control) => (
+              <Input
+                {...control}
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  clearError("password");
+                }}
+              />
+            )}
+          </FormField>
 
           {!isDriver && (
-            <div className="space-y-2">
-              <Label>Perfil</Label>
-              <Select value={role} onValueChange={(value) => setRole(value as SystemUser["role"])}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4" />
+            <FormField id="edit-role" label="Nível de acesso">
+              {(control) => (
+                <Select value={role} onValueChange={(value) => setRole(value as SystemUser["role"])}>
+                  <SelectTrigger {...control}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
                         {item.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </FormField>
           )}
 
           {isDriver && (
-            <div className="grid grid-cols-2 gap-4 border-t pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-cpf">CPF</Label>
-                <Input id="edit-cpf" value={cpf} onChange={(event) => setCpf(event.target.value)} />
-              </div>
+            <fieldset className="grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-2">
+              <legend className="sr-only">Dados do motorista</legend>
+              <FormField id="edit-cpf" label="CPF">
+                {(control) => (
+                  <Input {...control} inputMode="numeric" value={cpf} onChange={(event) => setCpf(event.target.value)} />
+                )}
+              </FormField>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-phone">Telefone</Label>
-                <Input id="edit-phone" value={phone} onChange={(event) => setPhone(event.target.value)} />
-              </div>
+              <FormField id="edit-phone" label="Telefone" optional>
+                {(control) => (
+                  <Input {...control} type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
+                )}
+              </FormField>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-plate">Placa</Label>
-                <Input
-                  id="edit-plate"
-                  value={vehiclePlate}
-                  onChange={(event) => setVehiclePlate(event.target.value.toUpperCase())}
-                  className="uppercase"
-                />
-              </div>
+              <FormField id="edit-plate" label="Placa" optional>
+                {(control) => (
+                  <Input
+                    {...control}
+                    value={vehiclePlate}
+                    onChange={(event) => setVehiclePlate(event.target.value.toUpperCase())}
+                    className="uppercase"
+                  />
+                )}
+              </FormField>
 
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={vehicleType} onValueChange={setVehicleType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VEHICLE_TYPES.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField id="edit-vehicle-type" label="Tipo de veículo">
+                {(control) => (
+                  <Select value={vehicleType} onValueChange={setVehicleType}>
+                    <SelectTrigger {...control}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VEHICLE_TYPES.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </FormField>
 
-              <div className="col-span-2 space-y-2">
-                <Label>Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DRIVER_STATUS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+              <FormField id="edit-status" label="Situação" className="sm:col-span-2">
+                {(control) => (
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger {...control}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DRIVER_STATUS.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </FormField>
+            </fieldset>
           )}
-        </div>
+        </form>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="gap-2">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salvar
+          <Button type="submit" form="edit-access-form" disabled={isSaving}>
+            {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+            {isSaving ? "Salvando..." : "Salvar alterações"}
           </Button>
         </DialogFooter>
       </DialogContent>

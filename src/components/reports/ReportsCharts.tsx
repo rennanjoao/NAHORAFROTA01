@@ -1,8 +1,10 @@
-import { Card } from "@/components/ui/card";
+import { AlertTriangle, PackageSearch, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, AlertTriangle, Package } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/patterns";
+import { getOccurrenceLabel } from "@/hooks/useSLADB";
 import { formatSLA } from "@/lib/formatSLA";
+import { cn } from "@/lib/utils";
 import {
   AreaChart,
   Area,
@@ -13,8 +15,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
+import { axisLine, axisTick, BAD, fmtNumber, fmtPercent, GOOD, gridProps, tooltipCursor, tooltipItemStyle, tooltipLabelStyle, tooltipStyle } from "./chartTheme";
+import { ChartFrame, ReportCard } from "./ReportCard";
 
 interface SLADataPoint {
   month: string;
@@ -33,174 +36,122 @@ interface ReportsChartsProps {
   isLoading?: boolean;
 }
 
-// Custom Tooltip
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload || !payload.length) return null;
-  
-  return (
-    <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-      <p className="font-medium text-sm mb-1">{label}</p>
-      {payload.map((entry: any, index: number) => (
-        <p key={index} className="text-xs" style={{ color: entry.color }}>
-          {entry.name}: {typeof entry.value === 'number' ? 
-            (entry.name === "SLA" ? `${formatSLA(entry.value)}%` : entry.value.toLocaleString()) 
-            : entry.value}
-        </p>
-      ))}
-    </div>
-  );
-}
-
-// Empty State
-function EmptyState({ message = "Nenhum dado encontrado para este filtro" }: { message?: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-      <Package className="h-16 w-16 mb-4 opacity-30" />
-      <p className="text-sm font-medium">{message}</p>
-      <p className="text-xs mt-1">Tente ajustar os filtros selecionados</p>
-    </div>
-  );
-}
-
+/** Motivos de ocorrencia (Pareto) e, quando houver, a tendencia mensal do SLA. */
 export function ReportsCharts({ slaData, issuesData, isLoading }: ReportsChartsProps) {
-  // Get colors for Pareto chart bars
-  const getBarColor = (index: number) => {
-    const colors = [
-      "hsl(var(--destructive))",
-      "hsl(var(--warning))", 
-      "hsl(var(--info))",
-      "hsl(var(--primary))",
-      "hsl(var(--muted-foreground))",
-    ];
-    return colors[index] || colors[colors.length - 1];
-  };
-
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <div className="h-[350px] flex items-center justify-center">
-            <div className="animate-pulse text-muted-foreground">Carregando...</div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="h-[350px] flex items-center justify-center">
-            <div className="animate-pulse text-muted-foreground">Carregando...</div>
-          </div>
-        </Card>
+      <div role="status" aria-label="Carregando" className={cn("grid gap-6", slaData.length > 0 && "lg:grid-cols-2")}>
+        <Skeleton className="h-[380px] rounded-lg" />
+        {slaData.length > 0 && <Skeleton className="h-[380px] rounded-lg" />}
       </div>
     );
   }
 
-  return (
-    <div className={cn("grid gap-6", slaData.length > 0 ? "lg:grid-cols-2" : "lg:grid-cols-1")}>
-      {/* SLA Evolution Area Chart - only if data provided */}
-      {slaData.length > 0 && (
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-success/10">
-                <TrendingUp className="h-5 w-5 text-success" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Evolução do SLA</h3>
-                <p className="text-sm text-muted-foreground">Tendência mensal</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="text-success border-success/30">
-              {formatSLA(slaData[slaData.length - 1]?.sla || 0)}% atual
-            </Badge>
-          </div>
+  const totalIssues = issuesData.reduce((acc, d) => acc + d.count, 0);
+  const bars = issuesData.map((d) => ({ ...d, label: getOccurrenceLabel(d.reason) }));
+  const top = bars[0];
+  const issuesSummary = top
+    ? `Gráfico de barras com os motivos de ocorrência. O mais comum é ${top.label}, com ${top.count} de ${totalIssues} ocorrências (${fmtPercent(top.percentage)}). ` +
+      bars
+        .slice(1)
+        .map((d) => `${d.label}: ${d.count}`)
+        .join("; ")
+    : "Sem ocorrências no período.";
 
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={slaData}>
-              <defs>
-                <linearGradient id="slaGradientNew" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis 
-                dataKey="month" 
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-              />
-              <YAxis 
-                domain={[80, 100]} 
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickFormatter={(value) => `${value}%`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="sla"
-                name="SLA"
-                stroke="hsl(var(--success))"
-                strokeWidth={3}
-                fill="url(#slaGradientNew)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card>
+  return (
+    <div className={cn("grid gap-6", slaData.length > 0 && "lg:grid-cols-2")}>
+      {/* Tendencia mensal do SLA (so quando a tela passa os dados) */}
+      {slaData.length > 0 && (
+        <ReportCard
+          icon={TrendingUp}
+          tone="success"
+          title="Tendência do SLA"
+          description="SLA de cada mês."
+          actions={
+            <Badge variant="success" className="font-data">
+              {formatSLA(slaData[slaData.length - 1]?.sla || 0)}% agora
+            </Badge>
+          }
+        >
+          <ChartFrame
+            height={300}
+            summary={`Gráfico de área do SLA por mês: ${slaData.map((d) => `${d.month} ${formatSLA(d.sla)}%`).join("; ")}.`}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={slaData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="slaTrendFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={GOOD} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={GOOD} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid {...gridProps} vertical={false} />
+                <XAxis dataKey="month" tick={axisTick} axisLine={axisLine} tickLine={false} />
+                <YAxis domain={[80, 100]} tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  labelStyle={tooltipLabelStyle}
+                  itemStyle={tooltipItemStyle}
+                  formatter={(value: number) => [`${formatSLA(value)}%`, "SLA"]}
+                />
+                <Area type="monotone" dataKey="sla" name="SLA" stroke={GOOD} strokeWidth={2} fill="url(#slaTrendFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartFrame>
+        </ReportCard>
       )}
 
-      {/* Pareto of Issues Bar Chart */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-warning/10">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Pareto de Ocorrências</h3>
-              <p className="text-sm text-muted-foreground">Ordenado por frequência</p>
-            </div>
-          </div>
-          {issuesData.length > 0 && (
-            <Badge variant="outline" className="text-warning border-warning/30">
-              {issuesData.reduce((acc, d) => acc + d.count, 0)} total
+      {/* Pareto de ocorrencias */}
+      <ReportCard
+        icon={AlertTriangle}
+        tone="warning"
+        title="Motivos de ocorrência"
+        description="Os motivos que mais geraram ocorrência no período, do mais comum para o menos comum."
+        actions={
+          totalIssues > 0 ? (
+            <Badge variant="secondary" className="font-data">
+              {fmtNumber(totalIssues)} ocorrência{totalIssues === 1 ? "" : "s"}
             </Badge>
-          )}
-        </div>
-
-        {issuesData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart 
-              data={issuesData} 
-              layout="vertical"
-              margin={{ left: 20, right: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={true} vertical={false} />
-              <XAxis 
-                type="number"
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-              />
-              <YAxis 
-                type="category"
-                dataKey="reason"
-                width={120}
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="count" 
-                name="Ocorrências"
-                radius={[0, 4, 4, 0]}
-              >
-                {issuesData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={getBarColor(index)} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          ) : undefined
+        }
+      >
+        {bars.length > 0 ? (
+          <ChartFrame height={Math.max(160, bars.length * 52 + 40)} summary={issuesSummary}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={bars} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap={10}>
+                <CartesianGrid {...gridProps} horizontal={false} />
+                <XAxis type="number" allowDecimals={false} tick={axisTick} axisLine={axisLine} tickLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  width={128}
+                  tick={axisTick}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  cursor={tooltipCursor}
+                  contentStyle={tooltipStyle}
+                  labelStyle={tooltipLabelStyle}
+                  itemStyle={tooltipItemStyle}
+                  formatter={(value: number, _name, item) => [
+                    `${fmtNumber(value)} (${fmtPercent((item?.payload as IssueDataPoint | undefined)?.percentage ?? 0)})`,
+                    "Ocorrências",
+                  ]}
+                />
+                <Bar dataKey="count" name="Ocorrências" fill={BAD} radius={[0, 4, 4, 0]} maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartFrame>
         ) : (
-          <EmptyState />
+          <EmptyState
+            compact
+            icon={PackageSearch}
+            title="Nenhuma ocorrência no período"
+            description="Boa notícia. Se esperava ver algo aqui, mude o período ou os filtros no topo."
+          />
         )}
-      </Card>
+      </ReportCard>
     </div>
   );
 }

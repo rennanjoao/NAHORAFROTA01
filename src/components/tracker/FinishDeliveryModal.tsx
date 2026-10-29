@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, Check, Loader2, X, User, FileText, ImageIcon } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getDriverTenantId, getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
+import { PhotoField } from "./PhotoField";
 
 interface FinishDeliveryModalProps {
   open: boolean;
@@ -50,7 +51,7 @@ export function FinishDeliveryModal({
         const data = JSON.parse(saved);
         if (data.receiverName) setReceiverName(data.receiverName);
         if (data.receiverDocument) setReceiverDocument(data.receiverDocument);
-        toast.info("Rascunho restaurado da sessão anterior.");
+        toast.info("Recuperamos o que você já tinha digitado.");
       }
     } catch {
       // ignore invalid draft
@@ -115,7 +116,7 @@ export function FinishDeliveryModal({
       setPhotoPreview(URL.createObjectURL(preparedFile));
     } catch (error) {
       console.error("Compression error:", error);
-      toast.error("Erro ao processar imagem. Tente outra foto ou use a galeria.");
+      toast.error("Não foi possível preparar a foto. Vamos enviar a original.");
       revokeObjectUrl(photoPreview);
       setPhotoFile(file);
       setPhotoPreview(URL.createObjectURL(file));
@@ -151,12 +152,12 @@ export function FinishDeliveryModal({
 
   const handleSubmit = async () => {
     if (!receiverName.trim()) {
-      toast.error("Nome de quem recebeu é obrigatório");
+      toast.error("Digite o nome de quem recebeu");
       return;
     }
 
     if (!receiverDocument.trim()) {
-      toast.error("Documento do recebedor é obrigatório");
+      toast.error("Digite o documento de quem recebeu");
       return;
     }
 
@@ -229,12 +230,12 @@ export function FinishDeliveryModal({
 
       localStorage.removeItem(DRAFT_KEY(invoiceId));
 
-      toast.success("Entrega finalizada com sucesso.");
+      toast.success("Entrega finalizada", { description: `${recipientName} recebeu a mercadoria.` });
       resetAndClose();
       onSuccess();
     } catch (error: any) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Erro ao finalizar entrega. Tente novamente.");
+      toast.error(error.message || "Não foi possível finalizar. Confira a internet e tente de novo.");
     } finally {
       setIsLoading(false);
     }
@@ -250,6 +251,14 @@ export function FinishDeliveryModal({
     onClose();
   };
 
+  const removePhoto = () => {
+    setPhotoFile(null);
+    revokeObjectUrl(photoPreview);
+    setPhotoPreview(null);
+  };
+
+  const missingFields = !receiverName.trim() || !receiverDocument.trim();
+
   return (
     <Dialog
       open={open}
@@ -258,124 +267,83 @@ export function FinishDeliveryModal({
         resetAndClose();
       }}
     >
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-success">
-            <Check className="h-5 w-5" />
-            Finalizar Entrega
-          </DialogTitle>
+          <DialogTitle>Finalizar entrega</DialogTitle>
+          <DialogDescription>
+            <span className="font-medium text-foreground">{recipientName}</span>
+            {nfeNumber && <span className="font-data"> · NF-e: {nfeNumber}</span>}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-            <p>
-              <span className="text-muted-foreground">NF-e: </span>
-              <span className="font-mono font-semibold">{nfeNumber || "N/A"}</span>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Destinatário: </span>
-              <span className="font-medium">{recipientName}</span>
-            </p>
-          </div>
+        <div className="space-y-5">
+          <PhotoField
+            ref={fileInputRef}
+            id="delivery-proof-photo"
+            label="Foto do comprovante"
+            hint="Opcional"
+            preview={photoPreview}
+            preparing={isCompressing}
+            previewAlt="Foto do comprovante de entrega"
+            onPick={openFilePicker}
+            onChange={handlePhotoCapture}
+            onRemove={removePhoto}
+          />
 
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Camera className="h-4 w-4" />
-              Foto do Comprovante
-            </Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoCapture}
-              className="hidden"
-            />
-
-            {isCompressing ? (
-              <div className="w-full h-24 flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Preparando imagem...</span>
-              </div>
-            ) : photoPreview ? (
-              <div className="relative">
-                <img src={photoPreview} alt="Comprovante" className="w-full h-40 object-cover rounded-lg border" />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 h-8 w-8"
-                  onClick={() => {
-                    setPhotoFile(null);
-                    revokeObjectUrl(photoPreview);
-                    setPhotoPreview(null);
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full h-24 flex-col gap-2 border-dashed border-2"
-                onClick={openFilePicker}
-              >
-                <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                <span className="text-muted-foreground">Tirar Foto ou Escolher da Galeria</span>
-              </Button>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="receiver-name" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Nome de Quem Recebeu *
-            </Label>
+            <Label htmlFor="receiver-name">Nome de quem recebeu</Label>
             <Input
               id="receiver-name"
               value={receiverName}
               onChange={(event) => handleReceiverNameChange(event.target.value)}
               placeholder="Nome completo"
-              className="h-12"
+              autoComplete="off"
+              aria-required="true"
+              className="h-12 text-base"
+              disabled={isLoading}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="receiver-doc" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Documento (RG/CPF) *
-            </Label>
+            <Label htmlFor="receiver-doc">Documento de quem recebeu</Label>
             <Input
               id="receiver-doc"
               value={receiverDocument}
               onChange={(event) => handleReceiverDocChange(event.target.value)}
               placeholder="000.000.000-00"
-              className="h-12"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-required="true"
+              aria-describedby="receiver-doc-hint"
+              className="h-12 text-base"
+              disabled={isLoading}
             />
+            <p id="receiver-doc-hint" className="text-xs text-muted-foreground">
+              RG ou CPF. Só os números já bastam.
+            </p>
           </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={resetAndClose} className="flex-1 h-12" disabled={isLoading}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading || !receiverName.trim() || !receiverDocument.trim()}
-              className="flex-1 h-12 gap-2 bg-success hover:bg-success/90"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" /> Enviando...
-                </>
-              ) : (
-                <>
-                  <Check className="h-5 w-5" /> Confirmar
-                </>
-              )}
-            </Button>
-          </div>
-          <p className="text-[10px] text-center text-muted-foreground">
-            Foto opcional. Nome e documento do recebedor são obrigatórios.
-          </p>
         </div>
+
+        <DialogFooter className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 sm:flex">
+          <Button variant="outline" size="lg" onClick={resetAndClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button
+            size="lg"
+            onClick={handleSubmit}
+            disabled={isLoading || missingFields}
+            aria-describedby={missingFields ? "finish-missing" : undefined}
+            className="bg-success text-success-foreground hover:bg-success/90"
+          >
+            {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+            {isLoading ? "Enviando" : "Confirmar entrega"}
+          </Button>
+        </DialogFooter>
+        {missingFields && (
+          <p id="finish-missing" className="-mt-2 text-center text-xs text-muted-foreground">
+            Preencha o nome e o documento para confirmar.
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );

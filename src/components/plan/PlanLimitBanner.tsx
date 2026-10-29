@@ -1,4 +1,5 @@
 import { AlertTriangle, Crown } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
 interface PlanLimitBannerProps {
@@ -9,8 +10,9 @@ interface PlanLimitBannerProps {
   planLabels: Record<string, string>;
 }
 
+/** Aviso quando a empresa chega perto (ou no) limite do plano para um recurso. */
 export function PlanLimitBanner({ plan, resourceLabel, currentCount, maxCount, planLabels }: PlanLimitBannerProps) {
-  if (maxCount === -1) return null; // Unlimited
+  if (maxCount === -1) return null; // Sem limite
   if (currentCount <= 0) return null;
 
   const isAtLimit = currentCount >= maxCount;
@@ -19,31 +21,25 @@ export function PlanLimitBanner({ plan, resourceLabel, currentCount, maxCount, p
   if (!isAtLimit && !isNearLimit) return null;
 
   return (
-    <div className={`p-4 rounded-lg border flex items-start gap-3 ${
-      isAtLimit 
-        ? "bg-destructive/10 border-destructive/30" 
-        : "bg-warning/10 border-warning/30"
-    }`}>
-      <AlertTriangle className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
-        isAtLimit ? "text-destructive" : "text-warning"
-      }`} />
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1">
-          <p className={`font-medium ${isAtLimit ? "text-destructive" : "text-warning"}`}>
-            {isAtLimit ? `Limite de ${resourceLabel} atingido` : `Próximo do limite de ${resourceLabel}`}
+    <Alert variant={isAtLimit ? "destructive" : "warning"} role="status" className="animate-fade-in">
+      <AlertTriangle aria-hidden="true" />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          {/* <p> e nao AlertTitle (h5): o aviso aparece em telas com outra ordem de titulos. */}
+          <p className="mb-1 font-semibold leading-snug text-foreground">
+            {isAtLimit ? `Limite de ${resourceLabel} atingido` : `Perto do limite de ${resourceLabel}`}
           </p>
-          <Badge variant="outline" className="text-xs">
-            <Crown className="h-3 w-3 mr-1" />
-            Plano {planLabels[plan] || plan}
-          </Badge>
+          <AlertDescription>
+            {isAtLimit
+              ? `Seu plano permite até ${maxCount} ${resourceLabel} e você já tem ${currentCount}. Para cadastrar mais, fale com a equipe e mude de plano.`
+              : `Você tem ${currentCount} de ${maxCount} ${resourceLabel} permitidos no plano atual.`}
+          </AlertDescription>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {isAtLimit 
-            ? `Seu plano permite até ${maxCount} ${resourceLabel}. Você já possui ${currentCount}. Faça upgrade para adicionar mais.`
-            : `Você possui ${currentCount} de ${maxCount} ${resourceLabel} permitidos no plano atual.`
-          }
-        </p>
+        <Badge variant="outline" className="shrink-0 self-start">
+          <Crown aria-hidden="true" />
+          Plano {planLabels[plan] || plan}
+        </Badge>
       </div>
-    </div>
+    </Alert>
   );
 }

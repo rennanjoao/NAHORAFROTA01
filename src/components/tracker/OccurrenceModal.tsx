@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Camera, AlertTriangle, Loader2, X } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getDriverTenantId, getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
+import { DRIVER_OCCURRENCE_TYPES } from "./occurrenceTypes";
+import { OptionTiles } from "./OptionTiles";
+import { PhotoField } from "./PhotoField";
 
 interface OccurrenceModalProps {
   open: boolean;
@@ -16,14 +18,9 @@ interface OccurrenceModalProps {
   latitude?: number;
   longitude?: number;
   onSuccess: () => void;
+  /** Tipo ja escolhido no bloco da aba Reportar. */
+  defaultType?: string;
 }
-
-const occurrenceTypes = [
-  { value: "accident", label: "Acidente" },
-  { value: "delay", label: "Atraso" },
-  { value: "mechanical", label: "Problema Mecânico" },
-  { value: "other", label: "Outro" },
-];
 
 export function OccurrenceModal({
   open,
@@ -32,6 +29,7 @@ export function OccurrenceModal({
   latitude,
   longitude,
   onSuccess,
+  defaultType,
 }: OccurrenceModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [type, setType] = useState<string>("");
@@ -44,6 +42,10 @@ export function OccurrenceModal({
   useEffect(() => {
     return () => revokeObjectUrl(photoPreview);
   }, [photoPreview]);
+
+  useEffect(() => {
+    if (open && defaultType) setType(defaultType);
+  }, [open, defaultType]);
 
   useEffect(() => {
     const handleWindowFocus = () => {
@@ -73,13 +75,13 @@ export function OccurrenceModal({
       setPhotoPreview(URL.createObjectURL(preparedFile));
     } catch (error) {
       console.error("Error preparing occurrence image:", error);
-      toast.error("Erro ao processar imagem. Tente outra foto ou use a galeria.");
+      toast.error("Não foi possível usar essa foto. Tente outra ou escolha da galeria.");
     }
   };
 
   const handleSubmit = async () => {
     if (!type) {
-      toast.error("Selecione o tipo de ocorrência");
+      toast.error("Escolha o que aconteceu");
       return;
     }
 
@@ -127,12 +129,12 @@ export function OccurrenceModal({
 
       if (dbError) throw dbError;
 
-      toast.success("Ocorrência registrada com sucesso.");
+      toast.success("Problema enviado para a base");
       resetAndClose();
       onSuccess();
     } catch (error: any) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Erro ao registrar ocorrência");
+      toast.error(error.message || "Não foi possível enviar. Confira a internet e tente de novo.");
     } finally {
       setIsLoading(false);
     }
@@ -148,6 +150,12 @@ export function OccurrenceModal({
     onClose();
   };
 
+  const removePhoto = () => {
+    setPhotoFile(null);
+    revokeObjectUrl(photoPreview);
+    setPhotoPreview(null);
+  };
+
   return (
     <Dialog
       open={open}
@@ -158,89 +166,59 @@ export function OccurrenceModal({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" />
-            Registrar Ocorrência
-          </DialogTitle>
+          <DialogTitle>Reportar problema</DialogTitle>
+          <DialogDescription>
+            Conte o que aconteceu. A base recebe na hora{latitude != null ? ", junto com a sua localização" : ""}.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Tipo de ocorrência *</Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {occurrenceTypes.map((occurrence) => (
-                  <SelectItem key={occurrence.value} value={occurrence.value}>
-                    {occurrence.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-5">
+          <OptionTiles
+            name="tipo-ocorrencia"
+            legend="O que aconteceu?"
+            options={DRIVER_OCCURRENCE_TYPES}
+            value={type}
+            onChange={setType}
+            disabled={isLoading}
+          />
 
           <div className="space-y-2">
-            <Label>Descrição</Label>
+            <Label htmlFor="occurrence-description">
+              Explique em poucas palavras <span className="font-normal text-muted-foreground">(opcional)</span>
+            </Label>
             <Textarea
+              id="occurrence-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Descreva o que aconteceu..."
+              placeholder="Ex.: pneu furou na Marginal, já chamei o socorro"
               rows={3}
+              className="resize-none text-base"
+              disabled={isLoading}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Foto (opcional)</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoCapture}
-              className="hidden"
-            />
-
-            {photoPreview ? (
-              <div className="relative">
-                <img src={photoPreview} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 h-6 w-6"
-                  onClick={() => {
-                    setPhotoFile(null);
-                    revokeObjectUrl(photoPreview);
-                    setPhotoPreview(null);
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-              <Button variant="outline" className="w-full gap-2" onClick={openFilePicker}>
-                <Camera className="h-4 w-4" />
-                Tirar Foto ou Escolher da Galeria
-              </Button>
-            )}
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button variant="outline" onClick={resetAndClose} className="flex-1" disabled={isLoading}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSubmit} disabled={isLoading || !type} className="flex-1 gap-2">
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                "Registrar"
-              )}
-            </Button>
-          </div>
+          <PhotoField
+            ref={fileInputRef}
+            id="occurrence-photo"
+            label="Foto"
+            hint="Opcional"
+            preview={photoPreview}
+            previewAlt="Foto do problema"
+            onPick={openFilePicker}
+            onChange={handlePhotoCapture}
+            onRemove={removePhoto}
+          />
         </div>
+
+        <DialogFooter className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 sm:flex">
+          <Button variant="outline" size="lg" onClick={resetAndClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button size="lg" onClick={handleSubmit} disabled={isLoading || !type}>
+            {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
+            {isLoading ? "Enviando" : "Enviar para a base"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

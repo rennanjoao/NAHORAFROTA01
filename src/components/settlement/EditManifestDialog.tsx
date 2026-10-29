@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -11,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Save, Loader2, Truck, FileText } from "lucide-react";
+import { Save, Loader2, Truck, FileText } from "lucide-react";
+import { StatusBadge } from "@/components/patterns";
+import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
 import { format } from "date-fns";
@@ -32,7 +35,7 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
 
   useEffect(() => {
     if (manifest) {
-      setValue(manifest.freight_value.toString());
+      setValue(String(manifest.freight_value).replace(".", ","));
       setObservation(manifest.observation ?? "");
     }
   }, [manifest]);
@@ -84,102 +87,94 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-5 w-5 text-primary" />
-            Editar Romaneio
-          </DialogTitle>
+          <DialogTitle>Editar valor do romaneio</DialogTitle>
+          <DialogDescription>O motivo fica registrado para consulta depois.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          {/* Manifest Info */}
-          <div className="p-3 rounded-lg bg-muted/50 space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="font-mono font-medium">{formatManifestNumber(manifest)}</span>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSave();
+          }}
+        >
+          {/* Dados do romaneio */}
+          <div className="space-y-2 rounded-lg border bg-muted/40 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <span className="font-data font-semibold">{formatManifestNumber(manifest)}</span>
               {manifest.is_own_fleet && (
-                <Badge variant="outline" className="border-primary text-primary gap-1 text-xs">
-                  <Truck className="h-3 w-3" />
-                  Casa
+                <Badge variant="default">
+                  <Truck aria-hidden="true" />
+                  Frota própria
                 </Badge>
               )}
-              <Badge variant={manifest.status === "paid" ? "default" : "secondary"}>
+              <StatusBadge tone={manifest.status === "paid" ? "success" : "warning"}>
                 {manifest.status === "paid" ? "Pago" : "Pendente"}
-              </Badge>
+              </StatusBadge>
             </div>
-            <div className="text-sm text-muted-foreground">
-              <span>Data: {format(new Date(manifest.created_at), "dd/MM/yyyy", { locale: ptBR })}</span>
-              <span className="mx-2">•</span>
-              <span>{manifest.deliveries_count} entregas</span>
+            <p className="text-sm text-muted-foreground">
+              {format(new Date(manifest.created_at), "dd/MM/yyyy", { locale: ptBR })} · {manifest.deliveries_count} entrega
+              {manifest.deliveries_count === 1 ? "" : "s"} · <span className="font-medium text-foreground">{manifest.driver_name}</span>
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Valor atual</p>
+              <p className="font-data font-semibold">{formatCurrency(originalValue)}</p>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Motorista: <span className="font-medium text-foreground">{manifest.driver_name}</span>
+            <div className="rounded-lg border p-3" aria-live="polite">
+              <p className="text-xs text-muted-foreground">Diferença</p>
+              <p
+                className={cn(
+                  "font-data font-semibold",
+                  difference > 0 ? "text-success" : difference < 0 ? "text-destructive" : "text-muted-foreground",
+                )}
+              >
+                {difference > 0 ? "+" : ""}
+                {formatCurrency(difference)}
+              </p>
             </div>
           </div>
 
-          {/* Original Value */}
-          <div className="flex items-center justify-between p-2 rounded bg-muted/30">
-            <span className="text-sm text-muted-foreground">Valor Original:</span>
-            <span className="font-mono font-medium">{formatCurrency(originalValue)}</span>
-          </div>
-
-          {/* New Value */}
           <div className="space-y-2">
-            <Label htmlFor="value">Novo Valor (R$)</Label>
+            <Label htmlFor="manifest-value">Novo valor (R$)</Label>
             <Input
-              id="value"
-              type="number"
-              step="0.01"
-              min="0"
+              id="manifest-value"
+              inputMode="decimal"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="0,00"
+              className="font-data"
             />
           </div>
 
-          {/* Difference */}
-          {difference !== 0 && (
-            <div className="flex items-center justify-between p-2 rounded bg-muted/30">
-              <span className="text-sm text-muted-foreground">Diferença:</span>
-              <span className={`font-mono font-medium ${difference > 0 ? "text-success" : "text-destructive"}`}>
-                {difference > 0 ? "+" : ""}{formatCurrency(difference)}
-              </span>
-            </div>
-          )}
-
-          {/* Observation */}
           <div className="space-y-2">
-            <Label htmlFor="observation">Observação / Motivo da Alteração *</Label>
+            <Label htmlFor="manifest-observation">Motivo da alteração</Label>
             <Textarea
-              id="observation"
+              id="manifest-observation"
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
-              placeholder="Ex: Ajuste de valor conforme acordo com motorista..."
+              placeholder="Ex: valor ajustado conforme acordo com o motorista"
               rows={3}
+              aria-describedby="manifest-observation-hint"
             />
-            <p className="text-xs text-muted-foreground">
-              Informe o motivo da alteração para registro e auditoria.
+            <p id="manifest-observation-hint" className="text-xs text-muted-foreground">
+              Obrigatório. Ajuda a entender a mudança numa conferência futura.
             </p>
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving || !observation.trim()}>
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Salvar
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSaving || !observation.trim()}>
+              {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+              {isSaving ? "Salvando" : "Salvar valor"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarDays, Package, Target, TrendingUp, Lock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Crown, LineChart as LineChartIcon } from "lucide-react";
+import { EmptyState, StatusBadge, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
 import { formatSLA } from "@/lib/formatSLA";
 import { getSLAColorScheme } from "@/lib/slaThresholds";
@@ -17,7 +18,10 @@ import {
   ResponsiveContainer,
   Legend,
   ReferenceLine,
+  type TooltipProps,
 } from "recharts";
+import { axisLine, axisTick, gridProps, MUTED, SERIES, BAD, tooltipStyle } from "./chartTheme";
+import { ChartFrame, ReportCard } from "./ReportCard";
 import {
   startOfMonth,
   endOfMonth,
@@ -76,21 +80,22 @@ function calculateDriverAverageSLA(invoices: DBInvoice[]): number {
   return Math.min(100, Math.max(0, totalDriverSLA / driverCount));
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const levelTone: Record<string, Tone> = { excellent: "success", good: "warning", attention: "warning", critical: "danger" };
+
+function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload || !payload.length) return null;
   return (
-    <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-      <p className="font-medium text-sm mb-1">Dia {label}</p>
-      {payload.map((entry: any, index: number) => {
+    <div style={tooltipStyle} className="space-y-1 px-3 py-2">
+      <p className="font-semibold">Dia {label}</p>
+      {payload.map((entry) => {
         if (entry.value == null) return null;
         const scheme = getSLAColorScheme(entry.value);
         return (
-          <p key={index} className="text-xs flex items-center gap-1">
-            <span
-              className="inline-block w-2 h-2 rounded-full"
-              style={{ backgroundColor: entry.color }}
-            />
-            {entry.name}: {formatSLA(entry.value)}%{" "}
+          <p key={String(entry.dataKey)} className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            {entry.name}: <span className="font-data font-semibold">{formatSLA(entry.value)}%</span>
             <span className="text-muted-foreground">({scheme.labelPt})</span>
           </p>
         );
@@ -105,9 +110,10 @@ export function SLAEvolutionChart({
   isLoading,
   detailedAllowed,
 }: SLAEvolutionChartProps) {
+  // Abre no mes mais recente do periodo escolhido (antes abria no primeiro, quase sempre vazio).
   const defaultMonth = useMemo(
-    () => format(dateRange.from || new Date(), "yyyy-MM"),
-    [dateRange.from]
+    () => format(dateRange.to || dateRange.from || new Date(), "yyyy-MM"),
+    [dateRange.from, dateRange.to]
   );
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
 
@@ -283,8 +289,8 @@ export function SLAEvolutionChart({
 
   const monthSelect = (
     <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-      <SelectTrigger className="h-9 w-full sm:w-[180px]">
-        <SelectValue placeholder="Mes" />
+      <SelectTrigger className="w-full capitalize sm:w-[11.5rem]" aria-label="Mês do gráfico">
+        <SelectValue placeholder="Mês" />
       </SelectTrigger>
       <SelectContent>
         {monthOptions.map((month) => {
@@ -302,294 +308,210 @@ export function SLAEvolutionChart({
     </Select>
   );
 
-  // For basic plan: show only yesterday's consolidated
+  const statusBadge =
+    currentSLA != null && currentScheme ? (
+      <StatusBadge tone={levelTone[currentScheme.level] ?? "neutral"} className="text-sm">
+        {formatSLA(currentSLA)}% · {currentScheme.labelPt}
+      </StatusBadge>
+    ) : null;
+
+  const emptyState = (
+    <EmptyState
+      compact
+      icon={LineChartIcon}
+      title={`Sem entregas finalizadas em ${currentMonthLabel}`}
+      description="Escolha outro mês ao lado ou mude o período no topo da tela."
+    />
+  );
+
+  // Plano basico: so o consolidado do mes, sem a evolucao diaria
   if (!detailedAllowed) {
     return (
-      <Card className="p-6 relative">
-        <div className="flex flex-col gap-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-success/10">
-              <TrendingUp className="h-5 w-5 text-success" />
-            </div>
-            <div>
-              <h3 className="font-semibold">Evolução do SLA</h3>
-              <p className="text-sm text-muted-foreground">
-                Consolidado do dia anterior
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <ReportCard
+        icon={LineChartIcon}
+        tone="success"
+        title="Evolução do SLA"
+        description="Consolidado do mês escolhido. A evolução dia a dia faz parte do plano Controle."
+        actions={
+          <>
             {monthSelect}
             <Badge variant="outline" className="gap-1 text-muted-foreground">
-              <Lock className="h-3 w-3" />
+              <Crown aria-hidden="true" />
               Plano Controle
             </Badge>
-          </div>
-        </div>
-
+          </>
+        }
+      >
         {currentSLA != null && currentScheme ? (
-          <div className="flex items-center gap-4 py-8 justify-center">
-            <div className="text-center">
-              <p className={cn("text-5xl font-bold", currentScheme.textClass)}>
-                {formatSLA(currentSLA)}%
-              </p>
-              <Badge className={cn("mt-2", currentScheme.badgeBgClass)}>
-                {currentScheme.labelPt}
-              </Badge>
-            </div>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <p className={cn("font-data text-5xl font-semibold tracking-tight", currentScheme.textClass)}>
+              {formatSLA(currentSLA)}%
+            </p>
+            <StatusBadge tone={levelTone[currentScheme.level] ?? "neutral"}>{currentScheme.labelPt}</StatusBadge>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Package className="h-16 w-16 mb-4 opacity-30" />
-            <p className="text-sm font-medium">Sem dados para este período</p>
-          </div>
+          emptyState
         )}
-
-        <p className="text-xs text-center text-muted-foreground mt-2">
-          Faça upgrade para o Plano Controle para ver a evolução diária acumulada
-        </p>
-      </Card>
+      </ReportCard>
     );
   }
 
   if (isLoading) {
     return (
-      <Card className="p-6">
-        <div className="h-[400px] flex items-center justify-center">
-          <div className="animate-pulse text-muted-foreground">
-            Carregando evolução do SLA...
+      <ReportCard icon={LineChartIcon} tone="success" title="Evolução do SLA" description="Carregando os dados do mês.">
+        <div role="status" aria-label="Carregando" className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-20" />
+            ))}
           </div>
+          <Skeleton className="h-[320px]" />
         </div>
-      </Card>
+      </ReportCard>
     );
   }
 
-  return (
-    <Card className="p-6">
-      <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-success/10">
-            <TrendingUp className="h-5 w-5 text-success" />
-          </div>
-          <div>
-            <h3 className="font-semibold">Evolução do SLA — Acumulado Diário</h3>
-            <p className="text-sm text-muted-foreground capitalize">
-              {hasPreviousData ? `${currentMonthLabel} vs ${prevMonthLabel}` : currentMonthLabel}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {monthSelect}
-        {currentSLA != null && currentScheme && (
-          <Badge className={cn(currentScheme.badgeBgClass)}>
-            {formatSLA(currentSLA)}% — {currentScheme.labelPt}
-          </Badge>
-        )}
-        </div>
-      </div>
+  const tiles = [
+    {
+      label: "SLA do mês",
+      value: currentSLA != null ? `${formatSLA(currentSLA)}%` : "—",
+      className: currentScheme?.textClass,
+    },
+    { label: "Dias com dados", value: `${monthStats.dataDays}`, suffix: monthStats.dataDays === 1 ? "dia" : "dias" },
+    { label: "Entregas finalizadas", value: `${monthStats.finalizedCount}`, suffix: `de ${monthStats.totalInvoices}` },
+    {
+      label: "Vs. mês anterior",
+      value: monthStats.delta == null ? "—" : `${monthStats.delta >= 0 ? "+" : ""}${formatSLA(monthStats.delta)} p.p.`,
+      className:
+        monthStats.delta == null ? "text-muted-foreground" : monthStats.delta >= 0 ? "text-success" : "text-destructive",
+    },
+  ];
 
+  const summary =
+    currentSLA != null
+      ? `Gráfico de linha do SLA acumulado em ${currentMonthLabel}: termina em ${formatSLA(currentSLA)}% (${currentScheme?.labelPt}).${
+          monthStats.previousSLA != null ? ` No mês anterior terminou em ${formatSLA(monthStats.previousSLA)}%.` : ""
+        } Meta de 97%. Os valores de cada dia estão na tabela abaixo.`
+      : `Gráfico do SLA de ${currentMonthLabel} sem dados.`;
+
+  return (
+    <ReportCard
+      icon={LineChartIcon}
+      tone="success"
+      title="Evolução do SLA"
+      description={
+        <>
+          Média acumulada dia a dia, para ver se o mês vai fechar na meta de 97%.
+          {hasPreviousData && ` ${capitalize(currentMonthLabel)} contra ${prevMonthLabel}.`}
+        </>
+      }
+      actions={
+        <>
+          {monthSelect}
+          {statusBadge}
+        </>
+      }
+    >
       {currentDataRows.length > 0 ? (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Target className="h-4 w-4" />
-                SLA do mes
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {tiles.map((tile) => (
+              <div key={tile.label} className="rounded-lg border bg-muted/40 p-4">
+                <dt className="text-xs font-medium text-muted-foreground sm:text-sm">{tile.label}</dt>
+                <dd className={cn("mt-1.5 font-data text-xl font-semibold tracking-tight sm:text-2xl", tile.className)}>
+                  {tile.value}
+                  {tile.suffix && <span className="ml-1 text-sm font-normal text-muted-foreground">{tile.suffix}</span>}
+                </dd>
               </div>
-              <p className={cn("mt-2 text-2xl font-bold", currentScheme?.textClass)}>
-                {currentSLA != null ? `${formatSLA(currentSLA)}%` : "-"}
-              </p>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CalendarDays className="h-4 w-4" />
-                Dias com dados
-              </div>
-              <p className="mt-2 text-2xl font-bold">
-                {monthStats.dataDays}
-                <span className="text-sm font-normal text-muted-foreground"> dias</span>
-              </p>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Package className="h-4 w-4" />
-                Entregas finalizadas
-              </div>
-              <p className="mt-2 text-2xl font-bold">
-                {monthStats.finalizedCount}
-                <span className="text-sm font-normal text-muted-foreground">
-                  {" "}de {monthStats.totalInvoices}
-                </span>
-              </p>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <TrendingUp className="h-4 w-4" />
-                Vs mes anterior
-              </div>
-              <p
-                className={cn(
-                  "mt-2 text-2xl font-bold",
-                  monthStats.delta == null
-                    ? "text-muted-foreground"
-                    : monthStats.delta >= 0
-                      ? "text-success"
-                      : "text-destructive"
-                )}
-              >
-                {monthStats.delta == null
-                  ? "-"
-                  : `${monthStats.delta >= 0 ? "+" : ""}${formatSLA(monthStats.delta)} pp`}
-              </p>
-            </div>
-          </div>
+            ))}
+          </dl>
 
-          <div className="rounded-lg border bg-background p-3">
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={chartData} margin={{ top: 16, right: 24, left: 0, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="4 4" className="stroke-muted" vertical={false} />
-              <XAxis
-                dataKey="day"
-                interval="preserveStartEnd"
-                tick={{
-                  fill: "hsl(var(--muted-foreground))",
-                  fontSize: 12,
-                }}
-                axisLine={{ stroke: "hsl(var(--border))" }}
-                label={{
-                  value: "Dia do mês",
-                  position: "insideBottomRight",
-                  offset: -5,
-                  style: {
-                    fill: "hsl(var(--muted-foreground))",
-                    fontSize: 11,
-                  },
-                }}
-              />
-              <YAxis
-                domain={[0, 100]}
-                width={44}
-                tick={{
-                  fill: "hsl(var(--muted-foreground))",
-                  fontSize: 12,
-                }}
-                axisLine={{ stroke: "hsl(var(--border))" }}
-                tickFormatter={(v) => `${v}%`}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              {hasPreviousData && (
-                <Legend
-                  wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+          <ChartFrame summary={summary} height={320}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 16, right: 16, left: -8, bottom: 4 }}>
+                <CartesianGrid {...gridProps} vertical={false} />
+                <XAxis dataKey="day" interval="preserveStartEnd" tick={axisTick} axisLine={axisLine} tickLine={false} />
+                <YAxis
+                  domain={[0, 100]}
+                  width={48}
+                  tick={axisTick}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${v}%`}
                 />
-              )}
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: "hsl(var(--border))" }} />
+                {hasPreviousData && <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />}
 
-              {/* Reference lines for thresholds */}
-              <ReferenceLine
-                y={97}
-                stroke="hsl(var(--muted-foreground))"
-                strokeDasharray="4 4"
-                strokeOpacity={0.5}
-                label={{ value: "Meta 97%", position: "insideTopLeft", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-              />
-              <ReferenceLine
-                y={75}
-                stroke="hsl(var(--destructive))"
-                strokeDasharray="4 4"
-                strokeOpacity={0.5}
-                label={{ value: "Critico 75%", position: "insideLeft", fill: "hsl(var(--destructive))", fontSize: 11 }}
-              />
+                {/* Linhas de referencia: meta e critico */}
+                <ReferenceLine
+                  y={97}
+                  stroke={MUTED}
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.7}
+                  label={{ value: "Meta 97%", position: "insideTopLeft", fill: MUTED, fontSize: 11 }}
+                />
+                <ReferenceLine
+                  y={75}
+                  stroke={BAD}
+                  strokeDasharray="4 4"
+                  strokeOpacity={0.6}
+                  label={{ value: "Crítico 75%", position: "insideBottomLeft", fill: BAD, fontSize: 11 }}
+                />
 
-              {/* Previous month line - only if data exists */}
-              {hasPreviousData && (
+                {hasPreviousData && (
+                  <Line
+                    type="monotone"
+                    dataKey="previous"
+                    name="Mês anterior"
+                    stroke={SERIES[1]}
+                    strokeWidth={2}
+                    strokeDasharray="5 4"
+                    dot={false}
+                    connectNulls
+                  />
+                )}
                 <Line
                   type="monotone"
-                  dataKey="previous"
-                  name={`Mês Anterior`}
-                  stroke="hsl(var(--muted-foreground))"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ r: 2, fill: "hsl(var(--muted-foreground))" }}
+                  dataKey="current"
+                  name="Mês escolhido"
+                  stroke={SERIES[0]}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: SERIES[0], stroke: "hsl(var(--card))", strokeWidth: 2 }}
+                  activeDot={{ r: 5, stroke: "hsl(var(--card))", strokeWidth: 2 }}
                   connectNulls
                 />
-              )}
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartFrame>
 
-              {/* Current month line */}
-              <Line
-                type="monotone"
-                dataKey="current"
-                name={`Mês Atual`}
-                stroke="hsl(var(--primary))"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
-                activeDot={{ r: 6, strokeWidth: 2 }}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          </div>
-
-          {/* Daily SLA table */}
-          <div className="mt-6">
-            <h4 className="text-sm font-semibold mb-3">Detalhamento Diário</h4>
-            <div className="max-h-[200px] overflow-y-auto rounded-lg border">
+          {/* Tabela dia a dia (tambem e o texto alternativo do grafico) */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Dia a dia</h3>
+            <div className="max-h-[240px] overflow-y-auto rounded-lg border" tabIndex={0} aria-label="Tabela do SLA dia a dia">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 sticky top-0">
-                  <tr>
-                    <th className="text-left p-2 font-medium">Dia</th>
-                    <th className="text-right p-2 font-medium">
-                      SLA Acumulado
-                    </th>
-                    <th className="text-right p-2 font-medium">Status</th>
-                    {hasPreviousData && (
-                      <th className="text-right p-2 font-medium">
-                        Mês Anterior
-                      </th>
-                    )}
+                <thead className="sticky top-0 bg-muted">
+                  <tr className="text-xs text-muted-foreground">
+                    <th scope="col" className="p-2.5 text-left font-semibold">Dia</th>
+                    <th scope="col" className="p-2.5 text-right font-semibold">SLA acumulado</th>
+                    <th scope="col" className="p-2.5 text-right font-semibold">Situação</th>
+                    {hasPreviousData && <th scope="col" className="p-2.5 text-right font-semibold">Mês anterior</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {currentDataRows.map((row) => {
-                    const scheme =
-                      row.current != null
-                        ? getSLAColorScheme(row.current)
-                        : null;
+                    const scheme = row.current != null ? getSLAColorScheme(row.current) : null;
                     return (
-                      <tr
-                        key={row.day}
-                        className="border-t border-border hover:bg-muted/30"
-                      >
-                        <td className="p-2">{row.day}</td>
-                        <td
-                          className={cn(
-                            "p-2 text-right font-medium",
-                            scheme?.textClass
-                          )}
-                        >
-                          {row.current != null
-                            ? `${formatSLA(row.current)}%`
-                            : "—"}
+                      <tr key={row.day} className="border-t transition-colors duration-fast hover:bg-muted/50">
+                        <td className="p-2.5 font-data">{row.day}</td>
+                        <td className="p-2.5 text-right font-data font-medium">
+                          {row.current != null ? `${formatSLA(row.current)}%` : "—"}
                         </td>
-                        <td className="p-2 text-right">
-                          {scheme ? (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs",
-                                scheme.textClass,
-                                scheme.borderClass
-                              )}
-                            >
-                              {scheme.labelPt}
-                            </Badge>
-                          ) : (
-                            "—"
-                          )}
+                        <td className="p-2.5 text-right">
+                          {scheme ? <StatusBadge tone={levelTone[scheme.level] ?? "neutral"}>{scheme.labelPt}</StatusBadge> : "—"}
                         </td>
                         {hasPreviousData && (
-                          <td className="p-2 text-right text-muted-foreground">
-                            {row.previous != null
-                              ? `${formatSLA(row.previous)}%`
-                              : "—"}
+                          <td className="p-2.5 text-right font-data text-muted-foreground">
+                            {row.previous != null ? `${formatSLA(row.previous)}%` : "—"}
                           </td>
                         )}
                       </tr>
@@ -601,14 +523,8 @@ export function SLAEvolutionChart({
           </div>
         </>
       ) : (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <Package className="h-16 w-16 mb-4 opacity-30" />
-          <p className="text-sm font-medium">
-            Nenhum dado encontrado para este período
-          </p>
-          <p className="text-xs mt-1">Tente ajustar os filtros selecionados</p>
-        </div>
+        emptyState
       )}
-    </Card>
+    </ReportCard>
   );
 }

@@ -1,31 +1,26 @@
-import { useEffect, useState } from "react";
-import { brandAvatar } from "@/lib/avatar";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, type ReactNode } from "react";
+import { Download, Eye, FileText, KeyRound, Lock, MapPin, MessageCircle, Pencil, Trash2 } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Download, Eye, FileText, MessageCircle, MapPin, Truck, Star, TrendingUp, TrendingDown, Pencil, Trash2, Loader2, AlertTriangle, Power, PowerOff, User, Lock } from "lucide-react";
-import { Driver } from "@/contexts/LogisticsContext";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ConfirmDialog, EmptyState, StatusBadge, toneText } from "@/components/patterns";
+import type { Driver } from "@/contexts/LogisticsContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
+import { supabase } from "@/integrations/supabase/client";
+import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
-import { openWhatsApp } from "@/lib/whatsapp";
+import { ACCOUNT_TYPES, DRIVER_DOCUMENT_LABELS, PENDING_PLATE, slaTone, type DriverDocumentKey } from "./driverConfig";
+import { DataList, DataRow, DriverAvatar, DriverStatusBadge, IconAction, PlateTag } from "./DriverBits";
+import { driverDbId, useDriverQuickActions, type DriverRecord } from "./useDriverQuickActions";
 
 interface DriverDetailSheetProps {
   driver: Driver | null;
@@ -37,38 +32,45 @@ interface DriverDetailSheetProps {
   onStatusChanged?: () => void;
 }
 
-// Status config matching database values: active = Disponível, in_route = Em Rota, inactive = Inativo
-const statusConfig: Record<string, { label: string; className: string }> = {
-  active: { label: "Disponível", className: "bg-success/20 text-success border-success/30" },
-  in_route: { label: "Em Rota", className: "bg-info/20 text-info border-info/30" },
-  inactive: { label: "Inativo", className: "bg-muted text-muted-foreground border-muted" },
-  pending_approval: { label: "Pendente", className: "bg-warning/20 text-warning border-warning/30" },
-};
-
 const DRIVER_DOCUMENTS_BUCKET = "driver-documents";
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
 
-type DriverDocumentType = "cnh" | "addressProof" | "vehicleDoc" | "trailerDoc";
-
 interface DriverDocument {
   id: string;
-  document_type: DriverDocumentType;
+  document_type: DriverDocumentKey;
   file_name: string;
   file_path: string;
   created_at: string;
   url?: string;
 }
 
-const documentLabels: Record<DriverDocumentType, string> = {
-  cnh: "CNH",
-  addressProof: "Comprovante de Endereço",
-  vehicleDoc: "Documento do Veículo (CRLV)",
-  trailerDoc: "Documento da Carreta",
-};
+function SheetSection({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, onDeleteDriver, onStatusChanged }: DriverDetailSheetProps) {
-  const navigate = useNavigate();
+function MiniStat({ label, children, hint }: { label: string; children: ReactNode; hint?: ReactNode }) {
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="mt-1 font-data text-xl font-semibold leading-tight text-foreground">{children}</div>
+      {hint && <div className="mt-2">{hint}</div>}
+    </div>
+  );
+}
+
+export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEditDriver, onDeleteDriver, onStatusChanged }: DriverDetailSheetProps) {
+  const driver = baseDriver as DriverRecord | null;
   const { roles } = useAuth();
+  const { callOnWhatsApp, showOnMap } = useDriverQuickActions();
+  const [tab, setTab] = useState("resumo");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isInactivateDialogOpen, setIsInactivateDialogOpen] = useState(false);
@@ -77,6 +79,12 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const { canViewDocuments } = useDriverDocumentsAccess();
 
+  // Cada motorista abre no resumo.
+  const openDriverId = open && driver ? driverDbId(driver) : null;
+  useEffect(() => {
+    if (openDriverId) setTab("resumo");
+  }, [openDriverId]);
+
   useEffect(() => {
     async function loadDocuments() {
       if (!open || !driver) {
@@ -84,7 +92,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
         return;
       }
 
-      const driverId = (driver as any)._dbId || driver.id.toString();
+      const driverId = driverDbId(driver);
       setIsLoadingDocuments(true);
       try {
         const { data, error } = await (supabase as any)
@@ -111,7 +119,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
               ...document,
               url: signedError ? undefined : signedData?.signedUrl,
             };
-          })
+          }),
         );
 
         setDocuments(docsWithUrls);
@@ -129,7 +137,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
   const openDocument = (document: DriverDocument) => {
     if (!document.url) {
       toast({
-        title: "Documento indisponivel",
+        title: "Documento indisponível",
         description: "Não foi possível gerar o link deste arquivo.",
         variant: "destructive",
       });
@@ -158,53 +166,44 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
   if (!driver) return null;
 
   const canManageDriver = roles.includes("admin") || roles.includes("fleet_manager");
-  const status = statusConfig[driver.status] || statusConfig.inactive;
   const driverSLA = driver.sla ?? null;
   const isInRoute = driver.status === "in_route";
   const isInactive = driver.status === "inactive";
+  const usesCompanyVehicle = driver.isOwnFleet && (!driver.vehiclePlate || driver.vehiclePlate === PENDING_PLATE);
+  const completion = driver.totalDeliveries > 0 ? (driver.successfulDeliveries / driver.totalDeliveries) * 100 : 0;
+  const hasBankData = Boolean(driver.banco || driver.agencia || driver.conta || driver.chave_pix);
 
-  const handleWhatsApp = () => {
-    if (!openWhatsApp(driver.phone)) {
-      toast({ title: "Telefone inválido", description: "Cadastre o telefone do motorista com DDD.", variant: "destructive" });
-    }
-  };
-
-  const handleLocateOnMap = () => {
-    const driverId = (driver as any)._dbId || driver.id.toString();
-
-    // Navigate to dashboard and pass driver ID to focus on map
+  const handleShowOnMap = () => {
     onOpenChange(false);
-    navigate(`/?focusDriver=${driverId}`);
+    showOnMap(driver);
   };
 
-  // Handle toggle status (inactivate/reactivate)
+  // Inativar pede confirmacao; reativar e direto.
   const handleToggleStatus = async () => {
     if (!canManageDriver) return;
 
-    // Safety check: cannot inactivate if driver is in_route
+    // Em rota nao pode ser inativado.
     if (isInRoute) {
       toast({
-        title: "Operação Bloqueada",
-        description: "Não é possível inativar um motorista que está Em Rota. Finalize o romaneio primeiro.",
+        title: "Não dá para inativar agora",
+        description: "O motorista está em rota. Finalize o romaneio primeiro.",
         variant: "destructive",
       });
       return;
     }
 
-    // Show confirmation dialog for inactivation
     if (!isInactive) {
       setIsInactivateDialogOpen(true);
       return;
     }
 
-    // Reactivate directly
     await executeStatusToggle();
   };
 
   const executeStatusToggle = async () => {
     setIsTogglingStatus(true);
     try {
-      const driverId = (driver as any)._dbId || driver.id.toString();
+      const driverId = driverDbId(driver);
       const newStatus = isInactive ? "active" : "inactive";
 
       const { data, error } = await supabase
@@ -218,10 +217,10 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
       if (!data) throw new Error("Você não tem permissão para esta tarefa");
 
       toast({
-        title: isInactive ? "Motorista Reativado" : "Motorista Inativado",
-        description: isInactive 
+        title: isInactive ? "Motorista reativado" : "Motorista inativado",
+        description: isInactive
           ? `${driver.name} está disponível para novos romaneios.`
-          : `${driver.name} foi removido das listas de seleção.`,
+          : `${driver.name} saiu das listas de seleção.`,
       });
 
       setIsInactivateDialogOpen(false);
@@ -230,8 +229,8 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     } catch (err: any) {
       console.error("Error toggling driver status:", err);
       toast({
-        title: "Erro",
-        description: err.message || "Não foi possível alterar o status.",
+        title: "Não foi possível alterar a situação",
+        description: err.message || "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -244,37 +243,33 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
 
     setIsDeleting(true);
     try {
-      // Use the _dbId (database UUID) if available, otherwise try driver.id
-      const driverId = (driver as any)._dbId || driver.id.toString();
-
-      // Call the RPC to delete driver completely
+      // Remove o motorista e tudo ligado a ele (RPC).
       const { data, error } = await supabase.rpc("delete_driver_complete", {
-        p_driver_id: driverId,
+        p_driver_id: driverDbId(driver),
       });
 
       if (error) {
         console.error("RPC delete_driver_complete error:", error);
         toast({
-          title: "Erro ao remover",
-          description: error.message || "Não foi possível remover o motorista.",
+          title: "Não foi possível excluir",
+          description: error.message || "Tente de novo em instantes.",
           variant: "destructive",
         });
         return;
       }
 
-      // Check RPC response
       const result = data as { success: boolean; error?: string; message?: string };
       if (!result.success) {
         toast({
-          title: "Erro ao remover",
-          description: result.error || "Não foi possível remover o motorista.",
+          title: "Não foi possível excluir",
+          description: result.error || "Tente de novo em instantes.",
           variant: "destructive",
         });
         return;
       }
 
       toast({
-        title: "Motorista Removido",
+        title: "Motorista excluído",
         description: `${driver.name} foi removido do sistema.`,
       });
 
@@ -284,8 +279,8 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     } catch (err: any) {
       console.error("Error deleting driver:", err);
       toast({
-        title: "Erro ao remover",
-        description: err.message || "Não foi possível remover o motorista.",
+        title: "Não foi possível excluir",
+        description: err.message || "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -295,333 +290,292 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader className="text-left pb-4">
-          {/* Header with Photo and Name */}
-          <div className="flex items-center gap-4">
-            <img 
-              src={brandAvatar(driver.photo)} 
-              alt={driver.name}
-              className="h-20 w-20 rounded-full object-cover border-2 border-primary/30 shadow-lg"
-            />
-            <div className="flex-1">
-              <SheetTitle className="text-xl font-heading">{driver.name}</SheetTitle>
-              <Badge variant="outline" className={cn("mt-2", status.className)}>
-                {status.label}
-              </Badge>
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+        <SheetHeader className="shrink-0 gap-4 border-b p-5 pr-5 sm:p-6 sm:pr-6">
+          <div className="flex items-center gap-4 pr-9">
+            <DriverAvatar photo={driver.photo} className="h-16 w-16 border-2 border-primary/25 shadow-sm" />
+            <div className="min-w-0">
+              <SheetTitle className="break-words text-xl">{driver.name}</SheetTitle>
+              <SheetDescription asChild>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <DriverStatusBadge status={driver.status} />
+                  <Badge variant="secondary">{driver.isOwnFleet ? "CLT (da casa)" : "Agregado"}</Badge>
+                </div>
+              </SheetDescription>
             </div>
           </div>
+          {canManageDriver && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" size="sm" onClick={() => callOnWhatsApp(driver)}>
+                <MessageCircle aria-hidden="true" />
+                <span className="sm:hidden">WhatsApp</span>
+                <span className="hidden sm:inline">Chamar no WhatsApp</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleShowOnMap}>
+                <MapPin aria-hidden="true" />
+                Ver no mapa
+              </Button>
+            </div>
+          )}
         </SheetHeader>
 
-        <div className="space-y-6">
-          {/* Action Buttons */}
-          {canManageDriver && (
-          <div className="grid grid-cols-2 gap-2">
-            <Button 
-              onClick={handleWhatsApp}
-              className="bg-success hover:bg-success/90 text-success-foreground gap-1 h-10 text-sm font-medium"
-            >
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp
-            </Button>
-            
-            <Button 
-              onClick={handleLocateOnMap}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1 h-10 text-sm font-medium btn-neon"
-            >
-              <MapPin className="h-4 w-4" />
-              Localizar
-            </Button>
-          </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button 
-              onClick={() => onEditDriver?.(driver)}
-              variant="outline"
-              className="gap-1 h-10 text-sm font-medium"
-            >
-              <Pencil className="h-4 w-4" />
-              Editar
-            </Button>
-
-            <Button 
-              onClick={() => setIsDeleteDialogOpen(true)}
-              variant="outline"
-              className="gap-1 h-10 text-sm font-medium text-destructive border-destructive/30 hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" />
-              Excluir
-            </Button>
+        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 px-5 pt-4 sm:px-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="resumo">Resumo</TabsTrigger>
+              <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="documentos">
+                Documentos
+                {documents.length > 0 && (
+                  <span className="font-data text-xs text-muted-foreground">{documents.length}</span>
+                )}
+              </TabsTrigger>
+            </TabsList>
           </div>
 
-          {/* Status Toggle - Inativate/Reactivate */}
-          {canManageDriver && (
-          <div className={cn(
-            "flex items-center justify-between p-3 rounded-lg border",
-            isInRoute ? "bg-muted/30 border-muted" : isInactive ? "bg-warning/10 border-warning/30" : "bg-secondary/50 border-border"
-          )}>
-            <div className="flex items-center gap-2">
-              {isInactive ? (
-                <PowerOff className="h-4 w-4 text-warning" />
-              ) : (
-                <Power className="h-4 w-4 text-success" />
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 sm:px-6">
+            <TabsContent value="resumo" className="space-y-6">
+              <SheetSection title="Desempenho nos últimos 6 meses">
+                <div className={cn("grid gap-3", driver.isOwnFleet ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
+                  <MiniStat label="No prazo (SLA)">
+                    {driverSLA === null ? (
+                      <span className="text-sm font-normal text-muted-foreground">Sem entregas</span>
+                    ) : (
+                      <span className={toneText[slaTone(driverSLA)]}>{formatSLA(driverSLA)}%</span>
+                    )}
+                  </MiniStat>
+                  <MiniStat
+                    label="Entregues"
+                    hint={
+                      <Progress
+                        value={completion}
+                        className="h-1.5"
+                        aria-label={`${driver.successfulDeliveries} de ${driver.totalDeliveries} entregas concluídas`}
+                      />
+                    }
+                  >
+                    {driver.successfulDeliveries}
+                    <span className="text-sm font-normal text-muted-foreground"> de {driver.totalDeliveries}</span>
+                  </MiniStat>
+                  {!driver.isOwnFleet && (
+                    <MiniStat label="A receber">
+                      <span className="text-base">{formatCurrency(driver.balance ?? 0)}</span>
+                    </MiniStat>
+                  )}
+                </div>
+              </SheetSection>
+
+              <SheetSection title="Veículo">
+                {usesCompanyVehicle ? (
+                  <p className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+                    Motorista da casa: escolhe um veículo da empresa ao começar cada rota.
+                  </p>
+                ) : (
+                  <DataList>
+                    <DataRow label="Tipo">{driver.vehicleType || "Não informado"}</DataRow>
+                    <DataRow label="Placa">
+                      <PlateTag plate={driver.vehiclePlate} />
+                    </DataRow>
+                  </DataList>
+                )}
+              </SheetSection>
+
+              {canManageDriver && (
+                <SheetSection title="Situação">
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-4 rounded-lg border p-4",
+                      isInactive ? "border-warning/30 bg-warning/5" : "bg-card",
+                    )}
+                  >
+                    <div className="space-y-0.5">
+                      <Label htmlFor="driver-active-switch" className="cursor-pointer">
+                        {isInactive ? "Motorista inativo" : "Motorista ativo"}
+                      </Label>
+                      <p id="driver-active-hint" className="text-xs text-muted-foreground">
+                        {isInRoute
+                          ? "Em rota: não pode ser inativado agora."
+                          : isInactive
+                            ? "Não aparece na escolha de motorista dos romaneios."
+                            : "Aparece na escolha de motorista dos romaneios."}
+                      </p>
+                    </div>
+                    <Switch
+                      id="driver-active-switch"
+                      aria-describedby="driver-active-hint"
+                      checked={!isInactive}
+                      onCheckedChange={handleToggleStatus}
+                      disabled={isInRoute || isTogglingStatus}
+                    />
+                  </div>
+                </SheetSection>
               )}
-              <div>
-                <Label className="text-sm font-medium">
-                  {isInactive ? "Motorista Inativo" : "Motorista Ativo"}
-                </Label>
-                {isInRoute && (
-                  <p className="text-xs text-muted-foreground">
-                    Em rota - não pode ser inativado
+
+              <SheetSection title="Acesso ao aplicativo">
+                <DataList>
+                  <DataRow label="Login do app">
+                    {driver.appLogin ? (
+                      <span className="inline-flex flex-col items-end gap-1">
+                        <StatusBadge tone="success">Criado</StatusBadge>
+                        <span className="break-all font-data text-xs font-normal text-muted-foreground">{driver.appLogin}</span>
+                      </span>
+                    ) : (
+                      <StatusBadge tone="neutral">Não criado</StatusBadge>
+                    )}
+                  </DataRow>
+                  <DataRow label="E-mail para avisos">
+                    <span className="break-all">{driver.email || "Não informado"}</span>
+                  </DataRow>
+                </DataList>
+                {!driver.appLogin && (
+                  <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <KeyRound className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    O login do aplicativo é criado no cadastro do motorista.
                   </p>
                 )}
-              </div>
-            </div>
-            <Switch
-              checked={!isInactive}
-              onCheckedChange={handleToggleStatus}
-              disabled={isInRoute || isTogglingStatus}
-              className={cn(
-                isInRoute && "opacity-50 cursor-not-allowed"
-              )}
-            />
-          </div>
-          )}
+              </SheetSection>
+            </TabsContent>
 
-          <Separator />
+            <TabsContent value="dados" className="space-y-6">
+              <SheetSection title="Dados pessoais">
+                <DataList>
+                  <DataRow label="Nome">{driver.name}</DataRow>
+                  <DataRow label="CPF" mono>
+                    {driver.cpf || "Não informado"}
+                  </DataRow>
+                  <DataRow label="Telefone" mono>
+                    {driver.phone || "Não informado"}
+                  </DataRow>
+                  <DataRow label="E-mail">
+                    <span className="break-all">{driver.email || "Não informado"}</span>
+                  </DataRow>
+                  <DataRow label="CNH" mono>
+                    {driver.cnh || "Não informada"}
+                  </DataRow>
+                  <DataRow label="Categoria da CNH">{driver.cnh_category || "Não informada"}</DataRow>
+                </DataList>
+              </SheetSection>
 
-          {/* Vehicle Information */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-              <Truck className="h-4 w-4" />
-              INFORMAÇÕES DO VEÍCULO
-            </h3>
-            <div className="bg-secondary/50 rounded-lg px-4 divide-y divide-border/70">
-              <div className="flex items-center justify-between gap-4 py-4">
-                <span className="text-muted-foreground">Placa</span>
-                <span className="font-mono font-semibold text-right break-all">
-                  {driver.vehiclePlate || "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-4 py-4">
-                <span className="text-muted-foreground">Modelo</span>
-                <span className="font-medium text-right">{driver.vehicleType || "-"}</span>
-              </div>
-              <div className="flex items-center justify-between gap-4 py-4">
-                <span className="text-muted-foreground">Tipo</span>
-                <Badge variant="secondary" className="shrink-0">
-                  {driver.vehicleType || "-"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-
-          {/* Performance / SLA */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-              <Star className="h-4 w-4" />
-              DESEMPENHO
-            </h3>
-            <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">SLA (6 meses)</span>
-                {driverSLA === null ? (
-                  <span className="text-sm text-muted-foreground">Sem entregas finalizadas</span>
+              <SheetSection title="Dados para pagamento">
+                {hasBankData ? (
+                  <DataList>
+                    <DataRow label="Banco">{driver.banco || "Não informado"}</DataRow>
+                    <DataRow label="Agência" mono>
+                      {driver.agencia || "Não informada"}
+                    </DataRow>
+                    <DataRow label="Conta" mono>
+                      {driver.conta || "Não informada"}
+                    </DataRow>
+                    <DataRow label="Tipo de conta">
+                      {ACCOUNT_TYPES.find((type) => type.value === driver.tipo_conta)?.label || "Não informado"}
+                    </DataRow>
+                    <DataRow label="Chave PIX">
+                      <span className="break-all">{driver.chave_pix || "Não informada"}</span>
+                    </DataRow>
+                  </DataList>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "font-mono font-bold text-lg",
-                      driverSLA >= 95 ? "text-success" :
-                      driverSLA >= 85 ? "text-warning" : "text-destructive"
-                    )}>
-                      {formatSLA(driverSLA)}%
-                    </span>
-                    {driverSLA >= 95 && <TrendingUp className="h-4 w-4 text-success" />}
-                    {driverSLA < 85 && <TrendingDown className="h-4 w-4 text-destructive" />}
-                  </div>
+                  <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    Nenhum dado de pagamento. Adicione em Editar dados, aba Pagamento.
+                  </p>
                 )}
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Entregues / finalizadas (6 meses)</span>
-                <span className="font-medium font-mono">
-                  {driver.successfulDeliveries}/{driver.totalDeliveries}
-                </span>
-              </div>
-            </div>
-          </div>
+              </SheetSection>
+            </TabsContent>
 
-          {/* Personal Info */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-              <User className="h-4 w-4" />
-              DADOS PESSOAIS
-            </h3>
-            <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Nome</span>
-                <span className="font-medium text-right">{driver.name}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">CPF</span>
-                <span className="font-mono text-right">{driver.cpf || "-"}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Telefone</span>
-                <span className="font-medium text-right">{driver.phone || "-"}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">E-mail</span>
-                <span className="font-medium text-right break-all">{driver.email || "-"}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">CNH</span>
-                <span className="font-mono text-right">{(driver as any).cnh || "-"}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">Categoria CNH</span>
-                <span className="font-medium text-right">{(driver as any).cnh_category || "-"}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Driver Documents */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              DOCUMENTOS
-            </h3>
-            <div className="bg-secondary/50 rounded-lg p-4 space-y-3">
+            <TabsContent value="documentos" className="space-y-4">
+              {!canViewDocuments && (
+                <Alert variant="info">
+                  <Lock aria-hidden="true" />
+                  <AlertDescription>
+                    Por segurança, só a equipe Na Hora abre os arquivos. Você vê a lista e pode enviar novos em Editar dados.
+                  </AlertDescription>
+                </Alert>
+              )}
               {isLoadingDocuments ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Carregando documentos...
+                <div role="status" aria-label="Carregando documentos" className="space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
                 </div>
               ) : documents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum documento enviado.</p>
+                <EmptyState
+                  compact
+                  icon={FileText}
+                  title="Nenhum documento enviado"
+                  description="Envie CNH, comprovante de endereço e documento do veículo em Editar dados."
+                />
               ) : (
-                documents.map((document, index) => (
-                  <div key={document.id}>
-                    {index > 0 && <Separator className="mb-3" />}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">
-                          {documentLabels[document.document_type] || document.document_type}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {document.file_name}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Enviado em {new Date(document.created_at).toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                      {canViewDocuments ? (
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Abrir documento"
-                            onClick={() => openDocument(document)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Baixar documento"
-                            onClick={() => downloadDocument(document)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                <ul className="divide-y rounded-lg border bg-card">
+                  {documents.map((document) => {
+                    const label = DRIVER_DOCUMENT_LABELS[document.document_type] || document.document_type;
+                    return (
+                      <li key={document.id} className="flex items-center gap-3 px-4 py-3">
+                        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <FileText className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{label}</p>
+                          <p className="truncate text-xs text-muted-foreground" title={document.file_name}>
+                            {document.file_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Enviado em {new Date(document.created_at).toLocaleDateString("pt-BR")}
+                          </p>
                         </div>
-                      ) : (
-                        <Badge variant="outline" className="shrink-0 gap-1 text-[10px] text-muted-foreground" title="Somente o Super Admin pode abrir os documentos do motorista">
-                          <Lock className="h-3 w-3" />
-                          Restrito ao Super Admin
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))
+                        {canViewDocuments ? (
+                          <div className="flex shrink-0 items-center gap-1">
+                            <IconAction icon={Eye} label={`Abrir ${label}`} onClick={() => openDocument(document)} />
+                            <IconAction icon={Download} label={`Baixar ${label}`} onClick={() => downloadDocument(document)} />
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="shrink-0 text-muted-foreground">
+                            <Lock aria-hidden="true" />
+                            Restrito
+                          </Badge>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
-            </div>
+            </TabsContent>
           </div>
+        </Tabs>
+
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-popover px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          {canManageDriver ? (
+            <Button variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+              <Trash2 aria-hidden="true" />
+              Excluir
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Button onClick={() => onEditDriver?.(driver)}>
+            <Pencil aria-hidden="true" />
+            Editar dados
+          </Button>
         </div>
       </SheetContent>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Remover Motorista
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja remover <strong>{driver.name}</strong> do sistema?
-              Esta ação não pode ser desfeita e removerá todos os dados associados.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteDriver}
-              className="bg-destructive hover:bg-destructive/90"
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Removendo...
-                </>
-              ) : (
-                "Remover Motorista"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        tone="danger"
+        title={`Excluir ${driver.name}?`}
+        description="O motorista e os dados ligados a ele saem do sistema. Não dá para desfazer."
+        confirmLabel={isDeleting ? "Excluindo..." : "Excluir motorista"}
+        loading={isDeleting}
+        onConfirm={handleDeleteDriver}
+      />
 
-      {/* Inactivate Confirmation Dialog */}
-      <AlertDialog open={isInactivateDialogOpen} onOpenChange={setIsInactivateDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <PowerOff className="h-5 w-5 text-warning" />
-              Inativar Motorista
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja inativar <strong>{driver.name}</strong>?
-              <br /><br />
-              O motorista será removido de todas as listas de seleção para novos romaneios.
-              Você poderá reativá-lo a qualquer momento.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isTogglingStatus}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={executeStatusToggle}
-              className="bg-warning hover:bg-warning/90 text-warning-foreground"
-              disabled={isTogglingStatus}
-            >
-              {isTogglingStatus ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Inativando...
-                </>
-              ) : (
-                "Inativar Motorista"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isInactivateDialogOpen}
+        onOpenChange={setIsInactivateDialogOpen}
+        title={`Inativar ${driver.name}?`}
+        description="O motorista sai das listas de seleção dos novos romaneios. Você pode reativar quando quiser."
+        confirmLabel={isTogglingStatus ? "Inativando..." : "Inativar motorista"}
+        loading={isTogglingStatus}
+        onConfirm={executeStatusToggle}
+      />
     </Sheet>
   );
 }

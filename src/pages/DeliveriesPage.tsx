@@ -1,92 +1,36 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
+import { useQueryAction } from "@/hooks/useQueryAction";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { endOfDay, format, startOfDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { useInvoicesDB } from "@/hooks/useInvoicesDB";
 import { getInvoiceEventDate } from "@/lib/reportFilters";
 import { useManifestsDB, DBManifest } from "@/hooks/useManifestsDB";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  CardsSkeleton,
+  ConfirmDialog,
+  EmptyState,
+  ListSkeleton,
+  PageHeader,
+} from "@/components/patterns";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Package,
-  Upload,
-  FileText,
-  Route,
-  Search,
-  MoreVertical,
   AlertTriangle,
-  RotateCcw,
-  CheckCircle2,
-  Clock,
-  Truck,
-  Warehouse,
-  Filter,
-  Calendar,
-  CalendarDays,
-  CalendarRange,
-  CalendarIcon,
-  MessageSquare,
-  Pencil,
-  RefreshCw,
-  Lock,
-  History,
-  Unlink,
   ClipboardList,
-  Plus,
+  FileText,
   FileUp,
+  Lock,
+  Package,
+  Route,
+  SearchX,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import { FreightDialog, FreightData } from "@/components/deliveries/FreightDialog";
 import { EditObservationDialog } from "@/components/deliveries/EditObservationDialog";
 import { EditDeliveryDialog } from "@/components/deliveries/EditDeliveryDialog";
@@ -97,59 +41,19 @@ import { AddToManifestDialog } from "@/components/deliveries/AddToManifestDialog
 import { ManifestsTabDB } from "@/components/deliveries/ManifestsTabDB";
 import { DeliveryDetailSheet } from "@/components/deliveries/DeliveryDetailSheet";
 import { XMLImportDialog } from "@/components/deliveries/XMLImportDialog";
-import { ManifestRecord, manifestStore } from "@/stores/manifestStore";
-import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
-import { buildFullAddress } from "@/lib/nfeXmlParser";
-import { RegionFilter } from "@/components/deliveries/RegionFilter";
-import { calculateRegiaoLogistica, getRegionColor } from "@/lib/cepRegionMapping";
 import { DeleteInvoiceDialog } from "@/components/deliveries/DeleteInvoiceDialog";
 import { ConfirmDeliveryDialog } from "@/components/deliveries/ConfirmDeliveryDialog";
 import { DeliveryKPICards, KPIStatusFilter } from "@/components/deliveries/DeliveryKPICards";
-import { Trash2 } from "lucide-react";
+import { DeliveriesToolbar, ActiveFilterChips, describePeriod, type FilterChip } from "@/components/deliveries/DeliveriesToolbar";
+import { InvoiceList } from "@/components/deliveries/InvoiceList";
+import { SelectionBar } from "@/components/deliveries/SelectionBar";
+import { DELIVERY_STATUS } from "@/components/deliveries/status";
+import type { Delivery, InvoiceActionHandlers, TimeFilter } from "@/components/deliveries/types";
+import { ManifestRecord } from "@/stores/manifestStore";
+import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
+import { buildFullAddress } from "@/lib/nfeXmlParser";
+import { calculateRegiaoLogistica } from "@/lib/cepRegionMapping";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-// Histórico de romaneios anteriores
-interface ManifestHistoryEntry {
-  manifestId: string;
-  driverName: string;
-  vehicleType: string;
-  date: Date;
-  reason: string; // Motivo do re-romaneamento (ex: "Ocorrência - Cliente ausente")
-}
-
-interface Delivery {
-  id: number;
-  nfe: string;
-  recipient: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  phone?: string;
-  driver: string | null;
-  status: "pending" | "in_transit" | "delivered" | "delayed" | "occurrence" | "returning" | "returned";
-  scheduledTime: string;
-  scheduledDate: Date;
-  weight: string;
-  value: string;
-  selected?: boolean;
-  observation?: string;
-  manifestId?: string; // ID do romaneio se já foi romaneada
-  manifestHistory?: ManifestHistoryEntry[]; // Histórico de romaneios anteriores
-  occurrenceType?: string; // Tipo de ocorrência cadastrada
-  lastUpdatedBy?: string; // Usuário que fez última alteração
-  lastUpdatedAt?: Date; // Data/hora da última alteração
-  receivedBy?: string; // Nome do recebedor
-  receivedAt?: Date; // Data/hora da entrega
-  receiverDocument?: string; // Documento do recebedor
-  eventDate?: Date; // Entrega/ocorrencia finalizada ou importacao
-  dbId?: string; // UUID da NF no banco
-  manifestUuid?: string; // UUID do romaneio
-  addressStreet?: string; // Logradouro sem numero (edicao)
-  addressNumber?: string;
-  regiao_logistica?: string;
-}
 
 // NFs ainda em operacao aparecem em qualquer periodo rapido.
 const OPEN_STATUSES = new Set<string>(["pending", "in_transit", "delayed", "occurrence", "returning"]);
@@ -157,46 +61,37 @@ const OPEN_STATUSES = new Set<string>(["pending", "in_transit", "delayed", "occu
 // Empty initial state - all data comes from database
 const initialDeliveries: Delivery[] = [];
 
-// Manual da marca: status com cor funcional em contorno + texto (nunca so cor) e
-// tabela sem linhas pintadas; atraso/ocorrencia ganham so uma barra lateral.
-const statusConfig = {
-  pending: { label: "Pendente", icon: Clock, color: "bg-idle/10 text-idle border-idle/40", rowColor: "" },
-  in_transit: { label: "Em Rota", icon: Truck, color: "bg-info/10 text-info border-info/40", rowColor: "" },
-  delivered: { label: "Entregue", icon: CheckCircle2, color: "bg-success/10 text-success border-success/40", rowColor: "" },
-  delayed: { label: "Atrasado", icon: AlertTriangle, color: "bg-destructive/10 text-destructive border-destructive/40", rowColor: "shadow-[inset_3px_0_0_hsl(var(--destructive))]" },
-  occurrence: { label: "Ocorrência", icon: AlertTriangle, color: "bg-warning/10 text-warning border-warning/40", rowColor: "shadow-[inset_3px_0_0_hsl(var(--warning))]" },
-  returning: { label: "Em Devolução", icon: RotateCcw, color: "bg-info/10 text-info border-info/40", rowColor: "" },
-  returned: { label: "Devolvido", icon: Warehouse, color: "bg-secondary text-foreground border-border", rowColor: "" },
-};
-
-type TimeFilter = "daily" | "weekly" | "monthly";
 type StatusFilter = "all" | Delivery["status"] | "db_pending";
+type DeliveriesTab = "nfs" | "romaneios";
 
 export default function DeliveriesPage() {
-  const { checkFeatureAccess } = useFeatureAccess();
+  const { checkFeatureAccess, isLoading: isPlanLoading } = useFeatureAccess();
   const batchAccess = checkFeatureAccess('batch_import');
+  const isMobile = useIsMobile();
   // Local state for mock data compatibility
   const [localDeliveries, setLocalDeliveries] = useState<Delivery[]>(initialDeliveries);
   // Selection state for DB invoices (by UUID)
   const [selectedDbIds, setSelectedDbIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"nfs" | "romaneios">("nfs");
+  // URL params for filter
+  const [searchParams, setSearchParams] = useSearchParams();
+  // "?tab=romaneios" abre direto na aba de romaneios (busca, alertas, links).
+  const [activeTab, setActiveTab] = useState<DeliveriesTab>(searchParams.get("tab") === "romaneios" ? "romaneios" : "nfs");
   const [manifestSearch, setManifestSearch] = useState<{ term: string; nonce: number } | null>(null);
   const [isXmlDialogOpen, setIsXmlDialogOpen] = useState(false);
   const [isFreightDialogOpen, setIsFreightDialogOpen] = useState(false);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
   const [periodFilter, setPeriodFilter] = useState<{ from?: Date; to?: Date }>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
-  
+
   // Observation dialog state
   const [isObservationDialogOpen, setIsObservationDialogOpen] = useState(false);
   const [selectedDeliveryForObservation, setSelectedDeliveryForObservation] = useState<Delivery | null>(null);
-  
+
   // Edit delivery dialog state
   const [isEditDeliveryDialogOpen, setIsEditDeliveryDialogOpen] = useState(false);
   const [selectedDeliveryForEdit, setSelectedDeliveryForEdit] = useState<Delivery | null>(null);
-  
+
   // Print preview state
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [manifestForPreview, setManifestForPreview] = useState<ManifestRecord | null>(null);
@@ -205,6 +100,7 @@ export default function DeliveriesPage() {
   // Re-route confirmation dialog state
   const [isReRouteDialogOpen, setIsReRouteDialogOpen] = useState(false);
   const [deliveryForReRoute, setDeliveryForReRoute] = useState<Delivery | null>(null);
+  const [isReRouting, setIsReRouting] = useState(false);
 
   // Occurrence dialog state
   const [isOccurrenceDialogOpen, setIsOccurrenceDialogOpen] = useState(false);
@@ -240,8 +136,9 @@ export default function DeliveriesPage() {
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
 
   // Database hooks for real persistence
-  const { 
-    invoices: dbInvoices, 
+  const {
+    invoices: dbInvoices,
+    isLoading: isLoadingInvoices,
     removeFromManifest: dbRemoveFromManifest,
     assignToManifest: dbAssignToManifest,
     refetch: refetchInvoices,
@@ -249,15 +146,13 @@ export default function DeliveriesPage() {
     updateInvoice: dbUpdateInvoice,
     updateInvoiceStatus: dbUpdateInvoiceStatus
   } = useInvoicesDB();
-  const { 
+  const {
     manifests: dbManifests,
     removeInvoiceFromManifest: dbRemoveInvoiceFromManifest,
     updateManifestTotals: dbUpdateManifestTotals,
     addInvoiceToManifest: dbAddInvoiceToManifest,
   } = useManifestsDB();
 
-  // URL params for filter
-  const [searchParams, setSearchParams] = useSearchParams();
   const urlFilter = searchParams.get('filter');
 
   // Busca geral do topo: "?q=" (e "?tab=romaneios" para romaneio).
@@ -272,6 +167,23 @@ export default function DeliveriesPage() {
     }
   }, ["tab"]);
   const urlStatus = searchParams.get('status');
+
+  // Busca (Ctrl K) > "Importar notas": abre a importacao de XML.
+  useQueryAction(
+    "import",
+    () => {
+      setActiveTab("nfs");
+      if (batchAccess.allowed) {
+        setIsXmlDialogOpen(true);
+      } else {
+        toast({
+          title: "Importação de notas indisponível no seu plano",
+          description: `A importação em lote faz parte do plano ${batchAccess.upgradePlanLabel}.`,
+        });
+      }
+    },
+    !isPlanLoading,
+  );
 
   // "?filter=unrouted" (atalho do dashboard): guarda o filtro na tela. Antes o
   // parametro era apagado na hora e o filtro nunca chegava a ser aplicado.
@@ -300,6 +212,22 @@ export default function DeliveriesPage() {
     } else {
       newParams.set('status', newFilter);
     }
+    setSearchParams(newParams, { replace: true });
+  };
+
+  // Link com "?tab=romaneios" com a tela ja aberta (alertas, busca).
+  const urlTab = searchParams.get("tab");
+  useEffect(() => {
+    if (urlTab === "romaneios") setActiveTab("romaneios");
+  }, [urlTab]);
+
+  // Aba atual fica na URL ("?tab=romaneios"): recarregar ou voltar mantem a aba.
+  const handleTabChange = (value: string) => {
+    const tab = value as DeliveriesTab;
+    setActiveTab(tab);
+    const newParams = new URLSearchParams(searchParams);
+    if (tab === "romaneios") newParams.set("tab", "romaneios");
+    else newParams.delete("tab");
     setSearchParams(newParams, { replace: true });
   };
 
@@ -367,17 +295,6 @@ export default function DeliveriesPage() {
     // Always use DB data as source of truth
     return dbDeliveries;
   }, [dbDeliveries]);
-
-  // Wrapper to maintain API compatibility
-  const setDeliveries = (updater: Delivery[] | ((prev: Delivery[]) => Delivery[])) => {
-    if (dbInvoices.length > 0) {
-      // For DB mode, we only handle selection changes through selectedDbIds
-      // Other changes should go through the DB hooks
-      console.log("DB mode - use DB hooks for updates");
-    } else {
-      setLocalDeliveries(updater as any);
-    }
-  };
 
   const hasPeriodRange = !!periodFilter.from || !!periodFilter.to;
 
@@ -476,13 +393,11 @@ export default function DeliveriesPage() {
       .filter(filterByPeriod)
       .filter(filterByRegion)
       .filter(filterByUnrouted);
-    return Object.keys(statusConfig).reduce((acc, key) => {
+    return Object.keys(DELIVERY_STATUS).reduce((acc, key) => {
       acc[key as Delivery["status"]] = filtered.filter(d => d.status === key).length;
       return acc;
     }, {} as Record<Delivery["status"], number>);
   }, [deliveries, timeFilter, periodFilter, selectedRegions, unroutedOnly]);
-
-  const pendingDeliveries = filteredStats.pending + filteredStats.in_transit;
 
   const handleSelectAll = (checked: boolean) => {
     if (dbInvoices.length > 0) {
@@ -562,8 +477,8 @@ export default function DeliveriesPage() {
   const handleGenerateRomaneio = () => {
     if (selectedCount === 0) {
       toast({
-        title: "Nenhuma entrega selecionada",
-        description: "Selecione pelo menos uma entrega para gerar o romaneio.",
+        title: "Nenhuma nota selecionada",
+        description: "Marque as notas na lista e depois toque em Gerar romaneio.",
         variant: "destructive",
       });
       return;
@@ -575,8 +490,8 @@ export default function DeliveriesPage() {
   const handleOpenBulkDelete = () => {
     if (selectedDeletableDbIds.length === 0) {
       toast({
-        title: "Nenhuma NF elegível",
-        description: "Selecione NFs sem romaneio para excluir.",
+        title: "Nenhuma nota para excluir",
+        description: "Só dá para excluir notas que ainda não estão em romaneio.",
         variant: "destructive",
       });
       return;
@@ -610,16 +525,16 @@ export default function DeliveriesPage() {
       await refetchInvoices();
 
       toast({
-        title: "NFs excluídas",
-        description: `${selectedDeletableDbIds.length} nota(s) fiscal(is) excluída(s) com sucesso.`,
+        title: "Notas excluídas",
+        description: `${selectedDeletableDbIds.length} nota(s) fiscal(is) excluída(s).`,
       });
 
       setIsBulkDeleteDialogOpen(false);
     } catch (error: any) {
       console.error("Error bulk deleting invoices:", error);
       toast({
-        title: "Erro ao excluir NFs",
-        description: error.message || "Não foi possível excluir as notas selecionadas.",
+        title: "Não foi possível excluir as notas",
+        description: error.message || "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -1109,730 +1024,248 @@ export default function DeliveriesPage() {
     });
   };
 
-  const timeFilterOptions = [
-    { value: "daily", label: "Diário", icon: Calendar },
-    { value: "weekly", label: "Semanal", icon: CalendarDays },
-    { value: "monthly", label: "Mensal", icon: CalendarRange },
-  ];
-
-  const timeFilterLabels: Record<TimeFilter, string> = {
-    daily: "Diário",
-    weekly: "Semanal",
-    monthly: "Mensal",
+  // Acoes do menu de cada nota (tabela e cartoes).
+  const invoiceActions: InvoiceActionHandlers = {
+    onEdit: handleOpenEditDelivery,
+    onDetail: handleOpenDetail,
+    onObservation: handleOpenObservation,
+    onAddToManifest: handleOpenAddToManifest,
+    onOccurrence: handleOpenOccurrence,
+    onConfirmDelivery: handleOpenConfirmDelivery,
+    onConfirmReturn: (delivery) => handleConfirmReturn(delivery.id),
+    onRemoveFromManifest: handleOpenRemoveManifest,
+    onReRoute: handleOpenReRoute,
+    onDelete: handleOpenDeleteInvoice,
   };
-  const periodLabel = "Período:";
-  const startLabel = "Início";
-  const endLabel = "Fim";
-  const untilLabel = "até";
-  const clearPeriodLabel = "Limpar período";
+
+  // Botao principal do topo: leva para a aba de notas se preciso.
+  const handleHeaderGenerate = () => {
+    if (activeTab !== "nfs") handleTabChange("nfs");
+    handleGenerateRomaneio();
+  };
+
+  const clearAllFilters = () => {
+    setPeriodFilter({});
+    setSelectedRegions([]);
+    setUnroutedOnly(false);
+    handleStatusFilterChange("all");
+  };
+
+  const filterChips: FilterChip[] = [];
+  if (unroutedOnly) {
+    filterChips.push({ key: "unrouted", label: "Só notas sem romaneio", onRemove: () => setUnroutedOnly(false) });
+  }
+  if (statusFilter !== "all" && statusFilter !== "db_pending") {
+    filterChips.push({
+      key: "status",
+      label: `Status: ${DELIVERY_STATUS[statusFilter]?.label || statusFilter}`,
+      onRemove: () => handleStatusFilterChange("all"),
+    });
+  }
+  if (hasPeriodRange) {
+    filterChips.push({ key: "period", label: describePeriod(periodFilter), onRemove: () => setPeriodFilter({}) });
+  }
+  if (selectedRegions.length > 3) {
+    filterChips.push({ key: "regions", label: `${selectedRegions.length} regiões`, onRemove: () => setSelectedRegions([]) });
+  } else {
+    selectedRegions.forEach((region) =>
+      filterChips.push({
+        key: `region-${region}`,
+        label: region.replace("Interior - ", "").replace("GSP - ", "").replace("SP - ", ""),
+        onRemove: () => setSelectedRegions(selectedRegions.filter((r) => r !== region)),
+      }),
+    );
+  }
+
+  const searching = !!search.trim();
+  const isFirstLoad = isLoadingInvoices && deliveries.length === 0;
+  const hasNoInvoices = !isLoadingInvoices && deliveries.length === 0;
+  const resultLabel = filteredDeliveries.length === 1 ? "1 nota" : `${filteredDeliveries.length.toLocaleString("pt-BR")} notas`;
+
+  const importButton = batchAccess.allowed ? (
+    <Button variant="outline" onClick={() => setIsXmlDialogOpen(true)}>
+      <FileUp aria-hidden="true" />
+      Importar notas
+    </Button>
+  ) : (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Button variant="outline" disabled className="w-full" tabIndex={-1}>
+            <Lock aria-hidden="true" />
+            Importar notas
+          </Button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>Importação em lote disponível no plano {batchAccess.upgradePlanLabel}</TooltipContent>
+    </Tooltip>
+  );
 
   return (
     <>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Package className="h-7 w-7 text-primary" />
-              Entregas
-            </h1>
-            <p className="text-muted-foreground">{pendingDeliveries} entregas em andamento</p>
-          </div>
-        </div>
-
-        {/* Main Tabs - NFs and Romaneios */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "nfs" | "romaneios")} className="space-y-4">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="nfs" className="gap-2">
-              <FileText className="h-4 w-4" />
-              Notas Fiscais
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <PageHeader
+          icon={Package}
+          title="Entregas"
+          description="Importe as notas fiscais, monte o romaneio do motorista e acompanhe cada entrega."
+          actions={
+            <>
+              {importButton}
+              <Button onClick={handleHeaderGenerate}>
+                <Route aria-hidden="true" />
+                Gerar romaneio
+                {selectedCount > 0 && (
+                  <span className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-foreground/20 px-1.5 font-data text-xs">
+                    {selectedCount}
+                    <span className="sr-only"> notas selecionadas</span>
+                  </span>
+                )}
+              </Button>
+            </>
+          }
+        >
+          <TabsList className="grid h-12 w-full grid-cols-2 sm:inline-flex sm:h-10 sm:w-auto">
+            <TabsTrigger value="nfs" className="h-10 sm:h-8 sm:px-4">
+              <FileText aria-hidden="true" />
+              Notas fiscais
             </TabsTrigger>
-            <TabsTrigger value="romaneios" className="gap-2">
-              <ClipboardList className="h-4 w-4" />
+            <TabsTrigger value="romaneios" className="h-10 sm:h-8 sm:px-4">
+              <ClipboardList aria-hidden="true" />
               Romaneios
             </TabsTrigger>
           </TabsList>
+        </PageHeader>
 
-          {/* NFs Tab Content */}
-          <TabsContent value="nfs" className="space-y-6">
-            {/* Period filters must always be visible, regardless of role or plan */}
-            <div className="flex flex-wrap items-center gap-4">
-              <span className="mr-2 whitespace-nowrap text-sm text-muted-foreground">{periodLabel}</span>
-              <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
-                {timeFilterOptions.map((option) => {
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.value}
-                      onClick={() => selectQuickPeriod(option.value as TimeFilter)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                        timeFilter === option.value && !hasPeriodRange
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {timeFilterLabels[option.value as TimeFilter]}
-                    </button>
-                  );
-                })}
-              </div>
+        {/* Aba: notas fiscais */}
+        <TabsContent value="nfs" tabIndex={-1} className="mt-0 space-y-6 focus-visible:ring-0 focus-visible:ring-offset-0">
+          <h2 className="sr-only">Notas fiscais</h2>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "w-[140px] justify-start whitespace-nowrap text-left font-normal",
-                        !periodFilter.from && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {periodFilter.from ? format(periodFilter.from, "dd/MM/yy", { locale: ptBR }) : startLabel}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-popover" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={periodFilter.from}
-                      onSelect={(date) => setPeriodFilter((prev) => ({ ...prev, from: date }))}
-                      disabled={(date) => date > new Date() || (periodFilter.to ? date > periodFilter.to : false)}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-
-                <span className="whitespace-nowrap text-sm text-muted-foreground">{untilLabel}</span>
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "w-[140px] justify-start whitespace-nowrap text-left font-normal",
-                        !periodFilter.to && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {periodFilter.to ? format(periodFilter.to, "dd/MM/yy", { locale: ptBR }) : endLabel}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-popover" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={periodFilter.to}
-                      onSelect={(date) => setPeriodFilter((prev) => ({ ...prev, to: date }))}
-                      disabled={(date) => date > new Date() || (periodFilter.from ? date < periodFilter.from : false)}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-
-                {(periodFilter.from || periodFilter.to) && (
-                  <Button variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => setPeriodFilter({})}>
-                    {clearPeriodLabel}
-                  </Button>
-                )}
-              </div>
-
-              <RegionFilter
-                selectedRegions={selectedRegions}
-                onRegionsChange={setSelectedRegions}
+          {isFirstLoad ? (
+            <div role="status" aria-label="Carregando notas" className="space-y-6">
+              <CardsSkeleton count={5} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5" />
+              <ListSkeleton rows={6} />
+            </div>
+          ) : hasNoInvoices ? (
+            <EmptyState
+              icon={FileUp}
+              title="Nenhuma nota ainda"
+              description="Importe os arquivos XML das notas fiscais. Depois é só marcar as notas e gerar o romaneio do motorista."
+              action={batchAccess.allowed ? (
+                <Button onClick={() => setIsXmlDialogOpen(true)}>
+                  <FileUp aria-hidden="true" />
+                  Importar notas
+                </Button>
+              ) : importButton}
+            />
+          ) : (
+            <>
+              <DeliveryKPICards
+                stats={{
+                  pending: filteredStats.pending || 0,
+                  in_transit: filteredStats.in_transit || 0,
+                  delivered: filteredStats.delivered || 0,
+                  occurrence: filteredStats.occurrence || 0,
+                  returned: filteredStats.returned || 0,
+                }}
+                activeFilter={statusFilter as KPIStatusFilter}
+                onFilterChange={handleStatusFilterChange}
               />
-            </div>
 
-            {/* Import and Generate Buttons */}
-            <div className="flex gap-3 justify-end">
-              {batchAccess.allowed ? (
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={() => setIsXmlDialogOpen(true)}
-                >
-                  <FileUp className="h-4 w-4" />
-                  Importar XML/NF-e
-                </Button>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" className="gap-2 opacity-50 cursor-not-allowed" disabled>
-                      <Lock className="h-4 w-4" />
-                      Importar XML/NF-e
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">Importação em Lote disponível no Plano {batchAccess.upgradePlanLabel}</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-
-              <Button 
-                className="gap-2" 
-                disabled={selectedCount === 0}
-                onClick={handleGenerateRomaneio}
-              >
-                <Route className="h-4 w-4" />
-                Gerar Romaneio Roteirizado
-                {selectedCount > 0 && <Badge variant="secondary" className="ml-1">{selectedCount}</Badge>}
-              </Button>
-            </div>
-
-            {/* XML Import Dialog */}
-            <XMLImportDialog
-              open={isXmlDialogOpen}
-              onOpenChange={setIsXmlDialogOpen}
-              onImportComplete={(imported, duplicates) => {
-                toast({
-                  title: "Importação concluída",
-                  description: `${imported} NFs importadas, ${duplicates} ignoradas por duplicidade.`,
-                });
-                void refetchInvoices();
-              }}
-            />
-
-        {false && (
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="text-sm text-muted-foreground mr-2">Período:</span>
-          <div className="inline-flex rounded-lg border border-border p-1 bg-muted/30">
-            {timeFilterOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => selectQuickPeriod(option.value as TimeFilter)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                    timeFilter === option.value
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {timeFilterLabels[option.value as TimeFilter]}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "w-[140px] justify-start whitespace-nowrap text-left font-normal",
-                    !periodFilter.from && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {periodFilter.from ? format(periodFilter.from, "dd/MM/yy", { locale: ptBR }) : "Início"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-popover" align="start">
-                <CalendarComponent
-                  mode="single"
-                  selected={periodFilter.from}
-                  onSelect={(date) => setPeriodFilter((prev) => ({ ...prev, from: date }))}
-                  disabled={(date) => date > new Date() || (periodFilter.to ? date > periodFilter.to : false)}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
+              <div className="space-y-3">
+                <DeliveriesToolbar
+                  search={search}
+                  onSearchChange={setSearch}
+                  timeFilter={timeFilter}
+                  periodFilter={periodFilter}
+                  onQuickPeriod={selectQuickPeriod}
+                  onPeriodChange={setPeriodFilter}
+                  selectedRegions={selectedRegions}
+                  onRegionsChange={setSelectedRegions}
+                  isMobile={isMobile}
                 />
-              </PopoverContent>
-            </Popover>
-
-            <span className="text-sm text-muted-foreground">até</span>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "w-[140px] justify-start whitespace-nowrap text-left font-normal",
-                    !periodFilter.to && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {periodFilter.to ? format(periodFilter.to, "dd/MM/yy", { locale: ptBR }) : "Fim"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-popover" align="start">
-                <CalendarComponent
-                  mode="single"
-                  selected={periodFilter.to}
-                  onSelect={(date) => setPeriodFilter((prev) => ({ ...prev, to: date }))}
-                  disabled={(date) => date > new Date() || (periodFilter.from ? date < periodFilter.from : false)}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-
-            {(periodFilter.from || periodFilter.to) && (
-              <Button variant="ghost" size="sm" onClick={() => setPeriodFilter({})}>
-                Limpar período
-              </Button>
-            )}
-          </div>
-
-          {/* Region Filter */}
-          <RegionFilter
-            selectedRegions={selectedRegions}
-            onRegionsChange={setSelectedRegions}
-          />
-        </div>
-        )}
-
-        {/* KPI Cards - Filtros Rápidos */}
-        <DeliveryKPICards
-          stats={{
-            pending: filteredStats.pending || 0,
-            in_transit: filteredStats.in_transit || 0,
-            delivered: filteredStats.delivered || 0,
-            occurrence: filteredStats.occurrence || 0,
-            returned: filteredStats.returned || 0,
-          }}
-          activeFilter={statusFilter as KPIStatusFilter}
-          onFilterChange={handleStatusFilterChange}
-        />
-
-        {/* Active Filter Indicator */}
-        {(statusFilter !== "all" || selectedRegions.length > 0 || periodFilter.from || periodFilter.to || unroutedOnly) && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {unroutedOnly && (
-              <Badge variant="secondary" className="gap-1">
-                Só não roteirizadas
-                <button onClick={() => setUnroutedOnly(false)} className="ml-1 hover:text-destructive" aria-label="Remover filtro">
-                  ✕
-                </button>
-              </Badge>
-            )}
-            {statusFilter !== "all" && (
-              <Badge variant="secondary" className="gap-1">
-                Status: {statusConfig[statusFilter as keyof typeof statusConfig]?.label || statusFilter}
-                <button 
-                  onClick={() => handleStatusFilterChange("all")}
-                  className="ml-1 hover:text-destructive"
-                >
-                  ✕
-                </button>
-              </Badge>
-            )}
-            {(periodFilter.from || periodFilter.to) && (
-              <Badge variant="secondary" className="gap-1">
-                Período: {periodFilter.from ? format(periodFilter.from, "dd/MM/yyyy", { locale: ptBR }) : "..."} até{" "}
-                {periodFilter.to ? format(periodFilter.to, "dd/MM/yyyy", { locale: ptBR }) : "..."}
-                <button
-                  onClick={() => setPeriodFilter({})}
-                  className="ml-1 hover:text-destructive"
-                >
-                  ✕
-                </button>
-              </Badge>
-            )}
-            {selectedRegions.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-sm text-muted-foreground">Regiões:</span>
-                {selectedRegions.slice(0, 3).map(region => (
-                  <Badge key={region} variant="outline" className="gap-1 text-xs">
-                    <div className={cn("w-2 h-2 rounded-full", getRegionColor(region))} />
-                    {region.replace('Interior - ', '').replace('GSP - ', '').replace('SP - ', '')}
-                    <button 
-                      onClick={() => setSelectedRegions(selectedRegions.filter(r => r !== region))}
-                      className="ml-1 hover:text-destructive"
-                    >
-                      ✕
-                    </button>
-                  </Badge>
-                ))}
-                {selectedRegions.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{selectedRegions.length - 3}
-                  </Badge>
-                )}
-                <button 
-                  onClick={() => setSelectedRegions([])}
-                  className="text-xs text-muted-foreground hover:text-destructive ml-1"
-                >
-                  Limpar regiões
-                </button>
+                <ActiveFilterChips chips={filterChips} onClearAll={clearAllFilters} />
               </div>
-            )}
-          </div>
-        )}
 
-        {/* Search */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por NF, destinatário ou endereço..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-            {search.trim() && !hasPeriodRange && (
-              <p className="absolute -bottom-5 left-0 text-[11px] text-muted-foreground">
-                Buscando em todos os períodos
-              </p>
-            )}
-          </div>
-          <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className={cn(
-                  "shrink-0",
-                  hasActiveFilters && "border-primary bg-primary/5 text-primary"
-                )}
-                aria-label="Abrir filtros de período"
-              >
-                <Filter className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-[min(92vw,720px)] p-4">
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold">Filtrar entregas</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Escolha um período específico para atualizar a lista.
-                    </p>
-                  </div>
-                  {hasActiveFilters && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setPeriodFilter({});
-                        setSelectedRegions([]);
-                        handleStatusFilterChange("all");
-                      }}
-                    >
-                      Limpar
-                    </Button>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    <span className="font-semibold text-foreground">{resultLabel}</span>
+                    {searching && !hasPeriodRange && " · buscando em todos os períodos"}
+                  </p>
+                  {!searching && !hasPeriodRange && (
+                    <p className="text-xs text-muted-foreground">Notas ainda em aberto aparecem em qualquer período.</p>
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">Período rápido:</span>
-                  {timeFilterOptions.map((option) => {
-                    const Icon = option.icon;
-                    const isActive = timeFilter === option.value && !hasPeriodRange;
-                    return (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        variant={isActive ? "default" : "outline"}
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => selectQuickPeriod(option.value as TimeFilter)}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {timeFilterLabels[option.value as TimeFilter]}
-                      </Button>
-                    );
-                  })}
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Data inicial</div>
-                    <div className="rounded-md border">
-                      <CalendarComponent
-                        mode="single"
-                        selected={periodFilter.from}
-                        onSelect={(date) => setPeriodFilter((prev) => ({ ...prev, from: date }))}
-                        disabled={(date) => date > new Date() || (periodFilter.to ? date > periodFilter.to : false)}
-                        className="p-3 pointer-events-auto"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Data final</div>
-                    <div className="rounded-md border">
-                      <CalendarComponent
-                        mode="single"
-                        selected={periodFilter.to}
-                        onSelect={(date) => setPeriodFilter((prev) => ({ ...prev, to: date }))}
-                        disabled={(date) => date > new Date() || (periodFilter.from ? date < periodFilter.from : false)}
-                        className="p-3 pointer-events-auto"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <span>
-                    {periodFilter.from ? format(periodFilter.from, "dd/MM/yyyy", { locale: ptBR }) : "Sem data inicial"}
-                  </span>
-                  <span>{untilLabel}</span>
-                  <span>
-                    {periodFilter.to ? format(periodFilter.to, "dd/MM/yyyy", { locale: ptBR }) : "Sem data final"}
-                  </span>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          <div className="ml-auto">
-            <Button
-              variant="destructive"
-              className="gap-2"
-              disabled={selectedDeletableDbIds.length === 0}
-              onClick={handleOpenBulkDelete}
-            >
-              <Trash2 className="h-4 w-4" />
-              Excluir Selecionadas
-              {selectedDeletableDbIds.length > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {selectedDeletableDbIds.length}
-                </Badge>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <Checkbox 
-                    checked={headerCheckboxState}
-                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                    aria-label="Selecionar todas as entregas visiveis"
-                    className="border-primary/60 data-[state=checked]:border-primary"
+                {filteredDeliveries.length === 0 ? (
+                  <Card>
+                    <EmptyState
+                      compact
+                      icon={SearchX}
+                      title="Nenhuma nota encontrada"
+                      description={
+                        searching || hasActiveFilters
+                          ? "Nada bate com a busca e os filtros escolhidos. Tente outro termo ou limpe os filtros."
+                          : "Não há notas finalizadas neste período. Escolha um período maior."
+                      }
+                      action={
+                        searching || hasActiveFilters ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSearch("");
+                              clearAllFilters();
+                            }}
+                          >
+                            Limpar busca e filtros
+                          </Button>
+                        ) : timeFilter !== "monthly" ? (
+                          <Button variant="outline" onClick={() => selectQuickPeriod("monthly")}>
+                            Ver últimos 30 dias
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </Card>
+                ) : (
+                  <InvoiceList
+                    deliveries={filteredDeliveries}
+                    isMobile={isMobile}
+                    headerCheckboxState={headerCheckboxState}
+                    canSelectAny={selectableFilteredDeliveries.length > 0}
+                    onSelectAll={handleSelectAll}
+                    onSelect={handleSelect}
+                    actions={invoiceActions}
                   />
-                </TableHead>
-                <TableHead>NF-e</TableHead>
-                <TableHead>Destinatário</TableHead>
-                <TableHead>Endereço</TableHead>
-                <TableHead>Motorista</TableHead>
-                <TableHead title="Entrega/ocorrência ou, se ainda aberta, a importação">Data/Hora</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredDeliveries.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                    Nenhuma entrega encontrada para os filtros selecionados.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredDeliveries.map((delivery) => {
-                  const config = statusConfig[delivery.status];
-                  const Icon = config.icon;
-                  return (
-                    <TableRow key={delivery.id} className={cn(config.rowColor, delivery.manifestId && "opacity-75")}>
-                      <TableCell>
-                        {delivery.manifestId ? (
-                          <div className="flex items-center gap-1" title={`Romaneio: ${delivery.manifestId}`}>
-                            <Lock className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        ) : (
-                          <Checkbox 
-                            checked={delivery.selected || false}
-                            onCheckedChange={(checked) => handleSelect(delivery.id, !!checked)}
-                            aria-label={`Selecionar NF ${delivery.nfe}`}
-                            className="border-primary/60 data-[state=checked]:border-primary"
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        <div className="flex items-center gap-2">
-                          {delivery.nfe}
-                          {delivery.manifestId && (
-                            <Badge variant="outline" className="text-xs">
-                              Romaneada
-                            </Badge>
-                          )}
-                          {delivery.manifestHistory && delivery.manifestHistory.length > 0 && (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6">
-                                  <History className="h-4 w-4 text-warning" />
-                                </Button>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="w-80" align="start">
-                                <div className="space-y-3">
-                                  <div className="flex items-center gap-2">
-                                    <History className="h-4 w-4 text-primary" />
-                                    <span className="font-semibold text-sm">Histórico de Romaneios</span>
-                                    <Badge variant="secondary" className="text-xs">
-                                      {delivery.manifestHistory.length}x
-                                    </Badge>
-                                  </div>
-                                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                                    {delivery.manifestHistory.map((entry, idx) => (
-                                      <div 
-                                        key={idx} 
-                                        className="p-2 rounded-lg bg-muted/50 border text-xs space-y-1"
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-mono font-medium">{entry.manifestId}</span>
-                                          <span className="text-muted-foreground">
-                                            {entry.date.toLocaleDateString('pt-BR', {
-                                              day: '2-digit',
-                                              month: '2-digit',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                            })}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                          <Truck className="h-3 w-3" />
-                                          {entry.driverName}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-warning">
-                                          <AlertTriangle className="h-3 w-3" />
-                                          {entry.reason}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </HoverCardContent>
-                            </HoverCard>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{delivery.recipient}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                        {delivery.address}
-                      </TableCell>
-                      <TableCell>{delivery.driver || <span className="text-muted-foreground">—</span>}</TableCell>
-                      <TableCell className="whitespace-nowrap">{delivery.scheduledTime}</TableCell>
-                      <TableCell>
-                        <Badge className={cn("gap-1", config.color)}>
-                          <Icon className="h-3 w-3" />
-                          {config.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label={`Ações da NF ${delivery.nfe}`}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-popover">
-                            <DropdownMenuItem onClick={() => handleOpenEditDelivery(delivery)}>
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Editar Entrega
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenDetail(delivery)}>
-                              <FileText className="h-4 w-4 mr-2" />
-                              Ver Detalhes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenObservation(delivery)}>
-                              <MessageSquare className="h-4 w-4 mr-2" />
-                              Editar/Observação
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuSeparator />
-                            
-                            {/* Adicionar a Romaneio Existente - para pendentes sem romaneio */}
-                            {delivery.status === "pending" && !delivery.manifestId && (
-                              <DropdownMenuItem 
-                                onClick={() => handleOpenAddToManifest(delivery)} 
-                                className="text-primary"
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Adicionar a Romaneio Existente
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Registrar Ocorrência - para pendentes ou em rota */}
-                            {(delivery.status === "pending" || delivery.status === "in_transit") && (
-                              <DropdownMenuItem 
-                                onClick={() => handleOpenOccurrence(delivery)} 
-                                className="text-warning"
-                              >
-                                <AlertTriangle className="h-4 w-4 mr-2" />
-                                Registrar Ocorrência
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Confirmar Entrega - baixa manual para NFs em rota */}
-                            {delivery.status === "in_transit" && (delivery as any).dbId && (
-                              <DropdownMenuItem 
-                                onClick={() => handleOpenConfirmDelivery(delivery)} 
-                                className="text-success"
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                Confirmar Entrega
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Confirmar retorno ao galpão */}
-                            {delivery.status === "returning" && (
-                              <DropdownMenuItem onClick={() => handleConfirmReturn(delivery.id)}>
-                                <Warehouse className="h-4 w-4 mr-2" />
-                                Confirmar Retorno ao Galpão
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Remover do Romaneio - para NFs que ainda podem ser removidas */}
-                            {canRemoveFromManifest(delivery) && (
-                              <DropdownMenuItem 
-                                onClick={() => handleOpenRemoveManifest(delivery)} 
-                                className="text-destructive"
-                              >
-                                <Unlink className="h-4 w-4 mr-2" />
-                                Remover do Romaneio
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* Voltar para romaneamento - para NFs com ocorrência que já retornaram */}
-                            {canReRoute(delivery) && (
-                              <DropdownMenuItem onClick={() => handleOpenReRoute(delivery)} className="text-primary">
-                                <RefreshCw className="h-4 w-4 mr-2" />
-                                Voltar para Romaneamento
-                              </DropdownMenuItem>
-                            )}
-                            
-                            <DropdownMenuSeparator />
-                            
-                            {/* Excluir NF - apenas para notas do banco de dados */}
-                            {(delivery as any).dbId && (
-                              <DropdownMenuItem 
-                                onClick={() => handleOpenDeleteInvoice(delivery)} 
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Excluir Nota Fiscal
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </Card>
-          </TabsContent>
+                )}
+              </div>
 
-          {/* Romaneios Tab Content */}
-          <TabsContent value="romaneios">
-            <ManifestsTabDB externalSearch={manifestSearch} />
-          </TabsContent>
-        </Tabs>
-      </div>
+              <SelectionBar
+                count={selectedDeletableDbIds.length}
+                onGenerate={handleGenerateRomaneio}
+                onDelete={handleOpenBulkDelete}
+                onClear={() => setSelectedDbIds(new Set())}
+              />
+            </>
+          )}
+        </TabsContent>
+
+        {/* Aba: romaneios */}
+        <TabsContent value="romaneios" tabIndex={-1} className="mt-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+          <h2 className="sr-only">Romaneios</h2>
+          <ManifestsTabDB externalSearch={manifestSearch} onCreateManifest={() => handleTabChange("nfs")} />
+        </TabsContent>
+      </Tabs>
+
+      {/* XML Import Dialog */}
+      <XMLImportDialog
+        open={isXmlDialogOpen}
+        onOpenChange={setIsXmlDialogOpen}
+        onImportComplete={() => {
+          // O dialogo ja avisa o resultado; aqui so atualiza a lista.
+          void refetchInvoices();
+        }}
+      />
 
       {/* Freight Dialog */}
       <FreightDialog
@@ -1841,7 +1274,7 @@ export default function DeliveriesPage() {
         onPrint={() => setIsPrintPreviewOpen(true)}
         selectedCount={selectedCount}
         selectedDeliveryIds={
-          dbInvoices.length > 0 
+          dbInvoices.length > 0
             ? Array.from(selectedDbIds).map((_, i) => i + 1)
             : localDeliveries.filter(d => d.selected && filteredIds.has(d.id)).map(d => d.id)
         }
@@ -1884,35 +1317,35 @@ export default function DeliveriesPage() {
         onSave={handleSaveDelivery}
       />
 
-      {/* Re-Route Confirmation Dialog */}
-      <AlertDialog open={isReRouteDialogOpen} onOpenChange={setIsReRouteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-primary" />
-              Voltar para Romaneamento
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-base">
-              <span className="block mb-4">
-                Você está prestes a liberar a <strong>NF {deliveryForReRoute?.nfe}</strong> para ser romaneada novamente.
-              </span>
-              <span className="block p-4 bg-warning/10 border border-warning/30 rounded-lg text-warning">
-                <strong className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Atenção.
-                </strong>
-                Você já conferiu se essa mercadoria chegou na empresa?
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmReRoute}>
-              Sim, já conferi. Liberar NF
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Voltar para a fila de romaneio */}
+      <ConfirmDialog
+        open={isReRouteDialogOpen}
+        onOpenChange={setIsReRouteDialogOpen}
+        title="Voltar a nota para a fila de romaneio?"
+        description={
+          <>
+            A NF {deliveryForReRoute?.nfe} sai do romaneio {deliveryForReRoute?.manifestId} e volta a ficar pendente,
+            pronta para entrar em outro romaneio.
+          </>
+        }
+        confirmLabel="Sim, já conferi. Liberar nota"
+        loading={isReRouting}
+        onConfirm={async () => {
+          setIsReRouting(true);
+          try {
+            await handleConfirmReRoute();
+          } finally {
+            setIsReRouting(false);
+          }
+        }}
+      >
+        <Alert variant="warning">
+          <AlertTriangle aria-hidden="true" />
+          <AlertDescription className="text-foreground">
+            <span className="font-semibold">Confira antes:</span> a mercadoria já voltou para a empresa?
+          </AlertDescription>
+        </Alert>
+      </ConfirmDialog>
 
       {/* Register Occurrence Dialog */}
       <RegisterOccurrenceDialog
@@ -1938,7 +1371,7 @@ export default function DeliveriesPage() {
         open={isAddToManifestDialogOpen}
         onOpenChange={setIsAddToManifestDialogOpen}
         deliveryNfe={deliveryForAddToManifest?.nfe || ""}
-        invoiceId={(deliveryForAddToManifest as any)?.dbId || ""}
+        invoiceId={deliveryForAddToManifest?.dbId || ""}
         manifests={dbManifests}
         onConfirm={handleConfirmAddToManifest}
       />
@@ -1974,28 +1407,21 @@ export default function DeliveriesPage() {
         onConfirm={handleConfirmDelivery}
       />
 
-      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir notas fiscais selecionadas?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação excluirá {selectedDeletableDbIds.length} NF(s) selecionada(s) que ainda não estão em romaneio.
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isBulkDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmBulkDelete}
-              disabled={isBulkDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isBulkDeleting ? "Excluindo..." : "Excluir selecionadas"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Excluir notas selecionadas */}
+      <ConfirmDialog
+        open={isBulkDeleteDialogOpen}
+        onOpenChange={setIsBulkDeleteDialogOpen}
+        tone="danger"
+        title={
+          selectedDeletableDbIds.length === 1
+            ? "Excluir 1 nota fiscal?"
+            : `Excluir ${selectedDeletableDbIds.length} notas fiscais?`
+        }
+        description="As notas marcadas que ainda não estão em romaneio serão apagadas, com os arquivos XML. Não dá para desfazer."
+        confirmLabel={isBulkDeleting ? "Excluindo…" : "Excluir notas"}
+        loading={isBulkDeleting}
+        onConfirm={handleConfirmBulkDelete}
+      />
     </>
   );
 }
-

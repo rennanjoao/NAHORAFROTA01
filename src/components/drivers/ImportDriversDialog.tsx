@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, Download, Loader2, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { StatusBadge } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { requireCurrentTenantId } from "@/lib/tenant";
@@ -35,6 +36,28 @@ interface ImportDriversDialogProps {
 interface ImportOutcome {
   imported: number;
   failed: { line: number; name: string; message: string }[];
+}
+
+const plural = (count: number, one: string, many: string) => `${count.toLocaleString("pt-BR")} ${count === 1 ? one : many}`;
+
+function Step({ number, title, description, children }: { number: number; title: string; description: string; children: React.ReactNode }) {
+  return (
+    <li className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-data text-sm font-semibold text-primary">
+          {number}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">
+            <span className="sr-only">Passo {number}: </span>
+            {title}
+          </p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div className="shrink-0 [&>*]:w-full sm:[&>*]:w-auto">{children}</div>
+    </li>
+  );
 }
 
 export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainingSlots, onImported }: ImportDriversDialogProps) {
@@ -67,7 +90,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
 
   const downloadTemplate = () => {
     // BOM para o Excel abrir os acentos corretamente.
-    const blob = new Blob(["\uFEFF" + DRIVER_IMPORT_TEMPLATE], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["﻿" + DRIVER_IMPORT_TEMPLATE], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -87,7 +110,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
       const parsed = parseDriverRows(sheet, existing);
       if (parsed.missingColumns.length) {
         toast({
-          title: "Colunas obrigatórias ausentes",
+          title: "Faltam colunas obrigatórias",
           description: `A primeira linha precisa ter: ${parsed.missingColumns.map((f) => FIELD_LABELS[f]).join(", ")}. Baixe o modelo para ver o formato.`,
           variant: "destructive",
         });
@@ -163,7 +186,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
       onImported();
       toast({
         title: "Importação concluída",
-        description: `${result.imported} motorista(s) cadastrado(s)${result.failed.length ? `, ${result.failed.length} com erro` : ""}.`,
+        description: `${plural(result.imported, "motorista cadastrado", "motoristas cadastrados")}${result.failed.length ? `, ${result.failed.length} com erro` : ""}.`,
       });
     }
   };
@@ -172,14 +195,8 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-primary" />
-            Importar motoristas
-          </DialogTitle>
-          <DialogDescription>
-            Planilha .xlsx ou .csv com as colunas Nome, CPF e Telefone (as demais são opcionais). Os motoristas entram sem
-            login do app; o acesso pode ser criado depois, na edição de cada um.
-          </DialogDescription>
+          <DialogTitle>Importar motoristas</DialogTitle>
+          <DialogDescription>Cadastre vários motoristas de uma vez com uma planilha .xlsx ou .csv.</DialogDescription>
         </DialogHeader>
 
         <input
@@ -192,100 +209,109 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
         />
 
         {outcome ? (
-          <div className="space-y-3 py-2">
-            <div className="flex items-center gap-2 text-success">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">{outcome.imported} motorista(s) importado(s)</span>
+          <div className="space-y-3" role="status">
+            <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/5 p-4">
+              <CheckCircle2 className="h-6 w-6 shrink-0 text-success" aria-hidden="true" />
+              <p className="font-medium text-foreground">{plural(outcome.imported, "motorista importado", "motoristas importados")}</p>
             </div>
             {outcome.failed.length > 0 && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm space-y-1">
-                <p className="font-medium text-destructive">Não importados:</p>
-                {outcome.failed.map((f) => (
-                  <p key={`${f.line}-${f.name}`} className="text-muted-foreground">
-                    {f.line ? `Linha ${f.line} – ${f.name}: ` : ""}
-                    {f.message}
-                  </p>
-                ))}
-              </div>
+              <Alert variant="destructive">
+                <p className="mb-1 font-semibold leading-snug text-foreground">Não importados</p>
+                <AlertDescription>
+                  <ul className="mt-1 space-y-1">
+                    {outcome.failed.map((f) => (
+                      <li key={`${f.line}-${f.name}`}>
+                        {f.line ? `Linha ${f.line}, ${f.name}: ` : ""}
+                        {f.message}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
             )}
           </div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed p-8 text-center">
-            <Upload className="h-8 w-8 text-muted-foreground" />
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button onClick={() => fileInputRef.current?.click()} disabled={isReading}>
-                {isReading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                Escolher planilha
-              </Button>
-              <Button variant="outline" onClick={downloadTemplate}>
-                <Download className="h-4 w-4 mr-2" />
-                Baixar modelo
-              </Button>
-            </div>
+          <div className="space-y-3">
+            <ol className="space-y-3">
+              <Step number={1} title="Baixe o modelo" description="Nome, CPF e Telefone são obrigatórios. As outras colunas são opcionais.">
+                <Button variant="outline" onClick={downloadTemplate}>
+                  <Download aria-hidden="true" />
+                  Baixar modelo
+                </Button>
+              </Step>
+              <Step number={2} title="Envie a planilha preenchida" description="Você confere a lista antes de importar.">
+                <Button onClick={() => fileInputRef.current?.click()} disabled={isReading}>
+                  {isReading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
+                  {isReading ? "Lendo..." : "Escolher planilha"}
+                </Button>
+              </Step>
+            </ol>
+            <p className="text-xs text-muted-foreground">Os motoristas entram sem acesso ao aplicativo.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-medium">{fileName}</span>
-              <Badge variant="outline" className="border-success/40 text-success">
-                {validRows.length} pronta(s)
-              </Badge>
-              {invalidRows.length > 0 && (
-                <Badge variant="outline" className="border-destructive/40 text-destructive">
-                  {invalidRows.length} com erro
-                </Badge>
-              )}
-              <Button variant="link" size="sm" className="h-auto p-0" onClick={reset} disabled={isImporting}>
+              <span className="min-w-0 truncate font-medium text-foreground" title={fileName}>
+                {fileName}
+              </span>
+              <StatusBadge tone="success">{plural(validRows.length, "pronta", "prontas")}</StatusBadge>
+              {invalidRows.length > 0 && <StatusBadge tone="danger">{invalidRows.length} com erro</StatusBadge>}
+              <Button variant="link" size="sm" className="h-auto px-1" onClick={reset} disabled={isImporting}>
                 Trocar arquivo
               </Button>
             </div>
             {overLimit > 0 && (
-              <p className="text-sm text-warning">
-                Seu plano permite mais {Math.max(0, remainingSlots)} motorista(s): {overLimit} linha(s) válida(s) ficarão de fora.
-              </p>
+              <Alert variant="warning">
+                <AlertDescription>
+                  Seu plano permite mais {Math.max(0, remainingSlots)} motorista(s): {overLimit} linha(s) válida(s) ficarão de fora.
+                </AlertDescription>
+              </Alert>
             )}
-            <ScrollArea className="h-[320px] rounded-md border">
+            {isImporting && (
+              <Progress value={(progress / Math.max(1, limitedRows.length)) * 100} aria-label={`Importando ${progress} de ${limitedRows.length}`} className="h-1.5" />
+            )}
+            <div className="max-h-[min(20rem,45dvh)] overflow-auto rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0} role="region" aria-label="Linhas da planilha">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted">
+                <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
                   <tr className="text-left">
-                    <th className="px-3 py-2 font-medium">Linha</th>
-                    <th className="px-3 py-2 font-medium">Nome</th>
-                    <th className="px-3 py-2 font-medium">CPF</th>
-                    <th className="px-3 py-2 font-medium">Veículo</th>
-                    <th className="px-3 py-2 font-medium">Situação</th>
+                    <th scope="col" className="w-14 px-3 py-2 font-semibold">Linha</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">Motorista</th>
+                    <th scope="col" className="hidden px-3 py-2 font-semibold sm:table-cell">Veículo</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">Situação</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y">
                   {rows.map((row) => (
-                    <tr key={row.line} className="border-t">
-                      <td className="px-3 py-2 text-muted-foreground">{row.line}</td>
-                      <td className="px-3 py-2">{row.data.name || "—"}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{row.data.cpf || "—"}</td>
-                      <td className="px-3 py-2 text-xs">
-                        {row.data.vehicleType} • {row.data.vehiclePlate}
+                    <tr key={row.line} className="align-top">
+                      <td className="px-3 py-2 font-data text-muted-foreground">{row.line}</td>
+                      <td className="px-3 py-2">
+                        <p className="whitespace-nowrap text-foreground">{row.data.name || "Sem nome"}</p>
+                        <p className="whitespace-nowrap font-data text-xs text-muted-foreground">{row.data.cpf || "Sem CPF"}</p>
+                      </td>
+                      <td className="hidden whitespace-nowrap px-3 py-2 text-xs text-muted-foreground sm:table-cell">
+                        {row.data.vehicleType} · {row.data.vehiclePlate}
                       </td>
                       <td className="px-3 py-2">
                         {row.errors.length === 0 ? (
-                          <span className="flex items-center gap-1 text-success">
-                            <CheckCircle2 className="h-4 w-4" /> OK
-                          </span>
+                          <StatusBadge tone="success">Pronta</StatusBadge>
                         ) : (
-                          <span className="flex items-start gap-1 text-destructive">
-                            <XCircle className="h-4 w-4 shrink-0 mt-0.5" /> {row.errors.join("; ")}
-                          </span>
+                          <div className="space-y-1">
+                            <StatusBadge tone="danger">Com erro</StatusBadge>
+                            <p className="text-xs text-destructive">{row.errors.join("; ")}</p>
+                          </div>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ScrollArea>
+            </div>
           </div>
         )}
 
         <DialogFooter>
           {outcome ? (
-            <Button onClick={() => handleOpenChange(false)}>Fechar</Button>
+            <Button onClick={() => handleOpenChange(false)}>Concluir</Button>
           ) : (
             <>
               <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isImporting}>
@@ -293,14 +319,10 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
               </Button>
               {rows.length > 0 && (
                 <Button onClick={handleImport} disabled={isImporting || limitedRows.length === 0}>
-                  {isImporting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Importando {progress}/{limitedRows.length}...
-                    </>
-                  ) : (
-                    `Importar ${limitedRows.length} motorista(s)`
-                  )}
+                  {isImporting && <Loader2 className="animate-spin" aria-hidden="true" />}
+                  {isImporting
+                    ? `Importando ${progress} de ${limitedRows.length}...`
+                    : `Importar ${plural(limitedRows.length, "motorista", "motoristas")}`}
                 </Button>
               )}
             </>
