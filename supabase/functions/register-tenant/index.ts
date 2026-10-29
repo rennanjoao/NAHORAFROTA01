@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { listAllUserEmails } from "../_shared/authUsers.ts";
+import { detectDocumentType, isValidCnpj, onlyDigits } from "../_shared/documents.ts";
+
+const TRIAL_DAYS = 7;
 
 interface RegisterRequest {
   cnpj: string;
@@ -8,26 +12,14 @@ interface RegisterRequest {
   name: string;
   email: string;
   password: string;
+  billing_document?: string;
+  visitor_id?: string;
 }
 
 function jsonResponse(body: Record<string, unknown>, status: number, headers: Record<string, string>) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
-function isValidCnpj(cnpj: string): boolean {
-  const cleaned = cnpj.replace(/\D/g, "");
-  if (cleaned.length !== 14 || /^(\d)\1+$/.test(cleaned)) return false;
-
-  const calc = (digits: string, weights: number[]) =>
-    digits.split("").reduce((sum, digit, index) => sum + Number(digit) * weights[index], 0);
-
-  const firstWeights = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const secondWeights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const firstDigit = ((rest) => (rest < 2 ? 0 : 11 - rest))(calc(cleaned.slice(0, 12), firstWeights) % 11);
-  const secondDigit = ((rest) => (rest < 2 ? 0 : 11 - rest))(calc(cleaned.slice(0, 13), secondWeights) % 11);
-
-  return Number(cleaned[12]) === firstDigit && Number(cleaned[13]) === secondDigit;
-}
 
 serve(async (req) => {
   const preflight = handleCorsPreflightRequest(req);
@@ -60,38 +52,68 @@ serve(async (req) => {
       return jsonResponse({ error: "Senha deve ter ao menos 8 caracteres" }, 400, jsonHeaders);
     }
 
-    const cleanCnpj = cnpj.replace(/\D/g, "");
+    const cleanCnpj = onlyDigits(cnpj);
     if (!isValidCnpj(cleanCnpj)) {
       return jsonResponse({ error: "CNPJ invalido" }, 400, jsonHeaders);
     }
+
+    // Documento de cobranca: CPF ou CNPJ. Sem informar, a cobranca vai para o CNPJ da empresa.
+    const billingDocument = onlyDigits(body.billing_document || "") || cleanCnpj;
+    const billingDocumentType = detectDocumentType(billingDocument);
+    if (!billingDocumentType) {
+      return jsonResponse({ error: "CPF/CNPJ de cobranca invalido" }, 400, jsonHeaders);
+    }
+
+    const visitorId = /^[A-Za-z0-9_-]{8,64}$/.test(body.visitor_id || "") ? body.visitor_id! : null;
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: existingTenant, error: existingTenantError } = await adminClient
-      .from("tenants")
-      .select("id")
-      .eq("cnpj", cleanCnpj)
-      .maybeSingle();
+    const documentsToLock = Array.from(new Set([cleanCnpj, billingDocument]));
 
-    if (existingTenantError) {
-      console.error("Tenant lookup error:", existingTenantError);
-      return jsonResponse({ error: "Nao foi possivel validar o CNPJ" }, 500, jsonHeaders);
+    const [{ data: existingTenants, error: existingTenantError }, { data: usedTrials, error: usedTrialsError }] =
+      await Promise.all([
+        adminClient
+          .from("tenants")
+          .select("id, cnpj, billing_document")
+          .or(`cnpj.eq.${cleanCnpj},billing_document.in.(${documentsToLock.join(",")})`),
+        adminClient
+          .from("trial_registrations")
+          .select("document")
+          .in("document", documentsToLock),
+      ]);
+
+    if (existingTenantError || usedTrialsError) {
+      console.error("Tenant/trial lookup error:", existingTenantError || usedTrialsError);
+      return jsonResponse({ error: "Nao foi possivel validar o CNPJ/CPF" }, 500, jsonHeaders);
     }
 
-    if (existingTenant) {
+    if ((existingTenants || []).some((tenant) => onlyDigits(tenant.cnpj || "") === cleanCnpj)) {
       return jsonResponse({ error: "CNPJ ja cadastrado no sistema" }, 409, jsonHeaders);
     }
 
-    const { data: existingUsers, error: existingUsersError } = await adminClient.auth.admin.listUsers();
-    if (existingUsersError) {
+    // Um teste gratis por documento: nem a empresa nem o pagador podem repetir o trial.
+    if ((existingTenants || []).length > 0 || (usedTrials || []).length > 0) {
+      return jsonResponse(
+        {
+          error: "Este CNPJ/CPF ja utilizou o periodo de teste gratis. Fale com a equipe Na Hora Frota para contratar.",
+          code: "trial_already_used",
+        },
+        409,
+        jsonHeaders,
+      );
+    }
+
+    let existingEmails: Set<string>;
+    try {
+      existingEmails = await listAllUserEmails(adminClient);
+    } catch (existingUsersError) {
       console.error("Auth users lookup error:", existingUsersError);
       return jsonResponse({ error: "Nao foi possivel validar o e-mail" }, 500, jsonHeaders);
     }
 
-    const emailExists = existingUsers?.users?.some((user) => user.email?.toLowerCase() === email);
-    if (emailExists) {
+    if (existingEmails.has(email)) {
       return jsonResponse({ error: "E-mail ja cadastrado no sistema" }, 409, jsonHeaders);
     }
 
@@ -112,6 +134,7 @@ serve(async (req) => {
 
     const rollback = async () => {
       if (tenantId) {
+        await adminClient.from("trial_registrations").delete().eq("tenant_id", tenantId);
         await adminClient.from("tenant_memberships").delete().eq("tenant_id", tenantId);
         await adminClient.from("user_roles").delete().eq("tenant_id", tenantId);
         await adminClient.from("profiles").delete().eq("id", userId);
@@ -119,6 +142,9 @@ serve(async (req) => {
       }
       await adminClient.auth.admin.deleteUser(userId);
     };
+
+    const trialStartedAt = new Date();
+    const trialEndsAt = new Date(trialStartedAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
     const { data: tenant, error: tenantError } = await adminClient
       .from("tenants")
@@ -129,8 +155,13 @@ serve(async (req) => {
         email,
         cnpj: cleanCnpj,
         razao_social,
-        status: "inactive",
+        status: "trial",
         plan: "basic",
+        trial_started_at: trialStartedAt.toISOString(),
+        trial_ends_at: trialEndsAt.toISOString(),
+        billing_document: billingDocument,
+        billing_document_type: billingDocumentType,
+        signup_visitor_id: visitorId,
       })
       .select("id")
       .single();
@@ -174,6 +205,9 @@ serve(async (req) => {
       return jsonResponse({ error: roleError.message || "Erro ao criar permissao do administrador" }, 500, jsonHeaders);
     }
 
+    // handle_new_user cria um papel "viewer" para todo login novo; o administrador fica so com "admin".
+    await adminClient.from("user_roles").delete().eq("user_id", userId).eq("role", "viewer");
+
     const { error: membershipError } = await adminClient.from("tenant_memberships").upsert(
       {
         tenant_id: tenant.id,
@@ -189,13 +223,39 @@ serve(async (req) => {
       return jsonResponse({ error: membershipError.message || "Erro ao vincular administrador a empresa" }, 500, jsonHeaders);
     }
 
-    console.log(`Tenant registered: ${razao_social} (${cleanCnpj}) - Status: inactive`);
+    const { error: trialLockError } = await adminClient.from("trial_registrations").insert(
+      documentsToLock.map((document) => ({
+        document,
+        document_type: document === cleanCnpj ? "cnpj" : billingDocumentType,
+        tenant_id: tenant.id,
+        email,
+      })),
+    );
+
+    if (trialLockError) {
+      console.error("Trial lock error:", trialLockError);
+      await rollback();
+      return jsonResponse({ error: "Nao foi possivel iniciar o periodo de teste" }, 500, jsonHeaders);
+    }
+
+    const { error: funnelError } = await adminClient.from("funnel_events").insert({
+      visitor_id: visitorId || `tenant:${tenant.id}`,
+      event: "register_completed",
+      path: "/register",
+      tenant_id: tenant.id,
+      user_id: userId,
+      metadata: { billing_document_type: billingDocumentType },
+    });
+    if (funnelError) console.error("Funnel event error (non-fatal):", funnelError);
+
+    console.log(`Tenant registered: ${razao_social} (${cleanCnpj}) - Status: trial until ${trialEndsAt.toISOString()}`);
 
     return jsonResponse(
       {
         success: true,
-        message: "Empresa cadastrada com sucesso. Aguarde aprovacao.",
+        message: `Empresa cadastrada. Seu teste gratis de ${TRIAL_DAYS} dias ja comecou.`,
         tenant_id: tenant.id,
+        trial_ends_at: trialEndsAt.toISOString(),
       },
       201,
       jsonHeaders,

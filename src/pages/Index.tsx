@@ -1,41 +1,25 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { 
-  Users, 
-  Package, 
-  FileWarning, 
-  Truck, 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  Building2, 
-  UserCheck,
-  CheckCircle2,
-  DollarSign,
-  ChevronDown,
-  ChevronUp,
-  MapPin,
-  Loader2
-} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Building2, CheckCircle2, Crown, FileUp, FileWarning, Flag, MapPinned, Package, RefreshCw, Truck, UserCheck, Wallet, Banknote } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState, PageHeader, PageLoading, Section, StatCard } from "@/components/patterns";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useIsPlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { MetricCard } from "@/components/dashboard/MetricCard";
+import { useTenantData } from "@/hooks/useTenantData";
+import { useDashboardKPIs } from "@/hooks/useDashboardKPIs";
+import { formatCurrency } from "@/lib/formatCurrency";
+import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
+import { revealSection } from "@/lib/scroll";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import { LiveMap } from "@/components/dashboard/LiveMap";
-import { PredictiveIntelligence } from "@/components/dashboard/PredictiveIntelligence";
 import { DeliveryStatus } from "@/components/dashboard/DeliveryStatus";
 import { SLAWeeklyWidget } from "@/components/dashboard/SLAWeeklyWidget";
 import { SLARealTimeWidget } from "@/components/dashboard/SLARealTimeWidget";
-import { WelcomeBanner } from "@/components/dashboard/WelcomeBanner";
-import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
-import { UnroutedSheet } from "@/components/dashboard/UnroutedSheet";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/formatCurrency";
-import { cn } from "@/lib/utils";
-import { useTenantData } from "@/hooks/useTenantData";
-
-// New dashboard components
-import { useDashboardKPIs } from "@/hooks/useDashboardKPIs";
+import { PredictiveIntelligence } from "@/components/dashboard/PredictiveIntelligence";
+import { AggregateEfficiencyWidget } from "@/components/dashboard/AggregateEfficiencyWidget";
+import { FinishedRoutesList } from "@/components/dashboard/FinishedRoutes";
 import { DriversInRouteModal } from "@/components/dashboard/DriversInRouteModal";
 import { FinishedDriversModal } from "@/components/dashboard/FinishedDriversModal";
 import { InvoicesInTransitModal } from "@/components/dashboard/InvoicesInTransitModal";
@@ -43,17 +27,30 @@ import { TodayLoadedModal } from "@/components/dashboard/TodayLoadedModal";
 import { FreightCostModal } from "@/components/dashboard/FreightCostModal";
 import { FleetManifestsModal } from "@/components/dashboard/FleetManifestsModal";
 import { DeliveredInvoicesModal } from "@/components/dashboard/DeliveredInvoicesModal";
-import { AggregateEfficiencyWidget } from "@/components/dashboard/AggregateEfficiencyWidget";
+import { UnroutedSheet } from "@/components/dashboard/UnroutedSheet";
+import { plural } from "@/components/dashboard/status";
+
+const MAP_SECTION_ID = "live-map-section";
+// Celular: os quatro numeros do dia em 2 x 2, com respiro menor.
+const KPI_COMPACT = "max-sm:gap-2 max-sm:p-4";
+
+function scrollToMap() {
+  document.getElementById(MAP_SECTION_ID)?.scrollIntoView({
+    behavior: prefersReducedMotion(readPreferences()) ? "auto" : "smooth",
+    block: "start",
+  });
+}
 
 export default function Index() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { checkFeatureAccess } = useFeatureAccess();
-  const slaAccess = checkFeatureAccess('sla_weekly');
-  const realtimeAccess = checkFeatureAccess('realtime_dashboard');
-  const financialAccess = checkFeatureAccess('financial_dashboard');
+  const slaAccess = checkFeatureAccess("sla_weekly");
+  const realtimeAccess = checkFeatureAccess("realtime_dashboard");
+  const financialAccess = checkFeatureAccess("financial_dashboard");
 
-  // Tenant verification - prevent white screen for new users
+  // Empresa ainda sendo criada: evita tela vazia para usuario novo
   const { tenant, isLoading: tenantLoading } = useTenantData();
+  const { isPlatformAdmin } = useIsPlatformAdmin();
 
   const {
     isLoading,
@@ -74,11 +71,10 @@ export default function Index() {
     ownFleetCount,
     thirdPartyToday,
     thirdPartyCount,
-    unroutedInvoices,
     unroutedCount,
   } = useDashboardKPIs();
 
-  // Modal states
+  // Janelas de detalhe
   const [isDriversInRouteOpen, setIsDriversInRouteOpen] = useState(false);
   const [isFinishedDriversOpen, setIsFinishedDriversOpen] = useState(false);
   const [isInTransitOpen, setIsInTransitOpen] = useState(false);
@@ -88,19 +84,14 @@ export default function Index() {
   const [isThirdPartyOpen, setIsThirdPartyOpen] = useState(false);
   const [isUnroutedOpen, setIsUnroutedOpen] = useState(false);
   const [isDeliveredInvoicesOpen, setIsDeliveredInvoicesOpen] = useState(false);
-  const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null);
   const focusDriverId = searchParams.get("focusDriver");
+  // "Notas em transito" abre de dentro de "Motoristas em rota": ao fechar, o foco
+  // volta ao indicador (o botao que abriu ja saiu da tela).
+  const inRouteCard = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!focusDriverId) return;
-
-    const timer = window.setTimeout(() => {
-      document.getElementById("live-map-section")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 150);
-
+    const timer = window.setTimeout(scrollToMap, 150);
     return () => window.clearTimeout(timer);
   }, [focusDriverId]);
 
@@ -112,525 +103,279 @@ export default function Index() {
     setSearchParams(nextParams, { replace: true });
   };
 
-  // Show loading while tenant data is being verified
   if (tenantLoading || isLoading) {
+    return <PageLoading stats={4} rows={4} />;
+  }
+
+  if (!tenant) {
+    // Equipe da plataforma sem empresa: o caminho e o Painel Master (antes via
+    // "Preparando o ambiente da sua empresa", que nunca terminava).
+    if (isPlatformAdmin) {
+      return (
+        <>
+          <PageHeader title="Início" description="Sua conta é da equipe Na Hora Frota e não está ligada a uma empresa." />
+          <EmptyState
+            icon={Crown}
+            title="Nenhuma empresa ligada a esta conta"
+            description="Acompanhe as empresas, os testes grátis e as cobranças no Painel Master."
+            action={
+              <Button asChild>
+                <Link to="/master">
+                  <Crown aria-hidden="true" />
+                  Abrir o Painel Master
+                </Link>
+              </Button>
+            }
+          />
+        </>
+      );
+    }
     return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-[50vh]">
-          <div className="text-center space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-            <p className="text-muted-foreground">
-              {tenantLoading ? "Preparando seu ambiente..." : "Carregando dados..."}
-            </p>
-          </div>
-        </div>
-      </AppLayout>
+      <>
+        <h1 className="sr-only">Início</h1>
+        <EmptyState
+          icon={Building2}
+          title="Preparando o ambiente da sua empresa"
+          description="Isso leva alguns instantes. Se demorar mais que alguns minutos, recarregue a página ou fale com o suporte."
+          action={
+            <Button onClick={() => window.location.reload()}>
+              <RefreshCw aria-hidden="true" />
+              Recarregar página
+            </Button>
+          }
+          className="mt-10"
+        />
+      </>
     );
   }
 
-  // If tenant is not found after loading, show onboarding message
-  if (!tenant) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-[50vh]">
-          <div className="text-center space-y-4 max-w-md">
-            <Building2 className="h-16 w-16 text-primary/50 mx-auto" />
-            <h2 className="text-xl font-semibold text-foreground">Preparando seu ambiente...</h2>
-            <p className="text-muted-foreground">
-              Sua empresa está sendo configurada. Isso pode levar alguns instantes. 
-              Se o problema persistir, entre em contato com o suporte.
-            </p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="text-sm text-primary hover:underline"
-            >
-              Recarregar página
-            </button>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
+  const liveMap = <LiveMap focusDriverId={focusDriverId} onFocusHandled={handleMapFocusHandled} />;
 
   return (
-    <AppLayout>
-      <div className="space-y-8">
-        {/* System Notifications Banner */}
-        <NotificationBanner />
+    <>
+      <NotificationBanner />
 
-        {/* Welcome Banner - Beginner Friendly */}
-        <WelcomeBanner />
+      <DashboardHeader
+        actions={
+          <>
+            <Button variant="outline" onClick={() => revealSection(MAP_SECTION_ID)}>
+              <MapPinned aria-hidden="true" />
+              Ver mapa ao vivo
+            </Button>
+            <Button asChild>
+              <Link to="/deliveries?action=import">
+                <FileUp aria-hidden="true" />
+                Importar notas
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        {/* Live Status Header */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-lg font-semibold text-foreground">Painel de Operações</h2>
-          <div className="flex items-center gap-4">
-            {/* Active Drivers Badge */}
-            <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-2">
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                {driversInRouteCount} na rua
-              </span>
-            </div>
-            {/* Finished Drivers Badge */}
-            <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/20 px-4 py-2">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-sm font-medium text-success">
-                {finishedDriversCount} finalizaram
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* SLA Widget + KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* SLA Weekly Widget - Prominent */}
-          <div className="lg:col-span-2">
-            {slaAccess.allowed ? (
-              <SLAWeeklyWidget />
-            ) : (
-              <PlanLockOverlay upgradePlanLabel={slaAccess.upgradePlanLabel}>
-                <SLAWeeklyWidget />
-              </PlanLockOverlay>
-            )}
-          </div>
-
-          {/* Motoristas na Rua - Clickable */}
-          <MetricCard
-            title="Motoristas na Rua"
+      <div className="space-y-8 md:space-y-10">
+        {/* O que importa agora: os quatro numeros do dia */}
+        <section aria-label="Resumo de hoje" className="stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <StatCard
+            className={KPI_COMPACT}
+            label="Motoristas em rota"
             value={driversInRouteCount}
-            subtitle="Com romaneios em andamento"
-            icon={Users}
-            variant="default"
-            clickable
-            onClick={() => setIsDriversInRouteOpen(true)}
-          />
-          
-          {/* Em Rota (Acumulado) */}
-          <MetricCard
-            title="Em Rota"
-            value={invoicesInTransitCount}
-            subtitle="NFs em trânsito (acumulado)"
             icon={Truck}
-            variant="default"
-            clickable
-            onClick={() => setIsInTransitOpen(true)}
+            tone="info"
+            hint={plural(invoicesInTransitCount, "nota em trânsito", "notas em trânsito")}
+            onClick={() => {
+              const active = document.activeElement;
+              inRouteCard.current = active instanceof HTMLElement && active !== document.body ? active : null;
+              setIsDriversInRouteOpen(true);
+            }}
           />
-        </div>
-
-        {/* Notas Carregadas + Entregas Section */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <MetricCard
-            title="Notas Carregadas Hoje"
-            value={todayLoadedCount}
-            subtitle="NFs romaneadas no dia"
-            icon={Package}
-            variant="success"
-            clickable
-            onClick={() => setIsTodayLoadedOpen(true)}
+          <StatCard
+            className={KPI_COMPACT}
+            label="Rotas finalizadas"
+            value={finishedDriversCount}
+            icon={Flag}
+            tone="success"
+            hint="Romaneios concluídos hoje"
+            onClick={() => setIsFinishedDriversOpen(true)}
           />
-          
-          <MetricCard
-            title="Entregas Realizadas"
+          <StatCard
+            className={KPI_COMPACT}
+            label="Entregas feitas"
             value={todayDeliveredCount}
-            subtitle="Baixas de hoje"
             icon={CheckCircle2}
-            variant="success"
-            clickable
+            tone="success"
+            hint="Baixas de hoje"
             onClick={() => setIsDeliveredInvoicesOpen(true)}
           />
-          
-          <MetricCard
-            title="Não Roterizadas"
+          <StatCard
+            className={KPI_COMPACT}
+            label="Notas sem romaneio"
             value={unroutedCount}
-            subtitle="Pendentes + Devolvidas sem romaneio"
             icon={FileWarning}
-            variant="warning"
-            clickable
+            tone={unroutedCount > 0 ? "warning" : "neutral"}
+            hint={unroutedCount > 0 ? "Pendentes e devolvidas" : "Tudo em romaneio"}
             onClick={() => setIsUnroutedOpen(true)}
           />
-        </div>
+        </section>
 
-        {/* Financial Summary Row - 3 cards */}
-        {financialAccess.allowed ? (
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* Receita Total */}
-          <div 
-            className="glass-card rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-transform"
-            onClick={() => setIsTodayLoadedOpen(true)}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Receita Total (Carregadas)</p>
-                <p className="text-2xl font-bold font-mono text-foreground">
-                  {formatCurrency(todayRevenue)}
-                </p>
-              </div>
-              <Badge variant="outline" className="bg-success/10 text-success border-success/30">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                Hoje
-              </Badge>
+        <Section
+          id={MAP_SECTION_ID}
+          title="Agora na rua"
+          description="Onde cada motorista está e em que pé estão as notas de hoje."
+          className="scroll-mt-24"
+        >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="min-w-0 lg:col-span-2">
+              {realtimeAccess.allowed ? liveMap : <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>{liveMap}</PlanLockOverlay>}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Clique para ver detalhes →
-            </p>
+            <DeliveryStatus />
           </div>
-          
-          {/* Custo de Frete do Dia */}
-          <div 
-            className="glass-card rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-transform"
-            onClick={() => setIsFreightCostOpen(true)}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Custo de Frete do Dia</p>
-                <p className="text-2xl font-bold font-mono text-warning">
-                  {formatCurrency(todayFreightCost)}
-                </p>
-              </div>
-              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
-                <DollarSign className="h-3 w-3 mr-1" />
-                Acertos
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Clique para ver detalhes →
-            </p>
-          </div>
+        </Section>
 
-          {/* Eficiência do Custo Frete */}
-          <AggregateEfficiencyWidget
-            freightValue={todayFreightCost}
-            totalSalesValue={todayRevenue}
-            allowed
-            upgradePlanLabel={financialAccess.upgradePlanLabel}
-          />
-        </div>
-        ) : (
-          <PlanLockOverlay upgradePlanLabel={financialAccess.upgradePlanLabel} />
-        )}
-
-        {/* Fleet Row - 2 cards */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Frota Própria Hoje */}
-          <div 
-            className="glass-card rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-transform"
-            onClick={() => setIsOwnFleetOpen(true)}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Building2 className="h-3 w-3" />
-                  Frota Própria Hoje
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  {ownFleetCount}
-                </p>
-              </div>
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
-                CLT
-              </Badge>
+        <Section
+          id="sla"
+          title="Entregas no prazo (SLA)"
+          description="Quanto das entregas chegou no prazo combinado com o cliente. A meta é 97%."
+        >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="min-w-0">
+              {slaAccess.allowed ? (
+                <SLAWeeklyWidget />
+              ) : (
+                <PlanLockOverlay upgradePlanLabel={slaAccess.upgradePlanLabel}>
+                  <SLAWeeklyWidget />
+                </PlanLockOverlay>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Clique para ver detalhes →
-            </p>
-          </div>
-           
-          {/* Terceiros Hoje */}
-          <div 
-            className="glass-card rounded-xl p-5 cursor-pointer hover:scale-[1.02] transition-transform"
-            onClick={() => setIsThirdPartyOpen(true)}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  <UserCheck className="h-3 w-3" />
-                  Terceiros Hoje
-                </p>
-                <p className="text-2xl font-bold text-warning">
-                  {thirdPartyCount}
-                </p>
-              </div>
-              <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30">
-                Agregados
-              </Badge>
+            <div className="min-w-0 lg:col-span-2">
+              {realtimeAccess.allowed ? (
+                <SLARealTimeWidget />
+              ) : (
+                <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>
+                  <SLARealTimeWidget />
+                </PlanLockOverlay>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Clique para ver detalhes →
-            </p>
           </div>
-        </div>
+        </Section>
 
-        {/* SLA Real-Time + Predictive Intelligence */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {realtimeAccess.allowed ? (
-            <SLARealTimeWidget />
-          ) : (
-            <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>
-              <SLARealTimeWidget />
-            </PlanLockOverlay>
-          )}
+        <Section id="atencao" title="Atenção" description="Motoristas abaixo da meta no período escolhido. Toque em um para ver o histórico.">
           <PredictiveIntelligence />
-        </div>
+        </Section>
 
-        {/* Live Map */}
-        <div id="live-map-section">
-          {realtimeAccess.allowed ? (
-            <LiveMap focusDriverId={focusDriverId} onFocusHandled={handleMapFocusHandled} />
-          ) : (
-            <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>
-              <LiveMap focusDriverId={focusDriverId} onFocusHandled={handleMapFocusHandled} />
-            </PlanLockOverlay>
-          )}
-        </div>
-
-        {/* Delivery Status - 4 categories */}
-        <DeliveryStatus />
-
-        {/* Motoristas que Finalizaram (replaces RecentDeliveries) */}
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border p-4">
-            <div>
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-success" />
-                Motoristas que Finalizaram Hoje
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {finishedDriversCount} motorista(s) completaram suas rotas
-              </p>
-            </div>
-            <button 
-              onClick={() => setIsFinishedDriversOpen(true)}
-              className="text-sm text-primary hover:text-primary/80 font-medium"
-            >
-              Ver todos →
-            </button>
+        <Section id="carga" title="Carga, frota e custos de hoje" description="O que saiu hoje, com quem e quanto custou o frete.">
+          <div className="stagger grid grid-flow-dense grid-cols-2 gap-3 sm:grid-flow-row sm:gap-4 xl:grid-cols-3">
+            <StatCard
+              className={KPI_COMPACT}
+              label="Notas carregadas"
+              value={todayLoadedCount}
+              icon={Package}
+              tone="brand"
+              hint="Entraram em romaneio hoje"
+              onClick={() => setIsTodayLoadedOpen(true)}
+            />
+            {financialAccess.allowed && (
+              <>
+                <StatCard
+                  className="col-span-2 sm:col-span-1"
+                  label="Valor carregado"
+                  value={todayRevenue}
+                  format={formatCurrency}
+                  icon={Banknote}
+                  tone="brand"
+                  hint="Soma das notas carregadas"
+                  onClick={() => setIsTodayLoadedOpen(true)}
+                />
+                <StatCard
+                  className="col-span-2 sm:col-span-1"
+                  label="Custo de frete"
+                  value={todayFreightCost}
+                  format={formatCurrency}
+                  icon={Wallet}
+                  tone="neutral"
+                  hint="Romaneios criados hoje"
+                  onClick={() => setIsFreightCostOpen(true)}
+                />
+                <AggregateEfficiencyWidget
+                  freightValue={todayFreightCost}
+                  totalSalesValue={todayRevenue}
+                  allowed
+                  upgradePlanLabel={financialAccess.upgradePlanLabel}
+                />
+              </>
+            )}
+            <StatCard
+              className={KPI_COMPACT}
+              label="Frota própria"
+              value={ownFleetCount}
+              icon={Building2}
+              tone="neutral"
+              hint="Romaneios com motorista CLT"
+              onClick={() => setIsOwnFleetOpen(true)}
+            />
+            <StatCard
+              className={KPI_COMPACT}
+              label="Terceiros e agregados"
+              value={thirdPartyCount}
+              icon={UserCheck}
+              tone="neutral"
+              hint="Romaneios com motorista terceiro"
+              onClick={() => setIsThirdPartyOpen(true)}
+            />
           </div>
+          {!financialAccess.allowed && <PlanLockOverlay upgradePlanLabel={financialAccess.upgradePlanLabel} className="min-h-[10rem]" />}
+        </Section>
 
-          {finishedDrivers.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">
-              Nenhuma rota finalizada hoje ainda
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {finishedDrivers.slice(0, 5).map(({ driver, manifest, invoices, finishedAt, totalDeliveries, completedDeliveries, occurrences }) => {
-                const isExpanded = expandedDriverId === manifest.id;
-                const deliveredInvoices = invoices.filter(inv => inv.status === "delivered");
-                const occurrenceInvoices = invoices.filter(inv => inv.status === "occurrence" || inv.status === "returned");
-
-                return (
-                  <div key={manifest.id} className="bg-card">
-                    {/* Driver Header Row */}
-                    <div 
-                      className="p-4 flex items-center justify-between hover:bg-accent/50 transition-colors cursor-pointer"
-                      onClick={() => setExpandedDriverId(isExpanded ? null : manifest.id)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-muted border border-border flex items-center justify-center overflow-hidden">
-                          {(driver?.photo_url || driver?.avatar) ? (
-                            <img 
-                              src={driver.photo_url || driver.avatar} 
-                              alt={driver?.name || 'Motorista'}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xs font-bold text-muted-foreground">
-                              {(driver?.name || 'M').split(" ").map(n => n?.[0] || '').join("").slice(0, 2)}
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{driver.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {driver.vehicle_plate} • {completedDeliveries}/{totalDeliveries} entregas
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            occurrences > 0
-                              ? "bg-orange-500/10 text-orange-600 border-orange-500/30"
-                              : "bg-success/10 text-success border-success/30"
-                          )}
-                        >
-                          {occurrences > 0 ? `${occurrences} Oc.` : "OK"}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(finishedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                        {isExpanded ? (
-                          <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Expanded Content - NFs */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 space-y-4 bg-muted/30 border-t border-border">
-                        {/* Entregas Realizadas */}
-                        {deliveredInvoices.length > 0 && (
-                          <div className="pt-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <CheckCircle2 className="h-4 w-4 text-success" />
-                              <h4 className="text-sm font-semibold text-foreground">
-                                Entregas Realizadas ({deliveredInvoices.length})
-                              </h4>
-                            </div>
-                            <div className="space-y-2">
-                              {deliveredInvoices.map((invoice) => (
-                                <div
-                                  key={invoice.id}
-                                  className="p-3 rounded-lg border border-border bg-card text-sm"
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-mono font-medium">
-                                          NF {invoice.nfe_number || invoice.id.slice(0, 8)}
-                                        </span>
-                                        <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">
-                                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                                          Entregue
-                                        </Badge>
-                                      </div>
-                                      <p className="text-muted-foreground truncate mt-1">
-                                        {invoice.recipient_name}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />
-                                        {invoice.address_full}
-                                      </p>
-                                    </div>
-                                    <span className="font-mono font-medium whitespace-nowrap">
-                                      {formatCurrency(invoice.total_value)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Ocorrências */}
-                        {occurrenceInvoices.length > 0 && (
-                          <div className="pt-2">
-                            <div className="flex items-center gap-2 mb-2">
-                              <AlertTriangle className="h-4 w-4 text-warning" />
-                              <h4 className="text-sm font-semibold text-foreground">
-                                Ocorrências / Devoluções ({occurrenceInvoices.length})
-                              </h4>
-                            </div>
-                            <div className="space-y-2">
-                              {occurrenceInvoices.map((invoice) => (
-                                <div
-                                  key={invoice.id}
-                                  className="p-3 rounded-lg border border-border bg-card text-sm"
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-mono font-medium">
-                                          NF {invoice.nfe_number || invoice.id.slice(0, 8)}
-                                        </span>
-                                        <Badge 
-                                          variant="outline" 
-                                          className={cn(
-                                            "text-xs",
-                                            invoice.status === "returned" 
-                                              ? "bg-destructive/10 text-destructive border-destructive/30"
-                                              : "bg-warning/10 text-warning border-warning/30"
-                                          )}
-                                        >
-                                          <AlertTriangle className="h-3 w-3 mr-1" />
-                                          {invoice.status === "returned" ? "Devolvida" : (invoice.occurrence_type || "Ocorrência")}
-                                        </Badge>
-                                      </div>
-                                      <p className="text-muted-foreground truncate mt-1">
-                                        {invoice.recipient_name}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />
-                                        {invoice.address_full}
-                                      </p>
-                                    </div>
-                                    <span className="font-mono font-medium whitespace-nowrap">
-                                      {formatCurrency(invoice.total_value)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Empty state */}
-                        {deliveredInvoices.length === 0 && occurrenceInvoices.length === 0 && (
-                          <div className="py-4 text-center text-muted-foreground text-sm">
-                            Nenhuma NF neste romaneio
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <Section
+          id="finalizadas"
+          title="Rotas finalizadas hoje"
+          description="Quem já concluiu o romaneio e como foram as entregas. Toque em um motorista para ver as notas."
+          actions={
+            finishedDriversCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setIsFinishedDriversOpen(true)}>
+                Ver todas
+              </Button>
+            )
+          }
+        >
+          <FinishedRoutesList data={finishedDrivers} onShowAll={() => setIsFinishedDriversOpen(true)} />
+        </Section>
       </div>
 
-      {/* Modals */}
+      {/* Janelas de detalhe */}
       <DriversInRouteModal
         open={isDriversInRouteOpen}
         onOpenChange={setIsDriversInRouteOpen}
         data={driversInRoute}
+        invoicesInTransitCount={invoicesInTransitCount}
+        onShowInvoices={() => {
+          setIsDriversInRouteOpen(false);
+          setIsInTransitOpen(true);
+        }}
       />
-      <FinishedDriversModal
-        open={isFinishedDriversOpen}
-        onOpenChange={setIsFinishedDriversOpen}
-        data={finishedDrivers}
-      />
+      <FinishedDriversModal open={isFinishedDriversOpen} onOpenChange={setIsFinishedDriversOpen} data={finishedDrivers} />
       <InvoicesInTransitModal
         open={isInTransitOpen}
         onOpenChange={setIsInTransitOpen}
         data={invoicesInTransit}
+        onCloseAutoFocus={(event) => {
+          const card = inRouteCard.current;
+          if (card?.isConnected) {
+            event.preventDefault();
+            card.focus({ preventScroll: true });
+          }
+        }}
       />
-      <TodayLoadedModal
-        open={isTodayLoadedOpen}
-        onOpenChange={setIsTodayLoadedOpen}
-        data={todayLoadedInvoices}
-      />
+      <TodayLoadedModal open={isTodayLoadedOpen} onOpenChange={setIsTodayLoadedOpen} data={todayLoadedInvoices} />
       <FreightCostModal
         open={isFreightCostOpen}
         onOpenChange={setIsFreightCostOpen}
         data={todayManifestsWithFreight}
         totalCost={todayFreightCost}
       />
-      <FleetManifestsModal
-        open={isOwnFleetOpen}
-        onOpenChange={setIsOwnFleetOpen}
-        data={ownFleetToday}
-        type="own"
-      />
-      <FleetManifestsModal
-        open={isThirdPartyOpen}
-        onOpenChange={setIsThirdPartyOpen}
-        data={thirdPartyToday}
-        type="third_party"
-      />
-      <UnroutedSheet
-        open={isUnroutedOpen}
-        onOpenChange={setIsUnroutedOpen}
-      />
-      <DeliveredInvoicesModal
-        open={isDeliveredInvoicesOpen}
-        onOpenChange={setIsDeliveredInvoicesOpen}
-        data={todayDeliveredInvoices}
-      />
-    </AppLayout>
+      <FleetManifestsModal open={isOwnFleetOpen} onOpenChange={setIsOwnFleetOpen} data={ownFleetToday} type="own" />
+      <FleetManifestsModal open={isThirdPartyOpen} onOpenChange={setIsThirdPartyOpen} data={thirdPartyToday} type="third_party" />
+      <UnroutedSheet open={isUnroutedOpen} onOpenChange={setIsUnroutedOpen} />
+      <DeliveredInvoicesModal open={isDeliveredInvoicesOpen} onOpenChange={setIsDeliveredInvoicesOpen} data={todayDeliveredInvoices} />
+    </>
   );
 }

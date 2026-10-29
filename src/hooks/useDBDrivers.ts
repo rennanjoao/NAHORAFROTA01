@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { getCurrentTenantId } from "@/lib/tenant";
 
 export interface DBDriver {
@@ -176,7 +177,7 @@ export function useDBDrivers() {
 
     // Drivers realtime subscription
     const driversChannel = supabase
-      .channel('db-drivers-realtime-sync')
+      .channel(uniqueChannelName("db-drivers-realtime-sync"))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'drivers' },
@@ -211,7 +212,7 @@ export function useDBDrivers() {
 
     // Manifests realtime subscription - track open manifests
     const manifestsChannel = supabase
-      .channel('db-manifests-availability-sync')
+      .channel(uniqueChannelName("db-manifests-availability-sync"))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'manifests' },

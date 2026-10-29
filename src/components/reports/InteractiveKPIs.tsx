@@ -1,122 +1,114 @@
-import { Card } from "@/components/ui/card";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
-  DollarSign,
-  Package,
-  ChevronRight
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowDownRight, ArrowUpRight, Package, Target, Wallet } from "lucide-react";
+import { StatCard, type Tone } from "@/components/patterns";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
 import { getSLAColorScheme } from "@/lib/slaThresholds";
+import { cn } from "@/lib/utils";
 import { DrilldownType } from "./KPIDrilldownSheet";
 
+/** Tendencias: null quando o periodo anterior nao tem dados para comparar. */
 interface KPIData {
-  sla: number;
-  slaTrend: number;
+  /** null: nenhuma entrega finalizada no periodo. */
+  sla: number | null;
+  slaTrend: number | null;
   onTime: number;
-  onTimeTrend: number;
+  onTimeTrend: number | null;
   delayed: number;
-  delayedTrend: number;
+  delayedTrend: number | null;
   returns: number;
-  returnsTrend: number;
-  avgCost: number;
-  avgCostTrend: number;
+  returnsTrend: number | null;
+  /** null: nenhuma entrega no periodo. */
+  avgCost: number | null;
+  avgCostTrend: number | null;
   totalVolume: number;
-  volumeTrend: number;
+  volumeTrend: number | null;
 }
 
 interface InteractiveKPIsProps {
   data: KPIData;
   viewMode: "operational" | "executive";
   onKPIClick: (type: DrilldownType) => void;
+  loading?: boolean;
 }
 
-export function InteractiveKPIs({ data, viewMode, onKPIClick }: InteractiveKPIsProps) {
-  const slaScheme = getSLAColorScheme(data.sla);
+const slaTone: Record<string, Tone> = { excellent: "success", good: "warning", attention: "warning", critical: "danger" };
 
-  const kpis = [
-    {
-      id: "sla" as DrilldownType,
-      label: "SLA Geral",
-      value: `${formatSLA(data.sla)}%`,
-      trend: data.slaTrend,
-      trendLabel: "vs mês anterior",
-      icon: Target,
-      color: slaScheme.textClass,
-      bgColor: slaScheme.bgClass,
-      isGoodWhenPositive: true,
-    },
-    {
-      id: "cost" as DrilldownType,
-      label: "Custo Médio",
-      value: formatCurrency(data.avgCost),
-      trend: data.avgCostTrend,
-      trendLabel: "vs mês anterior",
-      icon: DollarSign,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      isGoodWhenPositive: false,
-    },
-    {
-      id: "volume" as DrilldownType,
-      label: "Volume Total",
-      value: data.totalVolume.toLocaleString(),
-      trend: data.volumeTrend,
-      trendLabel: "vs mês anterior",
-      icon: Package,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      isGoodWhenPositive: true,
-    },
-  ];
+/** Variacao do SLA em pontos percentuais (p.p.), no mesmo estilo do StatCard. */
+const NO_PREVIOUS = "Sem dados do período anterior";
+
+function PointsTrend({ value }: { value: number | null }) {
+  if (value === null) return <>{NO_PREVIOUS}</>;
+  if (Math.abs(value) < 0.05) return <>Igual ao período anterior</>;
+  const good = value >= 0;
+  const Icon = value < 0 ? ArrowDownRight : ArrowUpRight;
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs font-semibold",
+          good ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
+        )}
+      >
+        <Icon className="h-3 w-3" aria-hidden="true" />
+        {formatSLA(Math.abs(value))} p.p.
+        <span className="sr-only">{good ? "a mais" : "a menos"}</span>
+      </span>
+      <span>vs. período anterior</span>
+    </span>
+  );
+}
+
+// Sem variacao (ou sem periodo anterior), nada de seta vermelha/verde: so o texto.
+const trendProps = (value: number | null, upIsGood: boolean) =>
+  value === null
+    ? { hint: NO_PREVIOUS }
+    : Math.abs(value) < 0.05
+    ? { hint: "Igual ao período anterior" }
+    : { trend: { value, label: "vs. período anterior", upIsGood } };
+
+/** Indicadores do periodo. Clique abre a lista de notas que formam o numero. */
+export function InteractiveKPIs({ data, onKPIClick, loading }: InteractiveKPIsProps) {
+  const scheme = data.sla === null ? null : getSLAColorScheme(data.sla);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {kpis.map((kpi) => {
-        const Icon = kpi.icon;
-        const isTrendPositive = kpi.trend > 0;
-        const isTrendGood = kpi.isGoodWhenPositive ? isTrendPositive : !isTrendPositive;
-        
-        return (
-          <Card
-            key={kpi.id}
-            className={cn(
-              "p-4 cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
-              "border-2 hover:border-primary/50 group"
-            )}
-            onClick={() => onKPIClick(kpi.id)}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div className={cn("p-2 rounded-lg", kpi.bgColor)}>
-                <Icon className={cn("h-5 w-5", kpi.color)} />
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            
-            <p className="text-sm text-muted-foreground mb-1">{kpi.label}</p>
-            <p className={cn("text-2xl font-bold", kpi.color)}>{kpi.value}</p>
-            
-            {/* Trend Indicator */}
-            <div className="mt-3 flex items-center gap-1">
-              {isTrendPositive ? (
-                <TrendingUp className={cn("h-3 w-3", isTrendGood ? "text-success" : "text-destructive")} />
-              ) : (
-                <TrendingDown className={cn("h-3 w-3", isTrendGood ? "text-success" : "text-destructive")} />
-              )}
-              <span className={cn(
-                "text-xs font-medium",
-                isTrendGood ? "text-success" : "text-destructive"
-              )}>
-                {isTrendPositive ? "+" : ""}{kpi.trend.toFixed(1)}%
-              </span>
-              <span className="text-xs text-muted-foreground">{kpi.trendLabel}</span>
-            </div>
-          </Card>
-        );
-      })}
+    <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <StatCard
+        label="SLA geral"
+        value={data.sla ?? "—"}
+        format={(v) => `${formatSLA(v)}%`}
+        icon={Target}
+        tone={scheme ? slaTone[scheme.level] ?? "brand" : "neutral"}
+        hint={loading ? undefined : scheme ? <PointsTrend value={data.slaTrend} /> : "Sem entregas finalizadas no período"}
+        loading={loading}
+        onClick={() => onKPIClick("sla")}
+      >
+        <span className="sr-only">{scheme ? `Situação: ${scheme.labelPt}. ` : ""}Abrir detalhes.</span>
+      </StatCard>
+      <StatCard
+        label="Custo médio por entrega"
+        value={data.avgCost ?? "—"}
+        format={formatCurrency}
+        icon={Wallet}
+        tone="brand"
+        {...(loading ? {} : data.avgCost === null ? { hint: "Sem entregas no período" } : trendProps(data.avgCostTrend, false))}
+        loading={loading}
+        onClick={() => onKPIClick("cost")}
+      >
+        <span className="sr-only">Abrir detalhes.</span>
+      </StatCard>
+      <StatCard
+        label="Notas no período"
+        value={data.totalVolume}
+        icon={Package}
+        tone="info"
+        // Com 2 colunas, o terceiro cartao ocupa a linha toda (antes ficava sozinho pela metade).
+        className="sm:col-span-2 xl:col-span-1"
+        {...(loading ? {} : trendProps(data.volumeTrend, true))}
+        loading={loading}
+        onClick={() => onKPIClick("volume")}
+      >
+        <span className="sr-only">Abrir detalhes.</span>
+      </StatCard>
     </div>
   );
 }

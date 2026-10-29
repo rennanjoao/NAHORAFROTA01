@@ -47,6 +47,12 @@ const capacityByType: Record<CompanyVehicleType, string> = {
   Van: "1.5t",
 };
 
+/** null em ano/RENAVAM apaga o valor salvo. */
+export type CompanyVehicleUpdate = Partial<Omit<CompanyVehicle, "id" | "createdAt" | "year" | "renavam">> & {
+  year?: number | null;
+  renavam?: string | null;
+};
+
 // Convert DB record to CompanyVehicle
 const mapDBToVehicle = (db: DBVehicle): CompanyVehicle => ({
   id: db.id,
@@ -68,6 +74,18 @@ const mapDBToVehicle = (db: DBVehicle): CompanyVehicle => ({
 let vehiclesCache: CompanyVehicle[] = [];
 let listeners: (() => void)[] = [];
 let initialized = false;
+let cachedUserId: string | null = null;
+
+// O cache e por usuario: sem isso, sair e entrar com outra conta na mesma aba
+// mostrava os veiculos da empresa anterior.
+supabase.auth.onAuthStateChange((_event, session) => {
+  const userId = session?.user?.id ?? null;
+  if (userId === cachedUserId) return;
+  cachedUserId = userId;
+  vehiclesCache = [];
+  initialized = false;
+  listeners.forEach((l) => l());
+});
 
 const getCurrentTenantId = async (): Promise<string> => {
   const {
@@ -112,13 +130,15 @@ const fetchVehicles = async (): Promise<CompanyVehicle[]> => {
 
   if (error) {
     console.error("Error fetching vehicles:", error);
-    return vehiclesCache;
+    throw new Error(error.message);
   }
 
   vehiclesCache = (data || []).map(mapDBToVehicle);
   initialized = true;
   return vehiclesCache;
 };
+
+export { capacityByType as vehicleCapacityByType };
 
 export const companyVehicleStore = {
   // Initialize and get all vehicles
@@ -201,7 +221,7 @@ export const companyVehicleStore = {
   },
 
   // Update vehicle
-  update: async (id: string, updates: Partial<Omit<CompanyVehicle, "id" | "createdAt">>): Promise<CompanyVehicle | null> => {
+  update: async (id: string, updates: CompanyVehicleUpdate): Promise<CompanyVehicle | null> => {
     const updateData: Record<string, unknown> = {};
     
     if (updates.plate !== undefined) updateData.plate = updates.plate.toUpperCase();
@@ -212,8 +232,9 @@ export const companyVehicleStore = {
     if (updates.capacity !== undefined) updateData.capacity = updates.capacity;
     if (updates.year !== undefined) updateData.year = updates.year;
     if (updates.renavam !== undefined) updateData.renavam = updates.renavam;
-    if (updates.currentDriverId !== undefined) updateData.current_driver_id = updates.currentDriverId;
-    if (updates.currentDriverName !== undefined) updateData.current_driver_name = updates.currentDriverName;
+    // Chave presente com valor undefined = desvincular o motorista (liberar/manutencao).
+    if ("currentDriverId" in updates) updateData.current_driver_id = updates.currentDriverId ?? null;
+    if ("currentDriverName" in updates) updateData.current_driver_name = updates.currentDriverName ?? null;
 
     const { data, error } = await supabase
       .from("company_vehicles")
@@ -278,14 +299,20 @@ export const companyVehicleStore = {
 
   // Delete vehicle
   delete: async (id: string): Promise<boolean> => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("company_vehicles")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
 
     if (error) {
       console.error("Error deleting vehicle:", error);
-      return false;
+      throw new Error(error.message);
+    }
+
+    // RLS sem permissao nao da erro: so nao apaga nada.
+    if (!data?.length) {
+      throw new Error("Você não tem permissão para remover este veículo.");
     }
 
     vehiclesCache = vehiclesCache.filter(v => v.id !== id);

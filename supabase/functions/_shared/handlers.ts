@@ -40,12 +40,20 @@ function toPublic(o: OrderRow, env: Deps["env"], now: Date): Json {
     email: o.email,
     whatsapp: o.whatsapp,
     temp_password: o.status === "provisioned" && !expired ? o.temp_password : null,
+    kind: o.kind ?? "new",
+    existing_user: !!o.existing_user,
     login_url: `${siteUrl(env)}/login`,
     access_email_status: o.access_email_status,
     access_sent_at: o.access_sent_at,
     error: o.status === "failed" ? o.error : null,
     created_at: o.created_at,
   };
+}
+
+/** Empresa que pode virar assinatura pelo site: ainda em teste grátis (vigente, vencido ou bloqueado sem nunca ter pago). */
+function canConvertTenant(t: { status?: unknown; converted_at?: unknown; trial_started_at?: unknown }): boolean {
+  if (t.status === "trial") return true;
+  return t.status === "blocked" && !t.converted_at && !!t.trial_started_at;
 }
 
 async function loadOrderByToken(deps: Deps, orderId: unknown, token: unknown): Promise<OrderRow | null> {
@@ -95,11 +103,25 @@ export async function handleCreateCheckout(req: Request, deps: Deps): Promise<Re
   if (!isValidEmail(email)) return json({ error: "E-mail inválido.", code: "invalid_email" }, 400, cors);
   if (!isValidWhatsApp(whatsapp)) return json({ error: "WhatsApp inválido. Use DDD + número.", code: "invalid_whatsapp" }, 400, cors);
 
-  // Já é cliente? Não deixa criar uma segunda empresa com o mesmo CNPJ nem um segundo login com o mesmo e-mail.
-  const { data: tenantDup } = await deps.admin.from("tenants").select("id").eq("cnpj", cnpj).maybeSingle();
-  if (tenantDup) return json({ error: "Este CNPJ já tem conta no Na Hora Frota. Entre com o seu login ou fale com o suporte.", code: "cnpj_exists" }, 409, cors);
-  const { data: profileDup } = await deps.admin.from("profiles").select("id").eq("email", email).maybeSingle();
-  if (profileDup) return json({ error: "Este e-mail já tem acesso. Entre com a sua senha ou use “Esqueci minha senha”.", code: "email_exists" }, 409, cors);
+  // CNPJ já cadastrado? Empresa em teste grátis (register-tenant) pode assinar: o pedido vira
+  // "conversion" e, no pagamento, a mesma empresa é ativada. Empresa já ativa não compra de novo.
+  const { data: existingTenant } = await deps.admin.from("tenants").select("id, status, converted_at, trial_started_at").eq("cnpj", cnpj).maybeSingle();
+  let conversionTenantId: string | null = null;
+  if (existingTenant) {
+    if (!canConvertTenant(existingTenant)) {
+      return json({ error: "Este CNPJ já tem assinatura no Na Hora Frota. Entre com o seu login ou fale com o suporte.", code: "cnpj_exists" }, 409, cors);
+    }
+    conversionTenantId = String(existingTenant.id);
+  }
+  // E-mail já usado: só passa se for usuário da própria empresa em conversão (continua com o login dele).
+  const { data: profileDup } = await deps.admin.from("profiles").select("id, tenant_id").eq("email", email).maybeSingle();
+  let existingUserId: string | null = null;
+  if (profileDup) {
+    if (!conversionTenantId || profileDup.tenant_id !== conversionTenantId) {
+      return json({ error: "Este e-mail já tem acesso. Entre com a sua senha ou use “Esqueci minha senha”.", code: "email_exists" }, 409, cors);
+    }
+    existingUserId = String(profileDup.id);
+  }
 
   const serverPlan = SERVER_PLANS[plan];
   const token = deps.randomToken();
@@ -120,6 +142,10 @@ export async function handleCreateCheckout(req: Request, deps: Deps): Promise<Re
       contact_name,
       email,
       whatsapp,
+      kind: conversionTenantId ? "conversion" : "new",
+      existing_user: !!existingUserId,
+      tenant_id: conversionTenantId,
+      user_id: existingUserId,
       access_token_hash: await sha256Hex(token),
       access_email_status: "pending",
       metadata: { user_agent: req.headers.get("User-Agent") ?? null, origin: req.headers.get("Origin") ?? null },
@@ -143,7 +169,7 @@ export async function handleCreateCheckout(req: Request, deps: Deps): Promise<Re
         deps.fetch,
       );
       await deps.admin.from("orders").update({ provider_session_id: session.id, updated_at: deps.now().toISOString() }).eq("id", order.id);
-      return json({ order_id: order.id, access_token: token, checkout_url: session.url, mode }, 200, cors);
+      return json({ order_id: order.id, access_token: token, checkout_url: session.url, mode, kind: order.kind }, 200, cors);
     } catch (e) {
       deps.log("stripe checkout falhou", e);
       await deps.admin.from("orders").update({ status: "failed", error: `stripe: ${e instanceof Error ? e.message : e}` }).eq("id", order.id);
@@ -152,7 +178,7 @@ export async function handleCreateCheckout(req: Request, deps: Deps): Promise<Re
   }
 
   // sandbox: página interna de pagamento simulado
-  return json({ order_id: order.id, access_token: token, checkout_url: `/checkout/sandbox/${order.id}?t=${token}`, mode }, 200, cors);
+  return json({ order_id: order.id, access_token: token, checkout_url: `/checkout/sandbox/${order.id}?t=${token}`, mode, kind: order.kind }, 200, cors);
 }
 
 /* ------------------------------------------------------------------ */
@@ -315,6 +341,13 @@ export async function handleResendAccess(req: Request, deps: Deps): Promise<Resp
   const order = data as OrderRow | null;
   if (!order) return json({ error: "Pedido não encontrado." }, 404, cors);
   if (order.status !== "provisioned" || !order.user_id) return json({ error: "Este pedido ainda não tem acesso criado." }, 409, cors);
+
+  // Comprador que já tinha login na empresa: só reenvia a confirmação (a senha dele continua a mesma).
+  if (order.existing_user) {
+    const result = await sendAccessEmail(order, "", deps);
+    deps.log(`confirmação reenviada por ${callerId} para pedido ${order.id}: ${result.status}`);
+    return json({ ok: true, email_status: result.status, temp_password: null }, 200, cors);
+  }
 
   const tempPassword = deps.randomPassword();
   const { error: updErr } = await deps.admin.auth.admin.updateUserById(order.user_id, { password: tempPassword, user_metadata: { must_change_password: true } });

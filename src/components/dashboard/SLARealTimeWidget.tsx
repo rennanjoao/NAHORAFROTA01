@@ -1,326 +1,282 @@
 /**
- * SLA REAL-TIME WIDGET
- * Shows today's fleet SLA with real-time updates and drill-down to drivers/invoices
+ * SLA DE HOJE
+ * SLA da frota no dia, atualizado a cada baixa, com o ranking dos motoristas.
  */
 
-import { useState } from "react";
-import { 
-  Activity, 
-  AlertTriangle, 
-  ChevronRight, 
-  Users,
-  TrendingDown,
-  TrendingUp,
-  Minus,
-  CheckCircle2,
-  MessageCircle,
-  Clock
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import { ChevronRight, MessageCircle, Trophy } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useSLADB, OCCURRENCE_LABELS, DriverSLAStats, getSLAColorScheme, isSLACritical, isSLAAttention, SLA_THRESHOLDS } from "@/hooks/useSLADB";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, StatusBadge, toneText } from "@/components/patterns";
+import { useSLADB, DriverSLAStats, isSLACritical, isSLAAttention, SLA_THRESHOLDS, getOccurrenceLabel } from "@/hooks/useSLADB";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
-import { Skeleton } from "@/components/ui/skeleton";
+import { rankBySLA } from "@/lib/slaRanking";
+import { openWhatsApp } from "@/lib/whatsapp";
 import { SLADrilldownModal } from "./SLADrilldownModal";
+import { SLABar, SLATrend } from "./SLAParts";
+import { plural, slaStatus, pct } from "./status";
 
-function TrendIndicator({ trend, diff }: { trend: "up" | "down" | "stable"; diff: number }) {
-  if (trend === "stable") {
+/** Quantos aparecem no cartao; o resto fica na janela "Ver todos". */
+const RANKING_PREVIEW = 8;
+
+function RankBadge({ rank }: { rank: number | null }) {
+  if (rank === null) {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Minus className="h-3 w-3" />
-        Estável
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">Sem posição</span>
       </span>
     );
   }
-  
-  if (trend === "up") {
-    return (
-      <span className="flex items-center gap-1 text-xs text-success">
-        <TrendingUp className="h-3 w-3" />
-        +{Math.abs(diff).toFixed(1)}%
-      </span>
-    );
-  }
-  
   return (
-    <span className="flex items-center gap-1 text-xs text-destructive">
-      <TrendingDown className="h-3 w-3" />
-      -{Math.abs(diff).toFixed(1)}%
+    <span
+      className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-data text-xs font-semibold",
+        rank <= 3 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+      )}
+      title={`${rank}º lugar no SLA de hoje`}
+    >
+      {rank}º
     </span>
   );
 }
 
-function DriverOccurrenceCard({ 
-  driver, 
-  onClick 
-}: { 
-  driver: DriverSLAStats;
-  onClick: () => void;
-}) {
-  const colorScheme = getSLAColorScheme(driver.todaySLA);
-
-  const handleWhatsApp = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const cleanPhone = driver.phone.replace(/\D/g, "");
-    window.open(`https://wa.me/55${cleanPhone}`, "_blank");
-  };
+function RankingRow({ driver, rank, onClick }: { driver: DriverSLAStats; rank: number | null; onClick: () => void }) {
+  const hasActivity = driver.todayTotalInvoices > 0;
+  const status = slaStatus(hasActivity ? driver.todaySLA : 100);
+  const phone = driver.phone?.replace(/\D/g, "");
 
   return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "p-3 rounded-lg border cursor-pointer transition-all hover:bg-muted/50 group",
-        colorScheme.borderClass,
-        colorScheme.bgClass
-      )}
-    >
-      <div className="flex items-center gap-3">
-        {driver.photo_url ? (
-          <img 
-            src={driver.photo_url} 
-            alt={driver.driver_name} 
-            className="h-10 w-10 rounded-full object-cover border-2 border-muted" 
-          />
-        ) : (
-          <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-bold">
-            {driver.driver_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-          </div>
-        )}
-
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{driver.driver_name}</p>
-          <p className="text-xs text-muted-foreground">
-            {driver.todayDeliveredCount} entregas • {driver.todayOccurrenceCount} ocorrências
-          </p>
-        </div>
-
-        <div className="text-right">
-          <span className={cn("text-lg font-bold font-mono", colorScheme.textClass)}>
-            {formatSLA(driver.todaySLA)}%
-          </span>
-        </div>
-
-        <Button 
-          size="sm" 
-          variant="ghost"
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-success hover:text-success hover:bg-success/10" 
-          onClick={handleWhatsApp}
-        >
-          <MessageCircle className="h-4 w-4" />
-        </Button>
-
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-      </div>
-
-      {/* Occurrence preview */}
-      {driver.todayOccurrences.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {driver.todayOccurrences.slice(0, 3).map((occ, idx) => (
-            <Badge 
-              key={idx} 
-              variant="outline" 
-              className="text-xs bg-background"
-            >
-              {OCCURRENCE_LABELS[occ.occurrenceType] || occ.occurrenceType}
-            </Badge>
-          ))}
-          {driver.todayOccurrences.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{driver.todayOccurrences.length - 3}
-            </Badge>
+    <li className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <RankBadge rank={rank} />
+        <span className="min-w-0 flex-1">
+          <span className="block break-words text-sm font-medium text-foreground">{driver.driver_name}</span>
+          {hasActivity ? (
+            // Quebra so entre os itens ("4 entregas" fica junto).
+            <span className="block text-xs text-muted-foreground">
+              <span className="whitespace-nowrap">{plural(driver.todayDeliveredCount, "entrega", "entregas")}</span> ·{" "}
+              <span className="whitespace-nowrap">{plural(driver.todayOccurrenceCount, "ocorrência", "ocorrências")}</span>
+            </span>
+          ) : (
+            <span className="block text-xs text-muted-foreground">Em rota, aguardando as primeiras baixas</span>
           )}
-        </div>
+          {driver.todayOccurrences.length > 0 && (
+            <span className="mt-1 flex flex-wrap gap-1">
+              {driver.todayOccurrences.slice(0, 2).map((occ, idx) => (
+                <Badge key={idx} variant="secondary" className="px-2 py-0 text-[0.6875rem]">
+                  {getOccurrenceLabel(occ.occurrenceType)}
+                </Badge>
+              ))}
+              {driver.todayOccurrences.length > 2 && (
+                <Badge variant="secondary" className="px-2 py-0 text-[0.6875rem]">
+                  +{driver.todayOccurrences.length - 2}
+                </Badge>
+              )}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-1 sm:w-20">
+          <span className={cn("font-data text-sm font-semibold", hasActivity ? toneText[status.tone] : "text-muted-foreground")}>
+            {hasActivity ? `${formatSLA(driver.todaySLA)}%` : "—"}
+          </span>
+          {hasActivity && <SLABar value={driver.todaySLA} tone={status.tone} className="hidden h-1 sm:block" />}
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </button>
+      {phone && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="shrink-0 text-muted-foreground hover:text-success"
+          onClick={() => openWhatsApp(phone)}
+          aria-label={`Chamar ${driver.driver_name} no WhatsApp`}
+          title={`Chamar ${driver.driver_name} no WhatsApp`}
+        >
+          <MessageCircle aria-hidden="true" />
+        </Button>
       )}
-
-      <Progress 
-        value={driver.todaySLA} 
-        className={cn("h-1 mt-2", colorScheme.progressClass)} 
-      />
-    </div>
+    </li>
   );
 }
 
 export function SLARealTimeWidget() {
-  const { 
-    isLoading,
-    fleetSLA, 
-    todayProblematicDrivers,
-    activeDriverStats,
-    todayTrend,
-    driverStats,
-  } = useSLADB();
+  const { isLoading, fleetSLA, todayProblematicDrivers, activeDriverStats, todayTrend, driverStats } = useSLADB();
 
   const [showDrilldown, setShowDrilldown] = useState(false);
-  const [selectedDriverForDrilldown, setSelectedDriverForDrilldown] = useState<DriverSLAStats | null>(null);
-  
-  const fleetColorScheme = getSLAColorScheme(fleetSLA.today);
-  const criticalCount = todayProblematicDrivers.filter(d => isSLACritical(d.todaySLA)).length;
-  const warningCount = todayProblematicDrivers.filter(d => isSLAAttention(d.todaySLA)).length;
-  const driversWithActivity = activeDriverStats.filter(d => d.todayTotalInvoices > 0);
+
+  // Sem nenhuma baixa hoje o SLA nao existe ainda (o calculo devolve 100%).
+  const hasToday = driverStats.some((d) => d.todayTotalInvoices > 0);
+  const status = hasToday ? slaStatus(fleetSLA.today) : { tone: "neutral" as const, label: "Sem baixas ainda" };
+  const criticalCount = todayProblematicDrivers.filter((d) => isSLACritical(d.todaySLA)).length;
+  const warningCount = todayProblematicDrivers.filter((d) => isSLAAttention(d.todaySLA)).length;
+  const driversWithActivity = activeDriverStats.filter((d) => d.todayTotalInvoices > 0);
   const trendDiff = fleetSLA.today - fleetSLA.yesterday;
 
-  const handleDriverClick = (driver: DriverSLAStats) => {
-    setSelectedDriverForDrilldown(driver);
-    setShowDrilldown(true);
-  };
+  // Ranking de hoje: todos os motoristas com baixa hoje, do melhor para o pior,
+  // seguidos dos que estao em rota e ainda nao finalizaram nenhuma entrega.
+  const todayRanking = useMemo(
+    () =>
+      rankBySLA(
+        driverStats.filter((d) => d.todayTotalInvoices > 0 || d.status === "in_route"),
+        (d) => d.todaySLA,
+        (d) => d.todayTotalInvoices,
+        (d) => d.driver_name,
+      ),
+    [driverStats],
+  );
 
   if (isLoading) {
     return (
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <Skeleton className="h-6 w-40" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </CardContent>
+      <Card className="h-full p-6" aria-busy="true">
+        <Skeleton className="h-5 w-32" />
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-2 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
       </Card>
     );
   }
 
   return (
     <>
-      <Card className="h-full">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              SLA em Tempo Real
-            </CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8"
-              onClick={() => setShowDrilldown(true)}
-            >
-              Ver todos
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
+      <Card className="flex h-full flex-col">
+        <CardHeader className="flex-row items-start justify-between gap-3 pb-4">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-base">SLA de hoje</CardTitle>
+            <CardDescription>Atualiza a cada entrega baixada pelos motoristas</CardDescription>
           </div>
+          <Button variant="ghost" size="sm" className="shrink-0" onClick={() => setShowDrilldown(true)}>
+            Ver todos
+            <ChevronRight aria-hidden="true" />
+          </Button>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          {/* Fleet SLA Overview - Clickable */}
-          <div 
-            onClick={() => setShowDrilldown(true)}
-            className={cn(
-              "p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md",
-              fleetColorScheme.borderClass,
-              fleetColorScheme.bgClass
-            )}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">SLA de Hoje</span>
-              <div className="flex items-center gap-2">
-                <Badge className={cn(
-                  "text-white font-bold",
-                  fleetColorScheme.badgeBgClass
-                )}>
-                  {fleetColorScheme.labelPt}
-                </Badge>
-                <TrendIndicator trend={todayTrend} diff={trendDiff} />
+        <CardContent className="flex flex-1 flex-col gap-6">
+          {/* Visao da frota */}
+          <div className="grid gap-5 md:grid-cols-2 md:items-start">
+            <div className="space-y-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <p className="font-data text-[2.5rem] font-semibold leading-none tracking-tight text-foreground">
+                    {hasToday ? (
+                      `${formatSLA(fleetSLA.today)}%`
+                    ) : (
+                      <>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">Sem SLA ainda</span>
+                      </>
+                    )}
+                  </p>
+                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                </div>
+                <div className="mt-2 flex flex-col gap-1">
+                  {hasToday ? (
+                    <>
+                      <SLATrend trend={todayTrend} diff={trendDiff} compared="yesterday" />
+                      <span className="text-sm text-muted-foreground">
+                        {plural(driversWithActivity.length, "motorista com baixa", "motoristas com baixa")} hoje
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">O SLA aparece assim que a primeira entrega do dia for baixada.</span>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            <div className="flex items-end gap-3 mb-3">
-              <span className={cn("text-4xl font-bold font-data", fleetColorScheme.textClass)}>
-                {formatSLA(fleetSLA.today)}%
-              </span>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
-                <Users className="h-4 w-4" />
-                {driversWithActivity.length} motoristas
-              </div>
-            </div>
-            
-            <Progress value={fleetSLA.today} className={cn("h-3", fleetColorScheme.progressClass)} />
-            
-            {/* Threshold markers */}
-            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-              <span>0</span>
-              <span className="text-destructive">{SLA_THRESHOLDS.ATTENTION}</span>
-              <span className="text-blue-600">{SLA_THRESHOLDS.GOOD}</span>
-              <span className="text-emerald-600">{SLA_THRESHOLDS.EXCELLENT}</span>
-              <span className="text-emerald-600">100</span>
-            </div>
-          </div>
 
-          {/* Alert Summary */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className={cn(
-              "p-3 rounded-lg border text-left",
-              criticalCount > 0 
-                ? "border-destructive bg-destructive/10" 
-                : "border-border bg-muted/30"
-            )}>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className={cn("h-4 w-4", criticalCount > 0 ? "text-destructive" : "text-muted-foreground")} />
-                <span className="text-sm font-medium">Críticos</span>
-              </div>
-              <div className={cn("text-2xl font-bold font-data", criticalCount > 0 ? "text-destructive" : "text-muted-foreground")}>
-                {criticalCount}
-              </div>
-              <div className="text-xs text-muted-foreground">SLA &lt; {SLA_THRESHOLDS.ATTENTION}%</div>
-            </div>
-            
-            <div className={cn(
-              "p-3 rounded-lg border text-left",
-              warningCount > 0 
-                ? "border-warning bg-warning/10" 
-                : "border-border bg-muted/30"
-            )}>
-              <div className="flex items-center gap-2">
-                <TrendingDown className={cn("h-4 w-4", warningCount > 0 ? "text-warning" : "text-muted-foreground")} />
-                <span className="text-sm font-medium">Atenção</span>
-              </div>
-              <div className={cn("text-2xl font-bold font-data", warningCount > 0 ? "text-warning" : "text-muted-foreground")}>
-                {warningCount}
-              </div>
-              <div className="text-xs text-muted-foreground">SLA {SLA_THRESHOLDS.ATTENTION}-{SLA_THRESHOLDS.EXCELLENT - 0.1}%</div>
-            </div>
-          </div>
-
-          {/* Problematic Drivers List */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning" />
-                Motoristas abaixo da meta hoje
-              </h4>
-            </div>
-            <ScrollArea className="h-[280px]">
               <div className="space-y-2">
-                {todayProblematicDrivers.length > 0 ? (
-                  todayProblematicDrivers.map(driver => (
-                    <DriverOccurrenceCard 
-                      key={driver.driver_id}
-                      driver={driver}
-                      onClick={() => handleDriverClick(driver)}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-success/50" />
-                    <p className="font-medium text-success">Todos acima de {SLA_THRESHOLDS.EXCELLENT}%!</p>
-                    <p className="text-sm">Nenhum motorista com ocorrência crítica hoje</p>
-                  </div>
-                )}
+                <SLABar value={hasToday ? fleetSLA.today : 0} tone={status.tone} goal={SLA_THRESHOLDS.EXCELLENT} />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Crítico abaixo de {pct(SLA_THRESHOLDS.ATTENTION)}</span>
+                  <span>Meta {pct(SLA_THRESHOLDS.EXCELLENT)}</span>
+                </div>
               </div>
-            </ScrollArea>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-3">
+              <div className={cn("rounded-lg border p-3", criticalCount > 0 ? "border-destructive/30 bg-destructive/5" : "bg-muted/40")}>
+                <dt className="text-xs font-medium text-muted-foreground">Críticos</dt>
+                <dd
+                  className={cn(
+                    "mt-1 font-data text-2xl font-semibold leading-none",
+                    criticalCount > 0 ? "text-destructive" : "text-foreground",
+                  )}
+                >
+                  {criticalCount}
+                </dd>
+                <dd className="mt-1 text-xs text-muted-foreground">abaixo de {pct(SLA_THRESHOLDS.ATTENTION)}</dd>
+              </div>
+              <div className={cn("rounded-lg border p-3", warningCount > 0 ? "border-warning/30 bg-warning/5" : "bg-muted/40")}>
+                <dt className="text-xs font-medium text-muted-foreground">Atenção</dt>
+                <dd
+                  className={cn(
+                    "mt-1 font-data text-2xl font-semibold leading-none",
+                    warningCount > 0 ? "text-warning" : "text-foreground",
+                  )}
+                >
+                  {warningCount}
+                </dd>
+                <dd className="mt-1 text-xs text-muted-foreground">
+                  {pct(SLA_THRESHOLDS.ATTENTION)} a {pct(SLA_THRESHOLDS.GOOD - 0.1)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* Ranking de todos os motoristas do dia */}
+          <div className="min-w-0 border-t pt-5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Trophy className="h-4 w-4 text-primary" aria-hidden="true" />
+                Ranking de SLA dos motoristas hoje
+              </h4>
+              <span className="shrink-0 text-xs text-muted-foreground">{plural(todayRanking.length, "motorista", "motoristas")}</span>
+            </div>
+            {todayRanking.length > 0 ? (
+              <>
+                <ul className="-mx-2 space-y-0.5">
+                  {todayRanking.slice(0, RANKING_PREVIEW).map(({ item: driver, rank }) => (
+                    <RankingRow key={driver.driver_id} driver={driver} rank={rank} onClick={() => setShowDrilldown(true)} />
+                  ))}
+                </ul>
+                {todayRanking.length > RANKING_PREVIEW && (
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => setShowDrilldown(true)}>
+                    Ver os {todayRanking.length} motoristas
+                  </Button>
+                )}
+              </>
+            ) : (
+              <EmptyState
+                compact
+                icon={Trophy}
+                title="Nenhuma entrega baixada hoje"
+                description="O ranking aparece assim que os motoristas baixarem as primeiras entregas."
+              />
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* SLA Drill-down Modal */}
       <SLADrilldownModal
         open={showDrilldown}
         onOpenChange={setShowDrilldown}
-        title="Análise de SLA - Hoje"
-        subtitle="Desempenho detalhado de todos os motoristas"
+        title="SLA de hoje"
+        subtitle="Desempenho de cada motorista no dia. Toque em um nome para ver as notas."
         drivers={driversWithActivity}
         fleetSLA={fleetSLA.today}
         mode="today"

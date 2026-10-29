@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
+import type { MouseEvent } from "react";
+import { usePreferences } from "@/components/theme/PreferencesProvider";
 import { cn } from "@/lib/utils";
 
+/** Alterna claro/escuro no site. Mesma preferencia do painel (nhf-prefs). */
 export function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted ? resolvedTheme === "dark" : true;
+  const { resolvedTheme, setTheme } = usePreferences();
+  const isDark = resolvedTheme === "dark";
   const label = isDark ? "Mudar para modo claro" : "Mudar para modo escuro";
+  const onClick = (event: MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTheme(isDark ? "light" : "dark", { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+  };
   return (
     <button
       type="button"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={onClick}
       aria-label={label}
       title={label}
       className={cn(

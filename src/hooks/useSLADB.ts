@@ -22,9 +22,12 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { formatSLA } from "@/lib/formatSLA";
 import { getSLAColorScheme, isSLAHealthy, isSLACritical, isSLAAttention, isSLAGood, SLA_THRESHOLDS } from "@/lib/slaThresholds";
 import { getDayBoundsUTC, getTodayBrazil } from "@/lib/timezone";
+import { fetchAllPages } from "@/lib/supabasePaging";
+import { SLA_PERIODS, periodStart, type PeriodSLA, type SLAPeriodDays } from "@/lib/slaRanking";
 
 // Re-export threshold utilities for convenience
 export { getSLAColorScheme, isSLAHealthy, isSLACritical, isSLAAttention, isSLAGood, SLA_THRESHOLDS };
@@ -54,21 +57,47 @@ export const SLA_OCCURRENCE_WEIGHTS: Record<string, number> = {
   falta: 0.0, // Alias for falta_mercadoria
 };
 
-// Human-readable labels for occurrence types
+// Nome de cada tipo de ocorrencia (frase simples, so a primeira letra maiuscula).
 export const OCCURRENCE_LABELS: Record<string, string> = {
-  delivered: "Entrega Realizada",
-  endereco_incorreto: "Endereço Incorreto",
-  doc_incorreta: "Doc. Incorreta",
-  horario_restrito: "Horário Restrito",
-  area_risco: "Área de Risco",
-  recusa_recebimento: "Recusa de Recebimento",
-  outros: "Outros",
-  veiculo_quebrou: "Veículo Quebrou",
+  delivered: "Entrega realizada",
+  cliente_ausente: "Cliente ausente",
+  ausente: "Cliente ausente",
+  recusado: "Recusado pelo cliente",
+  recusa_recebimento: "Recusa de recebimento",
+  endereco_incorreto: "Endereço incorreto",
+  endereco_errado: "Endereço errado ou não encontrado",
+  endereco_nao_localizado: "Endereço não localizado",
+  endereco_nao_encontrado: "Endereço não encontrado",
+  doc_incorreta: "Doc. incorreta",
+  documentacao_incorreta: "Documentação incorreta",
+  horario_restrito: "Horário restrito",
+  fora_horario: "Fora do horário",
+  area_risco: "Área de risco",
+  veiculo_quebrou: "Veículo quebrou",
+  veiculo_quebrado: "Veículo quebrado",
   avaria: "Avaria",
-  avaria_mercadoria: "Avaria de Mercadoria",
-  falta_mercadoria: "Falta de Mercadoria",
-  falta: "Falta de Mercadoria",
+  avaria_mercadoria: "Avaria de mercadoria",
+  mercadoria_avariada: "Mercadoria avariada",
+  extravio: "Mercadoria extraviada",
+  falta_mercadoria: "Falta de mercadoria",
+  falta: "Falta de mercadoria",
+  mercadoria_nao_localizada: "Mercadoria não localizada",
+  recusa_cliente: "Recusa do cliente",
+  avaria_transporte: "Avaria no transporte",
+  tentativa_entrega: "Tentativa de entrega",
+  aguardando_pagamento: "Aguardando pagamento",
+  outro: "Outros",
+  outros: "Outros",
 };
+
+/** Nome legivel do tipo de ocorrencia; codigo desconhecido vira texto ("cliente_x" -> "Cliente x"). */
+export function getOccurrenceLabel(type: string | null | undefined): string {
+  if (!type) return "Ocorrência";
+  const known = OCCURRENCE_LABELS[type];
+  if (known) return known;
+  const text = type.replace(/_/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 // Get weight for an occurrence type (defaults to 0.8 for unknown types)
 export function getOccurrenceWeight(occurrenceType: string | null, status: string): number {
@@ -126,6 +155,7 @@ export interface DriverSLAStats {
   photo_url: string | null;
   phone: string;
   vehicle_plate: string;
+  status: string;
   
   // Today's stats
   todayTotalInvoices: number;
@@ -150,6 +180,9 @@ export interface DriverSLAStats {
   // Historical stats (6 months)
   historicalSLA: number;
   historicalTotalInvoices: number;
+
+  // SLA por janela de historico (7, 15, 30, 90 dias e geral)
+  periodStats: Record<SLAPeriodDays, PeriodSLA>;
 }
 
 // Orphan invoices (no driver_id) that affect fleet SLA
@@ -280,6 +313,7 @@ export function useSLADB() {
     previousWeekly: 100,
     yesterday: 100,
   });
+  const [fleetPeriodSLA, setFleetPeriodSLA] = useState<Record<SLAPeriodDays, PeriodSLA> | null>(null);
 
   // Fetch all data needed for SLA calculations
   const fetchSLAData = useCallback(async () => {
@@ -303,56 +337,27 @@ export function useSLADB() {
       const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
       const sixMonthsAgo = new Date(today.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Fetch all data in parallel
-      const [
-        driversResult, 
-        todayInvoicesResult, 
-        yesterdayInvoicesResult,
-        weeklyInvoicesResult, 
-        previousWeekInvoicesResult,
-        historicalInvoicesResult, 
-        manifestsResult
-      ] = await Promise.all([
+      const invoiceColumns = "id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document";
+
+      // Uma unica busca paginada dos ultimos 6 meses; hoje, ontem, semana e as
+      // janelas de historico sao recortes em memoria (antes eram 5 consultas,
+      // todas limitadas a 1000 linhas pelo Supabase).
+      const [driversResult, historicalInvoices, manifestsResult] = await Promise.all([
         // All drivers
         supabase.from("drivers").select("id, name, photo_url, phone, vehicle_plate, status"),
-        
-        // Today's invoices (finalized)
-        supabase
-          .from("invoices")
-          .select("id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document")
-          .gte("updated_at", todayStart)
-          .in("status", ["delivered", "occurrence", "returned"]),
-        
-        // Yesterday's invoices (for trend comparison)
-        supabase
-          .from("invoices")
-          .select("id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document")
-          .gte("updated_at", yesterdayStart.toISOString())
-          .lte("updated_at", yesterdayEnd.toISOString())
-          .in("status", ["delivered", "occurrence", "returned"]),
-        
-        // Last 7 days invoices
-        supabase
-          .from("invoices")
-          .select("id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document")
-          .gte("updated_at", weekAgo)
-          .in("status", ["delivered", "occurrence", "returned"]),
-        
-        // Previous week invoices (7-14 days ago for trend)
-        supabase
-          .from("invoices")
-          .select("id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document")
-          .gte("updated_at", twoWeeksAgo)
-          .lt("updated_at", weekAgo)
-          .in("status", ["delivered", "occurrence", "returned"]),
-        
-        // Last 6 months invoices
-        supabase
-          .from("invoices")
-          .select("id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document")
-          .gte("updated_at", sixMonthsAgo)
-          .in("status", ["delivered", "occurrence", "returned"]),
-        
+
+        fetchAllPages<InvoiceForSLA>((from, to) =>
+          supabase
+            .from("invoices")
+            .select(invoiceColumns)
+            .gte("updated_at", sixMonthsAgo)
+            .in("status", ["delivered", "occurrence", "returned"])
+            // Ordem por id (imutavel): NFs atualizadas durante a leitura nao
+            // trocam de pagina, entao nada e pulado nem contado duas vezes.
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
+
         // Recent manifests used to recover driver links when invoices only have manifest_id
         supabase
           .from("manifests")
@@ -360,13 +365,17 @@ export function useSLADB() {
           .gte("scheduled_date", sixMonthsAgo.slice(0, 10)),
       ]);
 
+      const updatedMs = (inv: InvoiceForSLA) => Date.parse(inv.updated_at);
+      const updatedBetween = (inv: InvoiceForSLA, fromIso: string, toIso?: string) =>
+        updatedMs(inv) >= Date.parse(fromIso) && (!toIso || updatedMs(inv) < Date.parse(toIso));
+
       const drivers = (driversResult.data || []) as DriverInfo[];
-      const todayInvoices = (todayInvoicesResult.data || []) as InvoiceForSLA[];
-      const yesterdayInvoices = (yesterdayInvoicesResult.data || []) as InvoiceForSLA[];
-      const weeklyInvoices = (weeklyInvoicesResult.data || []) as InvoiceForSLA[];
-      const previousWeekInvoices = (previousWeekInvoicesResult.data || []) as InvoiceForSLA[];
-      const historicalInvoices = (historicalInvoicesResult.data || []) as InvoiceForSLA[];
+      const todayInvoices = historicalInvoices.filter(inv => updatedBetween(inv, todayStart));
+      const yesterdayInvoices = historicalInvoices.filter(inv => updatedBetween(inv, yesterdayStart.toISOString(), yesterdayEnd.toISOString()));
+      const weeklyInvoices = historicalInvoices.filter(inv => updatedBetween(inv, weekAgo));
+      const previousWeekInvoices = historicalInvoices.filter(inv => updatedBetween(inv, twoWeeksAgo, weekAgo));
       const manifests = (manifestsResult.data || []) as ManifestForSLA[];
+      const periodStarts = SLA_PERIODS.map(days => [days, Date.parse(periodStart(days, today))] as const);
       const manifestDriverMap = new Map(manifests.map(manifest => [manifest.id, manifest.driver_id]));
       const getEffectiveDriverId = (invoice: InvoiceForSLA) =>
         invoice.driver_id || (invoice.manifest_id ? manifestDriverMap.get(invoice.manifest_id) || null : null);
@@ -384,6 +393,12 @@ export function useSLADB() {
         const weeklyCalc = calculateSLAFromInvoices(driverWeeklyInvoices);
         const previousWeekCalc = calculateSLAFromInvoices(driverPreviousWeekInvoices);
         const historicalCalc = calculateSLAFromInvoices(driverHistoricalInvoices);
+        const periodStats = Object.fromEntries(
+          periodStarts.map(([days, startMs]) => {
+            const calc = calculateSLAFromInvoices(driverHistoricalInvoices.filter(inv => updatedMs(inv) >= startMs));
+            return [days, { sla: calc.sla, total: calc.total, delivered: calc.delivered, occurrences: calc.occurrences }];
+          })
+        ) as Record<SLAPeriodDays, PeriodSLA>;
 
         // Get today's occurrences for detail view
         const todayOccurrences: InvoiceOccurrence[] = driverTodayInvoices
@@ -421,6 +436,7 @@ export function useSLADB() {
           photo_url: driver.photo_url,
           phone: driver.phone,
           vehicle_plate: driver.vehicle_plate,
+          status: driver.status,
           
           todayTotalInvoices: todayCalc.total,
           todayDeliveredCount: todayCalc.delivered,
@@ -441,6 +457,8 @@ export function useSLADB() {
           
           historicalSLA: historicalCalc.sla,
           historicalTotalInvoices: historicalCalc.total,
+
+          periodStats,
         };
       });
 
@@ -465,6 +483,12 @@ export function useSLADB() {
 
       setDriverStats(stats);
       setOrphanInvoices(weeklyOrphans);
+      setFleetPeriodSLA(Object.fromEntries(
+        periodStarts.map(([days, startMs]) => {
+          const calc = calculateSLAFromInvoices(historicalInvoices.filter(inv => updatedMs(inv) >= startMs));
+          return [days, { sla: calc.sla, total: calc.total, delivered: calc.delivered, occurrences: calc.occurrences }];
+        })
+      ) as Record<SLAPeriodDays, PeriodSLA>);
       setFleetSLA({
         today: todayFleetCalc.sla,
         yesterday: yesterdayFleetCalc.sla,
@@ -487,7 +511,7 @@ export function useSLADB() {
   // Subscribe to realtime changes on invoices
   useEffect(() => {
     const channel = supabase
-      .channel("sla-invoices-changes")
+      .channel(uniqueChannelName("sla-invoices-changes"))
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "invoices" },
@@ -595,6 +619,7 @@ export function useSLADB() {
     
     // Fleet SLAs
     fleetSLA,
+    fleetPeriodSLA,
     
     // Trends
     weeklyTrend,

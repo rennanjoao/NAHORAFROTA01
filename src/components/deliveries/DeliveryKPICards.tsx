@@ -1,5 +1,8 @@
-import { Clock, Truck, CheckCircle2, AlertTriangle, Warehouse } from "lucide-react";
+import { useCountUp } from "@/hooks/useCountUp";
+import { toneDot, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DELIVERY_STATUS } from "./status";
 
 export type KPIStatusFilter = "all" | "pending" | "in_transit" | "delivered" | "occurrence" | "returned";
 
@@ -17,109 +20,109 @@ interface DeliveryKPICardsProps {
   onFilterChange: (filter: KPIStatusFilter) => void;
 }
 
-const kpiConfig = [
-  {
-    key: "pending" as const,
-    label: "Pendentes",
-    icon: Clock,
-    bgColor: "bg-slate-100 dark:bg-slate-800",
-    iconBg: "bg-slate-200 dark:bg-slate-700",
-    iconColor: "text-slate-600 dark:text-slate-300",
-    activeRing: "ring-slate-400",
-    valueBg: "bg-slate-500",
-  },
-  {
-    key: "in_transit" as const,
-    label: "Em Rota",
-    icon: Truck,
-    bgColor: "bg-blue-50 dark:bg-blue-950/30",
-    iconBg: "bg-blue-100 dark:bg-blue-900/50",
-    iconColor: "text-blue-600 dark:text-blue-400",
-    activeRing: "ring-blue-400",
-    valueBg: "bg-blue-500",
-  },
-  {
-    key: "delivered" as const,
-    label: "Entregue",
-    icon: CheckCircle2,
-    bgColor: "bg-green-50 dark:bg-green-950/30",
-    iconBg: "bg-green-100 dark:bg-green-900/50",
-    iconColor: "text-green-600 dark:text-green-400",
-    activeRing: "ring-green-400",
-    valueBg: "bg-green-500",
-  },
-  {
-    key: "occurrence" as const,
-    label: "Ocorrência",
-    icon: AlertTriangle,
-    bgColor: "bg-orange-50 dark:bg-orange-950/30",
-    iconBg: "bg-orange-100 dark:bg-orange-900/50",
-    iconColor: "text-orange-600 dark:text-orange-400",
-    activeRing: "ring-orange-400",
-    valueBg: "bg-orange-500",
-  },
-  {
-    key: "returned" as const,
-    label: "Devolvido",
-    icon: Warehouse,
-    bgColor: "bg-slate-200 dark:bg-slate-700",
-    iconBg: "bg-slate-300 dark:bg-slate-600",
-    iconColor: "text-slate-700 dark:text-slate-200",
-    activeRing: "ring-slate-500",
-    valueBg: "bg-slate-600",
-  },
+const TILES: { key: Exclude<KPIStatusFilter, "all">; label: string }[] = [
+  { key: "pending", label: "Pendentes" },
+  { key: "in_transit", label: "Em rota" },
+  { key: "delivered", label: "Entregues" },
+  { key: "occurrence", label: "Ocorrências" },
+  { key: "returned", label: "Devolvidas" },
 ];
 
-export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: DeliveryKPICardsProps) {
-  const handleClick = (key: KPIStatusFilter) => {
-    // Toggle filter: if same filter is clicked, clear it
-    onFilterChange(activeFilter === key ? "all" : key);
-  };
+// Classes completas por cor (o Tailwind precisa ver o nome inteiro).
+const activeTone: Record<Tone, string> = {
+  neutral: "border-foreground/30 ring-foreground/10",
+  brand: "border-primary/50 ring-primary/15",
+  success: "border-success/50 ring-success/15",
+  warning: "border-warning/50 ring-warning/15",
+  danger: "border-destructive/50 ring-destructive/15",
+  info: "border-info/50 ring-info/15",
+};
 
+// Celular: 3 em cima e 2 embaixo; abaixo de 360px, 2 por linha (o nome nao corta).
+const tileSpan = (index: number) =>
+  index < 3 ? "col-span-3 min-[360px]:col-span-2" : index === 3 ? "col-span-3" : "col-span-6 min-[360px]:col-span-3";
+
+function Count({ value }: { value: number }) {
+  const display = useCountUp(value);
+  return <>{Math.round(display).toLocaleString("pt-BR")}</>;
+}
+
+/** Contagem por status. Cada cartao filtra a lista; tocar de novo tira o filtro. */
+export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: DeliveryKPICardsProps) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-      {kpiConfig.map((config) => {
-        const Icon = config.icon;
-        const count = stats[config.key] || 0;
-        const isActive = activeFilter === config.key;
+    <div
+      role="group"
+      aria-label="Filtrar notas por status"
+      // Grade de 6 colunas no celular: as linhas fecham sem buraco (tileSpan).
+      className="stagger grid grid-cols-6 gap-2 sm:gap-3 lg:grid-cols-5"
+    >
+      {TILES.map((tile, index) => {
+        const meta = DELIVERY_STATUS[tile.key];
+        const Icon = meta.icon;
+        const count = stats[tile.key] || 0;
+        const active = activeFilter === tile.key;
 
         return (
           <button
-            key={config.key}
-            onClick={() => handleClick(config.key)}
+            key={tile.key}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onFilterChange(active ? "all" : tile.key)}
             className={cn(
-              "relative p-4 rounded-xl transition-all duration-200",
-              "hover:scale-[1.02] active:scale-[0.98]",
-              "text-left w-full",
-              config.bgColor,
-              isActive && `ring-2 ring-offset-2 ${config.activeRing} shadow-lg`
+              "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4 lg:col-span-1",
+              tileSpan(index),
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
+              active && cn("ring-4", activeTone[meta.tone]),
             )}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className={cn("p-2 rounded-lg", config.iconBg)}>
-                <Icon className={cn("h-5 w-5", config.iconColor)} />
-              </div>
-              <div className={cn(
-                "text-2xl font-bold text-white px-3 py-1 rounded-full min-w-[3rem] text-center",
-                config.valueBg
-              )}>
-                {count}
-              </div>
-            </div>
-            <p className={cn(
-              "text-sm font-medium",
-              config.iconColor
-            )}>
-              {config.label}
-            </p>
-            {isActive && (
-              <div className="absolute top-2 right-2">
-                <div className={cn("w-2 h-2 rounded-full animate-pulse", config.valueBg)} />
-              </div>
-            )}
+            <span className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-muted-foreground sm:gap-2 sm:text-sm">
+                <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2", toneDot[meta.tone])} />
+                <span className="truncate">{tile.label}</span>
+              </span>
+              <span
+                aria-hidden="true"
+                className={cn("hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:flex", toneSoftBg[meta.tone], toneText[meta.tone])}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+            </span>
+            <span className="flex items-end justify-between gap-2">
+              <span className="font-data text-2xl font-semibold leading-none tracking-tight text-foreground sm:text-[1.75rem]">
+                <Count value={count} />
+              </span>
+              <span
+                className={cn(
+                  "hidden text-xs font-medium transition-opacity duration sm:inline",
+                  active ? "text-foreground" : "text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                )}
+              >
+                {active ? "Filtro ativo" : "Filtrar lista"}
+              </span>
+            </span>
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/** Esqueleto com a mesma grade e altura dos cartoes (a tela nao pula quando carrega). */
+export function DeliveryKPICardsSkeleton() {
+  return (
+    <div aria-hidden="true" className="grid grid-cols-6 gap-2 sm:gap-3 lg:grid-cols-5">
+      {TILES.map((tile, index) => (
+        <div
+          key={tile.key}
+          className={cn(
+            "flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4 lg:col-span-1",
+            tileSpan(index),
+          )}
+        >
+          <Skeleton className="h-3.5 w-16 sm:w-20" />
+          <Skeleton className="h-6 w-8 sm:h-7" />
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { friendlyError } from "@/lib/errors";
 
 export interface SystemUser {
   id: string;
@@ -13,9 +14,11 @@ export interface SystemUser {
   is_active: boolean;
 }
 
+const ROLE_PRIORITY: SystemUser['role'][] = ['admin', 'fleet_manager', 'dispatcher', 'viewer'];
+
 const roleLabels: Record<string, string> = {
   admin: 'Administrador',
-  fleet_manager: 'Gestor de Frota',
+  fleet_manager: 'Gestor de frota',
   dispatcher: 'Despachante',
   viewer: 'Visualizador',
 };
@@ -32,14 +35,15 @@ export function useSystemUsers() {
     try {
       const currentUserId = (await supabase.auth.getUser()).data.user?.id ?? '';
 
-      // First check if current user is admin
-      const { data: currentUserRole } = await supabase
+      // O usuario pode ter mais de um papel (ex.: viewer criado no cadastro + admin).
+      const { data: currentUserRoles, error: currentRolesError } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', currentUserId)
-        .single();
+        .eq('user_id', currentUserId);
+      // Falha de rede sobe como erro (o catch mostra a mensagem e mantem a lista).
+      if (currentRolesError) throw currentRolesError;
 
-      const isAdmin = currentUserRole?.role === 'admin';
+      const isAdmin = (currentUserRoles || []).some((r) => r.role === 'admin');
 
       if (!isAdmin) {
         setUsers([]);
@@ -92,7 +96,22 @@ export function useSystemUsers() {
 
       if (rolesError) throw rolesError;
 
-      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      // Com mais de um papel, vale o mais alto.
+      const roleMap = new Map<string, SystemUser['role']>();
+      for (const r of roles || []) {
+        const current = roleMap.get(r.user_id);
+        const role = r.role as SystemUser['role'];
+        if (!current || ROLE_PRIORITY.indexOf(role) < ROLE_PRIORITY.indexOf(current)) {
+          roleMap.set(r.user_id, role);
+        }
+      }
+
+      // Motoristas (login do app) nao entram na lista de usuarios do painel.
+      const { data: driverLogins } = await supabase
+        .from('drivers')
+        .select('user_id')
+        .in('user_id', tenantUserIds);
+      const driverUserIds = new Set((driverLogins || []).map(d => d.user_id));
 
       // Fetch platform admin IDs to exclude them from tenant user lists
       const { data: platformAdmins } = await supabase
@@ -106,7 +125,8 @@ export function useSystemUsers() {
         .filter(profile => {
           // Exclude platform admins (Master users) from tenant lists
           if (platformAdminIds.has(profile.id)) return false;
-          // Exclude driver emails from system user listing
+          // Exclude driver logins from system user listing
+          if (driverUserIds.has(profile.id)) return false;
           const email = profile.email?.toLowerCase() || '';
           if (email.endsWith('@driver.nahorafrota.app')) return false;
           return true;
@@ -125,7 +145,7 @@ export function useSystemUsers() {
       setUsers(combinedUsers);
     } catch (err: any) {
       console.error('Error fetching users:', err);
-      setError(err.message || 'Erro ao carregar usuários');
+      setError(friendlyError(err, 'Erro ao carregar usuários'));
     } finally {
       setIsLoading(false);
     }
@@ -134,9 +154,10 @@ export function useSystemUsers() {
   useEffect(() => {
     fetchUsers();
 
-    // Subscribe to changes in profiles and user_roles
+    // Nome unico por instancia: dois componentes com o mesmo canal se anulam.
+    const suffix = Math.random().toString(36).slice(2);
     const profilesChannel = supabase
-      .channel('profiles-changes')
+      .channel(`profiles-changes-${suffix}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'profiles' },
@@ -145,7 +166,7 @@ export function useSystemUsers() {
       .subscribe();
 
     const rolesChannel = supabase
-      .channel('roles-changes')
+      .channel(`roles-changes-${suffix}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_roles' },
@@ -159,33 +180,40 @@ export function useSystemUsers() {
     };
   }, [fetchUsers]);
 
-  const updateUserRole = async (userId: string, newRole: SystemUser['role']) => {
+  const updateUserRole = async (userId: string, newRole: SystemUser['role']): Promise<boolean> => {
     try {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', userId);
+      const { data, error } = await supabase.rpc('set_user_role', {
+        p_user_id: userId,
+        p_role: newRole,
+      });
 
       if (error) throw error;
 
+      const result = data as { success: boolean; error?: string } | null;
+      if (!result?.success) {
+        throw new Error(result?.error || 'Não foi possível alterar o nível de acesso.');
+      }
+
       toast({
-        title: '✅ Permissão atualizada',
+        title: 'Permissão atualizada',
         description: `Usuário agora é ${roleLabels[newRole]}.`,
       });
 
-      // Refetch to ensure UI is updated
-      fetchUsers();
+      await fetchUsers();
+      return true;
     } catch (err: any) {
       console.error('Error updating role:', err);
       toast({
         title: 'Erro ao atualizar permissão',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
+      await fetchUsers();
+      return false;
     }
   };
 
-  const deleteUser = async (userId: string) => {
+  const deleteUser = async (userId: string): Promise<boolean> => {
     try {
       // Call RPC function to delete everything
       const { data, error } = await supabase.rpc('delete_user_complete', {
@@ -200,19 +228,21 @@ export function useSystemUsers() {
       }
 
       toast({
-        title: '🗑️ Usuário deletado',
+        title: 'Usuário removido',
         description: 'Usuário removido completamente do sistema.',
       });
 
       // IMPORTANT: Remove from local state immediately
       setUsers(prevUsers => prevUsers.filter(u => u.user_id !== userId));
+      return true;
     } catch (err: any) {
       console.error('Error deleting user:', err);
       toast({
         title: 'Erro ao deletar usuário',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
+      return false;
     }
   };
 

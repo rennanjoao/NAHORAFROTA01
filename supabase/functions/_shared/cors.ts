@@ -20,13 +20,22 @@ const DEV_ORIGINS = [
   'http://127.0.0.1:3000',
 ];
 
+// Extra origins without a code change (e.g. the project's .vercel.app address):
+// Edge Functions secret ALLOWED_ORIGINS, comma separated.
+function extraOrigins(): string[] {
+  return (Deno.env.get('ALLOWED_ORIGINS') || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
 export function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
   const environment = Deno.env.get('ENVIRONMENT') || 'production';
   const isDev = environment === 'development';
-  
-  const allAllowedOrigins = isDev 
-    ? [...ALLOWED_ORIGINS, ...DEV_ORIGINS]
-    : ALLOWED_ORIGINS;
+
+  const allAllowedOrigins = isDev
+    ? [...ALLOWED_ORIGINS, ...extraOrigins(), ...DEV_ORIGINS]
+    : [...ALLOWED_ORIGINS, ...extraOrigins()];
   
   const origin = requestOrigin || '';
   

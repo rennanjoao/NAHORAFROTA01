@@ -1,30 +1,28 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Card } from '@/components/ui/card';
+import { Link } from 'react-router-dom';
+import { LogIn } from 'lucide-react';
+import { EmptyState } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  Navigation, Wifi, WifiOff, Battery, BatteryLow, AlertTriangle, 
-  Truck, Home, Wallet, Settings, FileWarning, Package, RefreshCw
-} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { DriverTopBar, type GpsState } from '@/components/tracker/DriverTopBar';
+import { DriverBottomNav, type DriverTab } from '@/components/tracker/DriverBottomNav';
 import { GPSEnforcer } from '@/components/tracker/GPSEnforcer';
+import { HomeTab } from '@/components/tracker/HomeTab';
 import { WalletTab } from '@/components/tracker/WalletTab';
+import { ReportTab } from '@/components/tracker/ReportTab';
 import { SettingsTab } from '@/components/tracker/SettingsTab';
 import { OccurrenceModal } from '@/components/tracker/OccurrenceModal';
-import { DeliveryProofModal } from '@/components/tracker/DeliveryProofModal';
 import { FinishDeliveryModal } from '@/components/tracker/FinishDeliveryModal';
 import { DeliveryOccurrenceModal } from '@/components/tracker/DeliveryOccurrenceModal';
-import { ManifestCard } from '@/components/tracker/ManifestCard';
-import { DeliveryList } from '@/components/tracker/DeliveryList';
 import { DriverOccurrencesSheet } from '@/components/tracker/DriverOccurrencesSheet';
 import { useDriverManifest, DriverDelivery } from '@/hooks/useDriverManifest';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useDriverPresence } from '@/hooks/useDriverPresence';
 import { resolveDriverForUser } from '@/lib/driverIdentity';
+import { findArrivals } from '@/lib/geo';
+import { plateText, vehicleTypeLabel } from '@/lib/vehicles';
 
 interface GPSPosition {
   latitude: number;
@@ -47,8 +45,18 @@ interface LinkedDriver {
   photo: string | null;
 }
 
+// Titulo da aba do navegador por tela do app (o leitor de tela anuncia a troca).
+const TAB_TITLES: Record<DriverTab, string> = {
+  home: 'Entregas de hoje',
+  wallet: 'Carteira',
+  report: 'Reportar problema',
+  settings: 'Configurações',
+};
+
 const GPS_TRACKING_PREF_KEY = 'nahorafrota:gps-tracking-pref';
 const GPS_HEARTBEAT_INTERVAL_MS = 30000;
+// Intervalo minimo entre tentativas de registrar chegada na mesma entrega.
+const ARRIVAL_RETRY_MS = 60000;
 
 const readGpsTrackingPreference = () => {
   try {
@@ -68,7 +76,7 @@ const writeGpsTrackingPreference = (value: 'active' | 'paused') => {
 
 export default function TrackerPage() {
   const { user, profile } = useAuth();
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState<DriverTab>('home');
   const [isTracking, setIsTracking] = useState(false);
   const [position, setPosition] = useState<GPSPosition | null>(null);
   const [batteryLevel, setBatteryLevel] = useState(100);
@@ -78,7 +86,7 @@ export default function TrackerPage() {
   const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
   const [linkedDriver, setLinkedDriver] = useState<LinkedDriver | null>(null);
   const [showOccurrenceModal, setShowOccurrenceModal] = useState(false);
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [occurrenceType, setOccurrenceType] = useState<string | undefined>();
   const [showOccurrencesSheet, setShowOccurrencesSheet] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<DriverDelivery | null>(null);
   const [showFinishDeliveryModal, setShowFinishDeliveryModal] = useState(false);
@@ -88,6 +96,9 @@ export default function TrackerPage() {
   const watchIdRef = useRef<number | null>(null);
   const isStartingTrackingRef = useRef(false);
   const gpsShouldStayActiveRef = useRef(gpsShouldStayActive);
+  const openLocationDriverRef = useRef<string | null>(null);
+  const arrivalAttemptsRef = useRef<Map<string, number>>(new Map());
+  const previousManifestIdRef = useRef<string | null>(null);
   const wakeLock = useWakeLock();
 
   useEffect(() => {
@@ -100,10 +111,21 @@ export default function TrackerPage() {
   const { 
     manifest, 
     deliveries, 
-    isLoading: manifestLoading, 
+    isLoading: manifestLoading,
+    error: manifestError,
     refetch: refetchManifest,
-    markDelivered 
+    markArrived,
   } = useDriverManifest();
+
+  // Falha ao atualizar com a lista antiga na tela: avisa (sem lista, a aba Inicio mostra o erro).
+  useEffect(() => {
+    if (!manifestError || !manifest) return;
+    toast.error('Não foi possível atualizar as entregas', {
+      description: 'Confira a internet. A lista na tela pode estar desatualizada.',
+      duration: 4000,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- so quando surge um erro novo
+  }, [manifestError]);
 
   // Fetch linked driver from database (driver with matching user_id)
   useEffect(() => {
@@ -151,7 +173,9 @@ export default function TrackerPage() {
     const updateBattery = async () => {
       if ('getBattery' in navigator) {
         try {
-          const battery = await (navigator as any).getBattery();
+          const battery = await (navigator as Navigator & {
+            getBattery: () => Promise<{ level: number; addEventListener: (type: string, listener: () => void) => void }>;
+          }).getBattery();
           setBatteryLevel(Math.round(battery.level * 100));
           
           battery.addEventListener('levelchange', () => {
@@ -192,10 +216,128 @@ export default function TrackerPage() {
       setLastUpdate(new Date());
       setGpsError(null);
       setGpsBlocked(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erro ao enviar posição:', err);
     }
   }, [driverInfo, batteryLevel]);
+
+  // O watchPosition guarda o callback do momento em que foi criado; pelo ref ele
+  // sempre usa a versao atual (bateria e motorista atualizados).
+  const sendPositionRef = useRef(sendPosition);
+  useEffect(() => {
+    sendPositionRef.current = sendPosition;
+  }, [sendPosition]);
+
+  const clearGpsWatch = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    isStartingTrackingRef.current = false;
+  }, []);
+
+  // So a permissao negada bloqueia o app (politica de GPS obrigatorio). Sinal fraco
+  // ou demora do GPS so mostram aviso: antes qualquer erro trocava o app inteiro
+  // pela tela vermelha e o motorista nao conseguia finalizar entregas.
+  const handleGeoError = useCallback((err: GeolocationPositionError) => {
+    if (err.code === err.PERMISSION_DENIED) {
+      clearGpsWatch();
+      setGpsError('O celular não deixou o app usar a localização.');
+      setGpsBlocked(true);
+      return;
+    }
+    setGpsError(err.code === err.TIMEOUT ? 'Sinal fraco. Tentando de novo.' : 'Localização indisponível agora. Tentando de novo.');
+  }, [clearGpsWatch]);
+
+  // Ao abrir (ou voltar para) o app, sempre busca a localizacao atual e
+  // atualiza o mapa, mesmo que o rastreamento continuo esteja pausado.
+  const refreshLocationOnce = useCallback(() => {
+    if (!driverInfo || !navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const gpsPos: GPSPosition = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          speed: (pos.coords.speed || 0) * 3.6,
+          heading: pos.coords.heading || 0,
+          accuracy: pos.coords.accuracy,
+        };
+        setPosition(gpsPos);
+        sendPosition(gpsPos);
+      },
+      (err) => {
+        console.warn('Nao foi possivel obter a localizacao ao abrir o app:', err.message);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [driverInfo, sendPosition]);
+
+  useEffect(() => {
+    if (!driverInfo || openLocationDriverRef.current === driverInfo.id) return;
+    openLocationDriverRef.current = driverInfo.id;
+    refreshLocationOnce();
+  }, [driverInfo, refreshLocationOnce]);
+
+  // Motorista a ate 100 m do endereco de uma entrega pendente = "motorista chegou".
+  useEffect(() => {
+    if (!position || deliveries.length === 0) return;
+
+    const now = Date.now();
+    const arrivals = findArrivals(position, deliveries).filter(({ delivery }) => {
+      const lastAttempt = arrivalAttemptsRef.current.get(delivery.id);
+      return !lastAttempt || now - lastAttempt > ARRIVAL_RETRY_MS;
+    });
+
+    arrivals.forEach(({ delivery }) => {
+      arrivalAttemptsRef.current.set(delivery.id, now);
+      supabase
+        .rpc('register_driver_arrival', {
+          p_invoice_id: delivery.id,
+          p_latitude: position.latitude,
+          p_longitude: position.longitude,
+        })
+        .then(({ data, error }) => {
+          if (error) {
+            console.warn('Erro ao registrar chegada:', error);
+            return;
+          }
+          const result = (data || {}) as { arrived?: boolean; arrived_at?: string; already?: boolean };
+          if (!result.arrived) return;
+          markArrived(delivery.id, result.arrived_at || new Date().toISOString());
+          if (!result.already) {
+            toast.success('Chegada registrada', {
+              description: `Você chegou em ${delivery.recipient_name}.`,
+              duration: 3000,
+            });
+          }
+        });
+    });
+  }, [position, deliveries, markArrived]);
+
+  // Quando a ultima entrega e concluida sem ocorrencia, o banco finaliza o
+  // romaneio sozinho; aqui so avisamos o motorista.
+  useEffect(() => {
+    if (manifestLoading) return;
+
+    const previousId = previousManifestIdRef.current;
+    previousManifestIdRef.current = manifest?.id ?? null;
+    if (!previousId || manifest?.id === previousId) return;
+
+    supabase
+      .from('manifests')
+      .select('status')
+      .eq('id', previousId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.status === 'completed') {
+          toast.success('Romaneio finalizado', {
+            description: 'Todas as entregas foram concluídas. Bom trabalho.',
+            duration: 4000,
+          });
+        }
+      });
+  }, [manifest, manifestLoading]);
 
   // Start tracking
   const startTracking = useCallback(() => {
@@ -203,15 +345,15 @@ export default function TrackerPage() {
     writeGpsTrackingPreference('active');
 
     if (!driverInfo) {
-      toast.error('Aguardando dados do usuário', {
+      toast.error('Carregando seus dados. Tente de novo em instantes.', {
         duration: 2000,
       });
       return;
     }
 
     if (!navigator.geolocation) {
-      toast.error('GPS não disponível', {
-        description: 'Dispositivo não suporta geolocalização',
+      toast.error('GPS indisponível', {
+        description: 'Este celular não informa a localização.',
         duration: 3000,
       });
       return;
@@ -242,19 +384,14 @@ export default function TrackerPage() {
         };
 
         setPosition(gpsPos);
-        sendPosition(gpsPos);
-        toast.success('GPS Ativado', {
-          description: 'Rastreamento em tempo real',
+        sendPositionRef.current(gpsPos);
+        toast.success('GPS ligado', {
+          description: 'A base já vê onde você está.',
           duration: 2000,
         });
       },
-      (err) => {
-        setGpsError(err.message);
-        setGpsBlocked(true);
-        setIsTracking(false);
-        isStartingTrackingRef.current = false;
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      handleGeoError,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
 
     // Watch position continuously
@@ -269,24 +406,21 @@ export default function TrackerPage() {
         };
 
         setPosition(gpsPos);
-        sendPosition(gpsPos);
+        sendPositionRef.current(gpsPos);
+        setGpsError(null);
         setGpsBlocked(false);
       },
-      (err) => {
-        setGpsError(err.message);
-        setGpsBlocked(true);
-        isStartingTrackingRef.current = false;
-      },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      handleGeoError,
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
     isStartingTrackingRef.current = false;
-  }, [driverInfo, sendPosition, wakeLock]);
+  }, [driverInfo, wakeLock, handleGeoError]);
 
   // Auto-start GPS tracking when driver info is available
   useEffect(() => {
     if (driverInfo && gpsShouldStayActive && !isTracking && !gpsBlocked) {
       const timer = setTimeout(() => {
-        console.log('🚀 Auto-iniciando rastreamento GPS...');
+        console.log('Auto-iniciando rastreamento GPS');
         setAutoStarted(true);
         startTracking();
       }, autoStarted ? 500 : 1500);
@@ -315,6 +449,7 @@ export default function TrackerPage() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        refreshLocationOnce();
         resumeTracking();
       }
     };
@@ -324,7 +459,7 @@ export default function TrackerPage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [driverInfo, gpsBlocked, position, sendPosition, startTracking, wakeLock]);
+  }, [driverInfo, gpsBlocked, position, sendPosition, startTracking, wakeLock, refreshLocationOnce]);
 
   // Keep the dashboard refreshed even if the driver is stopped.
   useEffect(() => {
@@ -342,11 +477,7 @@ export default function TrackerPage() {
     setGpsShouldStayActive(false);
     writeGpsTrackingPreference('paused');
 
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    isStartingTrackingRef.current = false;
+    clearGpsWatch();
 
     setIsTracking(false);
 
@@ -360,7 +491,7 @@ export default function TrackerPage() {
         .eq('driver_id', driverInfo.id);
     }
 
-    toast.info('GPS Pausado', {
+    toast.info('GPS pausado', {
       duration: 1500,
     });
   };
@@ -386,7 +517,7 @@ export default function TrackerPage() {
       const encodedAddress = encodeURIComponent(delivery.address_full);
       url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
     } else {
-      toast.error('Endereço não disponível para navegação');
+      toast.error('Esta entrega está sem endereço. Fale com a base.');
       return;
     }
 
@@ -405,25 +536,61 @@ export default function TrackerPage() {
     setShowDeliveryOccurrenceModal(true);
   }, []);
 
-  // Calculate delivery stats - always compute even if no user (hooks must be consistent)
-  const completedCount = deliveries.filter(d => d.status === 'delivered').length;
-  const totalCount = deliveries.length;
+  // Abre o formulario geral (aba Reportar) ja com o tipo escolhido.
+  const handleReportOccurrence = useCallback((type: string) => {
+    setOccurrenceType(type);
+    setShowOccurrenceModal(true);
+  }, []);
+
+  useEffect(() => {
+    document.title = `${TAB_TITLES[activeTab]} · Na Hora Frota`;
+  }, [activeTab]);
+
+  // Topo fixo (4rem) e barra inferior (4.5rem): ao navegar com Tab, o botao em foco
+  // rola para fora delas em vez de ficar escondido (WCAG 2.4.11).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.scrollPaddingTop = 'calc(4rem + env(safe-area-inset-top) + 0.75rem)';
+    root.style.scrollPaddingBottom = 'calc(4.5rem + env(safe-area-inset-bottom) + 0.75rem)';
+    return () => {
+      root.style.scrollPaddingTop = '';
+      root.style.scrollPaddingBottom = '';
+    };
+  }, []);
+
+  // Depois de finalizar/reportar, o cartao usado sai da lista e o foco cairia no body:
+  // leva para "Proxima entrega" (ou "Todas as paradas foram feitas").
+  const afterDeliveryChange = useCallback(async () => {
+    setSelectedDelivery(null);
+    await refetchManifest();
+    window.setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      (document.getElementById('proxima-titulo') || document.getElementById('tudo-entregue-titulo'))?.focus();
+    }, 400);
+  }, [refetchManifest]);
+
+  const changeTab = useCallback((tab: DriverTab) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
+  }, []);
 
   // Early return for no user - AFTER all hooks are defined
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="p-6 text-center max-w-md">
-          <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Login Necessário</h2>
-          <p className="text-muted-foreground mb-4">
-            Faça login para iniciar o rastreamento GPS.
-          </p>
-          <Button onClick={() => window.location.href = '/login'}>
-            Ir para Login
-          </Button>
-        </Card>
-      </div>
+      <main className="flex min-h-dvh items-center justify-center bg-background p-4">
+        <h1 className="sr-only">App do motorista</h1>
+        <EmptyState
+          icon={LogIn}
+          title="Entre para usar o app"
+          description="Faça login com o e-mail e a senha que a base passou para você."
+          action={
+            <Button asChild size="lg">
+              <Link to="/login">Entrar</Link>
+            </Button>
+          }
+          className="w-full max-w-sm bg-card"
+        />
+      </main>
     );
   }
 
@@ -431,241 +598,92 @@ export default function TrackerPage() {
   if (gpsBlocked && isTracking) {
     return (
       <GPSEnforcer
-        error={gpsError || 'Permissão de localização negada'}
+        error={gpsError || 'O celular não deixou o app usar a localização.'}
         onRetry={() => {
+          // Recria o watch: o anterior morreu com a permissao negada.
+          clearGpsWatch();
           setGpsBlocked(false);
+          setGpsError(null);
           startTracking();
         }}
       />
     );
   }
 
-  // Main render
+  const gpsState: GpsState = !isTracking ? 'paused' : gpsError ? 'weak' : 'on';
+  // "PENDENTE" e o marcador de cadastro sem placa; o tipo aparece com o nome do dia a dia ("Van/VUC").
+  const plate = plateText(linkedDriver?.vehicle_plate) ?? undefined;
+  const vehicleType = linkedDriver?.vehicle_type ? vehicleTypeLabel(linkedDriver.vehicle_type) : undefined;
+  const vehicle = [plate, vehicleType].filter(Boolean).join(' · ');
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Header */}
-      <header className="bg-card border-b border-border p-4 safe-area-top">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Truck className="h-6 w-6 text-primary" />
-            <span className="text-lg font-bold text-primary font-space-grotesk">
-              NAHORAFROTA
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {isTracking ? (
-              <Wifi className="h-5 w-5 text-green-500 animate-pulse" />
-            ) : (
-              <WifiOff className="h-5 w-5 text-muted-foreground" />
-            )}
-            {batteryLevel > 20 ? (
-              <Battery className="h-5 w-5 text-green-500" />
-            ) : (
-              <BatteryLow className="h-5 w-5 text-destructive" />
-            )}
-            <span className="text-xs text-muted-foreground">{batteryLevel}%</span>
-          </div>
+    <div className="min-h-dvh bg-background text-foreground">
+      <DriverTopBar
+        name={driverInfo?.name || 'Motorista'}
+        plate={plate}
+        vehicleType={vehicleType}
+        photo={linkedDriver?.photo}
+        gps={gpsState}
+        batteryLevel={batteryLevel}
+      />
+
+      <main className="mx-auto w-full max-w-2xl px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom)+2rem)] pt-5">
+        {/* key: cada aba entra com animacao e o titulo recebe o foco. */}
+        <div key={activeTab} className="page-enter">
+          {activeTab === 'home' && (
+            <HomeTab
+              manifest={manifest}
+              deliveries={deliveries}
+              loading={manifestLoading}
+              error={manifestError}
+              onRefresh={refetchManifest}
+              onNavigate={navigateToDelivery}
+              onFinishDelivery={handleFinishDelivery}
+              onRegisterOccurrence={handleRegisterDeliveryOccurrence}
+              gps={{
+                isTracking,
+                speed: position?.speed,
+                accuracy: position?.accuracy,
+                warning: gpsBlocked ? null : gpsError,
+                onStart: startTracking,
+                onStop: stopTracking,
+              }}
+            />
+          )}
+
+          {activeTab === 'wallet' && driverInfo && <WalletTab driverId={driverInfo.id} />}
+
+          {activeTab === 'report' && (
+            <ReportTab
+              onReport={handleReportOccurrence}
+              onShowHistory={() => setShowOccurrencesSheet(true)}
+              onGoHome={() => changeTab('home')}
+            />
+          )}
+
+          {activeTab === 'settings' && <SettingsTab driverName={driverInfo?.name || 'Motorista'} vehicle={vehicle} />}
         </div>
-        {linkedDriver ? (
-          <button 
-            onClick={() => setShowOccurrencesSheet(true)}
-            className="flex items-center gap-2 mt-2 p-2 -m-2 rounded-lg hover:bg-muted/50 transition-colors active:scale-[0.98]"
-          >
-            {linkedDriver.photo && (
-              <img 
-                src={linkedDriver.photo} 
-                alt={linkedDriver.name} 
-                className="w-8 h-8 rounded-full object-cover border-2 border-primary"
-              />
-            )}
-            <div className="flex flex-col items-start">
-              <Badge variant="outline" className="text-sm">
-                {linkedDriver.name}
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {linkedDriver.vehicle_plate} • {linkedDriver.vehicle_type}
-              </span>
-            </div>
-            <AlertTriangle className="h-4 w-4 text-yellow-500 ml-auto" />
-          </button>
-        ) : driverInfo && (
-          <button 
-            onClick={() => setShowOccurrencesSheet(true)}
-            className="mt-2 hover:opacity-80 transition-opacity"
-          >
-            <Badge variant="outline">
-              {driverInfo.name}
-            </Badge>
-          </button>
-        )}
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-4 pb-24">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsContent value="home" className="mt-0 space-y-4">
-            {/* GPS Status Mini Card */}
-            <Card className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${isTracking ? 'bg-green-500/20' : 'bg-muted'}`}>
-                    <Navigation className={`h-5 w-5 ${isTracking ? 'text-green-500' : 'text-muted-foreground'}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">
-                      {isTracking ? 'GPS Sempre Ativo' : 'GPS Inativo'}
-                    </p>
-                    {position && (
-                      <p className="text-xs text-muted-foreground">
-                        {position.speed.toFixed(0)} km/h • ±{position.accuracy.toFixed(0)}m
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant={isTracking ? 'destructive' : 'default'}
-                  onClick={isTracking ? stopTracking : startTracking}
-                  className="h-9"
-                >
-                  {isTracking ? 'Pausar' : 'Iniciar'}
-                </Button>
-              </div>
-            </Card>
-
-            {/* Manifest Card */}
-            {manifestLoading ? (
-              <Card className="p-4 space-y-3">
-                <Skeleton className="h-6 w-40" />
-                <div className="grid grid-cols-3 gap-3">
-                  <Skeleton className="h-16" />
-                  <Skeleton className="h-16" />
-                  <Skeleton className="h-16" />
-                </div>
-                <Skeleton className="h-4 w-full" />
-              </Card>
-            ) : manifest ? (
-              <ManifestCard 
-                manifest={manifest} 
-                completedCount={completedCount}
-                totalCount={totalCount}
-              />
-            ) : (
-              <Card className="p-6 text-center">
-                <Package className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                <h3 className="font-semibold mb-1">Nenhum Romaneio Ativo</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Você não possui romaneio atribuído no momento.
-                </p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => refetchManifest()}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Atualizar
-                </Button>
-              </Card>
-            )}
-
-            {/* Delivery List */}
-            {manifest && (
-              <DeliveryList
-                deliveries={deliveries}
-                onNavigate={navigateToDelivery}
-                onFinishDelivery={handleFinishDelivery}
-                onRegisterOccurrence={handleRegisterDeliveryOccurrence}
-                onForceSync={refetchManifest}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="wallet" className="mt-0">
-            {driverInfo && <WalletTab driverId={driverInfo.id} />}
-          </TabsContent>
-
-          <TabsContent value="report" className="mt-0">
-            <Card className="p-6 text-center">
-              <FileWarning className="h-12 w-12 mx-auto mb-4 text-yellow-500" />
-              <h3 className="text-lg font-semibold mb-2">Registrar Ocorrência</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Reporte acidentes, atrasos ou problemas mecânicos
-              </p>
-              <Button
-                onClick={() => setShowOccurrenceModal(true)}
-                size="lg"
-                className="gap-2"
-              >
-                <AlertTriangle className="h-5 w-5" />
-                Registrar Ocorrência
-              </Button>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="settings" className="mt-0">
-            <SettingsTab driverName={driverInfo?.name || 'Motorista'} />
-          </TabsContent>
-        </Tabs>
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-bottom">
-        <div className="grid w-full grid-cols-4 h-16">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`flex flex-col items-center justify-center gap-1 h-full transition-colors ${
-              activeTab === 'home' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Home className="h-5 w-5" />
-            <span className="text-xs">Início</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('wallet')}
-            className={`flex flex-col items-center justify-center gap-1 h-full transition-colors ${
-              activeTab === 'wallet' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Wallet className="h-5 w-5" />
-            <span className="text-xs">Carteira</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('report')}
-            className={`flex flex-col items-center justify-center gap-1 h-full transition-colors ${
-              activeTab === 'report' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <FileWarning className="h-5 w-5" />
-            <span className="text-xs">Reportar</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`flex flex-col items-center justify-center gap-1 h-full transition-colors ${
-              activeTab === 'settings' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Settings className="h-5 w-5" />
-            <span className="text-xs">Config</span>
-          </button>
-        </div>
-      </nav>
+      <DriverBottomNav active={activeTab} onChange={changeTab} />
 
-      {/* Modals */}
       {driverInfo && (
         <>
-          {/* General Occurrence Modal (Report tab) */}
+          {/* Problema geral (aba Reportar) */}
           <OccurrenceModal
             open={showOccurrenceModal}
-            onClose={() => setShowOccurrenceModal(false)}
+            onClose={() => {
+              setShowOccurrenceModal(false);
+              setOccurrenceType(undefined);
+            }}
             driverId={driverInfo.id}
             latitude={position?.latitude}
             longitude={position?.longitude}
+            defaultType={occurrenceType}
             onSuccess={() => {}}
           />
 
-          {/* Finish Delivery Modal */}
+          {/* Finalizar entrega */}
           {selectedDelivery && (
             <FinishDeliveryModal
               open={showFinishDeliveryModal}
@@ -679,14 +697,11 @@ export default function TrackerPage() {
               driverId={driverInfo.id}
               latitude={position?.latitude}
               longitude={position?.longitude}
-              onSuccess={() => {
-                setSelectedDelivery(null);
-                refetchManifest();
-              }}
+              onSuccess={afterDeliveryChange}
             />
           )}
 
-          {/* Delivery Occurrence Modal */}
+          {/* Problema numa entrega */}
           {selectedDelivery && (
             <DeliveryOccurrenceModal
               open={showDeliveryOccurrenceModal}
@@ -700,30 +715,7 @@ export default function TrackerPage() {
               driverId={driverInfo.id}
               latitude={position?.latitude}
               longitude={position?.longitude}
-              onSuccess={() => {
-                setSelectedDelivery(null);
-                refetchManifest();
-              }}
-            />
-          )}
-
-          {/* Legacy DeliveryProofModal - kept for backward compatibility */}
-          {selectedDelivery && showDeliveryModal && (
-            <DeliveryProofModal
-              open={showDeliveryModal}
-              onClose={() => {
-                setShowDeliveryModal(false);
-                setSelectedDelivery(null);
-              }}
-              invoiceId={selectedDelivery.id}
-              driverId={driverInfo.id}
-              latitude={position?.latitude}
-              longitude={position?.longitude}
-              onSuccess={() => {
-                markDelivered(selectedDelivery.id);
-                setSelectedDelivery(null);
-                refetchManifest();
-              }}
+              onSuccess={afterDeliveryChange}
             />
           )}
 

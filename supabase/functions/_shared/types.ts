@@ -3,6 +3,8 @@ import type { PlanId } from "./plans.ts";
 export type OrderStatus = "pending" | "paid" | "provisioned" | "failed" | "canceled";
 export type CheckoutMode = "stripe" | "sandbox";
 export type AccessEmailStatus = "sent" | "pending" | "failed" | "not_configured";
+/** "new": empresa criada na compra. "conversion": empresa que ja existia em teste gratis e virou assinatura. */
+export type OrderKind = "new" | "conversion";
 
 export interface OrderRow {
   id: string;
@@ -18,6 +20,9 @@ export interface OrderRow {
   contact_name: string;
   email: string;
   whatsapp: string | null;
+  kind: OrderKind;
+  /** Conversao em que o comprador ja era usuario da empresa: nao ha senha temporaria. */
+  existing_user: boolean;
   access_token_hash: string;
   provider_session_id: string | null;
   provider_customer_id: string | null;

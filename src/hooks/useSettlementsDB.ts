@@ -1,8 +1,10 @@
  // Hook for settlement database operations with realtime sync
  import { useState, useEffect, useCallback, useMemo } from "react";
  import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
  import { toast } from "@/hooks/use-toast";
  import { getCurrentTenantId, requireCurrentTenantId } from "@/lib/tenant";
+import { friendlyError } from "@/lib/errors";
  
  export interface DBSettlement {
    id: string;
@@ -99,7 +101,7 @@
      fetchSettlements();
  
      const channel = supabase
-       .channel("settlements-realtime")
+       .channel(uniqueChannelName("settlements-realtime"))
        .on(
          "postgres_changes",
          { event: "*", schema: "public", table: "settlements" },
@@ -159,14 +161,14 @@
        if (error) throw error;
  
        toast({
-         title: "✅ Acerto Finalizado!",
+         title: "Acerto Finalizado.",
          description: `Pagamento registrado com sucesso.`,
        });
        return true;
      } catch (err: any) {
        toast({
-         title: "❌ Erro ao finalizar acerto",
-         description: err.message,
+         title: "Erro ao finalizar acerto",
+         description: friendlyError(err),
          variant: "destructive",
        });
        return false;
@@ -210,14 +212,14 @@
        }
  
        toast({
-         title: isDeduction ? "➖ Desconto adicionado" : "➕ Crédito adicionado",
+         title: isDeduction ? "Desconto adicionado" : "Crédito adicionado",
          description: `${description}: R$ ${Math.abs(amount).toFixed(2)}`,
        });
        return true;
      } catch (err: any) {
        toast({
-         title: "❌ Erro ao adicionar lançamento",
-         description: err.message,
+         title: "Erro ao adicionar lançamento",
+         description: friendlyError(err),
          variant: "destructive",
        });
        return false;
@@ -252,8 +254,8 @@
       return true;
     } catch (err: any) {
       toast({
-        title: "❌ Erro ao estornar",
-        description: err.message,
+        title: "Erro ao estornar",
+        description: friendlyError(err),
         variant: "destructive",
       });
       return false;

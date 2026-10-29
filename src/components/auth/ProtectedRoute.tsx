@@ -1,9 +1,11 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { RefreshCw, UserCog } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BrandedLoader } from "@/components/auth/BrandedLoader";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
-import { SubscriptionBlockScreen } from "@/components/auth/SubscriptionBlockScreen";
+import { SubscriptionBlockScreen, type BlockReason } from "@/components/auth/SubscriptionBlockScreen";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -14,11 +16,9 @@ interface ProtectedRouteProps {
 // Routes that drivers should NEVER access (admin/dashboard routes)
 const ADMIN_ROUTES = [
   "/",
-  "/dashboard",
   "/drivers",
   "/routes",
   "/vehicles",
-  "/seguradoras",
   "/reports",
   "/deliveries",
   "/settlement",
@@ -29,6 +29,12 @@ const ADMIN_ROUTES = [
 
 const DRIVER_EMAIL_DOMAIN = "@driver.nahorafrota.app";
 
+// Situacoes em que a empresa perde o acesso ao sistema.
+const BLOCKING_STATUSES: readonly string[] = ["expired", "trial_expired", "blocked", "pending"];
+// No app do motorista so bloqueia o que o banco tambem bloqueia: fatura vencida
+// (bloqueio apenas de tela no painel) nao tira o motorista da rota.
+const DRIVER_BLOCKING_STATUSES: readonly string[] = ["trial_expired", "blocked", "pending"];
+
 // Helper function to check if email follows the driver pattern
 const isDriverEmail = (email: string | undefined): boolean => {
   if (!email) return false;
@@ -38,7 +44,11 @@ const isDriverEmail = (email: string | undefined): boolean => {
 export function ProtectedRoute({ children, requiredRole, allowDrivers = false }: ProtectedRouteProps) {
   const { session, user, loading, rolesLoading, roles, hasRole, isAdmin } = useAuth();
   const location = useLocation();
-  const { status: subscriptionStatus, isLoading: subLoading } = useSubscriptionStatus();
+  const { status: subscriptionStatus, isLoading: subLoading, access } = useSubscriptionStatus();
+  const isBlockedBySubscription =
+    !subLoading && !access?.is_platform_admin && BLOCKING_STATUSES.includes(subscriptionStatus);
+  const isDriverBlockedBySubscription =
+    !subLoading && !access?.is_platform_admin && DRIVER_BLOCKING_STATUSES.includes(subscriptionStatus);
 
   // Get email from authenticated user
   const userEmail = user?.email;
@@ -54,14 +64,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
 
   // PHASE 1: Show loading while checking authentication
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
+    return <BrandedLoader label="Abrindo o Na Hora Frota" />;
   }
 
   // PHASE 2: Redirect to login if not authenticated
@@ -69,21 +72,15 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // PHASE 2.5: Contas criadas pelo checkout precisam trocar a senha temporária antes de qualquer tela
+  // PHASE 2.5: contas criadas pelo checkout entram com senha temporaria e precisam
+  // trocar antes de qualquer tela (a flag some quando a pessoa salva a senha nova).
   if (user?.user_metadata?.must_change_password && location.pathname !== "/primeiro-acesso") {
     return <Navigate to="/primeiro-acesso" replace />;
   }
 
   // PHASE 3: Wait for roles to load before making access decisions
   if (rolesLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <ShieldAlert className="h-8 w-8 animate-pulse text-primary" />
-          <p className="text-muted-foreground">Verificando permissões...</p>
-        </div>
-      </div>
-    );
+    return <BrandedLoader label="Conferindo seu acesso" />;
   }
 
   // PHASE 4: CRITICAL - Check driver email FIRST before any role checks
@@ -93,8 +90,11 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
       console.log("[SECURITY] Driver email detected, blocking admin route access:", userEmail);
       return <Navigate to="/tracker" replace />;
     }
-    // Driver accessing tracker - allowed
+    // Driver accessing tracker - allowed while the company has access
     if (isTrackerRoute) {
+      if (isDriverBlockedBySubscription) {
+        return <SubscriptionBlockScreen reason={subscriptionStatus as BlockReason} forDriver />;
+      }
       return <>{children}</>;
     }
     // Driver accessing unknown route - redirect to tracker
@@ -120,9 +120,10 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
       return <Navigate to="/" replace />;
     }
     
-    // SUBSCRIPTION CHECK: Block access if expired (skip for /master route — platform admins)
-    if (location.pathname !== "/master" && !subLoading && subscriptionStatus === "expired") {
-      return <SubscriptionBlockScreen />;
+    // SUBSCRIPTION CHECK: block when the trial ended, the subscription expired or the
+    // company was blocked (skip for /master route and platform admins)
+    if (location.pathname !== "/master" && isBlockedBySubscription) {
+      return <SubscriptionBlockScreen reason={subscriptionStatus as BlockReason} />;
     }
     
     // User has proper roles, allow access
@@ -140,21 +141,25 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
   if (isAdminRoute && !hasOperationalRole) {
     console.log("[SECURITY] User without operational roles attempting admin access:", userEmail);
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4 max-w-md px-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <h2 className="text-xl font-semibold text-foreground">Configurando seu acesso...</h2>
-          <p className="text-muted-foreground">
-            Sua conta está sendo preparada. Se o problema persistir, entre em contato com o administrador.
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="text-sm text-primary hover:underline mt-2"
+      <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
+        <div role="status" className="w-full max-w-md animate-fade-in rounded-2xl border bg-card p-6 text-center shadow-lg sm:p-8">
+          <span
+            aria-hidden="true"
+            className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary"
           >
-            Tentar novamente
-          </button>
+            <UserCog className="h-7 w-7" />
+          </span>
+          <h1 className="text-xl font-semibold text-foreground">Estamos preparando seu acesso</h1>
+          <p className="mt-2 text-[0.9375rem] text-muted-foreground">
+            Sua conta ainda não tem uma função liberada. Tente de novo daqui a pouco. Se continuar assim, peça ao
+            administrador da sua empresa para liberar o seu acesso.
+          </p>
+          <Button onClick={() => window.location.reload()} size="lg" className="mt-6 w-full sm:w-auto">
+            <RefreshCw aria-hidden="true" />
+            Tentar de novo
+          </Button>
         </div>
-      </div>
+      </main>
     );
   }
 

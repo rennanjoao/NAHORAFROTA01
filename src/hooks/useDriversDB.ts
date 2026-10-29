@@ -1,8 +1,10 @@
 // Hook for driver database operations with realtime sync
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uniqueChannelName } from "@/lib/realtime";
 import { toast } from "@/hooks/use-toast";
 import { getCurrentTenantId, requireCurrentTenantId } from "@/lib/tenant";
+import { friendlyError } from "@/lib/errors";
 
 export interface DBDriver {
   id: string;
@@ -10,6 +12,7 @@ export interface DBDriver {
   tenant_id?: string | null;
   name: string;
   email?: string | null;
+  contact_email?: string | null;
   cpf: string;
   phone: string;
   avatar: string;
@@ -118,7 +121,7 @@ export function useDriversDB() {
     fetchDrivers();
 
     const channel = supabase
-      .channel("drivers-realtime-sync")
+      .channel(uniqueChannelName("drivers-realtime-sync"))
       .on(
         "postgres_changes",
         {
@@ -161,7 +164,7 @@ export function useDriversDB() {
 
       toast({
         title: "Motorista cadastrado",
-        description: `${driver.name} foi adicionado e esta disponivel em todo o sistema.`,
+        description: `${driver.name} foi adicionado e está disponível em todo o sistema.`,
       });
 
       return data;
@@ -224,7 +227,7 @@ export function useDriversDB() {
         title: "Erro ao atualizar",
         description: isPermissionError
           ? DRIVER_ADMIN_PERMISSION_MESSAGE
-          : err.message || "Nao foi possivel atualizar o motorista.",
+          : friendlyError(err, "Não foi possível atualizar o motorista."),
         variant: "destructive",
       });
       return null;
@@ -250,7 +253,7 @@ export function useDriversDB() {
       console.error("Error deleting driver:", err);
       toast({
         title: "Erro ao remover",
-        description: err.message || "Nao foi possivel remover o motorista.",
+        description: friendlyError(err, "Não foi possível remover o motorista."),
         variant: "destructive",
       });
       return false;

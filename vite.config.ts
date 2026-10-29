@@ -26,16 +26,17 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'favicon-32x32.png', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
       manifest: {
         name: 'Na Hora Frota',
         short_name: 'NaHoraFrota',
-        description: 'Gestão de entregas e frota em tempo real: romaneio, mapa ao vivo, SLA e acerto.',
+        description: 'Gestão de frota em tempo real. Entrega sempre na hora.',
         theme_color: '#080808',
         background_color: '#080808',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
+        // "/" leva o motorista ao app (/tracker) e a equipe ao painel.
         start_url: '/',
         icons: [
           {
@@ -61,9 +62,11 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         skipWaiting: false,
         clientsClaim: false,
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4MB
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // A cena 3D do site e as fotos nao entram no cache offline (grandes e so do site).
         globIgnores: ['**/Hero3D-*.js', '**/*.jpg'],
+        // Checkout sempre vai a rede (retorno do Stripe, pedido em andamento).
         navigateFallbackDenylist: [/^\/checkout\//, /^\/comprar\//],
         runtimeCaching: [
           {

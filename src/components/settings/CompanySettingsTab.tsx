@@ -1,14 +1,18 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { Building2, Loader2, Lock, MapPin, Save } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Save, MapPin, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
 import { formatCNPJ, validateCNPJ, formatPhone, formatCEP } from "@/lib/cnpjValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantData } from "@/hooks/useTenantData";
+import { useAuth } from "@/contexts/AuthContext";
+import { FormField } from "@/components/patterns/FormField";
+import { SettingsCard } from "./SettingsCard";
 
 const UF_OPTIONS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -16,8 +20,30 @@ const UF_OPTIONS = [
   "RS", "RO", "RR", "SC", "SP", "SE", "TO"
 ];
 
+const readOnlyClass = "bg-muted/50 text-muted-foreground hover:border-input focus-visible:border-input";
+
+/** Coordenada em pt-BR (virgula decimal). */
+const formatCoord = (value: number) =>
+  value.toLocaleString("pt-BR", { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+
+function FormGroup({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return (
+    <div className="space-y-4 border-t pt-6 first:border-t-0 first:pt-0">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {description && <p className="mt-0.5 text-[0.8125rem] text-muted-foreground">{description}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export function CompanySettingsTab() {
   const { tenant, isLoading: tenantLoading, updateTenant } = useTenantData();
+  // Somente o Administrador altera os dados da empresa (regra tambem no banco).
+  const { isAdmin } = useAuth();
+  const canEdit = isAdmin();
+  const razaoRef = useRef<HTMLInputElement>(null);
 
   const [razaoSocial, setRazaoSocial] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -32,10 +58,11 @@ export function CompanySettingsTab() {
   const [longitude, setLongitude] = useState<number | null>(null);
 
   const [cnpjValid, setCnpjValid] = useState<boolean | null>(null);
+  const [razaoError, setRazaoError] = useState<string | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sync form when tenant loads
+  // Preenche o formulario quando a empresa carrega
   useEffect(() => {
     if (tenant) {
       setRazaoSocial(tenant.razao_social || "");
@@ -62,9 +89,14 @@ export function CompanySettingsTab() {
   }, [cnpj]);
 
   const handleGeocode = async () => {
+    if (isGeocoding) return;
     const fullAddress = `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${uf}, ${cep}`;
     if (!logradouro || !cidade || !uf) {
-      toast({ title: "Endereço Incompleto", description: "Preencha logradouro, cidade e UF.", variant: "destructive" });
+      toast({
+        title: "Endereço incompleto",
+        description: "Preencha rua, cidade e estado para buscar a localização.",
+        variant: "destructive",
+      });
       return;
     }
     setIsGeocoding(true);
@@ -72,7 +104,7 @@ export function CompanySettingsTab() {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
       if (!token) {
-        toast({ title: "Sessão expirada", description: "Faça login novamente.", variant: "destructive" });
+        toast({ title: "Sessão expirada", description: "Entre de novo para continuar.", variant: "destructive" });
         setIsGeocoding(false);
         return;
       }
@@ -83,22 +115,38 @@ export function CompanySettingsTab() {
       });
 
       if (error || !data?.success) {
-        toast({ title: "Erro na Geocodificação", description: data?.error || error?.message || "Não foi possível obter as coordenadas.", variant: "destructive" });
+        toast({
+          title: "Não foi possível achar o endereço no mapa",
+          description: "Confira rua, número, cidade e estado e tente de novo.",
+          variant: "destructive",
+        });
       } else {
         setLatitude(data.latitude);
         setLongitude(data.longitude);
-        toast({ title: "✅ Coordenadas Obtidas", description: `Lat: ${data.latitude.toFixed(6)}, Lng: ${data.longitude.toFixed(6)}` });
+        toast({
+          title: "Localização encontrada",
+          description: `Latitude ${formatCoord(data.latitude)}, longitude ${formatCoord(data.longitude)}. Salve para usar nas rotas.`,
+          variant: "success",
+        });
       }
     } catch {
-      toast({ title: "Erro na Geocodificação", description: "Não foi possível obter as coordenadas.", variant: "destructive" });
+      toast({
+        title: "Não foi possível achar o endereço no mapa",
+        description: "Confira o endereço e tente de novo.",
+        variant: "destructive",
+      });
     } finally {
       setIsGeocoding(false);
     }
   };
 
-  const handleSave = async () => {
-    if (!razaoSocial) {
-      toast({ title: "Campo Obrigatório", description: "Razão Social é obrigatório.", variant: "destructive" });
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
+    // O botao continua focavel enquanto salva (aria-disabled): evita salvar duas vezes.
+    if (isSaving) return;
+    if (!razaoSocial.trim()) {
+      setRazaoError("Digite a razão social da empresa.");
+      razaoRef.current?.focus();
       return;
     }
     setIsSaving(true);
@@ -119,117 +167,186 @@ export function CompanySettingsTab() {
 
   if (tenantLoading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="ml-2 text-muted-foreground">Carregando dados da empresa...</span>
-        </CardContent>
-      </Card>
+      <div role="status" aria-label="Carregando dados da empresa" className="space-y-5 rounded-lg border bg-card p-6 shadow-sm">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+        <div className="grid gap-5 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ))}
+        </div>
+        <span className="sr-only">Carregando dados da empresa</span>
+      </div>
     );
   }
 
+  const hasLocation = !!latitude && !!longitude;
+  // So leitura: campo vazio diz "Nao informado" (o exemplo "123" parecia um dado).
+  const hint = (example: string) => (canEdit ? example : "Não informado");
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Building2 className="h-5 w-5" />
-          Dados da Empresa
-        </CardTitle>
-        <CardDescription>
-          Configure os dados cadastrais e endereço base para roteirização
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Dados Cadastrais */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Dados Cadastrais</h4>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="razaoSocial">Razão Social *</Label>
-              <Input id="razaoSocial" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Nome empresarial completo" />
+    <SettingsCard
+      icon={Building2}
+      title="Dados da empresa"
+      description="Cadastro da empresa e o endereço de onde saem as entregas."
+      onSubmit={canEdit ? handleSave : (event) => event.preventDefault()}
+      footerHint={canEdit ? "O endereço da base é o ponto de partida de todas as rotas." : undefined}
+      footer={
+        canEdit ? (
+          <Button type="submit" aria-disabled={isSaving || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
+            {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+            {isSaving ? "Salvando..." : "Salvar dados da empresa"}
+          </Button>
+        ) : undefined
+      }
+    >
+      {!canEdit && (
+        <Alert variant="info" className="mb-6">
+          <Lock aria-hidden="true" />
+          <AlertDescription className="text-foreground">
+            Você pode ver os dados, mas somente o administrador da conta pode alterá-los.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <fieldset disabled={!canEdit} className="min-w-0 space-y-6">
+
+        <FormGroup title="Cadastro">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <FormField id="razaoSocial" label="Razão social" error={razaoError} className="sm:col-span-2">
+              {(control) => (
+                <Input
+                  {...control}
+                  ref={razaoRef}
+                  value={razaoSocial}
+                  aria-required="true"
+                  onChange={(e) => {
+                    setRazaoSocial(e.target.value);
+                    if (razaoError) setRazaoError(null);
+                  }}
+                  placeholder={hint("Nome empresarial completo")}
+                />
+              )}
+            </FormField>
+            <FormField id="cnpj" label="CNPJ" hint="O CNPJ não pode ser alterado.">
+              {(control) => (
+                <div className="flex items-center gap-2">
+                  <Input {...control} value={cnpj} readOnly className={readOnlyClass} />
+                  {cnpjValid !== null && (
+                    <StatusBadge tone={cnpjValid ? "success" : "danger"} className="shrink-0">
+                      {cnpjValid ? "Válido" : "Inválido"}
+                    </StatusBadge>
+                  )}
+                </div>
+              )}
+            </FormField>
+            <FormField id="telefone" label="Telefone" optional>
+              {(control) => (
+                <Input
+                  {...control}
+                  type="tel"
+                  inputMode="tel"
+                  value={telefone}
+                  onChange={(e) => setTelefone(formatPhone(e.target.value))}
+                  placeholder={hint("(00) 00000-0000")}
+                />
+              )}
+            </FormField>
+          </div>
+        </FormGroup>
+
+        <FormGroup title="Endereço da base" description="De onde os motoristas saem para as entregas.">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-6">
+            <FormField id="logradouro" label="Rua ou avenida" className="sm:col-span-4">
+              {(control) => (
+                <Input {...control} value={logradouro} onChange={(e) => setLogradouro(e.target.value)} placeholder={hint("Ex.: Rua das Flores")} />
+              )}
+            </FormField>
+            <FormField id="numero" label="Número" className="sm:col-span-2">
+              {(control) => (
+                <Input {...control} inputMode="numeric" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder={hint("123")} />
+              )}
+            </FormField>
+            <FormField id="bairro" label="Bairro" className="sm:col-span-2">
+              {(control) => <Input {...control} value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder={hint("")} />}
+            </FormField>
+            <FormField id="cidade" label="Cidade" className="sm:col-span-2">
+              {(control) => <Input {...control} value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder={hint("")} />}
+            </FormField>
+            <div className="grid grid-cols-2 gap-5 sm:col-span-2">
+              <FormField id="uf" label="Estado">
+                {(control) => (
+                  <Select value={uf} onValueChange={setUf} disabled={!canEdit}>
+                    <SelectTrigger {...control}>
+                      <SelectValue placeholder={canEdit ? "UF" : "—"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UF_OPTIONS.map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </FormField>
+              <FormField id="cep" label="CEP">
+                {(control) => (
+                  <Input
+                    {...control}
+                    inputMode="numeric"
+                    value={cep}
+                    onChange={(e) => setCep(formatCEP(e.target.value))}
+                    placeholder={hint("00000-000")}
+                  />
+                )}
+              </FormField>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="cnpj">CNPJ</Label>
-              <div className="relative">
-                <Input id="cnpj" value={cnpj} disabled className="bg-muted pr-10" />
-                {cnpjValid !== null && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    {cnpjValid ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertCircle className="h-4 w-4 text-destructive" />}
-                  </div>
+          </div>
+        </FormGroup>
+
+        <FormGroup title="Localização no mapa" description="Com a localização, o sistema calcula as rotas a partir da base.">
+          <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-card text-primary shadow-xs"
+              >
+                <MapPin className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 space-y-1">
+                <StatusBadge tone={hasLocation ? "success" : "warning"}>
+                  {hasLocation ? "Localização definida" : "Sem localização"}
+                </StatusBadge>
+                {hasLocation ? (
+                  <p className="font-data text-sm text-muted-foreground">
+                    <span className="sr-only">Latitude </span>
+                    {formatCoord(latitude as number)}
+                    <span aria-hidden="true"> · </span>
+                    <span className="sr-only">, longitude </span>
+                    {formatCoord(longitude as number)}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {canEdit
+                      ? "Preencha o endereço e use “Buscar no mapa”."
+                      : "O administrador ainda não marcou a base no mapa."}
+                  </p>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">CNPJ não pode ser alterado</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone</Label>
-              <Input id="telefone" value={telefone} onChange={(e) => setTelefone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" />
-            </div>
+            {canEdit && (
+              <Button type="button" variant="outline" onClick={handleGeocode} aria-disabled={isGeocoding || undefined} className="shrink-0 aria-disabled:pointer-events-none aria-disabled:opacity-60">
+                {isGeocoding ? <Loader2 className="animate-spin" aria-hidden="true" /> : <MapPin aria-hidden="true" />}
+                {isGeocoding ? "Buscando..." : hasLocation ? "Buscar de novo" : "Buscar no mapa"}
+              </Button>
+            )}
           </div>
-        </div>
-
-        {/* Endereço */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Endereço da Base (Ponto de Partida)</h4>
-          <div className="grid gap-4 sm:grid-cols-6">
-            <div className="space-y-2 sm:col-span-4">
-              <Label htmlFor="logradouro">Logradouro</Label>
-              <Input id="logradouro" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} placeholder="Rua, Avenida, etc." />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="numero">Número</Label>
-              <Input id="numero" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="123" />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="bairro">Bairro</Label>
-              <Input id="bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder="Bairro" />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="cidade">Cidade</Label>
-              <Input id="cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Cidade" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="uf">UF</Label>
-              <Select value={uf} onValueChange={setUf}>
-                <SelectTrigger><SelectValue placeholder="UF" /></SelectTrigger>
-                <SelectContent>
-                  {UF_OPTIONS.map((u) => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cep">CEP</Label>
-              <Input id="cep" value={cep} onChange={(e) => setCep(formatCEP(e.target.value))} placeholder="00000-000" />
-            </div>
-          </div>
-        </div>
-
-        {/* Geocodificação */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium border-b pb-2">Coordenadas GPS (Base)</h4>
-          <div className="flex items-end gap-4">
-            <div className="space-y-2 flex-1">
-              <Label>Latitude</Label>
-              <Input value={latitude?.toFixed(6) || ""} disabled placeholder="Não geocodificado" className="bg-muted" />
-            </div>
-            <div className="space-y-2 flex-1">
-              <Label>Longitude</Label>
-              <Input value={longitude?.toFixed(6) || ""} disabled placeholder="Não geocodificado" className="bg-muted" />
-            </div>
-            <Button variant="outline" onClick={handleGeocode} disabled={isGeocoding} className="gap-2">
-              <MapPin className="h-4 w-4" />
-              {isGeocoding ? "Geocodificando..." : "Obter Coordenadas"}
-            </Button>
-          </div>
-          {latitude && longitude && (
-            <p className="text-sm text-muted-foreground">✓ Coordenadas definidas. Este será o ponto de partida para todas as rotas.</p>
-          )}
-        </div>
-
-        <Button onClick={handleSave} disabled={isSaving} className="gap-2">
-          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {isSaving ? "Salvando..." : "Salvar Dados da Empresa"}
-        </Button>
-      </CardContent>
-    </Card>
+        </FormGroup>
+      </fieldset>
+    </SettingsCard>
   );
 }

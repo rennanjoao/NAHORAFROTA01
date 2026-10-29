@@ -1,19 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ConfirmDialog, EmptyState, ListSkeleton, Section } from "@/components/patterns";
+import { PersonAvatar } from "@/components/admin/PersonAvatar";
+import { FormField } from "@/components/patterns/FormField";
 import { Crown, Plus, Trash2, Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -33,6 +28,9 @@ export function PlatformAdminsCard() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [adding, setAdding] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [toRemove, setToRemove] = useState<PlatformAdmin | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const fetchAdmins = useCallback(async () => {
     setIsLoading(true);
@@ -68,7 +66,7 @@ export function PlatformAdminsCard() {
       }));
 
       setAdmins(enriched);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error fetching platform admins:", err);
     } finally {
       setIsLoading(false);
@@ -79,9 +77,17 @@ export function PlatformAdminsCard() {
     fetchAdmins();
   }, [fetchAdmins]);
 
-  const handleAdd = async () => {
+  const handleAdd = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (adding) return;
     if (!email.trim()) {
-      toast({ title: "E-mail obrigatório", variant: "destructive" });
+      setEmailError("Digite o e-mail de quem vai ter acesso.");
+      document.getElementById("adminEmail")?.focus();
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailError("Confira o e-mail. Exemplo: nome@empresa.com.br");
+      document.getElementById("adminEmail")?.focus();
       return;
     }
 
@@ -97,22 +103,14 @@ export function PlatformAdminsCard() {
       if (profileError) throw profileError;
 
       if (!profile) {
-        toast({
-          title: "Usuário não encontrado",
-          description: "Nenhum usuário com esse e-mail está cadastrado no sistema.",
-          variant: "destructive",
-        });
+        setEmailError("Nenhum usuário com esse e-mail está cadastrado no sistema.");
         return;
       }
 
       // Check if already admin
       const exists = admins.some((a) => a.user_id === profile.id);
       if (exists) {
-        toast({
-          title: "Já é Platform Admin",
-          description: "Este usuário já possui acesso Master.",
-          variant: "destructive",
-        });
+        setEmailError("Esta pessoa já tem acesso ao Painel Master.");
         return;
       }
 
@@ -123,18 +121,19 @@ export function PlatformAdminsCard() {
       if (error) throw error;
 
       toast({
-        title: "✅ Platform Admin adicionado",
+        title: "Administrador adicionado",
         description: `${profile.name} agora tem acesso ao Painel Master.`,
+        variant: "success",
       });
 
       setEmail("");
       setOpen(false);
       fetchAdmins();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error adding platform admin:", err);
       toast({
-        title: "Erro ao adicionar",
-        description: err.message,
+        title: "Não foi possível adicionar",
+        description: "Tente de novo em instantes.",
         variant: "destructive",
       });
     } finally {
@@ -152,148 +151,145 @@ export function PlatformAdminsCard() {
       if (error) throw error;
 
       toast({
-        title: "🗑️ Acesso removido",
+        title: "Acesso removido",
         description: `${adminName} não tem mais acesso ao Painel Master.`,
       });
 
       setAdmins((prev) => prev.filter((a) => a.user_id !== adminUserId));
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error removing platform admin:", err);
       toast({
-        title: "Erro ao remover",
-        description: err.message,
+        title: "Não foi possível remover o acesso",
+        description: "Tente de novo em instantes.",
         variant: "destructive",
       });
     }
   };
 
+  const openChange = (next: boolean) => {
+    if (next) {
+      setEmail("");
+      setEmailError(null);
+    }
+    setOpen(next);
+  };
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-amber-400" />
-          Administradores da Plataforma
-        </CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
+    <Section
+      title="Administradores da plataforma"
+      description="Pessoas com acesso a este Painel Master e a todas as empresas."
+      actions={
+        <Dialog open={open} onOpenChange={openChange}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Adicionar Admin
+            <Button className="max-sm:w-full">
+              <Plus aria-hidden="true" />
+              Adicionar administrador
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-amber-400" />
-                Adicionar Platform Admin
-              </DialogTitle>
+              <DialogTitle>Adicionar administrador da plataforma</DialogTitle>
               <DialogDescription>
-                Informe o e-mail de um usuário já cadastrado no sistema para conceder acesso Master.
+                A pessoa precisa já ter uma conta no sistema. Ela passa a ver todas as empresas.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="adminEmail">E-mail do Usuário</Label>
-                <Input
-                  id="adminEmail"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="usuario@empresa.com"
-                  disabled={adding}
-                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                />
-              </div>
-            </div>
+            <form id="platform-admin-form" onSubmit={handleAdd} noValidate>
+              <FormField id="adminEmail" label="E-mail da pessoa" error={emailError}>
+                {(control) => (
+                  <Input
+                    {...control}
+                    type="email"
+                    inputMode="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    placeholder="usuario@empresa.com"
+                    disabled={adding}
+                  />
+                )}
+              </FormField>
+            </form>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)} disabled={adding}>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={adding}>
                 Cancelar
               </Button>
-              <Button onClick={handleAdd} disabled={adding} className="gap-2">
-                {adding ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Adicionando...
-                  </>
-                ) : (
-                  <>
-                    <Crown className="h-4 w-4" />
-                    Conceder Acesso
-                  </>
-                )}
+              <Button type="submit" form="platform-admin-form" aria-disabled={adding || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
+                {adding ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Crown aria-hidden="true" />}
+                {adding ? "Adicionando..." : "Conceder acesso"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : admins.length === 0 ? (
-          <p className="text-center py-8 text-muted-foreground">
-            Nenhum administrador da plataforma configurado.
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>E-mail</TableHead>
-                <TableHead>Desde</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {admins.map((admin) => (
-                <TableRow key={admin.user_id}>
-                  <TableCell className="font-medium flex items-center gap-2">
-                    <Crown className="h-4 w-4 text-amber-400" />
-                    {admin.name}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{admin.email}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {new Date(admin.created_at).toLocaleDateString("pt-BR")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {admin.user_id === user?.id ? (
-                      <Badge variant="outline" className="text-amber-400 border-amber-500/30">
-                        Você
-                      </Badge>
-                    ) : (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="ghost" className="text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remover {admin.name}?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Este usuário perderá o acesso ao Painel Master. Essa ação pode ser revertida adicionando novamente.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground"
-                              onClick={() => handleRemove(admin.user_id, admin.name)}
-                            >
-                              Remover Acesso
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+      }
+    >
+      {isLoading ? (
+        <ListSkeleton rows={2} />
+      ) : admins.length === 0 ? (
+        <EmptyState
+          icon={ShieldCheck}
+          title="Nenhum administrador da plataforma"
+          description="Adicione alguém da equipe Na Hora Frota para cuidar das empresas."
+        />
+      ) : (
+        <ul className="divide-y overflow-hidden rounded-lg border bg-card shadow-sm">
+          {admins.map((admin) => {
+            const isSelf = admin.user_id === user?.id;
+            return (
+              <li key={admin.user_id} className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
+                <PersonAvatar name={admin.name} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 font-medium text-foreground">
+                    <span className="truncate">{admin.name}</span>
+                    {isSelf && <Badge variant="outline">Você</Badge>}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {admin.email}
+                    <span className="hidden sm:inline"> · desde {new Date(admin.created_at).toLocaleDateString("pt-BR")}</span>
+                  </p>
+                </div>
+                {!isSelf && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setToRemove(admin)}
+                        aria-label={`Remover acesso de ${admin.name}`}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remover acesso</TooltipContent>
+                  </Tooltip>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <ConfirmDialog
+        open={!!toRemove}
+        onOpenChange={(next) => !next && !removing && setToRemove(null)}
+        title={`Remover o acesso de ${toRemove?.name ?? "administrador"}?`}
+        description="A pessoa perde o acesso ao Painel Master. Você pode adicionar de novo depois."
+        confirmLabel="Remover acesso"
+        tone="danger"
+        loading={removing}
+        onConfirm={async () => {
+          if (!toRemove) return;
+          setRemoving(true);
+          try {
+            await handleRemove(toRemove.user_id, toRemove.name);
+          } finally {
+            setRemoving(false);
+            setToRemove(null);
+          }
+        }}
+      />
+    </Section>
   );
 }

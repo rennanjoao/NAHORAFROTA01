@@ -78,3 +78,24 @@ export function isOnBrazilDate(isoString: string | null | undefined, brazilDate:
 export function formatBrazilDateTime(isoString: string, pattern: string = 'dd/MM/yyyy HH:mm'): string {
   return formatInTimeZone(new Date(isoString), BRAZIL_TIMEZONE, pattern);
 }
+
+/**
+ * Date local (meio-dia) para um campo so de data ("YYYY-MM-DD"). new Date("2026-10-28")
+ * le como meia-noite UTC e, no Brasil, mostra o dia anterior. Valores com hora
+ * (ISO completo) seguem o parse normal.
+ */
+export function parseDateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.slice(0, 10));
+  if (match && value.length <= 10) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** dd/MM/yyyy de um campo so de data, sem deslocar o dia. */
+export function formatDateOnly(value: string | null | undefined): string {
+  const date = parseDateOnly(value);
+  return date ? date.toLocaleDateString('pt-BR') : '—';
+}

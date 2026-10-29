@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { useTheme } from "next-themes";
+import { useResolvedTheme } from "@/components/theme/PreferencesProvider";
 import { motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2, Clock, Lock, MonitorSmartphone } from "lucide-react";
 import { Cta } from "../components/Cta";
@@ -17,7 +17,7 @@ const TRUST = [
 ];
 
 export function Hero() {
-  const { resolvedTheme } = useTheme();
+  const resolvedTheme = useResolvedTheme();
   const reduce = useReducedMotion();
   const [mounted, setMounted] = useState(false);
   const [show3D, setShow3D] = useState(false);

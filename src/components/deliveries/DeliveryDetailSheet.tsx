@@ -1,40 +1,52 @@
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type { ReactNode } from "react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import {
   Package,
   User,
   MapPin,
   Phone,
-  Calendar,
   Clock,
   Truck,
   AlertTriangle,
   CheckCircle2,
   FileText,
   History,
-  UserCheck,
   RotateCcw,
   Plus,
   Minus,
-  Weight,
-  DollarSign,
   Image as ImageIcon,
   ExternalLink,
   Pencil,
   Save,
-  X,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { buildFullAddress } from "@/lib/nfeXmlParser";
+import { FormField } from "@/components/patterns";
+import { DeliveryStatusBadge, occurrenceLabel } from "./status";
+
+const UFS = new Set([
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA",
+  "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+]);
+
+type AddressErrors = Partial<Record<"address" | "city" | "state" | "zipCode", string>>;
+
+/** "Rua X, 120" -> rua e numero separados (o numero ficava duplicado ao salvar). */
+function splitStreetNumber(text: string) {
+  const match = text.match(/^(.*),\s*([^,]{1,10})$/);
+  if (match && /\d|s\/?n/i.test(match[2])) return { street: match[1].trim(), number: match[2].trim() };
+  return { street: text, number: "" };
+}
 
 interface AuditLogEntry {
   id: string;
@@ -74,6 +86,8 @@ export interface DeliveryWithHistory {
   manifestId?: string;
   manifestUuid?: string;
   occurrenceType?: string;
+  addressStreet?: string;
+  addressNumber?: string;
   lastUpdatedBy?: string;
   lastUpdatedAt?: Date;
   receivedBy?: string;
@@ -90,16 +104,6 @@ interface DeliveryDetailSheetProps {
   onAddressUpdated?: () => void | Promise<void>;
 }
 
-const statusConfig = {
-  pending: { label: "Pendente", color: "bg-muted text-muted-foreground" },
-  in_transit: { label: "Em Rota", color: "bg-primary text-primary-foreground" },
-  delivered: { label: "Entregue", color: "bg-success text-success-foreground" },
-  delayed: { label: "Atrasado", color: "bg-destructive text-destructive-foreground" },
-  occurrence: { label: "Ocorrência", color: "bg-orange-500 text-white" },
-  returning: { label: "Em Devolução", color: "bg-purple-500 text-white" },
-  returned: { label: "Devolvido", color: "bg-slate-500 text-white" },
-};
-
 const actionIcons = {
   invoice_added: Plus,
   invoice_removed: Minus,
@@ -113,7 +117,7 @@ const actionColors = {
   invoice_removed: "text-destructive",
   manifest_finalized: "text-success",
   status_change: "text-primary",
-  occurrence: "text-orange-500",
+  occurrence: "text-warning",
 };
 
 const actionLabels: Record<string, string> = {
@@ -127,9 +131,11 @@ const actionLabels: Record<string, string> = {
 export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpdated }: DeliveryDetailSheetProps) {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [occurrenceEntries, setOccurrenceEntries] = useState<DeliveryOccurrenceEntry[]>([]);
+  const [proofImages, setProofImages] = useState<ProofImage[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [addressErrors, setAddressErrors] = useState<AddressErrors>({});
   const [addressForm, setAddressForm] = useState({
     address: "",
     city: "",
@@ -148,6 +154,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     });
     setIsEditingAddress(false);
     setIsSavingAddress(false);
+    setAddressErrors({});
   }, [delivery?.id, delivery?.address, delivery?.city, delivery?.state, delivery?.zipCode]);
 
   // Fetch audit logs when sheet opens
@@ -156,28 +163,32 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
       if (!open || !delivery?.dbId) {
         setAuditLogs([]);
         setOccurrenceEntries([]);
+        setProofImages([]);
         return;
       }
 
       setIsLoadingLogs(true);
       try {
-        const [auditResult, occurrenceResult] = await Promise.all([
+        const [auditResult, occurrenceResult, proofResult] = await Promise.all([
           supabase
             .from('manifest_audit_logs')
             .select('*')
             .eq('invoice_id', delivery.dbId)
             .order('created_at', { ascending: false }),
           fetchOccurrenceEntries(delivery.dbId),
+          fetchProofImages(delivery.dbId),
         ]);
 
         const { data, error } = auditResult;
         if (error) throw error;
         setAuditLogs(data || []);
         setOccurrenceEntries(occurrenceResult);
+        setProofImages(proofResult);
       } catch (err) {
         console.error('Error fetching audit logs:', err);
         setAuditLogs([]);
         setOccurrenceEntries([]);
+        setProofImages([]);
       } finally {
         setIsLoadingLogs(false);
       }
@@ -188,7 +199,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
 
   if (!delivery) return null;
 
-  const status = statusConfig[delivery.status];
+  const hasOpenOccurrence =
+    !!delivery.occurrenceType && ["occurrence", "delayed", "returning", "returned"].includes(delivery.status);
 
   // Format date for display
   const formatDateTime = (dateStr: string) => {
@@ -220,8 +232,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
   const handleSaveAddress = async () => {
     if (!delivery?.dbId) {
       toast({
-        title: "Nao foi possivel editar",
-        description: "Esta nota ainda nao possui identificador no banco.",
+        title: "Não foi possível editar",
+        description: "Esta nota ainda não possui identificador no banco.",
         variant: "destructive",
       });
       return;
@@ -231,30 +243,46 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     const city = addressForm.city.trim();
     const state = addressForm.state.trim().toUpperCase();
     const zipCode = addressForm.zipCode.trim();
+    const zipDigits = zipCode.replace(/\D/g, "");
 
-    if (!address || !city || !state) {
-      toast({
-        title: "Endereco incompleto",
-        description: "Preencha endereco, cidade e UF antes de salvar.",
-        variant: "destructive",
-      });
+    // Erro embaixo de cada campo (antes era so um aviso no canto da tela).
+    const errors: AddressErrors = {};
+    if (!address) errors.address = "Informe a rua e o número.";
+    if (!city) errors.city = "Informe a cidade.";
+    if (!state) errors.state = "Informe a UF.";
+    else if (!UFS.has(state)) errors.state = "UF inválida. Use a sigla, como SP.";
+    if (zipCode && zipDigits.length !== 8) errors.zipCode = "O CEP tem 8 números.";
+    setAddressErrors(errors);
+    const firstError = (["address", "city", "state", "zipCode"] as const).find((key) => errors[key]);
+    if (firstError) {
+      const ids = { address: "invoice-address", city: "invoice-city", state: "invoice-state", zipCode: "invoice-zip" };
+      document.getElementById(ids[firstError])?.focus();
       return;
     }
 
     setIsSavingAddress(true);
     try {
-      const addressFull = [address, `${city} - ${state}${zipCode ? `, ${zipCode}` : ""}`]
-        .filter(Boolean)
-        .join(", ");
+      // Mesmo endereco de antes: mantem rua e numero como estavam.
+      const { street, number } =
+        address === delivery.address && delivery.addressStreet !== undefined
+          ? { street: delivery.addressStreet || address, number: delivery.addressNumber || "" }
+          : splitStreetNumber(address);
+      const { data: current } = await supabase
+        .from("invoices")
+        .select("address_neighborhood")
+        .eq("id", delivery.dbId)
+        .maybeSingle();
+      const addressFull = buildFullAddress(street, number, current?.address_neighborhood || "", city, state, zipDigits);
 
       const { error } = await supabase
         .from("invoices")
         .update({
           address_full: addressFull,
-          address_street: address,
+          address_street: street,
+          address_number: number || null,
           address_city: city,
           address_state: state,
-          address_zip: zipCode || null,
+          address_zip: zipDigits || null,
           latitude: null,
           longitude: null,
           updated_at: new Date().toISOString(),
@@ -264,8 +292,9 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
       if (error) throw error;
 
       toast({
-        title: "Endereco atualizado",
-        description: "As coordenadas antigas foram limpas para recalculo da rota.",
+        title: "Endereço atualizado",
+        description: "A localização no mapa será refeita na próxima rota.",
+        variant: "success",
       });
 
       setIsEditingAddress(false);
@@ -273,8 +302,8 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     } catch (error: any) {
       console.error("Error updating invoice address:", error);
       toast({
-        title: "Erro ao salvar endereco",
-        description: error.message || "Nao foi possivel atualizar o endereco.",
+        title: "Não foi possível salvar o endereço",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
     } finally {
@@ -282,383 +311,367 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     }
   };
 
+  const resetAddressForm = () => {
+    setAddressForm({
+      address: delivery.address || "",
+      city: delivery.city || "",
+      state: delivery.state || "",
+      zipCode: delivery.zipCode || "",
+    });
+    setAddressErrors({});
+    setIsEditingAddress(false);
+  };
+
+  const sectionTitle = (id: string, Icon: typeof User, title: string, extra?: ReactNode) => (
+    <h3 id={id} className="flex items-center gap-2 text-sm font-semibold text-foreground">
+      <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      {title}
+      {extra}
+    </h3>
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg overflow-hidden flex flex-col">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Detalhes da Nota Fiscal
-          </SheetTitle>
+      <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <SheetHeader className="space-y-2 border-b px-6 pb-5 pr-14 pt-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <SheetTitle className="font-data text-xl">NF {delivery.nfe}</SheetTitle>
+            <DeliveryStatusBadge status={delivery.status} live />
+          </div>
+          <SheetDescription>
+            Importada em {delivery.scheduledDate.toLocaleDateString("pt-BR")}
+            {delivery.manifestId ? ` · Romaneio ${delivery.manifestId}` : " · Sem romaneio"}
+          </SheetDescription>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <div className="space-y-6 pb-6">
-            {/* Header Info */}
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-mono text-lg font-bold">{delivery.nfe}</p>
-                <p className="text-sm text-muted-foreground">
-                  Importada em {delivery.scheduledDate.toLocaleDateString('pt-BR')}
-                </p>
-              </div>
-              <Badge className={cn("gap-1", status.color)}>
-                {status.label}
-              </Badge>
-            </div>
-
-            <Separator />
-
-            {/* Recipient Info */}
-            <div className="space-y-3">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-6 px-6 py-6">
+            {/* Cliente */}
+            <section aria-labelledby="detail-recipient" className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
-                Destinatário
-              </h4>
-              {isEditingAddress ? (
-                <div className="flex items-center gap-2">
+                {sectionTitle("detail-recipient", User, "Cliente")}
+                {!isEditingAddress && (
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => {
-                      setAddressForm({
-                        address: delivery.address || "",
-                        city: delivery.city || "",
-                        state: delivery.state || "",
-                        zipCode: delivery.zipCode || "",
-                      });
-                      setIsEditingAddress(false);
+                      setIsEditingAddress(true);
+                      // Leva o foco ao primeiro campo (o botao some ao abrir o formulario).
+                      window.setTimeout(() => document.getElementById("invoice-address")?.focus(), 0);
                     }}
-                    disabled={isSavingAddress}
                   >
-                    <X className="h-4 w-4" />
+                    <Pencil aria-hidden="true" />
+                    Corrigir endereço
                   </Button>
-                  <Button type="button" size="sm" onClick={handleSaveAddress} disabled={isSavingAddress}>
-                    {isSavingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Salvar
-                  </Button>
-                </div>
-              ) : (
-                <Button type="button" size="sm" variant="outline" onClick={() => setIsEditingAddress(true)}>
-                  <Pencil className="h-4 w-4" />
-                  Editar
-                </Button>
-              )}
+                )}
               </div>
-              <div className="pl-6 space-y-2 text-sm">
-                <p className="font-medium">{delivery.recipient}</p>
+              <div className="space-y-2 rounded-lg border p-4 text-sm">
+                <p className="font-medium text-foreground">{delivery.recipient}</p>
                 {isEditingAddress ? (
-                  <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="invoice-address">Endereco</Label>
-                      <Input
-                        id="invoice-address"
-                        value={addressForm.address}
-                        onChange={(event) => setAddressForm((current) => ({ ...current, address: event.target.value }))}
-                        placeholder="Rua, avenida, numero e complemento"
-                      />
-                    </div>
-                    <div className="grid grid-cols-[1fr_72px] gap-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="invoice-city">Cidade</Label>
+                  <div className="space-y-3 pt-1 animate-fade-in">
+                    <FormField id="invoice-address" label="Rua e número" required error={addressErrors.address}>
+                      {(field) => (
                         <Input
-                          id="invoice-city"
-                          value={addressForm.city}
-                          onChange={(event) => setAddressForm((current) => ({ ...current, city: event.target.value }))}
-                          placeholder="Cidade"
+                          {...field}
+                          value={addressForm.address}
+                          onChange={(event) => {
+                            setAddressForm((current) => ({ ...current, address: event.target.value }));
+                            setAddressErrors((current) => ({ ...current, address: undefined }));
+                          }}
+                          placeholder="Ex.: Rua das Flores, 120"
+                          autoComplete="off"
                         />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="invoice-state">UF</Label>
-                        <Input
-                          id="invoice-state"
-                          value={addressForm.state}
-                          onChange={(event) => setAddressForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))}
-                          placeholder="SP"
-                          maxLength={2}
-                        />
-                      </div>
+                      )}
+                    </FormField>
+                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-3">
+                      <FormField id="invoice-city" label="Cidade" required error={addressErrors.city}>
+                        {(field) => (
+                          <Input
+                            {...field}
+                            value={addressForm.city}
+                            onChange={(event) => {
+                              setAddressForm((current) => ({ ...current, city: event.target.value }));
+                              setAddressErrors((current) => ({ ...current, city: undefined }));
+                            }}
+                            autoComplete="off"
+                          />
+                        )}
+                      </FormField>
+                      <FormField id="invoice-state" label="UF" required error={addressErrors.state}>
+                        {(field) => (
+                          <Input
+                            {...field}
+                            value={addressForm.state}
+                            onChange={(event) => {
+                              setAddressForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }));
+                              setAddressErrors((current) => ({ ...current, state: undefined }));
+                            }}
+                            placeholder="SP"
+                            maxLength={2}
+                            autoComplete="off"
+                            className="uppercase"
+                          />
+                        )}
+                      </FormField>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="invoice-zip">CEP</Label>
-                      <Input
-                        id="invoice-zip"
-                        value={addressForm.zipCode}
-                        onChange={(event) => setAddressForm((current) => ({ ...current, zipCode: event.target.value }))}
-                        placeholder="00000-000"
-                      />
+                    <FormField id="invoice-zip" label="CEP" optional error={addressErrors.zipCode}>
+                      {(field) => (
+                        <Input
+                          {...field}
+                          value={addressForm.zipCode}
+                          onChange={(event) => {
+                            setAddressForm((current) => ({ ...current, zipCode: event.target.value }));
+                            setAddressErrors((current) => ({ ...current, zipCode: undefined }));
+                          }}
+                          placeholder="00000-000"
+                          inputMode="numeric"
+                          maxLength={9}
+                          autoComplete="off"
+                          className="font-data"
+                        />
+                      )}
+                    </FormField>
+                    <p className="text-xs text-muted-foreground">Ao salvar, a localização no mapa é refeita na próxima rota.</p>
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                      <Button type="button" variant="outline" onClick={resetAddressForm} disabled={isSavingAddress}>
+                        Cancelar
+                      </Button>
+                      <Button type="button" onClick={handleSaveAddress} disabled={isSavingAddress}>
+                        {isSavingAddress ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+                        {isSavingAddress ? "Salvando…" : "Salvar endereço"}
+                      </Button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p>{delivery.address}</p>
-                      <p>{delivery.city} - {delivery.state}, {delivery.zipCode}</p>
-                    </div>
-                  </div>
+                  <p className="flex items-start gap-2 text-muted-foreground">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      {delivery.address}
+                      <br />
+                      {delivery.city} - {delivery.state}
+                      {delivery.zipCode ? `, ${delivery.zipCode}` : ""}
+                    </span>
+                  </p>
                 )}
                 {delivery.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-4 w-4" />
-                    <p>{delivery.phone}</p>
-                  </div>
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="font-data">{delivery.phone}</span>
+                  </p>
                 )}
               </div>
-            </div>
+            </section>
 
-            <Separator />
-
-            {/* Package Info */}
-            <div className="space-y-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary" />
-                Dados da Carga
-              </h4>
-              <div className="pl-6 grid grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  <Weight className="h-4 w-4 text-muted-foreground" />
-                  <span>Peso: <strong>{delivery.weight}</strong></span>
+            {/* Carga */}
+            <section aria-labelledby="detail-cargo" className="space-y-3">
+              {sectionTitle("detail-cargo", Package, "Carga")}
+              <dl className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <dt className="text-xs text-muted-foreground">Peso</dt>
+                  <dd className="font-data text-base font-semibold text-foreground">{delivery.weight}</dd>
                 </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span>Valor: <strong>{delivery.value}</strong></span>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <dt className="text-xs text-muted-foreground">Valor</dt>
+                  <dd className="font-data text-base font-semibold text-foreground">{delivery.value}</dd>
                 </div>
-              </div>
-            </div>
+              </dl>
+            </section>
 
-            {/* Delivery Confirmation - if delivered */}
+            {/* Entrega confirmada */}
             {delivery.status === "delivered" && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-success">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Confirmação de Entrega
-                  </h4>
-                  <div className="pl-6 space-y-2 text-sm bg-success/10 rounded-lg p-3 border border-success/20">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="h-4 w-4 text-success" />
-                      <span>Recebido por: <strong>{delivery.receivedBy || "Nome não informado"}</strong></span>
-                    </div>
-                    {(delivery as any).receiverDocument && (
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span>Documento: <strong>{(delivery as any).receiverDocument}</strong></span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Data: <strong>{delivery.receivedAt?.toLocaleDateString('pt-BR') || new Date().toLocaleDateString('pt-BR')}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>Hora: <strong>{delivery.receivedAt?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
-                    </div>
-                    {delivery.driver && (
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-muted-foreground" />
-                        <span>Motorista: <strong>{delivery.driver}</strong></span>
-                      </div>
-                    )}
-                    {delivery.deliveryNotes && (
-                      <div className="mt-2 pt-2 border-t border-success/20">
-                        <p className="text-muted-foreground">{delivery.deliveryNotes}</p>
-                      </div>
-                    )}
+              <section aria-labelledby="detail-proof" className="space-y-3">
+                {sectionTitle("detail-proof", CheckCircle2, "Entrega confirmada")}
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-success/30 bg-success/5 p-4 text-sm">
+                  <div className="col-span-2">
+                    <dt className="text-xs text-muted-foreground">Recebido por</dt>
+                    <dd className="font-medium text-foreground">{delivery.receivedBy || "Nome não informado"}</dd>
                   </div>
-                </div>
-              </>
-            )}
-
-            {/* Current Manifest */}
-            {delivery.manifestId && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-primary" />
-                    Romaneio Atual
-                  </h4>
-                  <div className="pl-6 text-sm bg-primary/10 rounded-lg p-3 border border-primary/20">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-lg">Romaneio nº {delivery.manifestId}</span>
-                      <Badge variant="outline">Em Rota</Badge>
+                  {delivery.receiverDocument && (
+                    <div className="col-span-2">
+                      <dt className="text-xs text-muted-foreground">Documento</dt>
+                      <dd className="font-data text-foreground">{delivery.receiverDocument}</dd>
                     </div>
-                    {delivery.driver && (
-                      <div className="flex items-center gap-2 mt-2 text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        <span>Motorista: <strong className="text-foreground">{delivery.driver}</strong></span>
-                      </div>
-                    )}
+                  )}
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Data</dt>
+                    {/* Sem data registrada mostra "—" (antes caia para a data de hoje). */}
+                    <dd className="font-data text-foreground">{delivery.receivedAt?.toLocaleDateString("pt-BR") || "—"}</dd>
                   </div>
-                </div>
-              </>
-            )}
-
-            {/* Occurrence Info */}
-            {delivery.occurrenceType && (
-              <>
-                <Separator />
-                <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-orange-500">
-                    <AlertTriangle className="h-4 w-4" />
-                    Ocorrência Registrada
-                  </h4>
-                  <div className="pl-6 space-y-2 text-sm bg-orange-50 dark:bg-orange-950/30 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
-                    <p className="font-medium">{getOccurrenceLabel(delivery.occurrenceType)}</p>
-                    {delivery.observation && (
-                      <p className="text-muted-foreground">{delivery.observation}</p>
-                    )}
-                    {occurrenceEntries.length > 0 && (
-                      <div className="space-y-3 pt-2">
-                        {occurrenceEntries.map((occurrence) => (
-                          <div key={occurrence.id} className="space-y-2 rounded-lg border border-orange-200 bg-background p-2 dark:border-orange-800">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-medium text-orange-600">
-                                {getOccurrenceLabel(occurrence.type)}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {formatDateTime(occurrence.created_at)}
-                              </span>
-                            </div>
-
-                            {occurrence.description && (
-                              <p className="text-xs text-muted-foreground">{occurrence.description}</p>
-                            )}
-
-                            {occurrence.photo_url ? (
-                              <a
-                                href={occurrence.photo_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group block overflow-hidden rounded-lg border"
-                              >
-                                <div className="relative">
-                                  <img
-                                    src={occurrence.photo_url}
-                                    alt="Foto da ocorrencia"
-                                    className="h-40 w-full object-cover"
-                                    onError={(event) => {
-                                      event.currentTarget.src = "/placeholder.svg";
-                                    }}
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
-                                    <ExternalLink className="h-5 w-5 text-white" />
-                                  </div>
-                                </div>
-                              </a>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                                <ImageIcon className="h-4 w-4" />
-                                Nenhuma foto anexada nesta ocorrencia.
-                              </div>
-                            )}
-                            {occurrence.photo_url && (
-                              <a
-                                href={occurrence.photo_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium hover:bg-muted"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                                Abrir ou baixar imagem
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Hora</dt>
+                    <dd className="font-data text-foreground">
+                      {delivery.receivedAt?.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) || "—"}
+                    </dd>
                   </div>
-                </div>
-              </>
-            )}
-
-            {/* Complete History Timeline - from Database */}
-            <Separator />
-            <div className="space-y-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <History className="h-4 w-4 text-primary" />
-                Histórico de Movimentação
-                {auditLogs.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">{auditLogs.length}</Badge>
+                  {delivery.driver && (
+                    <div className="col-span-2">
+                      <dt className="text-xs text-muted-foreground">Motorista</dt>
+                      <dd className="text-foreground">{delivery.driver}</dd>
+                    </div>
+                  )}
+                  {delivery.deliveryNotes && (
+                    <div className="col-span-2 border-t border-success/20 pt-3">
+                      <dt className="text-xs text-muted-foreground">Recado da entrega</dt>
+                      <dd className="text-foreground">{delivery.deliveryNotes}</dd>
+                    </div>
+                  )}
+                </dl>
+                {proofImages.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {proofImages.map((image) => (
+                      <a
+                        key={image.url}
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="card-interactive block overflow-hidden rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.label}
+                          // Assinatura e papel: fundo claro nos dois temas.
+                          className={cn("h-32 w-full", image.kind === "signature" ? "light bg-card object-contain" : "object-cover")}
+                          onError={(event) => {
+                            event.currentTarget.src = "/placeholder.svg";
+                          }}
+                        />
+                        <span className="flex items-center justify-between gap-1 px-2 py-1.5 text-xs text-muted-foreground">
+                          {image.label}
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span className="sr-only">(abre em nova aba)</span>
+                        </span>
+                      </a>
+                    ))}
+                  </div>
                 )}
-              </h4>
-              
+              </section>
+            )}
+
+            {/* Romaneio atual */}
+            {delivery.manifestId && (
+              <section aria-labelledby="detail-manifest" className="space-y-3">
+                {sectionTitle("detail-manifest", Truck, "Romaneio")}
+                <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                  <p className="font-data text-base font-semibold text-foreground">Romaneio {delivery.manifestId}</p>
+                  {delivery.driver && (
+                    <p className="mt-1 text-muted-foreground">
+                      Motorista: <span className="font-medium text-foreground">{delivery.driver}</span>
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Ocorrencia (so enquanto a nota esta com problema; depois o motivo antigo fica no historico) */}
+            {hasOpenOccurrence && (
+              <section aria-labelledby="detail-occurrence" className="space-y-3">
+                {sectionTitle("detail-occurrence", AlertTriangle, "Ocorrência registrada")}
+                <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                  <p className="font-medium text-foreground">{occurrenceLabel(delivery.occurrenceType)}</p>
+                  {delivery.observation && <p className="text-muted-foreground">{delivery.observation}</p>}
+                  {occurrenceEntries.map((occurrence) => (
+                    <div key={occurrence.id} className="space-y-2 rounded-lg border bg-card p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-foreground">{occurrenceLabel(occurrence.type)}</span>
+                        <span className="font-data text-xs text-muted-foreground">{formatDateTime(occurrence.created_at)}</span>
+                      </div>
+                      {occurrence.description && <p className="text-xs text-muted-foreground">{occurrence.description}</p>}
+                      {occurrence.photo_url ? (
+                        <a
+                          href={occurrence.photo_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block overflow-hidden rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <img
+                            src={occurrence.photo_url}
+                            alt="Foto da ocorrência"
+                            className="h-40 w-full object-cover"
+                            onError={(event) => {
+                              event.currentTarget.src = "/placeholder.svg";
+                            }}
+                          />
+                          <span className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-foreground">
+                            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                            Abrir ou baixar a foto
+                            <span className="sr-only">(abre em nova aba)</span>
+                          </span>
+                        </a>
+                      ) : (
+                        <p className="flex items-center gap-2 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                          <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                          Nenhuma foto nesta ocorrência.
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Observacoes */}
+            {delivery.observation && !hasOpenOccurrence && (
+              <section aria-labelledby="detail-observation" className="space-y-3">
+                {sectionTitle("detail-observation", FileText, "Observação para o motorista")}
+                <p className="rounded-lg bg-muted/50 p-3 text-sm text-foreground">{delivery.observation}</p>
+              </section>
+            )}
+
+            {/* Historico */}
+            <section aria-labelledby="detail-history" className="space-y-3">
+              {sectionTitle(
+                "detail-history",
+                History,
+                "Histórico",
+                auditLogs.length > 0 ? <Badge variant="secondary">{auditLogs.length}</Badge> : null,
+              )}
+
               {isLoadingLogs ? (
-                <div className="pl-6 space-y-3">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
+                <div className="space-y-3" role="status" aria-label="Carregando histórico">
+                  <Skeleton className="h-14 w-full" />
+                  <Skeleton className="h-14 w-full" />
                 </div>
               ) : auditLogs.length === 0 ? (
-                <div className="pl-6 text-sm text-muted-foreground">
-                  Nenhum histórico registrado para esta nota fiscal.
-                </div>
+                <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Nada registrado ainda para esta nota.
+                </p>
               ) : (
-                <div className="pl-6 space-y-1">
+                <ol className="space-y-0">
                   {auditLogs.map((log, idx) => {
                     const Icon = actionIcons[log.action_type as keyof typeof actionIcons] || RotateCcw;
                     const colorClass = actionColors[log.action_type as keyof typeof actionColors] || "text-primary";
-                    
+
                     return (
-                      <div key={log.id} className="relative pl-6 pb-4 last:pb-0">
-                        {/* Timeline line */}
+                      <li key={log.id} className="relative pb-4 pl-8 last:pb-0">
                         {idx < auditLogs.length - 1 && (
-                          <div className="absolute left-[9px] top-5 bottom-0 w-0.5 bg-border" />
+                          <span aria-hidden="true" className="absolute bottom-0 left-[11px] top-6 w-px bg-border" />
                         )}
-                        
-                        {/* Timeline dot */}
-                        <div className={cn(
-                          "absolute left-0 top-1 w-[18px] h-[18px] rounded-full bg-background border-2 flex items-center justify-center",
-                          colorClass
-                        )}>
-                          <Icon className="h-3 w-3" />
-                        </div>
-                        
-                        {/* Content */}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium">{getDescription(log)}</p>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {formatDateTime(log.created_at)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              Por: <strong>{getUserName(log)}</strong>
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "absolute left-0 top-0.5 flex h-6 w-6 items-center justify-center rounded-full border bg-card",
+                            colorClass,
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <p className="text-sm font-medium text-foreground">{getDescription(log)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-data">{formatDateTime(log.created_at)}</span> · por {getUserName(log)}
+                        </p>
+                      </li>
                     );
                   })}
-                </div>
+                </ol>
               )}
-            </div>
+            </section>
 
-            {/* Observation */}
-            {delivery.observation && !delivery.occurrenceType && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">Observações</h4>
-                  <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                    {delivery.observation}
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* Audit Footer */}
             {delivery.lastUpdatedAt && (
-              <div className="text-xs text-muted-foreground pt-4 border-t flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                Última atualização em {delivery.lastUpdatedAt?.toLocaleString('pt-BR')}
-              </div>
+              <p className="flex items-center gap-1.5 border-t pt-4 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                Última atualização em {delivery.lastUpdatedAt?.toLocaleString("pt-BR")}
+              </p>
             )}
           </div>
         </ScrollArea>
@@ -667,40 +680,60 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
   );
 }
 
-// Helper functions
-function getOccurrenceLabel(type: string): string {
-  const labels: Record<string, string> = {
-    cliente_ausente: "Cliente Ausente",
-    endereco_incorreto: "Endereço Incorreto",
-    recusa_cliente: "Recusa do Cliente",
-    avaria_transporte: "Avaria no Transporte",
-    extravio: "Extravio/Perda",
-    tentativa_entrega: "Tentativa de Entrega",
-    aguardando_pagamento: "Aguardando Pagamento",
-    area_risco: "Área de Risco",
-    veiculo_quebrado: "Veículo Quebrado",
-    mercadoria_avariada: "Mercadoria Avariada",
-    mercadoria_nao_localizada: "Mercadoria Não Localizada",
-  };
-  const fallbackLabels: Record<string, string> = {
-    horario_restrito: "Fora do Horario de Entrega",
-    endereco_errado: "Endereco Errado/Nao Encontrado",
-    recusado: "Recusado pelo Cliente",
-    avaria: "Mercadoria Avariada",
-    outros: "Outros",
-  };
-  return labels[type] || fallbackLabels[type] || type;
+
+interface ProofImage {
+  url: string;
+  kind: "photo" | "signature";
+  label: string;
+}
+
+/** Foto e assinatura do comprovante de entrega (links assinados na hora). */
+async function fetchProofImages(invoiceId: string): Promise<ProofImage[]> {
+  const { data, error } = await supabase
+    .from("delivery_proofs")
+    .select("photo_url, signature_url, created_at")
+    .eq("invoice_id", invoiceId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.warn("Error fetching delivery proof:", error);
+    return [];
+  }
+  const proof = data?.[0];
+  if (!proof) return [];
+
+  const [fresh] = await withFreshProofPhotos([proof], ["photo_url", "signature_url"]);
+  const images: ProofImage[] = [];
+  if (fresh.photo_url) images.push({ url: fresh.photo_url, kind: "photo", label: "Foto do comprovante" });
+  if (fresh.signature_url) images.push({ url: fresh.signature_url, kind: "signature", label: "Assinatura" });
+  return images;
 }
 
 async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurrenceEntry[]> {
+  const columns = "id, occurrence_type, description, photo_url, created_at";
+  type Row = { id: string; occurrence_type: string; description: string | null; photo_url: string | null; created_at: string | null };
+  const toEntries = async (rows: Row[]) =>
+    withFreshProofPhotos(
+      rows.map((row) => ({
+        id: row.id,
+        type: row.occurrence_type,
+        description: row.description,
+        photo_url: row.photo_url,
+        created_at: row.created_at || "",
+      })),
+      ["photo_url"],
+    );
+
   const { data: byInvoice, error: byInvoiceError } = await supabase
     .from("delivery_occurrences")
-    .select("id, type, description, photo_url, created_at")
+    .select(columns)
     .eq("invoice_id", invoiceId)
     .order("created_at", { ascending: false });
 
+  if (byInvoiceError) console.warn("Error fetching delivery occurrences:", byInvoiceError);
   if (!byInvoiceError && byInvoice && byInvoice.length > 0) {
-    return byInvoice as DeliveryOccurrenceEntry[];
+    return toEntries(byInvoice as Row[]);
   }
 
   const { data: deliveries } = await supabase
@@ -713,7 +746,7 @@ async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurr
 
   const { data: byDelivery, error: byDeliveryError } = await supabase
     .from("delivery_occurrences")
-    .select("id, type, description, photo_url, created_at")
+    .select(columns)
     .in("delivery_id", deliveryIds)
     .order("created_at", { ascending: false });
 
@@ -722,5 +755,5 @@ async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurr
     return [];
   }
 
-  return (byDelivery || []) as DeliveryOccurrenceEntry[];
+  return toEntries((byDelivery || []) as Row[]);
 }

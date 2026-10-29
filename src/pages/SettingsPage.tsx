@@ -1,541 +1,166 @@
-﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+﻿import { useSearchParams } from "react-router-dom";
+import { Building2, Palette, Settings, Shield, User, Users, type LucideIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Palette, Shield, User, Save, Globe, Clock, Building2, Users, ExternalLink, Eye, EyeOff } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/patterns";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { CompanySettingsTab } from "@/components/settings/CompanySettingsTab";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { SecuritySettings } from "@/components/settings/SecuritySettings";
+import { UserHierarchyTab } from "@/components/settings/UserHierarchyTab";
+import { cn } from "@/lib/utils";
 
-const roleLabels: Record<string, string> = {
-  admin: "Administrador",
-  fleet_manager: "Gestor de Frota",
-  dispatcher: "Despachante",
-  viewer: "Visualizador",
+type SettingsTab = "profile" | "security" | "appearance" | "company" | "users";
+
+interface TabItem {
+  value: SettingsTab;
+  label: string;
+  /** Rotulo curto da grade do celular. */
+  short: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+const GROUPS: { id: string; label: string; items: TabItem[] }[] = [
+  {
+    id: "conta",
+    label: "Sua conta",
+    items: [
+      { value: "profile", label: "Perfil", short: "Perfil", description: "Nome e telefone", icon: User },
+      { value: "security", label: "Segurança", short: "Segurança", description: "Senha e aparelhos", icon: Shield },
+      { value: "appearance", label: "Aparência", short: "Aparência", description: "Tema, texto e contraste", icon: Palette },
+    ],
+  },
+  {
+    id: "empresa",
+    label: "Empresa",
+    items: [
+      { value: "company", label: "Dados da empresa", short: "Empresa", description: "Cadastro e endereço", icon: Building2 },
+      { value: "users", label: "Usuários e acesso", short: "Usuários", description: "Quem pode fazer o quê", icon: Users },
+    ],
+  },
+];
+
+const TAB_VALUES = GROUPS.flatMap((group) => group.items.map((item) => item.value));
+
+// Links antigos e nomes em portugues tambem abrem a aba certa (?tab=...).
+const TAB_ALIASES: Record<string, SettingsTab> = {
+  perfil: "profile",
+  account: "profile",
+  seguranca: "security",
+  senha: "security",
+  password: "security",
+  aparencia: "appearance",
+  acessibilidade: "appearance",
+  theme: "appearance",
+  tema: "appearance",
+  empresa: "company",
+  usuarios: "users",
+  equipe: "users",
+  team: "users",
 };
 
+function resolveTab(param: string | null): SettingsTab {
+  if (!param) return "profile";
+  const key = param.toLowerCase();
+  if ((TAB_VALUES as string[]).includes(key)) return key as SettingsTab;
+  return TAB_ALIASES[key] ?? "profile";
+}
+
 export default function SettingsPage() {
-  const navigate = useNavigate();
-  const { user, profile: authProfile, roles } = useAuth();
-  const [notifications, setNotifications] = useState({
-    email: true,
-    push: true,
-    sms: false,
-    billing: true,
-    deliveryAlerts: true,
-    driverUpdates: true,
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = resolveTab(searchParams.get("tab"));
 
-  const [profileForm, setProfileForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    role: "",
-  });
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    next: false,
-    confirm: false,
-  });
-
-  const [preferences, setPreferences] = useState({
-    language: "pt-BR",
-    timezone: "America/Sao_Paulo",
-    dateFormat: "DD/MM/YYYY",
-    autoRefresh: true,
-    refreshInterval: "30",
-  });
-
-  useEffect(() => {
-    setProfileForm((prev) => ({
-      ...prev,
-      name: authProfile?.name || "",
-      email: authProfile?.email || user?.email || "",
-      role: roles.map((role) => roleLabels[role] || role).join(", "),
-    }));
-  }, [authProfile, roles, user]);
-
-  const handleSaveProfile = async () => {
-    if (!user?.id) {
-      toast({
-        title: "Sessao expirada",
-        description: "Faca login novamente para salvar seu perfil.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSavingProfile(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        name: profileForm.name,
-        full_name: profileForm.name || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    setIsSavingProfile(false);
-
-    if (error) {
-      toast({
-        title: "Erro ao salvar",
-        description: error.message || "Nao foi possivel atualizar seu perfil.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Perfil atualizado",
-      description: "Suas informacoes foram salvas com sucesso.",
-    });
-  };
-
-  const handleSaveNotifications = () => {
-    toast({
-      title: "Notificações Atualizadas",
-      description: "Suas preferências de notificação foram salvas.",
-    });
-  };
-
-  const handleSavePreferences = () => {
-    toast({
-      title: "âœ… Preferências Salvas",
-      description: "Suas preferências do sistema foram atualizadas.",
-    });
+  const changeTab = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", value);
+    setSearchParams(next, { replace: true });
   };
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-          <p className="text-muted-foreground">Gerencie suas preferências e configurações do sistema</p>
-        </div>
+    <>
+      <PageHeader
+        icon={Settings}
+        title="Configurações"
+        description="Seu perfil, a aparência do sistema e os dados da empresa."
+      />
 
-        <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto">
-            <TabsTrigger value="company" className="gap-2 py-3">
-              <Building2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Empresa</span>
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2 py-3">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Usuários</span>
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-2 py-3">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Perfil</span>
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="gap-2 py-3">
-              <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Notificações</span>
-            </TabsTrigger>
-            <TabsTrigger value="preferences" className="gap-2 py-3">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Preferências</span>
-            </TabsTrigger>
-            <TabsTrigger value="security" className="gap-2 py-3">
-              <Shield className="h-4 w-4" />
-              <span className="hidden sm:inline">Segurança</span>
-            </TabsTrigger>
-          </TabsList>
+      <Tabs
+        value={tab}
+        onValueChange={changeTab}
+        orientation="vertical"
+        // Manual: com duas listas (Sua conta / Empresa), o Tab entre elas nao troca a secao sozinho.
+        activationMode="manual"
+        className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10"
+      >
+        <nav aria-label="Seções das configurações" className="lg:sticky lg:top-[calc(var(--topbar-height)+2rem)] lg:self-start">
+          <div className="space-y-4 lg:space-y-6">
+            {GROUPS.map((group) => (
+              <div key={group.id} className="space-y-1.5">
+                <p id={`config-grupo-${group.id}`} className="nhf-label px-1 text-muted-foreground lg:px-3">
+                  {group.label}
+                </p>
+                <TabsList
+                  aria-labelledby={`config-grupo-${group.id}`}
+                  className={cn(
+                    "grid h-auto w-full gap-1.5 bg-transparent p-0",
+                    group.items.length === 3 ? "grid-cols-3" : "grid-cols-2",
+                    "lg:flex lg:flex-col lg:items-stretch lg:gap-0.5",
+                  )}
+                >
+                  {group.items.map(({ value, label, short, description, icon: Icon }) => (
+                    <TabsTrigger
+                      key={value}
+                      value={value}
+                      className={cn(
+                        "group relative flex-col gap-1.5 rounded-lg border bg-card px-2 py-3 text-[0.8125rem] text-muted-foreground shadow-xs",
+                        "hover:bg-accent hover:text-foreground",
+                        "data-[state=active]:border-primary/40 data-[state=active]:bg-primary/5 data-[state=active]:text-foreground data-[state=active]:shadow-xs",
+                        "lg:min-h-0 lg:flex-row lg:items-center lg:justify-start lg:gap-3 lg:whitespace-normal lg:border-transparent lg:bg-transparent lg:px-3 lg:py-2 lg:text-left lg:text-sm lg:shadow-none",
+                        "lg:data-[state=active]:border-transparent lg:data-[state=active]:bg-accent lg:data-[state=active]:shadow-none",
+                      )}
+                    >
+                      {/* Indicador verde da aba ativa no computador */}
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 hidden w-[3px] rounded-full bg-brand opacity-0 transition-opacity duration ease-out group-data-[state=active]:opacity-100 lg:block"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-fast group-hover:text-foreground group-data-[state=active]:text-primary lg:bg-muted/60 lg:group-data-[state=active]:bg-primary/10"
+                      >
+                        <Icon className="h-[1.125rem] w-[1.125rem]" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium lg:hidden">{short}</span>
+                        <span className="hidden font-medium lg:block">{label}</span>
+                        <span className="hidden text-xs font-normal text-muted-foreground lg:block">{description}</span>
+                      </span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+            ))}
+          </div>
+        </nav>
 
-          {/* Company Tab */}
-          <TabsContent value="company">
+        <div className="min-w-0 max-w-4xl">
+          <TabsContent value="profile" className="mt-0">
+            <ProfileSettings />
+          </TabsContent>
+          <TabsContent value="security" className="mt-0">
+            <SecuritySettings />
+          </TabsContent>
+          <TabsContent value="appearance" className="mt-0">
+            <AppearanceSettings />
+          </TabsContent>
+          <TabsContent value="company" className="mt-0">
             <CompanySettingsTab />
           </TabsContent>
-
-          {/* Users Tab */}
-          <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Gestão de Usuários
-                </CardTitle>
-                <CardDescription>
-                  Gerencie os usuários e permissões da sua empresa na Área Administrativa
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center py-8">
-                <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground mb-4">
-                  A gestão de usuários foi movida para a área Administrativa para maior segurança e isolamento de dados.
-                </p>
-                <Button onClick={() => navigate("/admin")} className="gap-2">
-                  <ExternalLink className="h-4 w-4" />
-                  Ir para Gestão de Usuários
-                </Button>
-              </CardContent>
-            </Card>
+          <TabsContent value="users" className="mt-0">
+            <UserHierarchyTab />
           </TabsContent>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Informações do Perfil
-                </CardTitle>
-                <CardDescription>Atualize suas informações pessoais</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
-                    <Input
-                      id="name"
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profileForm.email}
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input
-                      id="phone"
-                      value={profileForm.phone}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Cargo</Label>
-                    <Input id="role" value={profileForm.role} disabled className="bg-muted" />
-                  </div>
-                </div>
-                <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="gap-2">
-                  <Save className="h-4 w-4" />
-                  {isSavingProfile ? "Salvando..." : "Salvar Alterações"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Notifications Tab */}
-          <TabsContent value="notifications">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  Preferências de Notificação
-                </CardTitle>
-                <CardDescription>Configure como deseja receber alertas</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <h4 className="text-sm font-medium">Canais de Notificao</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Notificações por E-mail</Label>
-                        <p className="text-sm text-muted-foreground">Receba atualizações no seu e-mail</p>
-                      </div>
-                      <Switch
-                        checked={notifications.email}
-                        onCheckedChange={(checked) => setNotifications({ ...notifications, email: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Notificações Push</Label>
-                        <p className="text-sm text-muted-foreground">Alertas em tempo real no navegador</p>
-                      </div>
-                      <Switch
-                        checked={notifications.push}
-                        onCheckedChange={(checked) => setNotifications({ ...notifications, push: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>SMS</Label>
-                        <p className="text-sm text-muted-foreground">Alertas críticos via mensagem de texto</p>
-                      </div>
-                      <Switch
-                        checked={notifications.sms}
-                        onCheckedChange={(checked) => setNotifications({ ...notifications, sms: checked })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4 space-y-4">
-                  <h4 className="text-sm font-medium">Tipos de Alerta</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Alertas de Cobrança</Label>
-                        <p className="text-sm text-muted-foreground">Faturas e vencimentos</p>
-                      </div>
-                      <Switch
-                        checked={notifications.billing}
-                        onCheckedChange={(checked) => setNotifications({ ...notifications, billing: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Alertas de Entrega</Label>
-                        <p className="text-sm text-muted-foreground">Atrasos e problemas nas entregas</p>
-                      </div>
-                      <Switch
-                        checked={notifications.deliveryAlerts}
-                        onCheckedChange={(checked) => setNotifications({ ...notifications, deliveryAlerts: checked })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Atualizações de Motoristas</Label>
-                        <p className="text-sm text-muted-foreground">Status e eventos dos motoristas</p>
-                      </div>
-                      <Switch
-                        checked={notifications.driverUpdates}
-                        onCheckedChange={(checked) => setNotifications({ ...notifications, driverUpdates: checked })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <Button onClick={handleSaveNotifications} className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Salvar Preferências
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Preferences Tab */}
-          <TabsContent value="preferences">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Palette className="h-5 w-5" />
-                  Preferências do Sistema
-                </CardTitle>
-                <CardDescription>Personalize sua experiência</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Globe className="h-4 w-4" />
-                      Idioma
-                    </Label>
-                    <Select
-                      value={preferences.language}
-                      onValueChange={(value) => setPreferences({ ...preferences, language: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
-                        <SelectItem value="en-US">English (US)</SelectItem>
-                        <SelectItem value="es">Español</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Fuso Horário
-                    </Label>
-                    <Select
-                      value={preferences.timezone}
-                      onValueChange={(value) => setPreferences({ ...preferences, timezone: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="America/Sao_Paulo">São Paulo (GMT-3)</SelectItem>
-                        <SelectItem value="America/Manaus">Manaus (GMT-4)</SelectItem>
-                        <SelectItem value="America/Recife">Recife (GMT-3)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Formato de Data</Label>
-                    <Select
-                      value={preferences.dateFormat}
-                      onValueChange={(value) => setPreferences({ ...preferences, dateFormat: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DD/MM/YYYY">DD/MM/AAAA</SelectItem>
-                        <SelectItem value="MM/DD/YYYY">MM/DD/AAAA</SelectItem>
-                        <SelectItem value="YYYY-MM-DD">AAAA-MM-DD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Atualização Automática</Label>
-                    <Select
-                      value={preferences.refreshInterval}
-                      onValueChange={(value) => setPreferences({ ...preferences, refreshInterval: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="15">A cada 15 segundos</SelectItem>
-                        <SelectItem value="30">A cada 30 segundos</SelectItem>
-                        <SelectItem value="60">A cada 1 minuto</SelectItem>
-                        <SelectItem value="0">Desativado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <Button onClick={handleSavePreferences} className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Salvar PreferÃªncias
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Security Tab */}
-          <TabsContent value="security">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Segurança da Conta
-                </CardTitle>
-                <CardDescription>Gerencie a segurança da sua conta</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="current-password">Senha Atual</Label>
-                    <div className="relative">
-                      <Input
-                        id="current-password"
-                        type={showPasswords.current ? "text" : "password"}
-                        placeholder="••••••••"
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
-                        onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
-                        aria-label={showPasswords.current ? "Ocultar senha atual" : "Mostrar senha atual"}
-                      >
-                        {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="new-password">Nova Senha</Label>
-                      <div className="relative">
-                        <Input
-                          id="new-password"
-                          type={showPasswords.next ? "text" : "password"}
-                          placeholder="••••••••"
-                          className="pr-10"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
-                          onClick={() => setShowPasswords((prev) => ({ ...prev, next: !prev.next }))}
-                          aria-label={showPasswords.next ? "Ocultar nova senha" : "Mostrar nova senha"}
-                        >
-                          {showPasswords.next ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirmar Nova Senha</Label>
-                      <div className="relative">
-                        <Input
-                          id="confirm-password"
-                          type={showPasswords.confirm ? "text" : "password"}
-                          placeholder="••••••••"
-                          className="pr-10"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2"
-                          onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
-                          aria-label={showPasswords.confirm ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}
-                        >
-                          {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => {
-                    toast({
-                      title: "Senha Alterada",
-                      description: "Sua senha foi atualizada com sucesso.",
-                    });
-                  }}
-                  className="gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  Alterar Senha
-                </Button>
-
-                <div className="border-t pt-6 space-y-4">
-                  <h4 className="text-sm font-medium">Sessões Ativas</h4>
-                  <div className="rounded-lg border p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">Este dispositivo</p>
-                        <p className="text-sm text-muted-foreground">Chrome São Paulo, SP</p>
-                      </div>
-                      <span className="text-sm text-success">Ativo agora</span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => {
-                      toast({
-                        title: "Sessões Encerradas",
-                        description: "Todas as outras sessões foram desconectadas.",
-                      });
-                    }}
-                  >
-                    Encerrar Outras Sessões
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </AppLayout>
+        </div>
+      </Tabs>
+    </>
   );
 }

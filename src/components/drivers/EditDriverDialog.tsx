@@ -1,34 +1,53 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { Car, FileText, Landmark, Loader2, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Pencil, Save, Loader2, User, Car, Landmark, FileText, Upload, X, Eye, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Driver, VehicleType } from "@/contexts/LogisticsContext";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
+import { formatDocument, isValidCPF, onlyDigits } from "@/lib/documentValidation";
+import { isValidContactEmail } from "@/lib/driverCredentials";
+import {
+  DRIVER_DOCUMENT_KEYS,
+  DRIVER_DOCUMENT_LABELS,
+  DRIVER_STATUS,
+  DRIVER_VEHICLE_TYPES,
+  focusField,
+  formatPhone,
+  isCpfTaken,
+  isValidPhone,
+  isValidPlate,
+  normalizePlate,
+  PENDING_PLATE,
+  PHONE_ERROR,
+  plainError,
+  PLATE_ERROR,
+  type DriverDocumentKey,
+} from "./driverConfig";
+import {
+  BankFields,
+  DocumentSlot,
+  DocumentSlotList,
+  DriverKindChoice,
+  RestrictedDocumentsNote,
+  type BankValues,
+} from "./DriverFormParts";
+import { FieldGroup, FormField } from "@/components/patterns/FormField";
+import { TabErrorDot } from "./TabErrorDot";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
-interface DriverDocuments {
-  cnh?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-  addressProof?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-  vehicleDoc?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-  trailerDoc?: { id?: string; name: string; url: string; path?: string; uploadedAt: Date };
-}
+type DriverDocuments = Partial<Record<DriverDocumentKey, { id?: string; name: string; url?: string; path?: string; uploadedAt: Date }>>;
 
 interface EditDriverDialogProps {
   driver: Driver | null;
@@ -37,25 +56,38 @@ interface EditDriverDialogProps {
   onSave: (driver: Driver) => Promise<boolean> | boolean;
 }
 
-const VEHICLE_TYPES: VehicleType[] = ["Fiorino", "VUC", "Toco", "Truck", "Carreta", "Van", "Moto"];
 const DRIVER_DOCUMENTS_BUCKET = "driver-documents";
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
+
+type FieldKey = "cpf" | "phone" | "email" | "vehiclePlate";
+type FieldErrors = Partial<Record<FieldKey, string>>;
+
+// Ordem de foco quando ha erro, e em que aba cada campo esta.
+const FIELD_ORDER: { key: FieldKey; id: string; tab: "personal" | "vehicle" }[] = [
+  { key: "cpf", id: "edit-cpf", tab: "personal" },
+  { key: "phone", id: "phone", tab: "personal" },
+  { key: "email", id: "contact-email", tab: "personal" },
+  { key: "vehiclePlate", id: "edit-vehicle-plate", tab: "vehicle" },
+];
+
+// Avatar de iniciais gerado pelo sistema: nao e uma foto escolhida pela empresa.
+const isGeneratedAvatar = (url?: string | null) => !url || url.includes("api.dicebear.com");
+const initialsAvatar = (name: string) => `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || "Motorista")}`;
 
 export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDriverDialogProps) {
   const [formData, setFormData] = useState<Partial<Driver>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("personal");
   const [documents, setDocuments] = useState<DriverDocuments>({});
-  const [uploadingDoc, setUploadingDoc] = useState<keyof DriverDocuments | null>(null);
-  
-  // File input refs
-  const cnhInputRef = useRef<HTMLInputElement>(null);
-  const addressInputRef = useRef<HTMLInputElement>(null);
-  const vehicleInputRef = useRef<HTMLInputElement>(null);
-  const trailerInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingDoc, setUploadingDoc] = useState<DriverDocumentKey | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  // Ao fechar, o foco volta para o botao que abriu (a folha de detalhe fica aberta por baixo).
+  const returnFocus = useReturnFocus();
+  // Abrir/baixar arquivo e exclusivo do Super Admin; a empresa so envia/substitui.
+  const { canViewDocuments } = useDriverDocumentsAccess();
 
-  // Banking info stored separately (not part of Driver interface yet)
-  const [bankingInfo, setBankingInfo] = useState({
+  // Dados bancarios ficam a parte (ainda nao fazem parte do Driver).
+  const [bankingInfo, setBankingInfo] = useState<BankValues>({
     banco: "",
     agencia: "",
     conta: "",
@@ -65,8 +97,13 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
 
   useEffect(() => {
     if (driver) {
-      setFormData({ ...driver });
-      // Load banking info from driver record
+      // Campo de foto e placa vazios quando nao ha foto propria / placa ainda.
+      setFormData({
+        ...driver,
+        photo: isGeneratedAvatar(driver.photo) ? "" : driver.photo,
+        vehiclePlate: driver.vehiclePlate === PENDING_PLATE ? "" : driver.vehiclePlate,
+      });
+      setErrors({});
       const driverAny = driver as any;
       setBankingInfo({
         banco: driverAny.banco || "",
@@ -75,10 +112,21 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
         tipo_conta: driverAny.tipo_conta || "",
         chave_pix: driverAny.chave_pix || "",
       });
-      setDocuments({});
-      loadDriverDocuments(driver);
     }
   }, [driver]);
+
+  // Recarrega quando a permissao de abrir documentos termina de carregar.
+  useEffect(() => {
+    if (!driver) return;
+    setDocuments({});
+    loadDriverDocuments(driver);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driver, canViewDocuments]);
+
+  // Abre sempre na primeira aba.
+  useEffect(() => {
+    if (open) setActiveTab("personal");
+  }, [open]);
 
   const getDriverDbId = (driverRecord: Driver | null = driver) => {
     return (driverRecord as any)?._dbId || (typeof driverRecord?.id === "string" ? driverRecord.id : null);
@@ -114,8 +162,8 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     await Promise.all(
       (data || []).map(async (doc: any) => {
         try {
-          const url = await getSignedUrl(doc.file_path);
-          nextDocuments[doc.document_type as keyof DriverDocuments] = {
+          const url = canViewDocuments ? await getSignedUrl(doc.file_path) : undefined;
+          nextDocuments[doc.document_type as DriverDocumentKey] = {
             id: doc.id,
             name: doc.file_name,
             path: doc.file_path,
@@ -125,17 +173,17 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
         } catch (signedUrlError) {
           console.warn("Error creating driver document URL:", signedUrlError);
         }
-      })
+      }),
     );
     setDocuments(nextDocuments);
   };
 
-  const handleFileUpload = async (type: keyof DriverDocuments, file: File) => {
+  const handleFileUpload = async (type: DriverDocumentKey, file: File) => {
     const driverDbId = getDriverDbId();
     if (!driverDbId) {
       toast({
-        title: "Erro ao enviar documento",
-        description: "Nao foi possivel identificar o motorista selecionado.",
+        title: "Não foi possível enviar o documento",
+        description: "Não foi possível identificar o motorista selecionado.",
         variant: "destructive",
       });
       return;
@@ -144,7 +192,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "Arquivo muito grande",
-        description: "Envie um arquivo de ate 10MB.",
+        description: "Envie um arquivo de até 10 MB.",
         variant: "destructive",
       });
       return;
@@ -157,7 +205,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(DRIVER_DOCUMENTS_BUCKET)
-        .upload(path, file, { upsert: true, contentType: file.type || undefined });
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
 
       if (uploadError) throw uploadError;
 
@@ -174,15 +222,15 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
             tenant_id: getDriverTenantId(),
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "driver_id,document_type" }
+          { onConflict: "driver_id,document_type" },
         );
 
       if (upsertError) throw upsertError;
 
-      const url = await getSignedUrl(uploadData.path);
-      setDocuments(prev => ({
+      const url = canViewDocuments ? await getSignedUrl(uploadData.path) : undefined;
+      setDocuments((prev) => ({
         ...prev,
-        [type]: { name: file.name, url, path: uploadData.path, uploadedAt: new Date() }
+        [type]: { name: file.name, url, path: uploadData.path, uploadedAt: new Date() },
       }));
       toast({
         title: "Documento salvo",
@@ -191,8 +239,8 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     } catch (error: any) {
       console.error("Driver document upload error:", error);
       toast({
-        title: "Erro ao enviar documento",
-        description: error.message || "Nao foi possivel salvar o arquivo.",
+        title: "Não foi possível enviar o documento",
+        description: plainError(error, "Confira o arquivo e tente de novo."),
         variant: "destructive",
       });
     } finally {
@@ -200,46 +248,44 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     }
   };
 
-  const handleLocalFileUpload = (type: keyof DriverDocuments, file: File) => {
-    // Create object URL for preview (in production, upload to storage)
-    const url = URL.createObjectURL(file);
-    setDocuments(prev => ({
-      ...prev,
-      [type]: { name: file.name, url, uploadedAt: new Date() }
-    }));
-    toast({
-      title: "📄 Documento carregado",
-      description: `${file.name} foi adicionado com sucesso.`,
-    });
-  };
-
-  const handleRemoveDocument = async (type: keyof DriverDocuments) => {
+  const handleRemoveDocument = async (type: DriverDocumentKey) => {
     const document = documents[type];
     if (document?.path) {
-      await supabase.storage.from(DRIVER_DOCUMENTS_BUCKET).remove([document.path]);
+      // remove() nao acusa erro quando a politica bloqueia: confere o que foi apagado.
+      const { data: removed, error: removeError } = await supabase.storage
+        .from(DRIVER_DOCUMENTS_BUCKET)
+        .remove([document.path]);
+      if (removeError || !removed?.length) {
+        toast({
+          title: "Não foi possível remover",
+          description: removeError?.message || "Somente o Super Admin pode apagar documentos do motorista.",
+          variant: "destructive",
+        });
+        return;
+      }
       await (supabase as any)
         .from("driver_documents")
         .delete()
         .eq("driver_id", getDriverDbId())
         .eq("document_type", type);
     }
-    setDocuments(prev => {
+    setDocuments((prev) => {
       const newDocs = { ...prev };
       delete newDocs[type];
       return newDocs;
     });
     toast({
-      title: "🗑️ Documento removido",
+      title: "Documento removido",
       description: "O documento foi removido.",
     });
   };
 
-  const handleDownloadDocument = (type: keyof DriverDocuments) => {
+  const handleDownloadDocument = (type: DriverDocumentKey) => {
     const document = documents[type];
     if (!document?.url) {
       toast({
-        title: "Documento indisponivel",
-        description: "Nao foi possivel gerar o link para download.",
+        title: "Documento indisponível",
+        description: "Não foi possível gerar o link para download.",
         variant: "destructive",
       });
       return;
@@ -255,16 +301,51 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     window.document.body.removeChild(link);
   };
 
+  const showErrors = (found: FieldErrors) => {
+    setErrors(found);
+    const first = FIELD_ORDER.find((field) => found[field.key]);
+    if (!first) return;
+    setActiveTab(first.tab);
+    // Espera a aba aparecer para levar o foco ao primeiro campo com erro.
+    window.setTimeout(() => focusField(first.id), 60);
+  };
+
   const handleSave = async () => {
     if (!driver) return;
 
-    setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const found: FieldErrors = {};
+    if (formData.cpf && !isValidCPF(formData.cpf)) found.cpf = "CPF inválido. Confira os números.";
+    if (formData.phone?.trim() && !isValidPhone(formData.phone)) found.phone = PHONE_ERROR;
+    if (formData.email?.trim() && !isValidContactEmail(formData.email)) found.email = "E-mail inválido. Confira o endereço.";
+    if (formData.vehiclePlate?.trim() && !isValidPlate(formData.vehiclePlate)) found.vehiclePlate = PLATE_ERROR;
+    if (Object.keys(found).length > 0) {
+      showErrors(found);
+      return;
+    }
 
-    // Include banking info in the save
-    const saveSucceeded = await onSave({ 
-      ...driver, 
+    setIsSaving(true);
+
+    // CPF trocado: confere se ja nao e de outro motorista (o banco aceita repetido).
+    const cpfChanged = formData.cpf && onlyDigits(formData.cpf) !== onlyDigits(driver.cpf || "");
+    if (cpfChanged && (await isCpfTaken(formData.cpf as string, getDriverDbId()))) {
+      setIsSaving(false);
+      showErrors({ cpf: "Este CPF já está cadastrado em outro motorista." });
+      return;
+    }
+
+    const name = formData.name?.trim() || driver.name;
+    const plate = normalizePlate(formData.vehiclePlate || "");
+
+    // Dados bancarios vao junto no salvar.
+    const saveSucceeded = await onSave({
+      ...driver,
       ...formData,
+      name,
+      cpf: formData.cpf ? formatDocument(formData.cpf) : driver.cpf,
+      phone: formData.phone?.trim() ? formatPhone(formData.phone) : "",
+      vehiclePlate: plate || PENDING_PLATE,
+      // Sem foto propria (ou campo apagado): avatar de iniciais com o nome atual.
+      photo: formData.photo?.trim() || initialsAvatar(name),
       banco: bankingInfo.banco,
       agencia: bankingInfo.agencia,
       conta: bankingInfo.conta,
@@ -274,356 +355,219 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     setIsSaving(false);
     if (!saveSucceeded) return;
     onOpenChange(false);
-
-    toast({
-      title: "✅ Motorista atualizado",
-      description: `Dados de ${formData.name} foram atualizados.`,
-    });
   };
 
   if (!driver) return null;
 
-  const documentLabels: Record<keyof DriverDocuments, string> = {
-    cnh: "CNH",
-    addressProof: "Comprovante de Endereço",
-    vehicleDoc: "Documento do Veículo (CRLV)",
-    trailerDoc: "Documento da Carreta",
+  const updateField = (patch: Partial<Driver>) => {
+    setFormData((current) => ({ ...current, ...patch }));
+    const touched = (Object.keys(patch) as FieldKey[]).filter((key) => errors[key]);
+    if (touched.length > 0) {
+      setErrors((current) => {
+        const next = { ...current };
+        touched.forEach((key) => delete next[key]);
+        return next;
+      });
+    }
   };
 
-  const documentRefs: Record<keyof DriverDocuments, React.RefObject<HTMLInputElement>> = {
-    cnh: cnhInputRef,
-    addressProof: addressInputRef,
-    vehicleDoc: vehicleInputRef,
-    trailerDoc: trailerInputRef,
-  };
+  // Em rota a situacao muda sozinha ao fim do romaneio; "Em rota" nao e escolha manual.
+  const isInRoute = driver.status === "in_route";
+  const statusOptions = Object.entries(DRIVER_STATUS).filter(
+    ([value]) => value === "active" || value === "inactive" || value === driver.status,
+  );
+
+  const tabTriggerClass = "h-8 gap-1.5 px-1.5 text-xs sm:text-sm";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Pencil className="h-5 w-5 text-primary" />
-            Editar Motorista
-          </DialogTitle>
+      <DialogContent
+        className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden sm:h-[min(90vh,42rem)] sm:max-h-[90vh] sm:max-w-2xl"
+        {...returnFocus}
+      >
+        <DialogHeader className="shrink-0 pb-4">
+          <DialogTitle>Editar motorista</DialogTitle>
+          <DialogDescription>
+            Altere os dados de {driver.name}. As mudanças valem em todo o sistema.
+          </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="grid grid-cols-4">
-            <TabsTrigger value="personal" className="flex items-center gap-1.5 text-xs">
-              <User className="h-4 w-4" />
-              Pessoal
-            </TabsTrigger>
-            <TabsTrigger value="vehicle" className="flex items-center gap-1.5 text-xs">
-              <Car className="h-4 w-4" />
-              Veículo
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="flex items-center gap-1.5 text-xs">
-              <FileText className="h-4 w-4" />
-              Docs
-            </TabsTrigger>
-            <TabsTrigger value="banking" className="flex items-center gap-1.5 text-xs">
-              <Landmark className="h-4 w-4" />
-              Bancário
-            </TabsTrigger>
-          </TabsList>
+        <form
+          id="edit-driver-form"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSave();
+          }}
+          className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5 pb-5 sm:-mx-6 sm:px-6"
+        >
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="sticky top-0 z-10 grid h-auto w-full grid-cols-4 shadow-[0_0_0_4px_hsl(var(--popover))]">
+              <TabsTrigger value="personal" className={tabTriggerClass}>
+                <User className="hidden sm:block" aria-hidden="true" />
+                Pessoal
+                <TabErrorDot show={Boolean(errors.cpf || errors.phone || errors.email)} />
+              </TabsTrigger>
+              <TabsTrigger value="vehicle" className={tabTriggerClass}>
+                <Car className="hidden sm:block" aria-hidden="true" />
+                Veículo
+                <TabErrorDot show={Boolean(errors.vehiclePlate)} />
+              </TabsTrigger>
+              <TabsTrigger value="documents" className={tabTriggerClass}>
+                <FileText className="hidden sm:block" aria-hidden="true" />
+                Documentos
+              </TabsTrigger>
+              <TabsTrigger value="banking" className={tabTriggerClass}>
+                <Landmark className="hidden sm:block" aria-hidden="true" />
+                Pagamento
+              </TabsTrigger>
+            </TabsList>
 
-          <div className="flex-1 overflow-y-auto py-4">
-            {/* Personal Data */}
-            <TabsContent value="personal" className="mt-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo</Label>
-                <Input
-                  id="name"
-                  value={formData.name || ""}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
+            <TabsContent value="personal" className="mt-5 space-y-4">
+              <FormField id="edit-name" label="Nome completo">
+                {(control) => <Input {...control} autoComplete="off" value={formData.name || ""} onChange={(e) => updateField({ name: e.target.value })} />}
+              </FormField>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="cpf">CPF</Label>
-                  <Input
-                    id="cpf"
-                    value={formData.cpf || ""}
-                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone || ""}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status || ""}
-                  onValueChange={(value) => setFormData({ ...formData, status: value as Driver["status"] })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="in_route">Em Rota</SelectItem>
-                    <SelectItem value="inactive">Inativo</SelectItem>
-                    <SelectItem value="pending_approval">Pendente de Aprovação</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="photo">URL da Foto</Label>
-                <Input
-                  id="photo"
-                  value={formData.photo || ""}
-                  onChange={(e) => setFormData({ ...formData, photo: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
-            </TabsContent>
-
-            {/* Vehicle Data */}
-            <TabsContent value="vehicle" className="mt-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="vehicleType">Tipo de Veículo</Label>
-                <Select
-                  value={formData.vehicleType || ""}
-                  onValueChange={(value) => setFormData({ ...formData, vehicleType: value as VehicleType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VEHICLE_TYPES.map((vt) => (
-                      <SelectItem key={vt} value={vt}>{vt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="vehiclePlate">Placa</Label>
-                <Input
-                  id="vehiclePlate"
-                  value={formData.vehiclePlate || ""}
-                  onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value.toUpperCase() })}
-                  className="uppercase"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Vínculo do Veículo</Label>
-                <Select
-                  value={formData.isOwnFleet ? "own" : "third"}
-                  onValueChange={(value) => setFormData({ ...formData, isOwnFleet: value === "own" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o vínculo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="own">🏢 Frota Própria (não gera valor a receber)</SelectItem>
-                    <SelectItem value="third">🚚 Terceiro / Agregado (gera valor a receber)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Motoristas de frota própria não geram valores a pagar no acerto financeiro.
-                </p>
-              </div>
-            </TabsContent>
-
-            {/* Documents */}
-            <TabsContent value="documents" className="mt-0 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Faça upload dos documentos do motorista e veículo.
-              </p>
-
-              {(Object.keys(documentLabels) as Array<keyof DriverDocuments>).map((docType) => (
-                <div key={docType} className="space-y-2">
-                  <Label>{documentLabels[docType]}</Label>
-                  
-                  {/* Hidden file input */}
-                  <input
-                    type="file"
-                    ref={documentRefs[docType]}
-                    className="hidden"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) await handleFileUpload(docType, file);
-                      e.target.value = "";
-                    }}
-                  />
-
-                  {documents[docType] ? (
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="text-sm font-medium truncate max-w-[200px]">
-                            {documents[docType]?.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Enviado em {documents[docType]?.uploadedAt.toLocaleDateString('pt-BR')}
-                          </p>
-                          {documents[docType]?.path && (
-                            <p className="text-[11px] text-muted-foreground truncate max-w-[260px]">
-                              Storage: driver-documents/{documents[docType]?.path}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => window.open(documents[docType]?.url, '_blank')}
-                          title="Abrir documento"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDownloadDocument(docType)}
-                          title="Baixar documento"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => documentRefs[docType].current?.click()}
-                          disabled={uploadingDoc === docType}
-                          title="Substituir documento"
-                        >
-                          {uploadingDoc === docType ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Upload className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveDocument(docType)}
-                        >
-                          <X className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={() => documentRefs[docType].current?.click()}
-                      disabled={uploadingDoc === docType}
-                    >
-                      {uploadingDoc === docType ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="h-4 w-4" />
-                      )}
-                      {uploadingDoc === docType ? "Enviando..." : "Fazer Upload"}
-                    </Button>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField id="edit-cpf" label="CPF" error={errors.cpf}>
+                  {(control) => (
+                    <Input {...control} inputMode="numeric" placeholder="000.000.000-00" value={formData.cpf || ""} onChange={(e) => updateField({ cpf: e.target.value })} />
                   )}
-                </div>
-              ))}
-
-              <div className="pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Formatos aceitos: PDF, JPG, PNG. Tamanho máximo: 10MB
-                </p>
-              </div>
-            </TabsContent>
-
-            {/* Banking Data */}
-            <TabsContent value="banking" className="mt-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="banco">Nome do Banco</Label>
-                <Input
-                  id="banco"
-                  value={bankingInfo.banco}
-                  onChange={(e) => setBankingInfo({ ...bankingInfo, banco: e.target.value })}
-                  placeholder="Ex: Banco do Brasil, Itaú..."
-                />
+                </FormField>
+                <FormField id="phone" label="Telefone (WhatsApp)" error={errors.phone}>
+                  {(control) => (
+                    <Input {...control} type="tel" value={formData.phone || ""} onChange={(e) => updateField({ phone: e.target.value })} placeholder="(00) 00000-0000" />
+                  )}
+                </FormField>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="agencia">Agência</Label>
+              <FormField id="contact-email" label="E-mail de contato" error={errors.email} hint="Recebe os dados de acesso ao aplicativo.">
+                {(control) => (
                   <Input
-                    id="agencia"
-                    value={bankingInfo.agencia}
-                    onChange={(e) => setBankingInfo({ ...bankingInfo, agencia: e.target.value })}
+                    {...control}
+                    type="email"
+                    value={formData.email || ""}
+                    onChange={(e) => updateField({ email: e.target.value })}
+                    placeholder="motorista@email.com"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="conta">Conta (com dígito)</Label>
-                  <Input
-                    id="conta"
-                    value={bankingInfo.conta}
-                    onChange={(e) => setBankingInfo({ ...bankingInfo, conta: e.target.value })}
-                  />
-                </div>
-              </div>
+                )}
+              </FormField>
 
-              <div className="border-t border-border pt-4 mt-2">
-                <h5 className="text-sm font-medium text-muted-foreground mb-3">Dados PIX</h5>
-                <div className="space-y-2">
-                  <Label htmlFor="chave_pix">Chave PIX</Label>
-                  <Input
-                    id="chave_pix"
-                    value={bankingInfo.chave_pix}
-                    onChange={(e) => setBankingInfo({ ...bankingInfo, chave_pix: e.target.value })}
-                    placeholder="CPF, e-mail, telefone ou chave aleatória"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Insira a chave PIX completa (CPF, e-mail, telefone ou chave aleatória)
-                  </p>
-                </div>
-                <div className="space-y-2 mt-3">
-                  <Label htmlFor="tipo_conta">Tipo de Conta</Label>
+              <FormField
+                id="edit-status"
+                label="Situação"
+                hint={
+                  isInRoute
+                    ? "Em rota: volta a ficar disponível quando o romaneio terminar."
+                    : "Inativo não aparece na escolha de motorista dos romaneios."
+                }
+              >
+                {(control) => (
                   <Select
-                    value={bankingInfo.tipo_conta}
-                    onValueChange={(value) => setBankingInfo({ ...bankingInfo, tipo_conta: value })}
+                    value={formData.status || ""}
+                    onValueChange={(value) => updateField({ status: value as Driver["status"] })}
+                    disabled={isInRoute}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
+                    <SelectTrigger {...control}>
+                      <SelectValue placeholder="Escolha a situação" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="corrente">Conta Corrente</SelectItem>
-                      <SelectItem value="poupanca">Conta Poupança</SelectItem>
-                      <SelectItem value="salario">Conta Salário</SelectItem>
+                      {statusOptions.map(([value, config]) => (
+                        <SelectItem key={value} value={value}>
+                          {config.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                </div>
+                )}
+              </FormField>
+
+              <FormField id="edit-photo" label="Foto" optional hint="Endereço (link) de uma imagem na internet. Sem foto, mostramos as iniciais do nome.">
+                {(control) => (
+                  <Input {...control} type="url" value={formData.photo || ""} onChange={(e) => updateField({ photo: e.target.value })} placeholder="https://..." />
+                )}
+              </FormField>
+            </TabsContent>
+
+            <TabsContent value="vehicle" className="mt-5 space-y-5">
+              <FieldGroup title="Tipo de motorista" description="Motoristas da casa não geram valores a pagar no acerto financeiro.">
+                <DriverKindChoice idPrefix="edit-" isOwnFleet={Boolean(formData.isOwnFleet)} onChange={(isOwnFleet) => updateField({ isOwnFleet })} />
+              </FieldGroup>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField id="edit-vehicle-type" label="Tipo de veículo">
+                  {(control) => (
+                    <Select value={formData.vehicleType || ""} onValueChange={(value) => updateField({ vehicleType: value as VehicleType })}>
+                      <SelectTrigger {...control}>
+                        <SelectValue placeholder="Escolha o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DRIVER_VEHICLE_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormField>
+                <FormField
+                  id="edit-vehicle-plate"
+                  label="Placa"
+                  error={errors.vehiclePlate}
+                  hint={formData.isOwnFleet ? "Opcional para motorista da casa." : "Placa antiga ou Mercosul."}
+                >
+                  {(control) => (
+                    <Input
+                      {...control}
+                      autoComplete="off"
+                      placeholder="ABC1D23"
+                      className="font-data uppercase tracking-wider"
+                      value={formData.vehiclePlate || ""}
+                      onChange={(e) => updateField({ vehiclePlate: normalizePlate(e.target.value) })}
+                    />
+                  )}
+                </FormField>
               </div>
             </TabsContent>
-          </div>
-        </Tabs>
 
-        <DialogFooter className="border-t border-border pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <TabsContent value="documents" className="mt-5">
+              <DocumentSlotList note={!canViewDocuments ? <RestrictedDocumentsNote /> : undefined}>
+                {DRIVER_DOCUMENT_KEYS.map((type) => {
+                  const document = documents[type];
+                  return (
+                    <DocumentSlot
+                      key={type}
+                      id={`edit-doc-${type}`}
+                      label={DRIVER_DOCUMENT_LABELS[type]}
+                      file={document}
+                      uploading={uploadingDoc === type}
+                      locked={!canViewDocuments}
+                      onFile={(file) => handleFileUpload(type, file)}
+                      onOpen={canViewDocuments && document ? () => window.open(document.url, "_blank") : undefined}
+                      onDownload={canViewDocuments && document ? () => handleDownloadDocument(type) : undefined}
+                      // Apagar o arquivo e exclusivo do Super Admin (regra do storage)
+                      onRemove={canViewDocuments && document ? () => handleRemoveDocument(type) : undefined}
+                    />
+                  );
+                })}
+              </DocumentSlotList>
+            </TabsContent>
+
+            <TabsContent value="banking" className="mt-5 space-y-4">
+              <p className="text-sm text-muted-foreground">Usado para pagar o frete no acerto financeiro.</p>
+              <BankFields idPrefix="edit-" values={bankingInfo} onChange={(patch) => setBankingInfo((current) => ({ ...current, ...patch }))} />
+            </TabsContent>
+          </Tabs>
+        </form>
+
+        <DialogFooter className="shrink-0 border-t pt-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Alterações
-              </>
-            )}
+          <Button type="submit" form="edit-driver-form" disabled={isSaving}>
+            {isSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {isSaving ? "Salvando..." : "Salvar alterações"}
           </Button>
         </DialogFooter>
       </DialogContent>

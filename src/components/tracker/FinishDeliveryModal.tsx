@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, Check, Loader2, X, User, FileText, ImageIcon } from "lucide-react";
+import { Check, CircleAlert, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getDriverTenantId, getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
+import { PhotoField } from "./PhotoField";
 
 interface FinishDeliveryModalProps {
   open: boolean;
@@ -21,6 +22,19 @@ interface FinishDeliveryModalProps {
 }
 
 const DRAFT_KEY = (id: string) => `delivery_draft_${id}`;
+
+type FieldErrors = { name?: string; doc?: string };
+
+/** Erro embaixo do campo (ligado por aria-describedby); letra 14px para ler no sol. */
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="flex items-start gap-1.5 text-sm font-medium text-destructive animate-fade-in">
+      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      {message}
+    </p>
+  );
+}
 
 export function FinishDeliveryModal({
   open,
@@ -39,7 +53,10 @@ export function FinishDeliveryModal({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [receiverName, setReceiverName] = useState("");
   const [receiverDocument, setReceiverDocument] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const filePickerOpenRef = useRef(false);
 
   useEffect(() => {
@@ -50,7 +67,7 @@ export function FinishDeliveryModal({
         const data = JSON.parse(saved);
         if (data.receiverName) setReceiverName(data.receiverName);
         if (data.receiverDocument) setReceiverDocument(data.receiverDocument);
-        toast.info("Rascunho restaurado da sessão anterior.");
+        toast.info("Recuperamos o que você já tinha digitado.", { id: `rascunho-${invoiceId}` });
       }
     } catch {
       // ignore invalid draft
@@ -94,17 +111,21 @@ export function FinishDeliveryModal({
 
   const handleReceiverNameChange = (value: string) => {
     setReceiverName(value);
+    if (errors.name && value.trim()) setErrors((current) => ({ ...current, name: undefined }));
     saveDraft(value, receiverDocument);
   };
 
   const handleReceiverDocChange = (value: string) => {
     setReceiverDocument(value);
+    if (errors.doc && value.trim()) setErrors((current) => ({ ...current, doc: undefined }));
     saveDraft(receiverName, value);
   };
 
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     filePickerOpenRef.current = false;
     const file = event.target.files?.[0];
+    // Limpa o campo: escolher a mesma foto de novo (depois de remover) volta a funcionar.
+    event.target.value = "";
     if (!file) return;
 
     try {
@@ -115,7 +136,7 @@ export function FinishDeliveryModal({
       setPhotoPreview(URL.createObjectURL(preparedFile));
     } catch (error) {
       console.error("Compression error:", error);
-      toast.error("Erro ao processar imagem. Tente outra foto ou use a galeria.");
+      toast.error("Não foi possível preparar a foto. Vamos enviar a original.");
       revokeObjectUrl(photoPreview);
       setPhotoFile(file);
       setPhotoPreview(URL.createObjectURL(file));
@@ -150,13 +171,15 @@ export function FinishDeliveryModal({
   };
 
   const handleSubmit = async () => {
-    if (!receiverName.trim()) {
-      toast.error("Nome de quem recebeu é obrigatório");
-      return;
-    }
-
-    if (!receiverDocument.trim()) {
-      toast.error("Documento do recebedor é obrigatório");
+    if (isLoading) return;
+    // Antes o botao ficava apagado sem dizer o que faltava; agora o erro aparece no campo.
+    const nextErrors: FieldErrors = {
+      name: receiverName.trim() ? undefined : "Digite o nome de quem recebeu.",
+      doc: receiverDocument.trim() ? undefined : "Digite o RG ou o CPF de quem recebeu.",
+    };
+    if (nextErrors.name || nextErrors.doc) {
+      setErrors(nextErrors);
+      (nextErrors.name ? nameRef : docRef).current?.focus();
       return;
     }
 
@@ -172,6 +195,7 @@ export function FinishDeliveryModal({
         .from("invoices")
         .update({
           status: "delivered",
+          occurrence_type: null,
           receiver_name: receiverName.trim(),
           receiver_document: receiverDocument.trim() || null,
           delivered_at: deliveryTimestamp,
@@ -213,27 +237,32 @@ export function FinishDeliveryModal({
         if (deliveryError) console.error("Delivery insert error (non-fatal):", deliveryError);
       }
 
-      const { error: proofError } = await supabase.from("delivery_proofs").insert({
-        invoice_id: invoiceId,
-        driver_id: driverId,
-        photo_url: photoUrl,
-        receiver_name: receiverName.trim(),
-        receiver_document: receiverDocument.trim() || null,
-        latitude: latitude || null,
-        longitude: longitude || null,
-        delivered_at: deliveryTimestamp,
-        tenant_id: tenantId,
-      });
-      if (proofError) console.error("Proof insert error (non-fatal):", proofError);
+      // delivery_proofs.photo_url e NOT NULL no banco: sem foto o insert sempre falhava (400).
+      if (photoUrl) {
+        const { error: proofError } = await supabase.from("delivery_proofs").insert({
+          invoice_id: invoiceId,
+          driver_id: driverId,
+          photo_url: photoUrl,
+          receiver_name: receiverName.trim(),
+          receiver_document: receiverDocument.trim() || null,
+          latitude: latitude || null,
+          longitude: longitude || null,
+          delivered_at: deliveryTimestamp,
+          tenant_id: tenantId,
+        });
+        if (proofError) console.error("Proof insert error (non-fatal):", proofError);
+      }
 
       localStorage.removeItem(DRAFT_KEY(invoiceId));
 
-      toast.success("Entrega finalizada com sucesso!");
+      toast.success("Entrega finalizada", { description: `${recipientName} recebeu a mercadoria.` });
       resetAndClose();
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Erro ao finalizar entrega. Tente novamente.");
+      toast.error("Não foi possível finalizar a entrega", {
+        description: "Confira a internet e tente de novo. O que você digitou fica salvo.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -246,7 +275,14 @@ export function FinishDeliveryModal({
     setPhotoPreview(null);
     setReceiverName("");
     setReceiverDocument("");
+    setErrors({});
     onClose();
+  };
+
+  const removePhoto = () => {
+    setPhotoFile(null);
+    revokeObjectUrl(photoPreview);
+    setPhotoPreview(null);
   };
 
   return (
@@ -257,124 +293,85 @@ export function FinishDeliveryModal({
         resetAndClose();
       }}
     >
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-green-600">
-            <Check className="h-5 w-5" />
-            Finalizar Entrega
-          </DialogTitle>
+          <DialogTitle>Finalizar entrega</DialogTitle>
+          <DialogDescription>
+            <span className="font-medium text-foreground">{recipientName}</span>
+            {nfeNumber && <span className="font-data"> · NF-e: {nfeNumber}</span>}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
-            <p>
-              <span className="text-muted-foreground">NF-e: </span>
-              <span className="font-mono font-semibold">{nfeNumber || "N/A"}</span>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Destinatário: </span>
-              <span className="font-medium">{recipientName}</span>
-            </p>
-          </div>
+        <div className="space-y-5">
+          <PhotoField
+            ref={fileInputRef}
+            id="delivery-proof-photo"
+            label="Foto do comprovante"
+            hint="Opcional"
+            preview={photoPreview}
+            preparing={isCompressing}
+            previewAlt="Foto do comprovante de entrega"
+            onPick={openFilePicker}
+            onChange={handlePhotoCapture}
+            onRemove={removePhoto}
+          />
 
           <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Camera className="h-4 w-4" />
-              Foto do Comprovante
-            </Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoCapture}
-              className="hidden"
-            />
-
-            {isCompressing ? (
-              <div className="w-full h-24 flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Preparando imagem...</span>
-              </div>
-            ) : photoPreview ? (
-              <div className="relative">
-                <img src={photoPreview} alt="Comprovante" className="w-full h-40 object-cover rounded-lg border" />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 h-8 w-8"
-                  onClick={() => {
-                    setPhotoFile(null);
-                    revokeObjectUrl(photoPreview);
-                    setPhotoPreview(null);
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full h-24 flex-col gap-2 border-dashed border-2"
-                onClick={openFilePicker}
-              >
-                <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                <span className="text-muted-foreground">Tirar Foto ou Escolher da Galeria</span>
-              </Button>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="receiver-name" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Nome de Quem Recebeu *
-            </Label>
+            <Label htmlFor="receiver-name">Nome de quem recebeu</Label>
             <Input
+              ref={nameRef}
               id="receiver-name"
               value={receiverName}
               onChange={(event) => handleReceiverNameChange(event.target.value)}
               placeholder="Nome completo"
-              className="h-12"
+              autoComplete="off"
+              autoCapitalize="words"
+              aria-required="true"
+              aria-invalid={errors.name ? true : undefined}
+              aria-describedby={errors.name ? "receiver-name-erro" : undefined}
+              className="h-12 text-base"
+              disabled={isLoading}
             />
+            <FieldError id="receiver-name-erro" message={errors.name} />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="receiver-doc" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Documento (RG/CPF) *
-            </Label>
+            <Label htmlFor="receiver-doc">Documento de quem recebeu</Label>
             <Input
+              ref={docRef}
               id="receiver-doc"
               value={receiverDocument}
               onChange={(event) => handleReceiverDocChange(event.target.value)}
               placeholder="000.000.000-00"
-              className="h-12"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-required="true"
+              aria-invalid={errors.doc ? true : undefined}
+              aria-describedby={errors.doc ? "receiver-doc-erro receiver-doc-hint" : "receiver-doc-hint"}
+              className="h-12 text-base"
+              disabled={isLoading}
             />
+            <FieldError id="receiver-doc-erro" message={errors.doc} />
+            <p id="receiver-doc-hint" className="text-sm text-muted-foreground">
+              RG ou CPF. Só os números já bastam.
+            </p>
           </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={resetAndClose} className="flex-1 h-12" disabled={isLoading}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading || !receiverName.trim() || !receiverDocument.trim()}
-              className="flex-1 h-12 gap-2 bg-green-600 hover:bg-green-700"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" /> Enviando...
-                </>
-              ) : (
-                <>
-                  <Check className="h-5 w-5" /> Confirmar
-                </>
-              )}
-            </Button>
-          </div>
-          <p className="text-[10px] text-center text-muted-foreground">
-            Foto opcional. Nome e documento do recebedor são obrigatórios.
-          </p>
         </div>
+
+        <DialogFooter className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 sm:flex">
+          <Button variant="outline" size="lg" onClick={resetAndClose} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button
+            size="lg"
+            onClick={handleSubmit}
+            aria-disabled={isLoading || undefined}
+            className="bg-success text-success-foreground hover:bg-success/90"
+          >
+            {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+            {isLoading ? "Enviando" : "Confirmar entrega"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

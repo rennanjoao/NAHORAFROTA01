@@ -1,106 +1,206 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Lock, Loader2, Check, AlertCircle, Mail } from "lucide-react";
+import { Check, Circle, KeyRound, Link2Off, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { AuthShell } from "@/components/auth/AuthShell";
-import { Cta } from "@/site/components/Cta";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { AuthField, PasswordInput } from "@/components/auth/AuthFields";
+import { cn } from "@/lib/utils";
+
+const MIN_PASSWORD_LENGTH = 8;
+
+// Lido ao carregar o modulo: o supabase-js limpa o token da URL logo depois de
+// processa-lo. Sem um link de recuperacao, quem ja esta logado nao troca a
+// senha por aqui sem a senha atual (isso fica em Configuracoes > Seguranca).
+const OPENED_FROM_RECOVERY_LINK =
+  typeof window !== "undefined" &&
+  (/type=recovery/.test(window.location.hash) || new URLSearchParams(window.location.search).has("code"));
 
 /**
- * /redefinir-senha
- * - Sem sessão de recuperação: pede o e-mail e envia o link.
- * - Com sessão de recuperação (link do e-mail): pede a nova senha.
+ * Destino do link "Esqueci minha senha". O supabase-js le o token do link e
+ * abre uma sessao de recuperacao; aqui o usuario define a nova senha.
  */
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"request" | "update">("request");
-  const [email, setEmail] = useState("");
-  const [p1, setP1] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"checking" | "ready" | "invalid">("checking");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    document.title = "Redefinir senha — Na Hora Frota";
-    const hash = window.location.hash;
-    if (hash.includes("type=recovery")) setMode("update");
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") setMode("update");
+    const linkError = new URLSearchParams(window.location.hash.slice(1)).get("error_description");
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (session && OPENED_FROM_RECOVERY_LINK)) setStatus("ready");
     });
-    return () => data.subscription.unsubscribe();
+
+    // O token pode ja ter sido processado antes deste efeito.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session && OPENED_FROM_RECOVERY_LINK) setStatus("ready");
+      else if (linkError || !OPENED_FROM_RECOVERY_LINK) setStatus("invalid");
+    });
+
+    const timeout = window.setTimeout(() => {
+      setStatus((current) => (current === "checking" ? "invalid" : current));
+    }, 4000);
+
+    return () => {
+      listener.subscription.unsubscribe();
+      window.clearTimeout(timeout);
+    };
   }, []);
 
-  const request = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${window.location.origin}/redefinir-senha`,
-    });
-    setBusy(false);
-    if (err) {
-      setError("Não conseguimos enviar o e-mail agora. Tente de novo em alguns minutos.");
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isSaving) return;
+    setErrors({});
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setErrors({ password: `A senha precisa de pelo menos ${MIN_PASSWORD_LENGTH} caracteres.` });
+      passwordRef.current?.focus();
       return;
     }
-    setDone(true);
-  };
+    if (password !== confirm) {
+      setErrors({ confirm: "As duas senhas estão diferentes. Digite a mesma senha nos dois campos." });
+      confirmRef.current?.focus();
+      return;
+    }
 
-  const update = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (p1.length < 8) return setError("A senha precisa ter pelo menos 8 caracteres.");
-    setBusy(true);
-    const { error: err } = await supabase.auth.updateUser({ password: p1, data: { must_change_password: false } });
-    setBusy(false);
-    if (err) return setError("Link expirado ou inválido. Peça um novo e-mail de redefinição.");
+    setIsSaving(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setIsSaving(false);
+
+    if (error) {
+      const sameAsOld = /different from the old|same password/i.test(error.message);
+      if (sameAsOld) {
+        setErrors({ password: "A senha nova precisa ser diferente da anterior." });
+        passwordRef.current?.focus();
+        return;
+      }
+      // Mensagens do servidor vem em ingles: traduz as conhecidas, o resto vira um texto simples.
+      if (/weak|pwned|strength|characters/i.test(error.message)) {
+        setErrors({ password: "Essa senha é fácil de adivinhar. Misture letras e números." });
+        passwordRef.current?.focus();
+        return;
+      }
+      if (/session|expired|jwt|token/i.test(error.message)) {
+        setStatus("invalid");
+        return;
+      }
+      toast({
+        title: "Não foi possível alterar a senha",
+        description: "Confira a internet e tente de novo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({ title: "Senha alterada", description: "Você já entrou com a senha nova." });
     navigate("/", { replace: true });
   };
 
-  if (mode === "update") {
-    return (
-      <AuthShell title="Escolha a nova senha." subtitle="Depois de salvar, você entra direto no painel.">
-        <form onSubmit={update} className="space-y-5" noValidate>
-          <div>
-            <label htmlFor="p1" className="mb-1.5 block text-sm font-semibold">Nova senha</label>
-            <div className="relative">
-              <Lock aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input id="p1" type="password" autoComplete="new-password" value={p1} onChange={(e) => setP1(e.target.value)} className="h-12 w-full rounded border border-input bg-background pl-10 pr-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" required minLength={8} />
-            </div>
-          </div>
-          {error && <p role="alert" className="flex items-center gap-2 rounded border border-nhf-late/50 bg-nhf-late/10 p-3 text-sm"><AlertCircle aria-hidden="true" className="h-4 w-4 text-late" /> {error}</p>}
-          <Cta type="submit" size="lg" className="w-full" disabled={busy}>
-            {busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Salvando…</> : <><Check aria-hidden="true" className="h-4 w-4" /> Salvar nova senha</>}
-          </Cta>
-        </form>
-      </AuthShell>
-    );
-  }
+  const rules = [
+    { ok: password.length >= MIN_PASSWORD_LENGTH, label: `Pelo menos ${MIN_PASSWORD_LENGTH} caracteres` },
+    { ok: password.length > 0 && password === confirm, label: "As duas senhas iguais" },
+  ];
 
   return (
-    <AuthShell title="Esqueceu a senha?" subtitle="Informe o e-mail da sua conta. Enviamos um link para criar outra.">
-      {done ? (
-        <div role="status" className="rounded border border-brand/50 bg-brand/10 p-4 text-sm">
-          <p className="font-semibold">Se existir uma conta com este e-mail, o link já está a caminho.</p>
-          <p className="mt-1 text-muted-foreground">Confira a caixa de entrada e o spam. O link vale por uma hora.</p>
-          <Link to="/login" className="mt-3 inline-block font-semibold text-brand hover:underline">Voltar para o login</Link>
-        </div>
-      ) : (
-        <form onSubmit={request} className="space-y-5" noValidate>
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-semibold">E-mail</label>
-            <div className="relative">
-              <Mail aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 w-full rounded border border-input bg-background pl-10 pr-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" required />
-            </div>
-          </div>
-          {error && <p role="alert" className="flex items-center gap-2 rounded border border-nhf-late/50 bg-nhf-late/10 p-3 text-sm"><AlertCircle aria-hidden="true" className="h-4 w-4 text-late" /> {error}</p>}
-          <Cta type="submit" size="lg" className="w-full" disabled={busy} arrow={!busy}>
-            {busy ? <><Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> Enviando…</> : "Enviar link"}
-          </Cta>
-          <p className="text-center text-sm text-muted-foreground">
-            Lembrou? <Link to="/login" className="font-semibold text-brand hover:underline">Entrar</Link>
+    <AuthLayout pageTitle={status === "invalid" ? "Link expirado" : "Criar nova senha"}>
+      <span aria-hidden="true" className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border bg-card text-primary shadow-xs">
+        {status === "invalid" ? <Link2Off className="h-5 w-5" /> : <KeyRound className="h-5 w-5" />}
+      </span>
+
+      {status === "checking" && (
+        <div role="status" className="space-y-2">
+          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">Criar nova senha</h1>
+          <p className="flex items-center gap-2 text-[0.9375rem] text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Conferindo o link do e-mail
           </p>
-        </form>
+        </div>
       )}
-    </AuthShell>
+
+      {status === "invalid" && (
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">Este link não vale mais</h1>
+            <p className="text-[0.9375rem] text-muted-foreground">
+              O link de recuperação é inválido ou expirou. Peça um novo na tela de entrar, em "Esqueci minha senha".
+            </p>
+          </div>
+          <Button asChild size="lg" className="w-full">
+            <Link to="/login">Voltar para entrar</Link>
+          </Button>
+        </div>
+      )}
+
+      {status === "ready" && (
+        <>
+          <div className="space-y-2">
+            <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight">Criar nova senha</h1>
+            <p className="text-[0.9375rem] text-muted-foreground">Escolha uma senha que você lembre. Depois disso, você já entra no sistema.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
+            <AuthField id="new-password" label="Nova senha" error={errors.password}>
+              {(a11y) => (
+                <PasswordInput
+                  {...a11y}
+                  ref={passwordRef}
+                  visible={showPassword}
+                  onVisibleChange={setShowPassword}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={`Mínimo ${MIN_PASSWORD_LENGTH} caracteres`}
+                  autoComplete="new-password"
+                  disabled={isSaving}
+                  required
+                />
+              )}
+            </AuthField>
+
+            <AuthField id="confirm-new-password" label="Repita a nova senha" error={errors.confirm}>
+              {(a11y) => (
+                <PasswordInput
+                  {...a11y}
+                  ref={confirmRef}
+                  visible={showPassword}
+                  onVisibleChange={setShowPassword}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  autoComplete="new-password"
+                  disabled={isSaving}
+                  required
+                />
+              )}
+            </AuthField>
+
+            <ul aria-label="Requisitos da senha" className="space-y-1.5 text-sm">
+              {rules.map((rule) => (
+                <li key={rule.label} className={cn("flex items-center gap-2", rule.ok ? "text-success" : "text-muted-foreground")}>
+                  {rule.ok ? (
+                    <Check className="h-4 w-4 animate-pop-in" strokeWidth={3} aria-hidden="true" />
+                  ) : (
+                    <Circle className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {rule.label}
+                  <span className="sr-only">{rule.ok ? ": ok" : ": falta"}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* aria-disabled (e nao disabled): o foco fica no botao se der erro. */}
+            <Button type="submit" size="lg" className="w-full" aria-disabled={isSaving || undefined}>
+              {isSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
+              {isSaving ? "Salvando" : "Salvar nova senha"}
+            </Button>
+          </form>
+        </>
+      )}
+    </AuthLayout>
   );
 }

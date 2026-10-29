@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,23 +10,22 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Loader2, Eye, EyeOff, Shield, Check, Copy } from "lucide-react";
+import { UserPlus, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
-
-const ROLES = [
-  { value: "dispatcher", label: "Lancador", description: "Importa notas e cria romaneios" },
-  { value: "fleet_manager", label: "Gestor de Frota", description: "Gerencia motoristas e frota" },
-  { value: "viewer", label: "Visualizador", description: "Apenas visualiza dados" },
-  { value: "admin", label: "Administrador", description: "Acesso total ao sistema" },
-] as const;
+import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
+import { FormField } from "@/components/patterns/FormField";
+import { CredentialsCard } from "./CredentialsCard";
+import { INVITE_ROLES, looksLikeEmail } from "./roleOptions";
+import { friendlyServerMessage, isDuplicateEmail } from "./serverMessages";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
 }
+
+type FieldKey = "name" | "email" | "password";
 
 const isEdgeTransportError = (error: unknown) => {
   if (!error || typeof error !== "object") return false;
@@ -39,18 +38,34 @@ const isEdgeTransportError = (error: unknown) => {
   );
 };
 
+const FALLBACK_ERROR = "Não foi possível criar o usuário. Confira os dados e tente de novo.";
+
 export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
   const { canAddUser, limits, plan, planLabels } = usePlanLimits();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [created, setCreated] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  // O campo fica desabilitado enquanto envia: o foco vai para o e-mail quando ele volta.
+  const [focusEmail, setFocusEmail] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<string>("dispatcher");
+  const refs = {
+    name: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    password: useRef<HTMLInputElement>(null),
+  };
+
+  useEffect(() => {
+    if (focusEmail && !isLoading) {
+      refs.email.current?.focus();
+      setFocusEmail(false);
+    }
+  }, [focusEmail, isLoading, refs.email]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
@@ -59,33 +74,44 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       setPassword("");
       setRole("dispatcher");
       setCreated(false);
-      setCopied(false);
+      setErrors({});
+      setShowPassword(false);
     }
 
     setOpen(newOpen);
   };
 
-  const handleCreate = async () => {
+  const validate = () => {
+    const next: Partial<Record<FieldKey, string>> = {};
+    if (!name.trim()) next.name = "Digite o nome da pessoa.";
+    if (!email.trim()) next.email = "Digite o e-mail que a pessoa vai usar para entrar.";
+    else if (!looksLikeEmail(email)) next.email = "Confira o e-mail. Exemplo: nome@empresa.com.br";
+    if (!password.trim()) next.password = "Crie uma senha para o primeiro acesso.";
+    else if (password.trim().length < 8) next.password = "A senha precisa ter pelo menos 8 caracteres.";
+    setErrors(next);
+    const first = (["name", "email", "password"] as FieldKey[]).find((key) => next[key]);
+    if (first) refs[first].current?.focus();
+    return !first;
+  };
+
+  const handleCreate = async (event?: FormEvent) => {
+    event?.preventDefault();
+    // O botao continua focavel enquanto cria (aria-disabled): evita criar duas vezes.
+    if (isLoading) return;
     if (!canAddUser) {
-      toast.error(`Limite de ${limits.max_users} usuario(s) atingido no plano ${planLabels[plan] || plan}. Faca upgrade.`);
+      toast.error(
+        `O plano ${planLabels[plan] || plan} permite até ${limits.max_users} ${limits.max_users === 1 ? "usuário" : "usuários"}. Fale com a equipe para mudar de plano.`,
+      );
       return;
     }
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      toast.error("Nome, e-mail e senha sao obrigatorios");
-      return;
-    }
-
-    if (password.trim().length < 8) {
-      toast.error("A senha deve ter no minimo 8 caracteres");
-      return;
-    }
+    if (!validate()) return;
 
     setIsLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session?.access_token) {
-        toast.error("Sessao expirada. Faca login novamente.");
+        toast.error("Sessão expirada. Entre de novo para continuar.");
         return;
       }
 
@@ -116,170 +142,165 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       if (error) {
         console.error("Create user error:", error);
         if (isEdgeTransportError(error)) {
-          toast.error("Nao foi possivel conectar a funcao de criacao de usuarios. Verifique o deploy das Edge Functions e a liberacao de dominio/CORS.");
-        } else {
-          toast.error(error.message || "Erro ao criar usuario");
+          toast.error("Não foi possível criar o usuário agora. Confira a internet e tente de novo.");
+          return;
         }
+        const info = await readEdgeFunctionError(error, FALLBACK_ERROR);
+        // E-mail repetido aparece embaixo do campo, com o foco nele.
+        if (isDuplicateEmail(info.message, info.code)) {
+          setErrors({ email: "Este e-mail já está cadastrado. Use outro e-mail." });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(info.message, FALLBACK_ERROR));
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || "Erro ao criar usuario");
+        if (isDuplicateEmail(data?.error, data?.code)) {
+          setErrors({ email: "Este e-mail já está cadastrado. Use outro e-mail." });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(data?.error, FALLBACK_ERROR));
         return;
       }
 
       setCreated(true);
-      toast.success(`Usuario ${name.trim()} criado com sucesso!`);
+      toast.success(`Usuário ${name.trim()} criado.`);
       onUserCreated?.();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error creating user:", err);
-      toast.error(err.message || "Erro ao criar usuario");
+      toast.error(friendlyServerMessage(err instanceof Error ? err.message : "", FALLBACK_ERROR));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCopy = async () => {
-    const text = `Acesso ao NaHora Frota:\nE-mail: ${email.trim().toLowerCase()}\nSenha: ${password.trim()}\n\nAcesse: ${window.location.origin}/login`;
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast.success("Credenciais copiadas!");
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const clearError = (key: FieldKey) => errors[key] && setErrors((prev) => ({ ...prev, [key]: undefined }));
+  const selectedRole = INVITE_ROLES.find((r) => r.value === role);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button className="gap-2" disabled={!canAddUser}>
-          <UserPlus className="h-4 w-4" />
-          Criar Usuario
+        <Button disabled={!canAddUser}>
+          <UserPlus aria-hidden="true" />
+          Criar usuário
         </Button>
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5" />
-            Criar Usuario Manual
-          </DialogTitle>
+          <DialogTitle>{created ? "Usuário criado" : "Criar usuário"}</DialogTitle>
           <DialogDescription>
-            Cadastre um novo colaborador definindo e-mail, senha e nivel de acesso
+            {created
+              ? "Passe estes dados para a pessoa. Ela pode trocar a senha depois, em Configurações."
+              : "Cadastre uma pessoa da equipe com e-mail, senha e nível de acesso."}
           </DialogDescription>
         </DialogHeader>
 
         {created ? (
-          <div className="space-y-4 py-4">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-3">
-              <p className="flex items-center gap-2 font-semibold text-emerald-400">
-                <Check className="h-5 w-5" />
-                Usuario criado com sucesso!
-              </p>
-
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Nome:</span>{" "}
-                  <span className="font-medium">{name}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">E-mail:</span>{" "}
-                  <span className="font-mono font-medium">{email.trim().toLowerCase()}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Senha:</span>{" "}
-                  <span className="font-mono font-medium">{password}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Perfil:</span>{" "}
-                  <span className="font-medium">{ROLES.find((r) => r.value === role)?.label || role}</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Compartilhe essas credenciais com o colaborador. Ele pode alterar a senha depois.
-              </p>
-            </div>
-
-            <Button onClick={handleCopy} className="w-full gap-2">
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copiado!" : "Copiar Credenciais"}
-            </Button>
-          </div>
+          <CredentialsCard
+            title="Acesso pronto"
+            rows={[
+              { label: "Nome", value: name.trim() },
+              { label: "E-mail", value: email.trim().toLowerCase(), mono: true },
+              { label: "Senha", value: password.trim(), mono: true },
+              { label: "Nível", value: selectedRole?.label || role },
+            ]}
+            copyText={`Acesso ao Na Hora Frota:\nE-mail: ${email.trim().toLowerCase()}\nSenha: ${password.trim()}\n\nAcesse: ${window.location.origin}/login`}
+          />
         ) : (
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="createName">Nome Completo *</Label>
-              <Input
-                id="createName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Nome do colaborador"
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="createEmail">E-mail *</Label>
-              <Input
-                id="createEmail"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="colaborador@empresa.com.br"
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="createPassword">Senha *</Label>
-              <div className="relative">
+          <form id="create-user-form" onSubmit={handleCreate} noValidate className="space-y-4">
+            <FormField id="createName" label="Nome completo" error={errors.name}>
+              {(control) => (
                 <Input
-                  id="createPassword"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Minimo 8 caracteres"
+                  {...control}
+                  ref={refs.name}
+                  value={name}
+                  autoComplete="off"
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    clearError("name");
+                  }}
+                  placeholder="Nome do colaborador"
                   disabled={isLoading}
-                  className="pr-10"
                 />
+              )}
+            </FormField>
 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
+            <FormField id="createEmail" label="E-mail" error={errors.email} hint="Será o login da pessoa no painel.">
+              {(control) => (
+                <Input
+                  {...control}
+                  ref={refs.email}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="off"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearError("email");
+                  }}
+                  placeholder="colaborador@empresa.com.br"
+                  disabled={isLoading}
+                />
+              )}
+            </FormField>
 
-              <p className="text-xs text-muted-foreground">
-                O usuario podera alterar a senha depois no seu perfil
-              </p>
-            </div>
+            <FormField
+              id="createPassword"
+              label="Senha"
+              error={errors.password}
+              hint="Mínimo de 8 caracteres. A pessoa pode trocar depois."
+            >
+              {(control) => (
+                <div className="relative">
+                  <Input
+                    {...control}
+                    ref={refs.password}
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      clearError("password");
+                    }}
+                    disabled={isLoading}
+                    className="pr-11"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 rounded-l-none text-muted-foreground hover:bg-transparent hover:text-foreground active:scale-100"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+                  </Button>
+                </div>
+              )}
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="createRole">Nivel de Acesso</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4" />
-                        <div>
-                          <span className="font-medium">{r.label}</span>
-                          <span className="ml-2 text-xs text-muted-foreground">- {r.description}</span>
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            <FormField id="createRole" label="Nível de acesso" hint={selectedRole?.description}>
+              {(control) => (
+                <Select value={role} onValueChange={setRole} disabled={isLoading}>
+                  <SelectTrigger {...control}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INVITE_ROLES.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </FormField>
+          </form>
         )}
 
         <DialogFooter>
@@ -289,21 +310,12 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
                 Cancelar
               </Button>
-              <Button onClick={handleCreate} disabled={isLoading} className="gap-2">
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Criando...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" />
-                    Criar Usuario
-                  </>
-                )}
+              <Button type="submit" form="create-user-form" aria-disabled={isLoading || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
+                {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
+                {isLoading ? "Criando..." : "Criar usuário"}
               </Button>
             </>
           )}

@@ -1,121 +1,109 @@
-import { Search, Menu, LogOut, User } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { ChevronRight, CircleHelp, Search } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useNavigation } from "@/hooks/useNavigation";
+import { isMac } from "@/lib/platform";
 import { NotificationDropdown } from "./NotificationDropdown";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useNavigate } from "react-router-dom";
-import { toast } from "@/hooks/use-toast";
-import { ThemeToggle } from "@/site/components/ThemeToggle";
+import { useShell } from "./ShellContext";
+import { useOnline } from "./useOnline";
+import { UserMenu } from "./UserMenu";
 
-interface TopBarProps {
-  onMenuToggle?: () => void;
-  showMenuButton?: boolean;
-}
-
-export function TopBar({ onMenuToggle, showMenuButton }: TopBarProps) {
-  const { profile, roles, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await signOut();
-    toast({
-      title: "Você saiu",
-      description: "Sessão encerrada com sucesso.",
-    });
-    navigate("/login");
-  };
-
-  const getRoleLabel = (roles: string[]) => {
-    if (roles.includes("admin")) return "Administrador";
-    if (roles.includes("fleet_manager")) return "Gerente de Frota";
-    if (roles.includes("dispatcher")) return "Despachante";
-    return "Visualizador";
-  };
-
-  const getInitials = (name: string | undefined) => {
-    if (!name) return "U";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase();
-  };
+export function TopBar() {
+  const { current, currentGroup } = useNavigation();
+  const { openPanel } = useShell();
+  const online = useOnline();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b border-border bg-card px-3 md:px-6">
-      <div className="flex items-center gap-2 md:gap-4">
-        {showMenuButton && (
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuToggle}>
-            <Menu className="h-5 w-5" />
-          </Button>
-        )}
-        <div className="relative hidden sm:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar motorista, veículo, rota..."
-            className="w-48 md:w-80 bg-secondary border-0 pl-10"
-          />
-        </div>
-        <Button variant="ghost" size="icon" className="sm:hidden text-muted-foreground">
+    <header className="surface-glass sticky top-0 z-30 flex h-topbar items-center gap-2 border-b px-3 sm:px-4 md:gap-3 md:px-6">
+      {/* Celular: simbolo + nome da tela. Computador: caminho "Grupo > Tela". */}
+      <NavLink
+        to="/"
+        className="-ml-1.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        aria-label="Ir para o início"
+      >
+        <BrandLogo arrangement="simbolo" className="w-7" />
+      </NavLink>
+      <p className="min-w-0 truncate font-heading text-base font-semibold md:hidden">{current?.label ?? "Na Hora Frota"}</p>
+
+      <nav aria-label="Você está em" className="hidden min-w-0 md:block">
+        <ol className="flex items-center gap-1.5 text-sm">
+          {currentGroup && current?.path !== "/" && (
+            <>
+              <li className="text-muted-foreground">{currentGroup.label}</li>
+              <li aria-hidden="true">
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+              </li>
+            </>
+          )}
+          <li aria-current="page" className="truncate font-medium text-foreground">
+            {current?.label ?? "Na Hora Frota"}
+          </li>
+        </ol>
+      </nav>
+
+      <div className="flex-1" />
+
+      <button
+        type="button"
+        onClick={() => openPanel("palette")}
+        className="group hidden h-9 w-full max-w-[22rem] items-center gap-2 rounded-md border border-input bg-card px-3 text-sm text-muted-foreground shadow-xs transition-colors duration-fast hover:border-foreground/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+        aria-label="Buscar telas, motoristas, placas e notas"
+        aria-keyshortcuts="Control+K Meta+K"
+      >
+        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="flex-1 truncate text-left">Buscar ou ir para…</span>
+        <span className="kbd" aria-hidden="true">{isMac() ? "⌘ K" : "Ctrl K"}</span>
+      </button>
+
+      <div className="flex items-center gap-0.5 sm:gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground sm:hidden"
+          onClick={() => openPanel("palette")}
+          aria-label="Buscar"
+        >
           <Search className="h-5 w-5" />
         </Button>
-      </div>
 
-      <div className="flex items-center gap-2 md:gap-3">
-        <div className="hidden md:flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 border border-success/20">
-          <div className="status-dot status-dot-success" />
-          <span className="text-sm font-medium text-success">Sistema Online</span>
-        </div>
+        {online ? (
+          // No Inicio o selo "Ao vivo" com a hora ja fica no topo da tela.
+          current?.path !== "/" && (
+            <span className="nhf-live mx-1 hidden xl:inline-flex" title="Os dados chegam em tempo real">
+              Ao vivo
+            </span>
+          )
+        ) : (
+          <span className="nhf-live nhf-live--off mx-1" role="status">
+            Sem internet
+          </span>
+        )}
 
-        <ThemeToggle className="h-9 w-9 border-0" />
+        <ThemeToggle className="hidden md:inline-flex" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden text-muted-foreground hover:text-foreground md:inline-flex"
+              onClick={() => openPanel("help")}
+              aria-label="Ajuda desta tela"
+            >
+              <CircleHelp className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Ajuda desta tela</TooltipContent>
+        </Tooltip>
 
         <NotificationDropdown />
 
-        {/* User Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 px-2">
-              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-xs font-semibold text-primary-foreground">
-                  {getInitials(profile?.name)}
-                </span>
-              </div>
-              <div className="hidden md:block text-left">
-                <p className="text-sm font-medium">{profile?.name || "Usuário"}</p>
-                <p className="text-xs text-muted-foreground">{getRoleLabel(roles)}</p>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div className="flex flex-col">
-                <span>{profile?.name || "Usuário"}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {profile?.email}
-                </span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
-              <User className="mr-2 h-4 w-4" />
-              Minha Conta
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="ml-1 md:hidden">
+          <UserMenu variant="avatar" />
+        </div>
       </div>
     </header>
   );

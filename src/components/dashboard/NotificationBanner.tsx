@@ -1,54 +1,83 @@
-import { AlertCircle, Clock, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useTenantData } from "@/hooks/useTenantData";
-import { differenceInDays } from "date-fns";
+import { AlertCircle, Clock, Gift, Mail, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { SUPPORT_EMAIL } from "@/config/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { plural } from "./status";
 
+type BannerVariant = "info" | "warning" | "destructive";
+
+/** Aviso da assinatura (teste gratis, vencimento, atraso) no topo do painel. */
 export function NotificationBanner() {
-  const { tenant, isLoading } = useTenantData();
+  const { status, daysRemaining, isLoading, access } = useSubscriptionStatus();
+  const { roles } = useAuth();
+  // So o administrador contrata e paga; para a equipe o aviso diz a quem recorrer.
+  const isAdmin = roles.includes("admin");
 
-  if (isLoading || !tenant) return null;
+  if (isLoading || !access || access.is_platform_admin) return null;
+  // Teste gratis: so interessa a quem contrata.
+  if (status === "trial" && !isAdmin) return null;
 
-  // Read next_due_date from tenant (set by Super Admin)
-  const nextDueDate = (tenant as any).next_due_date as string | null;
-  if (!nextDueDate) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(nextDueDate + "T12:00:00");
-  const diff = differenceInDays(due, today);
-
-  // Only show if within 5 days or overdue
-  if (diff > 5) return null;
-
-  let icon = Clock;
+  let icon: LucideIcon = Clock;
+  let title = "";
   let message = "";
-  let style = "";
+  let variant: BannerVariant = "info";
 
-  if (diff < 0) {
-    // Post-expiration — should be blocked at ProtectedRoute level,
-    // but show banner as fallback
+  if (status === "trial") {
+    // Teste gratis: contagem regressiva sempre visivel durante o periodo.
+    icon = Gift;
+    const until = access.trial_ends_at ? new Date(access.trial_ends_at).toLocaleDateString("pt-BR") : "";
+    title = daysRemaining <= 0 ? "Seu teste grátis termina hoje" : `Teste grátis: ${plural(daysRemaining, "dia restante", "dias restantes")}`;
+    message = `${until ? `Vale até ${until}. ` : ""}Fale com a equipe Na Hora Frota para contratar e não perder o acesso.`;
+    variant = daysRemaining <= 1 ? "warning" : "info";
+  } else if (status === "expired") {
+    // Apos o vencimento o ProtectedRoute ja bloqueia; aqui fica de reserva.
     icon = ShieldAlert;
-    message = "Acesso Suspenso. Entre em contato com o suporte para renovação.";
-    style = "bg-destructive/15 border-destructive/30 text-destructive";
-  } else if (diff === 0) {
+    title = "Acesso suspenso";
+    message = "Fale com o suporte para renovar a assinatura.";
+    variant = "destructive";
+  } else if (status === "overdue") {
     icon = AlertCircle;
-    message = "Sua assinatura vence hoje. Regularize para evitar interrupções.";
-    style = "bg-destructive/10 border-destructive/20 text-destructive";
-  } else {
-    // 1-5 days remaining
+    const late = Math.abs(daysRemaining);
+    title = `Pagamento em atraso há ${plural(late, "dia", "dias")}`;
+    message = "Regularize para evitar a suspensão do acesso.";
+    variant = "destructive";
+  } else if (status === "due_today") {
+    icon = AlertCircle;
+    title = "Sua assinatura vence hoje";
+    message = "Regularize para evitar interrupções.";
+    variant = "warning";
+  } else if (status === "warning") {
+    // 1 a 5 dias para vencer
     icon = Clock;
-    message = `Sua assinatura vence em ${diff} dia${diff > 1 ? "s" : ""}. Regularize para evitar interrupções.`;
-    style = "bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400";
+    title = `Sua assinatura vence em ${plural(daysRemaining, "dia", "dias")}`;
+    message = "Regularize para evitar interrupções.";
+    variant = "warning";
+  } else {
+    return null;
   }
 
   const Icon = icon;
+  if (!isAdmin && status !== "trial") message = "Avise o administrador da sua empresa para não perder o acesso.";
 
   return (
-    <div className="mb-6">
-      <div className={cn("flex items-center gap-3 px-4 py-3 rounded-lg border", style)}>
-        <Icon className="h-5 w-5 flex-shrink-0" />
-        <p className="flex-1 text-sm font-medium">{message}</p>
+    <Alert variant={variant} role="status" className="mb-6">
+      <Icon aria-hidden="true" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-semibold leading-snug text-foreground">{title}</p>
+          <AlertDescription className="mt-0.5">{message}</AlertDescription>
+        </div>
+        {isAdmin && (
+          <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-center">
+            <a href={`mailto:${SUPPORT_EMAIL}`}>
+              <Mail aria-hidden="true" />
+              Falar com a equipe
+            </a>
+          </Button>
+        )}
       </div>
-    </div>
+    </Alert>
   );
 }

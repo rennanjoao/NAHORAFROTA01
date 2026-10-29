@@ -1,5 +1,17 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { Calculator, Truck, Route, MapPin, User, FileText, Building2, Home, Navigation, Clock, Users, Car } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
+import {
+  AlertTriangle,
+  Building2,
+  Car,
+  Check,
+  Home,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Route,
+  Truck,
+  Users,
+} from "lucide-react";
 import Map, { Marker, Source, Layer, type LayerProps } from "react-map-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import L from "leaflet";
@@ -16,12 +28,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { StatusBadge } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
-import { DriverCombobox, ExtendedDriver } from "./DriverCombobox";
+import { cn } from "@/lib/utils";
+import { STATUS_HEX } from "@/lib/brandSymbol";
+import { DriverAvatar, DriverCombobox, ExtendedDriver } from "./DriverCombobox";
 import { ManifestSuccessDialog } from "./ManifestSuccessDialog";
+import { WizardSteps } from "./WizardSteps";
+import { FREIGHT_TYPE_LABELS, plateText, vehicleTypeLabel } from "./status";
 import { ManifestRecord, manifestStore } from "@/stores/manifestStore";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { companyVehicleStore, CompanyVehicle } from "@/stores/companyVehicleStore";
@@ -45,6 +63,10 @@ interface FreightDialogProps {
   selectedDeliveryIds: number[];
   dbInvoiceIds?: string[]; // Optional: UUIDs from database for DB persistence
   onConfirm: (freightData: FreightData, manifest: ManifestRecord, dbManifest?: DBManifest | null) => void;
+  /** Abre a impressao do romaneio recem-criado (botao do dialogo de sucesso). */
+  onPrint?: () => void;
+  /** Onde o foco fica se o botao que abriu sumiu (ex.: barra de selecao). */
+  focusFallback?: () => HTMLElement | null;
 }
 
 export interface FreightData {
@@ -68,21 +90,11 @@ export interface FreightData {
 type FleetType = "third_party" | "own_fleet";
 type StepType = "fleet_type" | "route" | "freight" | "driver" | "preview";
 
-const vehicleTypeLabels: Record<string, string> = {
-  truck: "Caminhão",
-  van: "VUC/Van",
-  moto: "Moto",
-  fiorino: "Fiorino",
-  vuc: "VUC",
-  toco: "Toco",
-  carreta: "Carreta",
-};
-
 const routeLineLayer: LayerProps = {
   id: "optimized-route-line",
   type: "line",
   paint: {
-    "line-color": "#ef4444",
+    "line-color": STATUS_HEX.ok, // manual: rotas em Verde Na Hora
     "line-width": 4,
     "line-opacity": 0.85,
   },
@@ -95,6 +107,43 @@ const routeLineLayer: LayerProps = {
 function toRouteCoordinate(point: Waypoint) {
   return `${point.lng},${point.lat}`;
 }
+
+/** Nome da parada para leitor de tela e lista: "Partida: Base", "Parada 2: Loja X". */
+function stopName(point: Waypoint, idx: number) {
+  if (idx === 0) return "Partida: base da empresa";
+  if (point.id.includes("return")) return "Retorno à base";
+  return `Parada ${idx}: ${(point.label || "Entrega").replace(/^\d+\.\s*/, "")}`;
+}
+
+/**
+ * Valor digitado em reais: aceita "2,50", "2.50", "1.500" e "1.500,00".
+ * (O campo numerico do navegador lia "2,50" como 2 ou vazio.) Invalido -> NaN.
+ */
+function parseMoney(text: string): number {
+  if (/[^\d.,\sR$-]/.test(text)) return NaN;
+  const cleaned = text.replace(/[^\d.,-]/g, "");
+  if (!cleaned) return NaN;
+  let normalized = cleaned;
+  if (cleaned.includes(",")) normalized = cleaned.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) normalized = cleaned.replace(/\./g, "");
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+const plural = (count: number, one: string, many: string) => (count === 1 ? `1 ${one}` : `${count} ${many}`);
+
+/** Entregas da rota (sem contar a base de partida e o retorno). */
+const deliveryStops = (waypoints: Waypoint[]) => waypoints.filter((point, idx) => idx > 0 && !point.id.includes("return")).length;
+
+/** Distancia com virgula decimal; sem rota calculada diz isso em vez de "0m". */
+const distanceText = (km: number) => (km > 0 ? formatDistance(km) : "Não calculada");
+
+/** Endereco vazio da base (", - /") vira um aviso legivel. */
+const readableAddress = (address?: string) =>
+  address && address.replace(/[\s,\-/]/g, "") ? address : "Endereço não cadastrado";
+
+/** Letra/numero dentro do marcador: P (partida), R (retorno) ou a ordem. */
+const stopMark = (point: Waypoint, idx: number) => (idx === 0 ? "P" : point.id.includes("return") ? "R" : String(idx));
 
 interface LeafletRouteMapProps {
   points: Waypoint[];
@@ -110,14 +159,16 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
 
     if (!mapRef.current) {
       mapRef.current = L.map(mapContainerRef.current, {
-        zoomControl: true,
+        zoomControl: false,
         scrollWheelZoom: false,
         attributionControl: true,
       });
+      L.control.zoom({ zoomInTitle: "Aproximar", zoomOutTitle: "Afastar" }).addTo(mapRef.current);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        className: "nhf-map-dark",
       }).addTo(mapRef.current);
     }
 
@@ -134,7 +185,7 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
 
     if (latLngRoute.length > 1) {
       L.polyline(latLngRoute, {
-        color: "#ff1f2d",
+        color: STATUS_HEX.ok, // manual: rotas em Verde Na Hora
         weight: 5,
         opacity: 0.9,
         lineCap: "round",
@@ -142,17 +193,26 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
       }).addTo(map);
     }
 
+    // O retorno cai no mesmo lugar da partida: um marcador so (nao fica um por cima do outro).
+    const [start] = points;
+    const isReturnOnStart = (point: Waypoint) =>
+      point.id.includes("return") && !!start && point.lat === start.lat && point.lng === start.lng;
+    const hasReturn = points.some(isReturnOnStart);
+
     points.forEach((point, idx) => {
-      const label = idx === 0 ? "P" : point.id.includes("return") ? "R" : String(idx);
+      if (isReturnOnStart(point)) return;
+      const label = stopMark(point, idx);
+      const name = idx === 0 && hasReturn ? "Partida e retorno: base da empresa" : stopName(point, idx);
       const icon = L.divIcon({
         className: "route-marker",
-        html: `<div class="route-marker__pin">${label}</div>`,
+        html: `<div class="route-marker__pin" aria-hidden="true">${label}</div>`,
         iconSize: [30, 30],
         iconAnchor: [15, 15],
       });
 
-      L.marker([point.lat, point.lng], { icon })
-        .bindPopup(`<strong>${point.label || label}</strong><br>${point.address}`)
+      // Nome do marcador (dica do mouse). Fora da ordem do Tab: a lista de paradas abaixo do mapa tem o mesmo conteudo.
+      L.marker([point.lat, point.lng], { icon, title: name, alt: name, keyboard: false })
+        .bindPopup(`<div style="padding:10px 12px;font-size:13px;line-height:1.4"><strong>${name}</strong><br>${point.address}</div>`)
         .addTo(map);
     });
 
@@ -180,7 +240,16 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
   return <div ref={mapContainerRef} className="h-full w-full" />;
 }
 
-export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliveryIds, dbInvoiceIds, onConfirm }: FreightDialogProps) {
+export function FreightDialog({
+  open,
+  onOpenChange,
+  selectedCount,
+  selectedDeliveryIds,
+  dbInvoiceIds,
+  onConfirm,
+  onPrint,
+  focusFallback,
+}: FreightDialogProps) {
   // NEW ORDER: fleet_type → route → freight (skip if own_fleet) → driver → preview
   const [step, setStep] = useState<StepType>("fleet_type");
   const [fleetType, setFleetType] = useState<FleetType | null>(null);
@@ -192,6 +261,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   const [selectedVehicle, setSelectedVehicle] = useState<CompanyVehicle | null>(null);
   const [returnToBase, setReturnToBase] = useState(true);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successDriverPhone, setSuccessDriverPhone] = useState<string | null>(null);
   const [createdManifest, setCreatedManifest] = useState<DBManifest | null>(null);
   const [optimizedRoute, setOptimizedRoute] = useState<ReturnType<typeof optimizeRouteNearestNeighbor> | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -202,6 +272,11 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
   const [availableVehicles, setAvailableVehicles] = useState<CompanyVehicle[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Erros de preenchimento mostrados abaixo de cada campo.
+  const [errors, setErrors] = useState<Partial<Record<"fleet" | "freight" | "driver" | "vehicle", string>>>({});
+  // Botao que abriu o assistente: o foco volta para ele quando a janela de sucesso fecha
+  // (o botao "Confirmar" some com a etapa e o foco caia no topo da pagina).
+  const openerRef = useRef<HTMLElement | null>(null);
   const { drivers } = useDBDrivers();
   
   // Database hook for persisting manifests
@@ -300,9 +375,11 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   // Load available vehicles when dialog opens for own fleet
   useEffect(() => {
     if (open && fleetType === "own_fleet") {
-      companyVehicleStore.getAllAsync().then(() => {
-        setAvailableVehicles(companyVehicleStore.getAvailable());
-      });
+      // Sempre do banco: romaneios finalizados liberam veiculos no servidor.
+      companyVehicleStore
+        .initialize()
+        .then(() => setAvailableVehicles(companyVehicleStore.getAvailable()))
+        .catch((error) => console.error("Error loading vehicles:", error));
     }
   }, [open, fleetType]);
 
@@ -337,38 +414,17 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     };
   }, [open, mapboxToken]);
 
-  // iOS Fix: Bloquear scroll do body quando dialog abre
-  useEffect(() => {
-    if (open) {
-      const scrollY = window.scrollY;
-      document.body.classList.add('dialog-open');
-      document.body.style.top = `-${scrollY}px`;
-    } else {
-      const scrollY = document.body.style.top;
-      document.body.classList.remove('dialog-open');
-      document.body.style.top = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
-    }
-
-    return () => {
-      document.body.classList.remove('dialog-open');
-      document.body.style.top = '';
-    };
-  }, [open]);
-
   const calculatedTotal = useMemo(() => {
     // Own fleet = no freight calculation
     if (fleetType === "own_fleet") return 0;
     
     switch (freightType) {
       case "fixed":
-        return unitValue ? parseFloat(unitValue) * selectedCount : 0;
+        return (parseMoney(unitValue) || 0) * selectedCount;
       case "lumpsum":
-        return totalValue ? parseFloat(totalValue) : 0;
+        return parseMoney(totalValue) || 0;
       case "per_km":
-        return perKmValue && estimatedDistance ? estimatedDistance * parseFloat(perKmValue) : 0;
+        return estimatedDistance ? estimatedDistance * (parseMoney(perKmValue) || 0) : 0;
       default:
         return 0;
     }
@@ -681,100 +737,6 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     };
   };
 
-  // Calculate optimized route using REAL data from tenant + invoices
-  const calculateOptimizedRoute = async () => {
-    setIsOptimizing(true);
-    try {
-      // Use tenant coordinates from database
-      const baseLat = tenant?.latitude || -23.5505;
-      const baseLng = tenant?.longitude || -46.6333;
-      const baseAddress = tenant
-        ? `${tenant.logradouro || ''}, ${tenant.numero || ''} - ${tenant.cidade || ''}/${tenant.uf || ''}`
-        : 'Base da Empresa';
-      
-      const baseWaypoint: Waypoint = {
-        id: 'base',
-        address: baseAddress,
-        lat: baseLat,
-        lng: baseLng,
-        label: 'Base (Partida)'
-      };
-
-      if (!tenant?.latitude || !tenant?.longitude) {
-        toast({
-          title: "⚠️ Coordenadas da Base não definidas",
-          description: "Vá em Configurações > Dados da Empresa e clique em 'Obter Coordenadas' para definir o ponto de partida.",
-          variant: "destructive",
-        });
-      }
-      
-      // Fetch REAL invoice coordinates from database
-      let deliveryWaypoints: Waypoint[] = [];
-      
-      if (dbInvoiceIds && dbInvoiceIds.length > 0) {
-        const { data: invoices, error } = await supabase
-          .from('invoices')
-          .select('id, recipient_name, address_full, latitude, longitude, nfe_number')
-          .in('id', dbInvoiceIds);
-        
-        if (error) {
-          console.error("Error fetching invoice coords:", error);
-        }
-        
-        if (invoices && invoices.length > 0) {
-          deliveryWaypoints = invoices
-            .filter(inv => inv.latitude && inv.longitude)
-            .map((inv, idx) => ({
-              id: inv.id,
-              address: inv.address_full || `NF ${inv.nfe_number}`,
-              lat: Number(inv.latitude),
-              lng: Number(inv.longitude),
-              label: `${idx + 1}. ${inv.recipient_name || 'Entrega'}`
-            }));
-          
-          const withoutCoords = invoices.filter(inv => !inv.latitude || !inv.longitude);
-          if (geocodedCount > 0) {
-            toast({
-              title: `⚠️ ${withoutCoords.length} NF(s) sem coordenadas`,
-              description: "Essas notas não foram incluídas no cálculo de distância. Geocodifique-as para maior precisão.",
-            });
-          }
-        }
-      }
-      
-      if (deliveryWaypoints.length === 0) {
-        setRouteCalculationError("Nenhuma nota fiscal selecionada possui coordenadas GPS válidas para calcular a rota.");
-        toast({
-          title: "❌ Sem coordenadas para calcular",
-          description: "Nenhuma nota fiscal possui coordenadas GPS. Importe XMLs com endereço válido.",
-          variant: "destructive",
-        });
-        setIsOptimizing(false);
-        return;
-      }
-      
-      // Optimize route with REAL coordinates
-      const route = optimizeRouteNearestNeighbor(baseWaypoint, deliveryWaypoints, returnToBase);
-      setOptimizedRoute(route);
-      setHasCalculatedRoute(true);
-      
-      toast({
-        title: "✅ Rota Calculada",
-        description: `${route.waypoints.length} paradas, ${formatDistance(route.totalDistance)}, ~${formatDuration(route.totalDuration)}`,
-      });
-    } catch (error) {
-      console.error("Route optimization error:", error);
-      setRouteCalculationError("Não foi possível calcular a rota com os dados atuais.");
-      toast({
-        title: "Erro na Otimização",
-        description: "Não foi possível calcular a rota.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsOptimizing(false);
-    }
-  };
-
   const calculateOptimizedRouteWithRoadDistance = async () => {
     setIsOptimizing(true);
     setRouteCalculationError(null);
@@ -795,8 +757,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
 
       if (!tenant?.latitude || !tenant?.longitude) {
         toast({
-          title: "Base sem coordenadas",
-          description: "Vá em Configurações > Dados da Empresa e clique em 'Obter Coordenadas'.",
+          title: "A base da empresa está sem localização",
+          description: "Em Configurações > Empresa, use Obter coordenadas para definir o ponto de partida.",
           variant: "destructive",
         });
       }
@@ -825,23 +787,31 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           const geocodedCount = Math.max(0, invoicesMissingGps - unresolvedCount);
           if (geocodedCount > 0) {
             toast({
-              title: `${geocodedCount} NF(s) geocodificada(s)`,
-              description: "Usamos o endereco da nota para montar a rota.",
+              title: geocodedCount === 1 ? "1 nota localizada pelo endereço" : `${geocodedCount} notas localizadas pelo endereço`,
+              description: "Usamos o endereço da nota para montar a rota.",
             });
           }
           if (unresolvedCount > 0) {
             toast({
-              title: `${unresolvedCount} NF(s) sem coordenadas`,
-              description: "Essas notas ficaram fora do calculo porque o endereco nao pode ser geocodificado.",
+              title: unresolvedCount === 1 ? "1 nota sem local no mapa" : `${unresolvedCount} notas sem local no mapa`,
+              description:
+                unresolvedCount === 1
+                  ? "Ficou fora do cálculo porque o endereço não foi encontrado."
+                  : "Ficaram fora do cálculo porque o endereço não foi encontrado.",
             });
           }
         }
       }
 
       if (deliveryWaypoints.length === 0) {
+        // Sem nenhuma NF localizada no mapa o romaneio ainda pode ser gerado
+        // (antes o assistente travava em "Aguarde o cálculo da rota").
+        setOptimizedRoute({ waypoints: [], totalDistance: 0, totalDuration: 0 });
+        setRouteDistanceSource("estimated");
+        setHasCalculatedRoute(true);
         toast({
-          title: "Sem coordenadas para calcular",
-          description: "Nenhuma nota fiscal possui coordenadas GPS válidas.",
+          title: "Nenhuma nota foi localizada no mapa",
+          description: "Dá para gerar o romaneio, mas sem distância (frete por km fica indisponível).",
           variant: "destructive",
         });
         return;
@@ -916,14 +886,17 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       setRouteCalculationError(null);
 
       toast({
-        title: "Rota Calculada",
-        description: `${finalRoute.waypoints.length} paradas, ${formatDistance(finalRoute.totalDistance)}, ~${formatDuration(finalRoute.totalDuration)}${usedRoadDistance ? " (malha viária)" : " (estimativa)"}`,
+        title: "Rota calculada",
+        description: `${plural(deliveryStops(finalRoute.waypoints), "entrega", "entregas")}, ${formatDistance(finalRoute.totalDistance)}, cerca de ${formatDuration(finalRoute.totalDuration)}${usedRoadDistance ? " (pelas ruas)" : " (estimada)"}`,
       });
     } catch (error) {
       console.error("Route optimization error:", error);
+      setRouteCalculationError("Não foi possível calcular a rota. Tente recalcular ou siga sem a distância.");
+      setOptimizedRoute({ waypoints: [], totalDistance: 0, totalDuration: 0 });
+      setHasCalculatedRoute(true);
       toast({
-        title: "Erro na roteirização",
-        description: "Não foi possível calcular a rota.",
+        title: "Não foi possível calcular a rota",
+        description: "Dá para seguir sem a distância ou tentar de novo.",
         variant: "destructive",
       });
     } finally {
@@ -950,9 +923,11 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   }, [hasAttemptedRouteCalculation, hasCalculatedRoute, open, isOptimizing, step, tenantLoading]);
 
   const handleNextStep = async () => {
+    setErrors({});
     if (step === "fleet_type") {
       if (!fleetType) {
-        toast({ title: "Selecione o tipo de frota", variant: "destructive" });
+        setErrors({ fleet: "Escolha quem vai fazer a rota." });
+        document.getElementById("fleet-third_party")?.focus();
         return;
       }
       setStep("route");
@@ -973,28 +948,36 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       }
     } else if (step === "freight") {
       // Validate freight data
-      if (freightType === "fixed" && !unitValue) {
-        toast({ title: "Informe o valor unitário", variant: "destructive" });
+      const typed = { fixed: unitValue, lumpsum: totalValue, per_km: perKmValue }[freightType];
+      const emptyMessage = {
+        fixed: "Informe o valor por entrega.",
+        lumpsum: "Informe o valor total da rota.",
+        per_km: "Informe o valor por km.",
+      }[freightType];
+      const amount = parseMoney(typed);
+      const fieldId = { fixed: "unitValue", lumpsum: "totalValue", per_km: "perKmValue" }[freightType];
+      if (!typed.trim() || Number.isNaN(amount) || amount <= 0) {
+        setErrors({
+          freight: !typed.trim() ? emptyMessage : Number.isNaN(amount) ? "Digite só números, como 25 ou 2,50." : "O valor precisa ser maior que zero.",
+        });
+        document.getElementById(fieldId)?.focus();
         return;
       }
-      if (freightType === "lumpsum" && !totalValue) {
-        toast({ title: "Informe o valor total da rota", variant: "destructive" });
-        return;
-      }
-      if (freightType === "per_km" && !perKmValue) {
-        toast({ title: "Informe o valor por KM", variant: "destructive" });
+      if (freightType === "per_km" && estimatedDistance <= 0) {
+        setErrors({ freight: "A rota está sem distância calculada. Use frete fixo ou fechado." });
         return;
       }
       setStep("driver");
     } else if (step === "driver") {
       if (!selectedDriver) {
-        toast({ title: "Selecione um motorista", variant: "destructive" });
+        setErrors({ driver: "Escolha o motorista da rota." });
+        document.getElementById("freight-driver")?.focus();
         return;
       }
       // If own fleet has vehicles available, require one. If none exists, allow the
       // manifest to continue with only the CLT driver linked.
       if (fleetType === "own_fleet" && availableVehicles.length > 0 && !selectedVehicle) {
-        toast({ title: "Selecione um veículo da frota", variant: "destructive" });
+        setErrors({ vehicle: "Escolha o veículo da frota." });
         return;
       }
       setStep("preview");
@@ -1002,6 +985,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   };
 
   const handleBack = () => {
+    setErrors({});
     if (step === "route") setStep("fleet_type");
     else if (step === "freight") setStep("route");
     else if (step === "driver") {
@@ -1039,13 +1023,13 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     if (fleetType === "third_party") {
       switch (freightType) {
         case "fixed":
-          freightData.unitValue = parseFloat(unitValue);
+          freightData.unitValue = parseMoney(unitValue);
           break;
         case "lumpsum":
-          freightData.totalValue = parseFloat(totalValue);
+          freightData.totalValue = parseMoney(totalValue);
           break;
         case "per_km":
-          freightData.perKmValue = parseFloat(perKmValue);
+          freightData.perKmValue = parseMoney(perKmValue);
           break;
       }
     }
@@ -1079,6 +1063,17 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         return;
       }
       
+      // Grava a sequencia de paradas calculada (NFs sem coordenada vao para o fim).
+      const routeIds = (optimizedRoute?.waypoints || [])
+        .map((waypoint) => String(waypoint.id))
+        .filter((id) => dbInvoiceIds.includes(id));
+      const orderedIds = [...new Set([...routeIds, ...dbInvoiceIds])];
+      const { error: orderError } = await supabase.rpc("set_manifest_route_order", {
+        p_manifest_id: dbManifest.id,
+        p_invoice_ids: orderedIds,
+      });
+      if (orderError) console.warn("Nao foi possivel gravar a ordem das paradas:", orderError);
+
       // Use DB manifest for success dialog
       setCreatedManifest(dbManifest);
     }
@@ -1108,6 +1103,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       companyVehicleStore.assignToDriver(selectedVehicle.id, selectedDriver.id, selectedDriver.name);
     }
 
+    setSuccessDriverPhone(selectedDriver.phone || null);
     setShowSuccessDialog(true);
     onConfirm(freightData, manifest, dbManifest);
   };
@@ -1138,728 +1134,657 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     setRouteDistanceSource("estimated");
     setAvailableVehicles([]);
     setIsSubmitting(false);
+    setErrors({});
   };
 
-  const freightTypeLabels = {
-    fixed: "Frete Fixo",
-    lumpsum: "Frete Fechado",
-    per_km: "Frete por KM",
-  };
+  // Etapas ativas (frota propria pula o frete).
+  const activeSteps: StepType[] =
+    fleetType === "own_fleet"
+      ? ["fleet_type", "route", "driver", "preview"]
+      : ["fleet_type", "route", "freight", "driver", "preview"];
 
-  const stepLabels: Record<StepType, string> = {
-    fleet_type: "Tipo de Frota",
-    route: "Roteirização",
+  const stepNames: Record<StepType, string> = {
+    fleet_type: "Frota",
+    route: "Rota",
     freight: "Frete",
     driver: "Motorista",
-    preview: "Confirmar"
+    preview: "Revisar",
   };
 
-  // Get steps based on fleet type (skip freight for own_fleet)
-  const getActiveSteps = (): StepType[] => {
-    if (fleetType === "own_fleet") {
-      return ["fleet_type", "route", "driver", "preview"];
-    }
-    return ["fleet_type", "route", "freight", "driver", "preview"];
+  const notesLabel = selectedCount === 1 ? "1 nota" : `${selectedCount} notas`;
+  const isOwnFleet = fleetType === "own_fleet";
+
+  const stepTitles: Record<StepType, string> = {
+    fleet_type: "Quem vai fazer a rota?",
+    route: "Rota das entregas",
+    freight: "Valor do frete",
+    driver: isOwnFleet ? "Motorista e veículo" : "Motorista",
+    preview: "Revisar e gerar romaneio",
   };
+
+  const stepDescriptions: Record<StepType, string> = {
+    fleet_type: `Romaneio com ${notesLabel}. Escolha o tipo de motorista.`,
+    route: "Calculamos a ordem das paradas com o menor caminho a partir da base.",
+    freight:
+      estimatedDistance > 0
+        ? `Distância da rota: ${formatDistance(estimatedDistance)}. Escolha como o motorista vai receber.`
+        : "A rota ficou sem distância calculada. Escolha como o motorista vai receber.",
+    driver: isOwnFleet ? "Escolha o motorista CLT e o veículo da empresa." : "Escolha quem vai fazer as entregas.",
+    preview: "Confira os dados. Ao gerar, as entregas aparecem no app do motorista.",
+  };
+
+  const fleetOptions: { value: FleetType; title: string; description: string; tags: string[]; icon: typeof Users }[] = [
+    {
+      value: "third_party",
+      title: "Terceiro / Agregado",
+      description: "Motorista autônomo ou de outra empresa. Você define o frete e ele entra no acerto.",
+      tags: ["Gera acerto", "Com frete"],
+      icon: Users,
+    },
+    {
+      value: "own_fleet",
+      title: "Frota própria",
+      description: "Motorista CLT com veículo da empresa. Não gera acerto financeiro.",
+      tags: ["Sem acerto", "Veículo da empresa"],
+      icon: Building2,
+    },
+  ];
+
+  const roadDistance = routeDistanceSource === "road";
+  const baseAddress = tenant?.logradouro && tenant?.cidade
+    ? `${tenant.logradouro}, ${tenant.numero} - ${tenant.bairro}, ${tenant.cidade}/${tenant.uf}`
+    : null;
+  const unitTotal = (parseMoney(unitValue) || 0) * selectedCount;
+  const lumpsumPerKm = estimatedDistance > 0 ? (parseMoney(totalValue) || 0) / estimatedDistance : 0;
+  const perKmTotal = estimatedDistance > 0 ? estimatedDistance * (parseMoney(perKmValue) || 0) : 0;
+
+  const freightOptions: { value: "fixed" | "lumpsum" | "per_km"; title: string; description: string; icon: typeof Truck }[] = [
+    { value: "fixed", title: "Frete fixo", description: "Um valor para cada entrega feita.", icon: Truck },
+    { value: "lumpsum", title: "Frete fechado", description: "Um valor único para a rota inteira.", icon: Route },
+    { value: "per_km", title: "Frete por km", description: "Valor calculado pela distância da rota.", icon: MapPin },
+  ];
+
+  const renderFreightInput = (value: "fixed" | "lumpsum" | "per_km") => {
+    const config = {
+      fixed: { id: "unitValue", label: "Valor por entrega (R$)", placeholder: "Ex.: 25,00", state: unitValue, set: setUnitValue },
+      lumpsum: { id: "totalValue", label: "Valor total da rota (R$)", placeholder: "Ex.: 350,00", state: totalValue, set: setTotalValue },
+      per_km: { id: "perKmValue", label: "Valor por km (R$)", placeholder: "Ex.: 2,50", state: perKmValue, set: setPerKmValue },
+    }[value];
+    const hintId = `${config.id}-hint`;
+    const invalid = !!errors.freight;
+    let hint: string | null = null;
+    if (value === "fixed" && unitTotal > 0) hint = `Total estimado: ${formatCurrency(unitTotal)} (${notesLabel})`;
+    if (value === "lumpsum" && lumpsumPerKm > 0) hint = `Dá cerca de ${formatCurrency(lumpsumPerKm)} por km`;
+    if (value === "per_km" && perKmTotal > 0)
+      hint = `${formatDistance(estimatedDistance)} × ${formatCurrency(parseMoney(perKmValue))} = ${formatCurrency(perKmTotal)}`;
+    if (value === "per_km" && estimatedDistance <= 0) hint = "A rota está sem distância calculada. Prefira frete fixo ou fechado.";
+
+    return (
+      <div className="space-y-1.5 border-t px-4 pb-4 pt-3">
+        <Label htmlFor={config.id}>{config.label}</Label>
+        <Input
+          id={config.id}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder={config.placeholder}
+          value={config.state}
+          onChange={(e) => {
+            config.set(e.target.value);
+            if (errors.freight) setErrors({});
+          }}
+          aria-invalid={invalid || undefined}
+          aria-describedby={[hint ? hintId : null, invalid ? "freight-error" : null].filter(Boolean).join(" ") || undefined}
+          className="font-data sm:max-w-xs"
+        />
+        {hint && (
+          <p id={hintId} className="text-sm text-muted-foreground">
+            {hint}
+          </p>
+        )}
+        {invalid && (
+          <p id="freight-error" className="text-sm font-medium text-destructive">
+            {errors.freight}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const summaryRows: { label: string; value: ReactNode; emphasis?: boolean }[] = selectedDriver
+    ? [
+        { label: "Tipo de motorista", value: isOwnFleet ? "Frota própria" : "Terceiro / agregado" },
+        { label: "Notas", value: selectedCount },
+        ...(!isOwnFleet ? [{ label: "Frete", value: FREIGHT_TYPE_LABELS[freightType] }] : []),
+        { label: "Distância", value: distanceText(estimatedDistance) },
+        { label: "Volta à base", value: returnToBase ? "Sim" : "Não" },
+        { label: "Motorista", value: selectedDriver.name },
+        { label: "Veículo", value: `${vehicleTypeLabel(selectedVehicle?.type || selectedDriver.vehicle_type)} · ${selectedVehicle?.plate || plateText(selectedDriver.vehicle_plate) || "sem placa"}` },
+        {
+          label: "Valor do frete",
+          value: isOwnFleet ? "Sem acerto (frota própria)" : formatCurrency(calculatedTotal),
+          emphasis: !isOwnFleet,
+        },
+      ]
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
+      // Enquanto grava, Esc e clique fora nao fecham (o romaneio ficaria pela metade na tela).
+      if (!isOpen && isSubmitting) return;
       if (!isOpen) resetForm();
       onOpenChange(isOpen);
     }}>
-      <DialogContent 
-        className="w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        style={{ WebkitOverflowScrolling: 'touch' }}
+      {/* Com o romaneio gerado, so a janela de sucesso fica na tela. */}
+      {!showSuccessDialog && (
+      <DialogContent
+        className="sm:max-w-2xl"
+        onOpenAutoFocus={() => {
+          const active = document.activeElement;
+          if (active instanceof HTMLElement && active !== document.body && !active.closest("[role=dialog]")) {
+            openerRef.current = active;
+          }
+        }}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-start gap-2 pr-8 leading-tight">
-            {step === "fleet_type" && <Truck className="h-5 w-5 text-primary" />}
-            {step === "route" && <Navigation className="h-5 w-5 text-primary" />}
-            {step === "freight" && <Calculator className="h-5 w-5 text-primary" />}
-            {step === "driver" && <User className="h-5 w-5 text-primary" />}
-            {step === "preview" && <FileText className="h-5 w-5 text-primary" />}
-            {step === "fleet_type" && "Tipo de Frota"}
-            {step === "route" && "Roteirização Inteligente"}
-            {step === "freight" && "Definição de Frete"}
-            {step === "driver" && (fleetType === "own_fleet" ? "Motorista e Veículo" : "Selecionar Motorista")}
-            {step === "preview" && "Confirmar Romaneio"}
-          </DialogTitle>
-          <DialogDescription>
-            {step === "fleet_type" && "Selecione se a rota será realizada por frota própria ou terceirizada."}
-            {step === "route" && `Configure a rota otimizada para ${selectedCount} ${selectedCount === 1 ? "entrega" : "entregas"}.`}
-            {step === "freight" && `Defina o frete com base na distância calculada: ${formatDistance(estimatedDistance)}`}
-            {step === "driver" && (fleetType === "own_fleet" 
-              ? "Selecione o motorista CLT e o veículo da frota." 
-              : "Escolha o motorista responsável pela rota.")}
-            {step === "preview" && "Revise os dados antes de gerar o romaneio."}
-          </DialogDescription>
+          <DialogTitle>{stepTitles[step]}</DialogTitle>
+          <DialogDescription>{stepDescriptions[step]}</DialogDescription>
         </DialogHeader>
 
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-2 py-2">
-          {getActiveSteps().map((s, idx, arr) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`h-2 w-2 rounded-full ${step === s ? "bg-primary" : "bg-muted"}`} />
-              {idx < arr.length - 1 && <div className="w-6 h-0.5 bg-muted" />}
-            </div>
-          ))}
-        </div>
+        <WizardSteps steps={activeSteps.map((s) => stepNames[s])} current={activeSteps.indexOf(step)} />
 
-        <div className="min-w-0 py-4">
-          {/* Step 1: Fleet Type Selection (NEW FIRST STEP) */}
+        <div className="min-w-0">
+          {/* Etapa 1: tipo de frota */}
           {step === "fleet_type" && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground text-center mb-4">
-                Escolha como a rota será executada
-              </p>
-              
-              <div className="grid gap-4">
-                {/* Third Party / Agregado Card */}
-                <Card 
-                  className={`p-4 cursor-pointer transition-all hover:border-primary/50 ${
-                    fleetType === "third_party" 
-                      ? "border-2 border-primary bg-primary/5 ring-2 ring-primary/20" 
-                      : "border-2 border-border"
-                  }`}
-                  onClick={() => setFleetType("third_party")}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-lg ${fleetType === "third_party" ? "bg-primary/10" : "bg-muted"}`}>
-                      <Users className={`h-6 w-6 ${fleetType === "third_party" ? "text-primary" : "text-muted-foreground"}`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-base">Terceiro / Agregado</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Motorista autônomo ou de terceiros
-                      </p>
-                      <div className="flex gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs">Gera Acerto</Badge>
-                        <Badge variant="outline" className="text-xs">Define Frete</Badge>
-                      </div>
-                    </div>
-                    {fleetType === "third_party" && (
-                      <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-primary-foreground text-xs">✓</span>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-
-                {/* Own Fleet / Frota Própria Card */}
-                <Card 
-                  className={`p-4 cursor-pointer transition-all hover:border-primary/50 ${
-                    fleetType === "own_fleet" 
-                      ? "border-2 border-primary bg-primary/5 ring-2 ring-primary/20" 
-                      : "border-2 border-border"
-                  }`}
-                  onClick={() => setFleetType("own_fleet")}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-lg ${fleetType === "own_fleet" ? "bg-primary/10" : "bg-muted"}`}>
-                      <Building2 className={`h-6 w-6 ${fleetType === "own_fleet" ? "text-primary" : "text-muted-foreground"}`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-base">Frota Própria</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Motorista CLT + veículo da empresa
-                      </p>
-                      <div className="flex gap-2 mt-2">
-                        <Badge variant="secondary" className="text-xs">Sem Acerto</Badge>
-                        <Badge variant="secondary" className="text-xs">Veículo Próprio</Badge>
-                      </div>
-                    </div>
-                    {fleetType === "own_fleet" && (
-                      <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-primary-foreground text-xs">✓</span>
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
-
-              {fleetType === "own_fleet" && (
-                <div className="p-3 rounded-lg bg-muted/50 border border-muted-foreground/20">
-                  <p className="text-xs text-muted-foreground flex items-center gap-2">
-                    <Clock className="h-3 w-3" />
-                    Frota própria não gera acerto financeiro. Etapa de frete será pulada.
-                  </p>
-                </div>
+            <div className="space-y-3">
+              <RadioGroup
+                value={fleetType ?? ""}
+                onValueChange={(value) => {
+                  setFleetType(value as FleetType);
+                  setErrors({});
+                }}
+                aria-label="Tipo de motorista"
+                aria-describedby={errors.fleet ? "fleet-error" : undefined}
+                className="gap-3"
+              >
+                {fleetOptions.map((option) => {
+                  const Icon = option.icon;
+                  const selected = fleetType === option.value;
+                  return (
+                    <Label
+                      key={option.value}
+                      htmlFor={`fleet-${option.value}`}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-4 rounded-xl border-2 p-4 transition-colors duration",
+                        selected ? "border-primary bg-primary/5" : "border-border hover:border-foreground/20",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors duration",
+                          selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1 space-y-1">
+                        <span className="block font-heading text-base font-semibold text-foreground">{option.title}</span>
+                        <span className="block text-sm font-normal leading-snug text-muted-foreground">{option.description}</span>
+                        <span className="flex flex-wrap gap-1.5 pt-1">
+                          {option.tags.map((tag) => (
+                            <Badge key={tag} variant="secondary">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </span>
+                      </span>
+                      <RadioGroupItem id={`fleet-${option.value}`} value={option.value} className="mt-1" />
+                    </Label>
+                  );
+                })}
+              </RadioGroup>
+              {errors.fleet && (
+                <p id="fleet-error" className="text-sm font-medium text-destructive">
+                  {errors.fleet}
+                </p>
               )}
             </div>
           )}
 
-          {/* Step 2: Route Optimization */}
+          {/* Etapa 2: rota */}
           {step === "route" && (
             <div className="space-y-4">
-              {/* Company Base Info */}
-              <Card className="min-w-0 p-4 border-2 border-primary bg-primary/5">
-                <div className="flex items-start gap-3">
-                  <div className="shrink-0 p-2 rounded-lg bg-primary/10">
-                    <Home className="h-5 w-5 text-primary" />
+              <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-4">
+                <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Home className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Ponto de partida</p>
+                  {baseAddress ? (
+                    <p className="break-words text-sm text-muted-foreground">{baseAddress}</p>
+                  ) : tenantLoading ? (
+                    <Skeleton className="mt-1 h-4 w-48" />
+                  ) : (
+                    <p className="break-words text-sm text-destructive">
+                      Endereço da empresa incompleto. Preencha em Configurações &gt; Empresa.
+                    </p>
+                  )}
+                </div>
+                {tenant?.latitude && tenant?.longitude && <StatusBadge tone="success">GPS ok</StatusBadge>}
+              </div>
+
+              <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+                <div className="min-w-0 space-y-1">
+                  <Label htmlFor="returnToBase">Voltar para a base no fim</Label>
+                  <p id="returnToBase-hint" className="text-sm text-muted-foreground">
+                    {returnToBase
+                      ? "A rota termina de volta no endereço da empresa."
+                      : "A rota termina no endereço da última entrega."}
+                  </p>
+                </div>
+                <Switch
+                  id="returnToBase"
+                  checked={returnToBase}
+                  onCheckedChange={(checked) => handleReturnToBaseChange(checked)}
+                  aria-describedby="returnToBase-hint"
+                />
+              </div>
+
+              {isOptimizing ? (
+                <div role="status" aria-label="Calculando a rota" className="space-y-3 rounded-lg border p-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <Skeleton className="h-16" />
+                    <Skeleton className="h-16" />
+                    <Skeleton className="h-16" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm">PONTO DE PARTIDA (BASE)</p>
-                    {tenant?.logradouro && tenant?.cidade ? (
-                      <p className="text-xs text-muted-foreground break-words leading-relaxed">
-                        {tenant.logradouro}, {tenant.numero} - {tenant.bairro}, {tenant.cidade}/{tenant.uf}
-                        {tenant.latitude && tenant.longitude && (
-                          <span className="ml-1 inline-block text-success">✓ GPS</span>
+                  <Skeleton className="h-56 w-full" />
+                  <p className="text-center text-sm text-muted-foreground">Calculando a melhor rota…</p>
+                </div>
+              ) : routeCalculationError ? (
+                <Alert variant="destructive">
+                  <AlertTriangle aria-hidden="true" />
+                  <AlertDescription className="text-foreground">
+                    <span className="font-semibold">Não foi possível montar a rota.</span> {routeCalculationError}
+                  </AlertDescription>
+                </Alert>
+              ) : optimizedRoute && (
+                <section aria-labelledby="route-summary-title" className="min-w-0 space-y-4 rounded-lg border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 id="route-summary-title" className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      <Route className="h-4 w-4 text-primary" aria-hidden="true" />
+                      Rota sugerida
+                    </h3>
+                    <StatusBadge tone={roadDistance ? "success" : "neutral"}>
+                      {roadDistance ? "Distância pelas ruas" : "Distância estimada"}
+                    </StatusBadge>
+                  </div>
+
+                  <dl className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="min-w-0 rounded-lg bg-muted/60 p-3">
+                      <dt className="text-xs text-muted-foreground">Entregas</dt>
+                      <dd className="whitespace-nowrap font-data text-base font-semibold text-foreground sm:text-lg">{deliveryStops(optimizedRoute.waypoints)}</dd>
+                    </div>
+                    <div className="min-w-0 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                      <dt className="text-xs text-muted-foreground">Distância</dt>
+                      <dd className="truncate font-data text-base font-semibold text-primary sm:text-lg">{distanceText(optimizedRoute.totalDistance)}</dd>
+                    </div>
+                    <div className="min-w-0 rounded-lg bg-muted/60 p-3">
+                      <dt className="text-xs text-muted-foreground">Tempo</dt>
+                      <dd className="truncate font-data text-base font-semibold text-foreground sm:text-lg">
+                        {optimizedRoute.totalDuration > 0 ? formatDuration(optimizedRoute.totalDuration) : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div role="region" aria-label="Mapa da rota" className="h-64 w-full overflow-hidden rounded-lg border bg-muted/40">
+                    {mapboxToken && routeMapPoints.length > 0 ? (
+                      <Map
+                        initialViewState={routeMapView}
+                        mapStyle="mapbox://styles/mapbox/streets-v12"
+                        mapboxAccessToken={mapboxToken}
+                        style={{ width: "100%", height: "100%" }}
+                        scrollZoom={false}
+                        dragRotate={false}
+                      >
+                        {routeLineCoordinates.length > 1 && (
+                          <Source id="optimized-route" type="geojson" data={routeGeoJson}>
+                            <Layer {...routeLineLayer} />
+                          </Source>
                         )}
-                      </p>
-                    ) : tenantLoading ? (
-                      <p className="text-xs text-muted-foreground animate-pulse">
-                        Carregando dados da empresa...
-                      </p>
+
+                        {routeMapPoints.map((point, idx) => idx > 0 && point.id.includes("return") && point.lat === routeMapPoints[0].lat && point.lng === routeMapPoints[0].lng ? null : (
+                          <Marker key={`${point.id}-${idx}`} longitude={point.lng} latitude={point.lat} anchor="center">
+                            <div
+                              role="img"
+                              aria-label={stopName(point, idx)}
+                              title={stopName(point, idx)}
+                              className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-md"
+                            >
+                              {stopMark(point, idx)}
+                            </div>
+                          </Marker>
+                        ))}
+                      </Map>
+                    ) : routeMapPoints.length > 0 ? (
+                      <LeafletRouteMap points={routeMapPoints} lineCoordinates={routeLineCoordinates} />
                     ) : (
-                      <p className="text-xs text-destructive break-words leading-relaxed">
-                        ⚠️ Endereço incompleto. Preencha em Configurações → Empresa
-                      </p>
+                      <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+                        <MapPin className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                        <p className="max-w-xs text-sm text-muted-foreground">
+                          Nenhuma nota tem endereço localizado no mapa. Dá para gerar o romaneio sem a distância.
+                        </p>
+                      </div>
                     )}
                   </div>
-                </div>
-              </Card>
 
-              {/* Return to Base Option */}
-              <Card className={`min-w-0 p-4 border-2 transition-colors ${returnToBase ? "border-primary bg-primary/5" : "border-border"}`}>
-                <div className="flex items-start gap-4">
-                  <Checkbox
-                    id="returnToBase"
-                    checked={returnToBase}
-                    onCheckedChange={(checked) => handleReturnToBaseChange(checked as boolean)}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <label htmlFor="returnToBase" className="font-semibold text-sm cursor-pointer">
-                      Retornar para a Base
-                    </label>
-                    <p className="text-xs text-muted-foreground break-words leading-relaxed">
-                      {returnToBase 
-                        ? "O trajeto incluirá o retorno ao endereço da empresa após a última entrega"
-                        : "O trajeto terminará no endereço da última entrega"}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Optimized Route Display */}
-              {isOptimizing ? (
-                <Card className="p-6">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-                    <p className="text-sm text-muted-foreground">Calculando rota otimizada...</p>
-                  </div>
-                </Card>
-              ) : routeCalculationError ? (
-                <Card className="p-4 border-destructive/30 bg-destructive/5">
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-destructive">Não foi possível montar a rota</p>
-                    <p className="text-sm text-muted-foreground">{routeCalculationError}</p>
-                  </div>
-                </Card>
-              ) : optimizedRoute && (
-                <Card className="min-w-0 p-4">
-                  <h4 className="font-semibold mb-3 flex flex-wrap items-center gap-2">
-                    <Route className="h-4 w-4 shrink-0 text-primary" />
-                    Rota Otimizada
-                    <Badge variant={routeDistanceSource === "road" ? "default" : "outline"} className="shrink-0 text-[10px] sm:ml-auto">
-                      {routeDistanceSource === "road" ? "km viário" : "estimativa"}
-                    </Badge>
-                  </h4>
-                  
-                  {/* Route Stats - Highlighted for pricing decision */}
-                  <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-3">
-                    <div className="min-w-0 text-center p-2 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Paradas</p>
-                      <p className="font-bold text-primary break-words">{optimizedRoute.waypoints.length}</p>
-                    </div>
-                    <div className="min-w-0 text-center p-3 rounded-lg bg-primary/10 border-2 border-primary">
-                      <p className="text-xs text-muted-foreground">Distância Total</p>
-                      <p className="font-bold text-lg text-primary break-words">{formatDistance(optimizedRoute.totalDistance)}</p>
-                    </div>
-                    <div className="min-w-0 text-center p-2 rounded-lg bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Tempo Est.</p>
-                      <p className="font-bold text-primary break-words">{formatDuration(optimizedRoute.totalDuration)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mb-4 overflow-hidden rounded-lg border bg-muted/20">
-                    <div className="h-64 w-full">
-                      {mapboxToken && routeMapPoints.length > 0 ? (
-                        <Map
-                          initialViewState={routeMapView}
-                          mapStyle="mapbox://styles/mapbox/streets-v12"
-                          mapboxAccessToken={mapboxToken}
-                          style={{ width: "100%", height: "100%" }}
-                          scrollZoom={false}
-                          dragRotate={false}
-                        >
-                          {routeLineCoordinates.length > 1 && (
-                            <Source id="optimized-route" type="geojson" data={routeGeoJson}>
-                              <Layer {...routeLineLayer} />
-                            </Source>
-                          )}
-
-                          {routeMapPoints.map((point, idx) => (
-                            <Marker
-                              key={`${point.id}-${idx}`}
-                              longitude={point.lng}
-                              latitude={point.lat}
-                              anchor="center"
+                  {optimizedRoute.waypoints.length > 0 && (
+                    <ol aria-label="Ordem das paradas" className="space-y-1">
+                      {optimizedRoute.waypoints.map((waypoint, idx) => {
+                        const isEdge = idx === 0 || waypoint.id.includes("return");
+                        return (
+                          <li key={`${waypoint.id}-${idx}`} className="flex min-w-0 items-start gap-3 rounded-md p-2">
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-data text-xs font-bold",
+                                isEdge ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+                              )}
                             >
-                              <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary text-xs font-bold text-primary-foreground shadow-md">
-                                {idx === 0 ? "P" : point.id.includes("return") ? "R" : idx}
-                              </div>
-                            </Marker>
-                          ))}
-                        </Map>
-                      ) : routeMapPoints.length > 0 ? (
-                        <LeafletRouteMap points={routeMapPoints} lineCoordinates={routeLineCoordinates} />
-                      ) : (
-                        <div className="flex h-full items-center justify-center bg-muted/40 p-4">
-                          <div className="flex w-full max-w-md items-center justify-between gap-2">
-                            {routeMapPoints.map((point, idx) => (
-                              <div key={`${point.id}-fallback-${idx}`} className="flex flex-1 items-center last:flex-none">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                                  {idx === 0 ? "P" : point.id.includes("return") ? "R" : idx}
-                                </div>
-                                {idx < routeMapPoints.length - 1 && (
-                                  <div className="h-1 flex-1 bg-primary/60" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Waypoints List */}
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {optimizedRoute.waypoints.map((waypoint, idx) => (
-                      <div key={waypoint.id} className="flex min-w-0 items-start gap-3 p-2 rounded-lg bg-muted/30">
-                        <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                          idx === 0 ? "bg-primary text-primary-foreground" : 
-                          waypoint.id.includes('return') ? "bg-primary text-primary-foreground" :
-                          "bg-muted-foreground/20 text-muted-foreground"
-                        } shrink-0`}>
-                          {idx === 0 ? "P" : waypoint.id.includes('return') ? "R" : idx}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium break-words leading-snug">{waypoint.label || `Entrega ${idx}`}</p>
-                          <p className="text-xs text-muted-foreground break-words leading-relaxed">{waypoint.address}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
+                              {stopMark(waypoint, idx)}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="break-words text-sm font-medium leading-snug text-foreground">{stopName(waypoint, idx)}</p>
+                              <p className="break-words text-xs text-muted-foreground">{readableAddress(waypoint.address)}</p>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </section>
               )}
 
-              {/* Recalculate Button */}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setHasAttemptedRouteCalculation(false);
                   setHasCalculatedRoute(false);
                 }}
                 disabled={isOptimizing}
-                className="w-full h-auto min-h-10 gap-2 whitespace-normal text-center"
+                className="w-full"
               >
-                <Navigation className="h-4 w-4" />
-                Recalcular Rota {returnToBase ? "com Retorno" : "sem Retorno"}
+                <RefreshCw aria-hidden="true" />
+                Recalcular rota
               </Button>
             </div>
           )}
 
-          {/* Step 3: Freight Type (ONLY for third_party) */}
+          {/* Etapa 3: frete (so terceiro/agregado) */}
           {step === "freight" && (
-            <div className="space-y-6">
-              {/* Route Info - Now shows REAL calculated distance */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border-2 border-primary">
-                <MapPin className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Distância Calculada da Rota</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xl font-bold text-primary">{formatDistance(estimatedDistance)}</p>
-                    <Badge variant="outline" className="text-xs">
-                      {returnToBase ? "com retorno" : "sem retorno"}
-                    </Badge>
-                    <Badge variant={routeDistanceSource === "road" ? "default" : "outline"} className="text-xs">
-                      {routeDistanceSource === "road" ? "malha viária" : "estimativa"}
-                    </Badge>
-                  </div>
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <MapPin className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-muted-foreground">Distância da rota</p>
+                  <p className="font-data text-xl font-semibold text-primary">{distanceText(estimatedDistance)}</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="secondary">{returnToBase ? "Com volta à base" : "Sem volta à base"}</Badge>
+                  <Badge variant="secondary">{roadDistance ? "Pelas ruas" : "Estimada"}</Badge>
                 </div>
               </div>
 
-              {/* Freight Type Selection */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Tipo de Frete</Label>
-                <RadioGroup value={freightType} onValueChange={(v) => setFreightType(v as typeof freightType)}>
-                  <div className="grid gap-3">
-                    {/* Option A: Fixed */}
-                    <label 
-                      className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                        freightType === "fixed" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                      }`}
-                    >
-                      <RadioGroupItem value="fixed" className="mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Truck className="h-4 w-4 text-primary" />
-                          <span className="font-medium">Frete Fixo</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Valor fixo por entrega realizada
-                        </p>
-                        {freightType === "fixed" && (
-                          <div className="mt-3">
-                            <Label htmlFor="unitValue" className="text-xs text-muted-foreground">Valor Unitário (R$)</Label>
-                            <Input
-                              id="unitValue"
-                              type="number"
-                              placeholder="Ex: 25.00"
-                              value={unitValue}
-                              onChange={(e) => setUnitValue(e.target.value)}
-                              className="mt-1"
-                            />
-                            {unitValue && (
-                              <p className="text-xs text-primary mt-2">
-                                Total estimado: {formatCurrency(parseFloat(unitValue) * selectedCount)} ({selectedCount} entregas)
-                              </p>
-                            )}
-                          </div>
+              <fieldset className="space-y-3">
+                <legend className="mb-3 text-sm font-medium text-foreground">Como pagar o frete</legend>
+                <RadioGroup
+                  value={freightType}
+                  onValueChange={(v) => {
+                    setFreightType(v as typeof freightType);
+                    setErrors({});
+                  }}
+                  className="gap-3"
+                >
+                  {freightOptions.map((option) => {
+                    const Icon = option.icon;
+                    const selected = freightType === option.value;
+                    return (
+                      <div
+                        key={option.value}
+                        className={cn(
+                          "rounded-lg border transition-colors duration",
+                          selected ? "border-primary bg-primary/5" : "border-border hover:border-foreground/20",
                         )}
+                      >
+                        <Label htmlFor={`freight-${option.value}`} className="flex cursor-pointer items-start gap-3 p-4">
+                          <RadioGroupItem id={`freight-${option.value}`} value={option.value} className="mt-0.5" />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2 font-semibold text-foreground">
+                              <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+                              {option.title}
+                            </span>
+                            <span className="mt-0.5 block font-normal text-muted-foreground">{option.description}</span>
+                          </span>
+                        </Label>
+                        {selected && renderFreightInput(option.value)}
                       </div>
-                    </label>
-
-                    {/* Option B: Lumpsum */}
-                    <label 
-                      className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                        freightType === "lumpsum" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                      }`}
-                    >
-                      <RadioGroupItem value="lumpsum" className="mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Route className="h-4 w-4 text-primary" />
-                          <span className="font-medium">Frete Fechado</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Valor único para toda a rota (lump sum)
-                        </p>
-                        {freightType === "lumpsum" && (
-                          <div className="mt-3">
-                            <Label htmlFor="totalValue" className="text-xs text-muted-foreground">Valor Total da Rota (R$)</Label>
-                            <Input
-                              id="totalValue"
-                              type="number"
-                              placeholder="Ex: 350.00"
-                              value={totalValue}
-                              onChange={(e) => setTotalValue(e.target.value)}
-                              className="mt-1"
-                            />
-                            {totalValue && (
-                              <p className="text-xs text-muted-foreground mt-2">
-                                ≈ {formatCurrency(parseFloat(totalValue) / estimatedDistance)}/km
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-
-                    {/* Option C: Per KM */}
-                    <label 
-                      className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                        freightType === "per_km" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-                      }`}
-                    >
-                      <RadioGroupItem value="per_km" className="mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-primary" />
-                          <span className="font-medium">Frete por KM</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Valor calculado pela distância percorrida
-                        </p>
-                        {freightType === "per_km" && (
-                          <div className="mt-3 space-y-2">
-                            <Label htmlFor="perKmValue" className="text-xs text-muted-foreground">Valor por KM (R$)</Label>
-                            <Input
-                              id="perKmValue"
-                              type="number"
-                              placeholder="Ex: 2.50"
-                              value={perKmValue}
-                              onChange={(e) => setPerKmValue(e.target.value)}
-                              className="mt-1"
-                            />
-                            {perKmValue && estimatedDistance > 0 && (
-                              <div className="p-2 rounded bg-primary/10 border border-primary/20 mt-2">
-                                <p className="text-xs text-muted-foreground">Cálculo:</p>
-                                <p className="text-sm font-medium">
-                                  {formatDistance(estimatedDistance)} × {formatCurrency(parseFloat(perKmValue))} = 
-                                  <span className="text-primary font-bold ml-1">{formatCurrency(estimatedDistance * parseFloat(perKmValue))}</span>
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                  </div>
+                    );
+                  })}
                 </RadioGroup>
-              </div>
+              </fieldset>
             </div>
           )}
 
-          {/* Step 4: Driver Selection (and Vehicle for own_fleet) */}
+          {/* Etapa 4: motorista (e veiculo da frota propria) */}
           {step === "driver" && (
-            <div className="space-y-4">
-              {/* Fleet type badge */}
-              <div className="flex justify-center">
-                <Badge variant={fleetType === "own_fleet" ? "default" : "outline"} className="text-sm">
-                  {fleetType === "own_fleet" ? "🏢 Frota Própria" : "👥 Terceiro / Agregado"}
-                </Badge>
-              </div>
-
+            <div className="space-y-5">
               <div className="space-y-2">
-                <Label>{fleetType === "own_fleet" ? "Motorista CLT" : "Motorista Responsável"}</Label>
-                <DriverCombobox 
-                  value={selectedDriver} 
-                  onSelect={setSelectedDriver}
+                <Label htmlFor="freight-driver">{isOwnFleet ? "Motorista CLT" : "Motorista responsável"}</Label>
+                <DriverCombobox
+                  id="freight-driver"
+                  value={selectedDriver}
+                  onSelect={(driver) => {
+                    setSelectedDriver(driver);
+                    setErrors({});
+                  }}
                   fleetType={fleetType || undefined}
+                  invalid={!!errors.driver}
+                  describedBy={errors.driver ? "freight-driver-error" : undefined}
                 />
+                {errors.driver && (
+                  <p id="freight-driver-error" className="text-sm font-medium text-destructive">
+                    {errors.driver}
+                  </p>
+                )}
               </div>
 
-              {/* Vehicle Selection (only for own_fleet) */}
-              {fleetType === "own_fleet" && (
+              {isOwnFleet && (
                 <div className="space-y-2">
-                  <Label>Veículo da Frota</Label>
-                  <Select 
-                    value={selectedVehicle?.id || ""} 
+                  <Label htmlFor="freight-vehicle">Veículo da frota</Label>
+                  <Select
+                    value={selectedVehicle?.id || ""}
                     onValueChange={(value) => {
                       const vehicle = availableVehicles.find(v => v.id === value);
                       setSelectedVehicle(vehicle || null);
+                      setErrors({});
                     }}
                   >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione um veículo disponível..." />
+                    <SelectTrigger
+                      id="freight-vehicle"
+                      aria-invalid={!!errors.vehicle || undefined}
+                      aria-describedby={errors.vehicle ? "freight-vehicle-error" : availableVehicles.length === 0 ? "freight-vehicle-hint" : undefined}
+                      className={cn(errors.vehicle && "border-destructive")}
+                    >
+                      <SelectValue placeholder="Escolher veículo livre" />
                     </SelectTrigger>
                     <SelectContent>
                       {availableVehicles.length === 0 ? (
-                        <div className="p-3 text-center text-muted-foreground text-sm">
-                          Nenhum veículo disponível
+                        <div className="p-3 text-center text-sm text-muted-foreground">
+                          Nenhum veículo livre
                         </div>
                       ) : (
                         availableVehicles.map((vehicle) => (
                           <SelectItem key={vehicle.id} value={vehicle.id}>
-                            <div className="flex items-center gap-2">
-                              <Car className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-mono font-medium">{vehicle.plate}</span>
-                              <span className="text-muted-foreground">•</span>
+                            <span className="flex items-center gap-2">
+                              <Car className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                              <span className="font-data font-medium">{vehicle.plate}</span>
+                              <span className="text-muted-foreground">·</span>
                               <span>{vehicle.brand} {vehicle.model}</span>
-                              <Badge variant="outline" className="text-xs ml-2">{vehicle.type}</Badge>
-                            </div>
+                            </span>
                           </SelectItem>
                         ))
                       )}
                     </SelectContent>
                   </Select>
                   {availableVehicles.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Cadastre veículos em Veículos → Adicionar Veículo
+                    <p id="freight-vehicle-hint" className="text-sm text-muted-foreground">
+                      Nenhum veículo livre. Cadastre em Veículos ou siga só com o motorista.
+                    </p>
+                  )}
+                  {errors.vehicle && (
+                    <p id="freight-vehicle-error" className="text-sm font-medium text-destructive">
+                      {errors.vehicle}
                     </p>
                   )}
                 </div>
               )}
 
               {selectedDriver && (
-                <Card className="p-4 bg-muted/30 overflow-hidden">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 min-w-0">
-                    <div className="h-12 w-12 rounded-full bg-primary flex items-center justify-center shrink-0">
-                      <span className="text-lg font-bold text-primary-foreground">{selectedDriver.avatar}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold break-words leading-tight">{selectedDriver.name}</p>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-x-4 mt-2 text-sm text-muted-foreground min-w-0">
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground">CPF:</span>{" "}
-                          <span className="font-mono break-all">{selectedDriver.cpf}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground">CNH:</span>{" "}
-                          <span className="break-words">{selectedDriver.cnh_category}</span>
-                        </div>
-                        <span>Veículo: {vehicleTypeLabels[selectedDriver.vehicle_type] || selectedDriver.vehicle_type}</span>
-                        <div className="min-w-0">
-                          <span className="font-medium text-foreground">Placa:</span>{" "}
-                          <span className="font-mono break-all">{selectedVehicle?.plate || selectedDriver.vehicle_plate}</span>
-                        </div>
+                <div className="flex min-w-0 items-start gap-4 rounded-lg border bg-muted/40 p-4 animate-fade-in">
+                  <DriverAvatar driver={selectedDriver} className="h-12 w-12" textClassName="text-base" />
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words font-semibold leading-tight text-foreground">{selectedDriver.name}</p>
+                    <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+                      <div className="min-w-0">
+                        <dt className="inline text-muted-foreground">CPF: </dt>
+                        <dd className="inline break-all font-data text-foreground">{selectedDriver.cpf || "—"}</dd>
                       </div>
-                    </div>
+                      <div className="min-w-0">
+                        <dt className="inline text-muted-foreground">CNH: </dt>
+                        <dd className="inline text-foreground">{selectedDriver.cnh_category || "—"}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="inline text-muted-foreground">Veículo: </dt>
+                        <dd className="inline text-foreground">{vehicleTypeLabel(selectedDriver.vehicle_type)}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="inline text-muted-foreground">Placa: </dt>
+                        <dd className="inline break-all font-data text-foreground">{selectedVehicle?.plate || plateText(selectedDriver.vehicle_plate) || "—"}</dd>
+                      </div>
+                    </dl>
                   </div>
-                </Card>
+                </div>
               )}
 
-              {/* Selected Vehicle Info (for own_fleet) */}
-              {fleetType === "own_fleet" && selectedVehicle && (
-                <Card className="p-4 border-2 border-primary bg-primary/5 overflow-hidden">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 min-w-0">
-                    <div className="p-2 rounded-lg bg-primary/10 shrink-0 w-fit">
-                      <Car className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold break-words">{selectedVehicle.brand} {selectedVehicle.model}</p>
-                      <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 mt-1 text-sm text-muted-foreground min-w-0">
-                        <span className="font-mono font-medium break-all">{selectedVehicle.plate}</span>
-                        <Badge variant="outline">{selectedVehicle.type}</Badge>
-                        {selectedVehicle.capacity && <span className="break-words">{selectedVehicle.capacity}</span>}
-                      </div>
-                    </div>
+              {isOwnFleet && selectedVehicle && (
+                <div className="flex min-w-0 items-start gap-4 rounded-lg border border-primary/30 bg-primary/5 p-4 animate-fade-in">
+                  <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Car className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words font-semibold text-foreground">{selectedVehicle.brand} {selectedVehicle.model}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <span className="font-data font-medium text-foreground">{selectedVehicle.plate}</span>
+                      <Badge variant="secondary">{selectedVehicle.type}</Badge>
+                      {selectedVehicle.capacity && <span>{selectedVehicle.capacity}</span>}
+                    </p>
                   </div>
-                </Card>
+                </div>
               )}
             </div>
           )}
 
-          {/* Step 5: Preview */}
+          {/* Etapa 5: revisar */}
           {step === "preview" && selectedDriver && (
             <div className="space-y-4">
-              <Card className="p-4 overflow-hidden">
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  Resumo do Romaneio
-                </h4>
-                
-                <div className="space-y-3">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">Tipo de Operação</span>
-                    <Badge variant={fleetType === "own_fleet" ? "default" : "secondary"}>
-                      {fleetType === "own_fleet" ? "🏢 Frota Própria" : "👥 Terceiro"}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">Entregas</span>
-                    <span className="font-medium">{selectedCount}</span>
-                  </div>
-                  {fleetType === "third_party" && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">Tipo de Frete</span>
-                      <Badge variant="outline">{freightTypeLabels[freightType]}</Badge>
+              <section aria-labelledby="freight-summary-title" className="overflow-hidden rounded-lg border">
+                <h3 id="freight-summary-title" className="border-b bg-muted/40 px-4 py-3 text-sm font-semibold text-foreground">
+                  Resumo do romaneio
+                </h3>
+                <dl className="divide-y">
+                  {summaryRows.map((row) => (
+                    <div key={row.label} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                      <dt className="text-sm text-muted-foreground">{row.label}</dt>
+                      <dd
+                        className={cn(
+                          "min-w-0 break-words text-right text-sm font-medium text-foreground",
+                          row.emphasis && "font-data text-lg font-semibold text-primary",
+                        )}
+                      >
+                        {row.value}
+                      </dd>
                     </div>
-                  )}
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">Distância</span>
-                    <span className="font-medium">{formatDistance(estimatedDistance)}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">Retorno à Base</span>
-                    <Badge variant={returnToBase ? "default" : "secondary"}>
-                      {returnToBase ? "✓ Sim" : "✗ Não"}
-                    </Badge>
-                  </div>
-                  {fleetType === "own_fleet" && selectedVehicle && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">Veículo</span>
-                      <span className="font-mono font-medium">{selectedVehicle.plate}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between py-2">
-                    <span className="text-muted-foreground">Valor Total</span>
-                    {fleetType === "own_fleet" ? (
-                      <Badge variant="secondary" className="text-sm">Sem Acerto</Badge>
-                    ) : (
-                      <span className="font-bold text-lg text-primary">{formatCurrency(calculatedTotal)}</span>
-                    )}
-                  </div>
-                </div>
-              </Card>
+                  ))}
+                </dl>
+              </section>
 
-              <Card className="p-4">
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <User className="h-4 w-4 text-primary" />
-                  Motorista
-                </h4>
-                
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 min-w-0">
-                  <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span className="font-bold text-primary-foreground">{selectedDriver.avatar}</span>
-                  </div>
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-x-4 text-sm min-w-0">
-                    <div className="min-w-0">
-                      <span className="text-muted-foreground">Nome: </span>
-                      <span className="font-medium break-words">{selectedDriver.name}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-muted-foreground">CPF: </span>
-                      <span className="font-medium font-mono break-all">{selectedDriver.cpf}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-muted-foreground">Veículo: </span>
-                      <span className="font-medium break-words">{vehicleTypeLabels[selectedDriver.vehicle_type] || selectedDriver.vehicle_type}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-muted-foreground">Placa: </span>
-                      <span className="font-mono font-medium break-all">{selectedVehicle?.plate || selectedDriver.vehicle_plate}</span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {fleetType === "own_fleet" && (
-                <div className="p-3 rounded-lg bg-muted/50 border border-muted-foreground/20">
-                  <p className="text-xs text-muted-foreground flex items-center gap-2">
-                    <Building2 className="h-3 w-3" />
-                    Este romaneio não gerará acerto financeiro (Frota Própria)
-                  </p>
-                </div>
+              {isOwnFleet && (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  Romaneio de frota própria não gera acerto financeiro.
+                </p>
               )}
             </div>
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:space-x-0 [&>button]:h-auto [&>button]:min-h-10 [&>button]:whitespace-normal [&>button]:px-4">
-          {step !== "fleet_type" && (
-            <Button type="button" variant="outline" onClick={handleBack} style={{ fontSize: '16px' }}>
+        {/* Rodape preso embaixo: "Continuar" sempre a vista, mesmo com muitas paradas. */}
+        <DialogFooter className="sticky bottom-[calc(max(1.5rem,env(safe-area-inset-bottom))*-1)] z-10 -mx-6 mb-[calc(max(1.5rem,env(safe-area-inset-bottom))*-1)] border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+          {step === "fleet_type" ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                resetForm();
+                onOpenChange(false);
+              }}
+            >
+              Cancelar
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" onClick={handleBack}>
               Voltar
             </Button>
           )}
-          {step === "fleet_type" && (
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} style={{ fontSize: '16px' }}>
-              Cancelar
-            </Button>
-          )}
           {step !== "preview" ? (
-            <Button 
-              type="button" 
-              onClick={handleNextStep} 
-              className="bg-primary hover:bg-primary/90" 
-              style={{ fontSize: '16px' }}
-              disabled={step === "route" && isOptimizing}
-            >
-              Próximo
+            <Button type="button" onClick={handleNextStep} disabled={step === "route" && isOptimizing}>
+              Continuar
             </Button>
           ) : (
-            <Button 
-              type="button" 
-              onClick={handleConfirm} 
-              className="bg-primary hover:bg-primary/90" 
-              style={{ fontSize: '16px' }}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Gerando..." : "Confirmar e Gerar Romaneio"}
+            <Button type="button" onClick={handleConfirm} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="animate-spin" aria-hidden="true" />
+                  Gerando romaneio…
+                </>
+              ) : (
+                <>
+                  <Check aria-hidden="true" />
+                  Confirmar e gerar romaneio
+                </>
+              )}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
+      )}
 
       {/* Success Dialog */}
       <ManifestSuccessDialog
         open={showSuccessDialog}
         onOpenChange={handleSuccessClose}
         manifest={createdManifest}
+        driverPhone={successDriverPhone}
+        returnFocusTo={() => (openerRef.current?.isConnected ? openerRef.current : focusFallback?.() ?? null)}
+        onPrint={
+          onPrint
+            ? () => {
+                handleSuccessClose(false);
+                onPrint();
+              }
+            : undefined
+        }
       />
     </Dialog>
   );
 }
-

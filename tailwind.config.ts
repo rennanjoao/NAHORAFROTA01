@@ -2,20 +2,23 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
     container: {
       center: true,
-      padding: { DEFAULT: "1rem", sm: "1.5rem", lg: "2rem" },
-      screens: { "2xl": "1280px" },
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-        heading: ["Space Grotesk", "system-ui", "sans-serif"],
-        data: ["Space Grotesk", "system-ui", "sans-serif"],
-        mono: ["Space Grotesk", "ui-monospace", "SFMono-Regular", "monospace"],
+        // Manual da marca: Inter (texto/interface), Space Grotesk (titulos e dados).
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        heading: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        data: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -23,30 +26,52 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
-        primary: { DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" },
-        secondary: { DEFAULT: "hsl(var(--secondary))", foreground: "hsl(var(--secondary-foreground))" },
-        destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
-        success: { DEFAULT: "hsl(var(--success))", foreground: "hsl(var(--success-foreground))" },
-        warning: { DEFAULT: "hsl(var(--warning))", foreground: "hsl(var(--warning-foreground))" },
-        info: { DEFAULT: "hsl(var(--info))", foreground: "hsl(var(--info-foreground))" },
-        brand: { DEFAULT: "hsl(var(--brand))", text: "hsl(var(--brand-text))", soft: "hsl(var(--brand-soft))" },
-        cyber: { DEFAULT: "hsl(var(--cyber))", foreground: "hsl(var(--cyber-foreground))" },
-        "neon-red": { DEFAULT: "hsl(var(--neon-red))", foreground: "hsl(var(--neon-red-foreground))" },
-        "cyber-dark": "hsl(200 7% 8%)",
-        muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
-        accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
-        popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
-        card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
         },
+        // Verde vivo da marca para detalhes decorativos (nunca texto em fundo claro).
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+          // Site: verde como texto (escuro no claro) e fundo suave.
+          text: "hsl(var(--brand-text))",
+          soft: "hsl(var(--brand-soft))",
+        },
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+        },
+        overlay: "hsl(var(--overlay) / var(--overlay-opacity))",
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+        },
+        idle: {
+          DEFAULT: "hsl(var(--idle))",
+          foreground: "hsl(var(--idle-foreground))",
+        },
+        // Paleta da marca (brand/tokens/tailwind.colors.js)
         nhf: {
           green: "#04E8A4",
           "green-deep": "#0B6B4F",
@@ -61,40 +86,129 @@ export default {
           late: "#FF4D4F",
           info: "#3B9CFF",
         },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar-background))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          primary: "hsl(var(--sidebar-primary))",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
+          accent: "hsl(var(--sidebar-accent))",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+          border: "hsl(var(--sidebar-border))",
+          ring: "hsl(var(--sidebar-ring))",
+        },
       },
+      // Raio 2026: cartoes 12px, controles 10px, chips 8px. Um token so (--radius).
       borderRadius: {
+        "3xl": "calc(var(--radius) + 12px)",
+        "2xl": "calc(var(--radius) + 8px)",
+        xl: "calc(var(--radius) + 4px)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        card: "0 1px 0 0 hsl(var(--foreground) / 0.04), 0 1px 2px 0 rgb(0 0 0 / 0.06)",
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm), var(--highlight)",
+        DEFAULT: "var(--shadow-sm), var(--highlight)",
+        md: "var(--shadow-md), var(--highlight)",
+        lg: "var(--shadow-lg), var(--highlight)",
+        xl: "var(--shadow-xl), var(--highlight)",
+        "2xl": "var(--shadow-xl), var(--highlight)",
+        // Site: mockups "levantados".
         lift: "0 24px 60px -24px rgb(0 0 0 / 0.5)",
       },
+      transitionTimingFunction: {
+        out: "var(--ease-out)",
+        "in-out": "var(--ease-in-out)",
+        spring: "var(--ease-spring)",
+      },
+      transitionDuration: {
+        fast: "var(--duration-fast)",
+        DEFAULT: "var(--duration)",
+        slow: "var(--duration-slow)",
+      },
+      spacing: {
+        topbar: "var(--topbar-height)",
+        "bottom-nav": "var(--bottom-nav-height)",
+      },
       keyframes: {
-        "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
-        "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
-        "fade-in": { "0%": { opacity: "0", transform: "translateY(10px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
-        "fade-up": { "0%": { opacity: "0", transform: "translateY(24px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
-        "slide-in-left": { "0%": { opacity: "0", transform: "translateX(-20px)" }, "100%": { opacity: "1", transform: "translateX(0)" } },
-        "scale-in": { "0%": { opacity: "0", transform: "scale(0.95)" }, "100%": { opacity: "1", transform: "scale(1)" } },
-        "pulse-glow": { "0%, 100%": { opacity: "1" }, "50%": { opacity: "0.5" } },
-        "pulse-ring": { "0%": { transform: "scale(0.8)", opacity: "0.8" }, "100%": { transform: "scale(2.2)", opacity: "0" } },
-        shimmer: { "0%": { transform: "translateX(-100%)" }, "100%": { transform: "translateX(100%)" } },
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "collapsible-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-collapsible-content-height)" },
+        },
+        "collapsible-up": {
+          from: { height: "var(--radix-collapsible-content-height)" },
+          to: { height: "0" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "none" },
+        },
+        "slide-in-left": {
+          "0%": { opacity: "0", transform: "translateX(-16px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+        "scale-in": {
+          "0%": { opacity: "0", transform: "scale(0.96)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "pop-in": {
+          "0%": { opacity: "0", transform: "scale(0.6)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
+        // Site publico
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(24px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "pulse-ring": {
+          "0%": { transform: "scale(0.8)", opacity: "0.8" },
+          "100%": { transform: "scale(2.2)", opacity: "0" },
+        },
         scan: { "0%": { top: "0%" }, "100%": { top: "100%" } },
         "spin-slow": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } },
         dash: { to: { strokeDashoffset: "-40" } },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.5s ease-out forwards",
-        "fade-up": "fade-up 0.7s cubic-bezier(.2,.8,.2,1) forwards",
-        "slide-in-left": "slide-in-left 0.4s ease-out forwards",
-        "scale-in": "scale-in 0.3s ease-out forwards",
+        "accordion-down": "accordion-down 0.25s var(--ease-out)",
+        "accordion-up": "accordion-up 0.2s var(--ease-out)",
+        "collapsible-down": "collapsible-down 0.25s var(--ease-out)",
+        "collapsible-up": "collapsible-up 0.2s var(--ease-out)",
+        "fade-in": "fade-in 0.36s var(--ease-out) backwards",
+        "slide-in-left": "slide-in-left 0.36s var(--ease-out) backwards",
+        "scale-in": "scale-in 0.24s var(--ease-out) backwards",
+        "pop-in": "pop-in 0.32s var(--ease-spring) both",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "fade-up": "fade-up 0.7s cubic-bezier(.2,.8,.2,1) forwards",
         "pulse-ring": "pulse-ring 1.8s cubic-bezier(.2,.8,.2,1) infinite",
-        shimmer: "shimmer 2.2s linear infinite",
         scan: "scan 4s linear infinite",
         "spin-slow": "spin-slow 24s linear infinite",
         dash: "dash 1.2s linear infinite",

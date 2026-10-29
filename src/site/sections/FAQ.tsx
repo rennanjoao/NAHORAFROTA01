@@ -8,6 +8,7 @@ const QA = [
   ["Preciso de rastreador no veículo?", "Não. A posição vem do GPS do celular do motorista, a cada 30 segundos, enquanto o romaneio está em rota."],
   ["Funciona com agregados e frota própria?", "Sim. Cada romaneio define o tipo de frota. Frota própria não gera acerto; agregado gera frete, adiantamento e desconto, e o acerto fecha sozinho."],
   ["Como recebo o acesso depois de pagar?", "Na hora. Assim que o pagamento é confirmado, criamos a sua empresa e o seu usuário administrador e enviamos login e senha temporária por e-mail. A tela de confirmação também mostra o acesso, e você troca a senha no primeiro login."],
+  ["Posso testar antes de assinar?", "Sim. O cadastro em “Testar grátis” libera 7 dias com todos os módulos, sem cartão. Quando quiser continuar, assine por aqui com o mesmo CNPJ e o mesmo e-mail: a empresa, os motoristas e as entregas ficam onde estão, e a assinatura passa a valer na hora."],
   ["Posso trocar de plano depois?", "Sim. O upgrade libera os módulos na hora. O downgrade vale a partir do próximo ciclo de cobrança."],
   ["Tem fidelidade ou multa?", "Não. A cobrança é mensal. Cancele quando quiser e o acesso continua até o fim do período já pago."],
   ["Meus dados ficam separados dos de outras empresas?", "Sim. Cada empresa tem o próprio espaço, com regras de acesso aplicadas no servidor. Um usuário só enxerga a empresa dele."],

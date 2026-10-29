@@ -1,4 +1,5 @@
-import { Lock, Crown } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PlanLockOverlayProps {
@@ -7,26 +8,39 @@ interface PlanLockOverlayProps {
   children?: React.ReactNode;
 }
 
+/**
+ * Bloco no lugar de um recurso fora do plano. O conteudo (children) nao e
+ * mostrado de proposito: dados reais nao vazam por tras do aviso.
+ */
 export function PlanLockOverlay({ upgradePlanLabel, className }: PlanLockOverlayProps) {
   return (
-    <div className={cn("relative min-h-[220px] overflow-hidden rounded-lg border border-border bg-card", className)}>
-      <div className="absolute inset-0 bg-muted/30" />
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 rounded-lg z-10">
-        <div className="flex flex-col items-center gap-3 text-center p-6">
-          <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
-            <Lock className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-foreground">Funcionalidade Bloqueada</p>
-            <p className="text-xs text-muted-foreground max-w-[220px]">
-              Disponível no Plano{" "}
-              <span className="inline-flex items-center gap-1 font-semibold text-primary">
-                <Crown className="h-3 w-3" />
-                {upgradePlanLabel}
-              </span>
-            </p>
-          </div>
+    <div
+      className={cn(
+        "relative flex min-h-[220px] items-center justify-center overflow-hidden rounded-lg border border-dashed bg-card p-6 text-center",
+        className,
+      )}
+    >
+      <div aria-hidden="true" className="nhf-routes pointer-events-none absolute inset-0 opacity-60" />
+      <div className="relative flex max-w-[16rem] flex-col items-center gap-3 animate-fade-in">
+        <span
+          aria-hidden="true"
+          className="flex h-12 w-12 items-center justify-center rounded-2xl border bg-muted text-muted-foreground shadow-xs"
+        >
+          <Lock className="h-5 w-5" />
+        </span>
+        <div className="space-y-1">
+          <p className="font-heading text-sm font-semibold text-foreground">Recurso de outro plano</p>
+          <p className="text-[0.8125rem] text-muted-foreground">
+            Disponível no plano <span className="font-semibold text-primary">{upgradePlanLabel}</span>.
+          </p>
         </div>
+        <Link
+          to={`/upgrade?plano=${encodeURIComponent(upgradePlanLabel)}`}
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 text-[0.8125rem] font-semibold text-primary transition-colors duration-fast hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Ver como liberar
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
       </div>
     </div>
   );

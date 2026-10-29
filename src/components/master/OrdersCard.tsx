@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Section } from "@/components/patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,7 +37,7 @@ export function OrdersCard() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("orders")
-      .select("id, created_at, status, mode, plan, amount_cents, company_name, cnpj, contact_name, email, whatsapp, access_email_status, access_sent_at, tenant_id, error")
+      .select("id, created_at, status, mode, kind, existing_user, plan, amount_cents, company_name, cnpj, contact_name, email, whatsapp, access_email_status, access_sent_at, tenant_id, error")
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) {
@@ -54,15 +54,21 @@ export function OrdersCard() {
   }, [fetchOrders]);
 
   const onResend = async (o: OrderAdminRow) => {
-    if (!window.confirm(`Gerar nova senha temporária e reenviar o acesso para ${o.email}?`)) return;
+    const question = o.existing_user
+      ? `Reenviar a confirmação da assinatura para ${o.email}? (a senha dessa pessoa não muda)`
+      : `Gerar nova senha temporária e reenviar o acesso para ${o.email}?`;
+    if (!window.confirm(question)) return;
     setBusyId(o.id);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       if (!token) throw new Error("Sessão expirada. Entre de novo.");
       const r = await resendAccess(o.id, token);
       toast({
-        title: r.email_status === "sent" ? "Acesso reenviado" : "Nova senha gerada",
-        description: r.email_status === "sent" ? `E-mail enviado para ${o.email}.` : `E-mail ${EMAIL[r.email_status] || r.email_status}. Senha temporária: ${r.temp_password}`,
+        title: r.email_status === "sent" ? (o.existing_user ? "Confirmação reenviada" : "Acesso reenviado") : r.temp_password ? "Nova senha gerada" : "E-mail não enviado",
+        description:
+          r.email_status === "sent"
+            ? `E-mail enviado para ${o.email}.`
+            : `E-mail ${EMAIL[r.email_status] || r.email_status}.${r.temp_password ? ` Senha temporária: ${r.temp_password}` : ""}`,
       });
       fetchOrders();
     } catch (e) {
@@ -83,17 +89,22 @@ export function OrdersCard() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-lg">
+    <Section
+      id="pedidos-site"
+      title={
+        <span className="flex items-center gap-2">
           <ShoppingBag className="h-5 w-5 text-primary" aria-hidden="true" />
           Pedidos do site
-        </CardTitle>
+        </span>
+      }
+      description="Compras feitas pelo checkout do site. O acesso é criado sozinho no pagamento; aqui dá para reenviar."
+      actions={
         <Button variant="outline" size="icon" onClick={fetchOrders} disabled={loading} aria-label="Atualizar pedidos">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
-      </CardHeader>
-      <CardContent className="p-0">
+      }
+    >
+      <div className="rounded-xl border bg-card">
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="Carregando" />
@@ -133,6 +144,7 @@ export function OrdersCard() {
                     <TableCell>
                       <p>{PLAN_BY_ID[o.plan]?.name ?? o.plan}</p>
                       <p className="font-data text-xs text-muted-foreground">{formatBRL(o.amount_cents)} · {o.mode === "sandbox" ? "teste" : "Stripe"}</p>
+                      {o.kind === "conversion" && <p className="mt-0.5 text-xs text-primary">Conversão do teste grátis{o.existing_user ? " · mesmo login" : ""}</p>}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={STATUS[o.status]?.className}>{STATUS[o.status]?.label ?? o.status}</Badge>
@@ -143,7 +155,7 @@ export function OrdersCard() {
                       {o.status === "provisioned" && (
                         <Button size="sm" variant="outline" onClick={() => onResend(o)} disabled={busyId === o.id} className="gap-1">
                           {busyId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                          Reenviar acesso
+                          {o.existing_user ? "Reenviar e-mail" : "Reenviar acesso"}
                         </Button>
                       )}
                     </TableCell>
@@ -153,7 +165,7 @@ export function OrdersCard() {
             </Table>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </Section>
   );
 }

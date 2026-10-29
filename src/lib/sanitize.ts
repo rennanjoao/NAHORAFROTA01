@@ -6,8 +6,10 @@ import DOMPurify from 'dompurify';
  */
 export function sanitizeText(input: string | null | undefined): string {
   if (!input) return '';
-  // Remove all HTML tags, keeping only text content
-  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [] }).trim();
+  // Remove all HTML tags and return the decoded text ("&amp;" -> "&"). The
+  // serialized HTML string would keep entities and they ended up in the database.
+  const fragment = DOMPurify.sanitize(input, { ALLOWED_TAGS: [], RETURN_DOM_FRAGMENT: true });
+  return (fragment.textContent || '').trim();
 }
 
 /**

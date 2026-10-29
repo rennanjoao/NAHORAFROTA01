@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
+    <!-- Primary Meta Tags -->
     <title>Na Hora Frota — Sua frota em tempo real</title>
     <meta name="title" content="Na Hora Frota — Sua frota em tempo real" />
     <meta name="description" content="Romaneio na mão do motorista, cada placa no mapa, SLA medido e acerto fechado no mesmo dia. Gestão de entregas e frota para transportadoras e distribuidoras. Acesso liberado na hora." />
@@ -11,40 +12,64 @@
     <meta name="keywords" content="gestão de frota, rastreamento de entregas, romaneio, SLA, acerto de frete, app do motorista, canhoto digital, logística" />
     <link rel="canonical" href="https://nahorafrota.tech/" />
 
-    <!-- iOS -->
+    <!-- iOS specific meta tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Na Hora Frota" />
+    <meta name="apple-mobile-web-app-title" content="NaHoraFrota" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Cor do tema -->
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080808" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF" />
+    <!-- PWA Theme (o script abaixo troca a cor conforme o tema salvo) -->
+    <meta name="theme-color" content="#090A0B" />
     <meta name="msapplication-TileColor" content="#080808" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:site_name" content="Na Hora Frota" />
     <meta property="og:url" content="https://nahorafrota.tech/" />
     <meta property="og:title" content="Na Hora Frota — Sua frota em tempo real" />
     <meta property="og:description" content="Romaneio na mão do motorista, cada placa no mapa, SLA medido e acerto fechado no mesmo dia. Acesso liberado na hora." />
-    <meta property="og:image" content="https://nahorafrota.tech/og.png" />
+    <meta property="og:image" content="https://nahorafrota.tech/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://nahorafrota.tech/" />
     <meta name="twitter:title" content="Na Hora Frota — Sua frota em tempo real" />
     <meta name="twitter:description" content="Romaneio na mão do motorista, cada placa no mapa, SLA medido e acerto fechado no mesmo dia." />
-    <meta name="twitter:image" content="https://nahorafrota.tech/og.png" />
+    <meta name="twitter:image" content="https://nahorafrota.tech/og-image.png" />
 
-    <!-- Ícones -->
+    <!-- Tema e acessibilidade antes da primeira pintura (ver src/lib/preferences.ts). -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+        try {
+          var p = JSON.parse(localStorage.getItem("nhf-prefs") || "{}");
+          var theme = p.theme || "dark";
+          if (theme === "system") theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          root.classList.add(theme);
+          if (p.textSize && p.textSize !== "normal") root.dataset.textSize = p.textSize;
+          if (p.motion === "reduce") root.dataset.motion = "reduce";
+          if (p.contrast === "more") root.dataset.contrast = "more";
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", theme === "dark" ? "#090A0B" : "#F9FAFB");
+        } catch (e) {
+          root.classList.add("dark");
+        }
+      })();
+    </script>
+
+    <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Dados estruturados -->
+    <!-- Fontes (o CSS importa; aqui so a conexao antecipada) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Dados estruturados do site (planos vendidos em /comprar/:plano) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -63,10 +88,6 @@
       "provider": { "@type": "Organization", "name": "Na Hora Frota", "url": "https://nahorafrota.tech/", "email": "suporte@nahorafrota.com.br" }
     }
     </script>
-
-    <!-- Fontes -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
 
   <body>

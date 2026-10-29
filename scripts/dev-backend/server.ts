@@ -78,11 +78,36 @@ Deno.serve({ port: PORT, onListen: ({ port }) => console.log(`[dev-backend] http
   }
   if (url.pathname === "/dev/outbox.json") return Response.json(outbox);
   if (url.pathname === "/dev/state") return Response.json({ users: db.users.map((u) => ({ id: u.id, email: u.email, user_metadata: u.user_metadata })), ...db.tables });
+  // Empresa em teste gratis (como register-tenant cria), para testar a conversao pelo checkout.
+  // POST /dev/seed-trial { cnpj, email, name?, company? }  → senha do usuario: Teste123!
+  if (url.pathname === "/dev/seed-trial" && req.method === "POST") {
+    const body = (await req.json().catch(() => ({}))) as Record<string, string>;
+    const cnpj = String(body.cnpj || "").replace(/\D/g, "");
+    const email = String(body.email || "").trim().toLowerCase();
+    if (cnpj.length !== 14 || !email) return Response.json({ error: "cnpj (14 dígitos) e email são obrigatórios" }, { status: 400 });
+    const admin = deps.admin;
+    const { data: created, error: userErr } = await admin.auth.admin.createUser({ email, password: "Teste123!", email_confirm: true, user_metadata: { name: body.name || "Admin Teste" } });
+    if (userErr) return Response.json({ error: userErr.message }, { status: 409 });
+    const startedAt = new Date();
+    const { data: tenant, error: tenantErr } = await admin
+      .from("tenants")
+      .insert({
+        name: body.company || "Empresa em Teste LTDA", slug: `empresa-${cnpj}`, document: cnpj, email, cnpj, razao_social: body.company || "Empresa em Teste LTDA",
+        status: "trial", plan: "basic", trial_started_at: startedAt.toISOString(), trial_ends_at: new Date(startedAt.getTime() + 7 * 86400 * 1000).toISOString(),
+      })
+      .select("id")
+      .single();
+    if (tenantErr) return Response.json({ error: tenantErr.message }, { status: 409 });
+    await admin.from("profiles").upsert({ id: created.user.id, email, name: body.name || "Admin Teste", tenant_id: tenant.id }, { onConflict: "id" });
+    await admin.from("user_roles").upsert({ user_id: created.user.id, role: "admin", tenant_id: tenant.id }, { onConflict: "user_id,role" });
+    await admin.from("tenant_memberships").upsert({ tenant_id: tenant.id, user_id: created.user.id, role: "admin" }, { onConflict: "tenant_id,user_id" });
+    return Response.json({ ok: true, tenant_id: tenant.id, user_id: created.user.id, password: "Teste123!" });
+  }
   if (url.pathname === "/dev/reset" && req.method === "POST") {
     db.tables = { orders: [], tenants: [], profiles: [], user_roles: [], tenant_memberships: [], payment_history: [], platform_admins: [] };
     db.users = [];
     outbox.length = 0;
     return Response.json({ ok: true });
   }
-  return page("dev-backend", `<h1>dev-backend</h1><p>Funções: ${Object.keys(ROUTES).map((r) => `<code>/functions/v1/${r}</code>`).join(", ")}</p><p><a href="/dev/outbox">Caixa de saída</a> · <a href="/dev/state">Estado</a></p>`);
+  return page("dev-backend", `<h1>dev-backend</h1><p>Funções: ${Object.keys(ROUTES).map((r) => `<code>/functions/v1/${r}</code>`).join(", ")}</p><p><a href="/dev/outbox">Caixa de saída</a> · <a href="/dev/state">Estado</a> · <code>POST /dev/seed-trial</code> · <code>POST /dev/reset</code></p>`);
 });

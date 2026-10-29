@@ -20,11 +20,15 @@ export interface CheckoutInput {
   whatsapp: string;
 }
 
+/** "new": empresa criada na compra. "conversion": empresa que já estava em teste grátis e virou assinatura. */
+export type OrderKind = "new" | "conversion";
+
 export interface CheckoutSession {
   order_id: string;
   access_token: string;
   checkout_url: string;
   mode: "stripe" | "sandbox";
+  kind: OrderKind;
 }
 
 export interface OrderPublic {
@@ -38,6 +42,9 @@ export interface OrderPublic {
   email: string;
   whatsapp: string | null;
   temp_password: string | null;
+  kind: OrderKind;
+  /** Comprador já era usuário da empresa (conversão): entra com a senha de sempre, sem senha temporária. */
+  existing_user: boolean;
   login_url: string;
   access_email_status: AccessEmailStatus;
   access_sent_at: string | null;
@@ -132,6 +139,8 @@ export interface OrderAdminRow {
   contact_name: string;
   email: string;
   whatsapp: string | null;
+  kind: OrderKind;
+  existing_user: boolean;
   access_email_status: AccessEmailStatus;
   access_sent_at: string | null;
   tenant_id: string | null;
@@ -152,5 +161,5 @@ export async function resendAccess(orderId: string, sessionToken: string) {
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new CheckoutError(data?.error || "Não foi possível reenviar.", res.status);
-  return data as { ok: boolean; email_status: AccessEmailStatus; temp_password: string };
+  return data as { ok: boolean; email_status: AccessEmailStatus; temp_password: string | null };
 }

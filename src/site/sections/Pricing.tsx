@@ -72,6 +72,9 @@ export function Pricing() {
             </a>
             . Já é cliente? <Link to="/login" className="font-semibold text-brand underline-offset-4 hover:underline">Entrar</Link>.
           </p>
+          <p className="mt-2">
+            Prefere testar antes? <Link to="/register" className="font-semibold text-brand underline-offset-4 hover:underline">7 dias grátis, sem cartão</Link>. Quando quiser continuar, assine por aqui com o mesmo CNPJ: tudo fica onde está.
+          </p>
         </Reveal>
       </div>
     </section>

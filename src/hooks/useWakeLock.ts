@@ -20,7 +20,8 @@ export function useWakeLock() {
         console.log('[WakeLock] Screen wake lock released');
       });
     } catch (err: any) {
-      console.error('[WakeLock] Failed:', err.message);
+      // Recusa do navegador (bateria fraca, aba em segundo plano) nao e erro do app.
+      console.warn('[WakeLock] Failed:', err.message);
     }
   }, []);
 

@@ -26,7 +26,7 @@ export function Cta({ children, to, href, onClick, variant = "primary", size = "
   const inner = cn(
     "nhf-chamfer inline-flex w-full items-center justify-center gap-2 transition-colors duration-200",
     size === "lg" ? "h-14 px-7 text-base" : "h-12 px-5 text-[15px]",
-    variant === "primary" && "bg-primary text-primary-foreground group-hover:bg-nhf-green-dark",
+    variant === "primary" && "bg-brand text-brand-foreground group-hover:bg-nhf-green-dark",
     variant === "dark" && "bg-nhf-ink text-white group-hover:bg-nhf-graphite dark:bg-white dark:text-nhf-ink dark:group-hover:bg-nhf-mist",
     variant === "outline" && "border border-foreground/20 bg-transparent text-foreground group-hover:border-brand group-hover:text-brand",
     variant === "ghost" && "bg-transparent text-foreground group-hover:bg-accent",

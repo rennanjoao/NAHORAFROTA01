@@ -1,7 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueChannelName } from "@/lib/realtime";
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveDriverForUser } from '@/lib/driverIdentity';
+
+const FINISHED_STATUSES = new Set(['delivered', 'returned', 'occurrence']);
+
+function sortByRouteOrder<T extends { status: string; route_sequence?: number | null; nfe_number?: string | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const finishedA = FINISHED_STATUSES.has(a.status) ? 1 : 0;
+    const finishedB = FINISHED_STATUSES.has(b.status) ? 1 : 0;
+    if (finishedA !== finishedB) return finishedA - finishedB;
+    const seqA = a.route_sequence ?? Number.MAX_SAFE_INTEGER;
+    const seqB = b.route_sequence ?? Number.MAX_SAFE_INTEGER;
+    if (seqA !== seqB) return seqA - seqB;
+    return String(a.nfe_number || '').localeCompare(String(b.nfe_number || ''), 'pt-BR', { numeric: true });
+  });
+}
 
 export interface DriverDelivery {
   id: string;
@@ -14,6 +29,7 @@ export interface DriverDelivery {
   longitude: number | null;
   status: string;
   nfe_number: string | null;
+  arrived_at: string | null;
 }
 
 export interface DriverManifest {
@@ -36,6 +52,7 @@ interface UseDriverManifestReturn {
   error: string | null;
   refetch: () => Promise<void>;
   markDelivered: (deliveryId: string) => Promise<void>;
+  markArrived: (deliveryId: string, arrivedAt: string) => void;
 }
 
 export function useDriverManifest(): UseDriverManifestReturn {
@@ -91,27 +108,31 @@ export function useDriverManifest(): UseDriverManifestReturn {
       // If we have a manifest, fetch ALL its invoices (including those with occurrences)
       // Only exclude "delivered" with success - show everything else
       if (manifestData?.id) {
-        const { data: invoicesData, error: invoicesError } = await supabase
-          .from('invoices')
-          .select(`
-            id,
-            recipient_name,
-            address_full,
-            address_street,
-            address_number,
-            address_city,
-            latitude,
-            longitude,
-            status,
-            nfe_number
-          `)
-          .eq('manifest_id', manifestData.id)
-          .order('status', { ascending: true }); // Pendentes primeiro
+        const baseColumns = 'id, recipient_name, address_full, address_street, address_number, address_city, latitude, longitude, status, nfe_number';
+        const fetchInvoices = (columns: string) =>
+          supabase
+            .from('invoices')
+            .select(columns)
+            .eq('manifest_id', manifestData.id);
+
+        let { data: invoicesData, error: invoicesError } = await fetchInvoices(`${baseColumns}, arrived_at, route_sequence`);
+
+        // Banco ainda sem arrived_at/route_sequence (migration pendente): segue sem elas.
+        if (invoicesError?.code === '42703') {
+          ({ data: invoicesData, error: invoicesError } = await fetchInvoices(baseColumns));
+        }
 
         if (invoicesError) throw invoicesError;
 
         // Show ALL invoices in this manifest - no date or occurrence filtering
-        setDeliveries(invoicesData || []);
+        // Abertas primeiro, na ordem da roteirizacao; finalizadas no fim.
+        // (Antes ordenava por status em ordem alfabetica: "delivered" vinha primeiro.)
+        setDeliveries(
+          sortByRouteOrder(
+            ((invoicesData || []) as unknown as Array<Omit<DriverDelivery, 'arrived_at'> & { arrived_at?: string | null; route_sequence?: number | null }>)
+              .map(invoice => ({ ...invoice, arrived_at: invoice.arrived_at ?? null }))
+          )
+        );
       } else {
         setDeliveries([]);
       }
@@ -130,6 +151,7 @@ export function useDriverManifest(): UseDriverManifestReturn {
         .from('invoices')
         .update({ 
           status: 'delivered',
+          occurrence_type: null,
           delivered_at: new Date().toISOString()
         })
         .eq('id', deliveryId);
@@ -144,6 +166,13 @@ export function useDriverManifest(): UseDriverManifestReturn {
       console.error('Erro ao marcar entrega:', err);
       throw err;
     }
+  }, []);
+
+  // Chegada registrada pelo raio de 100 m (atualizacao local, sem refetch)
+  const markArrived = useCallback((deliveryId: string, arrivedAt: string) => {
+    setDeliveries(prev =>
+      prev.map(d => d.id === deliveryId ? { ...d, arrived_at: arrivedAt } : d)
+    );
   }, []);
 
   useEffect(() => {
@@ -162,7 +191,7 @@ export function useDriverManifest(): UseDriverManifestReturn {
 
       // Subscribe to manifest changes for this driver
       const channel = supabase
-        .channel('driver-manifest-updates')
+        .channel(uniqueChannelName("driver-manifest-updates"))
         .on(
           'postgres_changes',
           {
@@ -181,10 +210,20 @@ export function useDriverManifest(): UseDriverManifestReturn {
       return channel;
     };
 
+    // Se o efeito for desfeito antes da assinatura ficar pronta, remove o canal
+    // assim que ele chegar (antes ficava aberto para sempre).
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    setupManifestSubscription().then(ch => { channel = ch; });
+    let cancelled = false;
+    setupManifestSubscription().then(ch => {
+      if (cancelled) {
+        if (ch) supabase.removeChannel(ch);
+        return;
+      }
+      channel = ch;
+    });
 
     return () => {
+      cancelled = true;
       if (channel) {
         supabase.removeChannel(channel);
       }
@@ -196,7 +235,7 @@ export function useDriverManifest(): UseDriverManifestReturn {
     if (!manifest?.id) return;
 
     const channel = supabase
-      .channel('driver-invoice-changes')
+      .channel(uniqueChannelName("driver-invoice-changes"))
       .on(
         'postgres_changes',
         {
@@ -224,5 +263,6 @@ export function useDriverManifest(): UseDriverManifestReturn {
     error,
     refetch: fetchManifestAndDeliveries,
     markDelivered,
+    markArrived,
   };
 }

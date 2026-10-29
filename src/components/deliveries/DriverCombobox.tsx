@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Check, ChevronsUpDown, User, Truck, Loader2, Building2, Users } from "lucide-react";
+import { brandAvatar } from "@/lib/avatar";
+import { Check, ChevronsUpDown, User, Truck, Building2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,23 +17,21 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDBDrivers, DBDriver } from "@/hooks/useDBDrivers";
+import { plateText, vehicleTypeLabel } from "./status";
 
 interface DriverComboboxProps {
   value: DBDriver | null;
   onSelect: (driver: DBDriver) => void;
   fleetType?: "third_party" | "own_fleet";
+  /** Liga o campo ao <Label htmlFor>. */
+  id?: string;
+  /** Campo com erro (borda vermelha + aria-invalid). */
+  invalid?: boolean;
+  /** Id do texto de ajuda/erro abaixo do campo. */
+  describedBy?: string;
 }
-
-const vehicleTypeLabels: Record<string, string> = {
-  truck: "Caminhao",
-  van: "VUC/Van",
-  moto: "Moto",
-  fiorino: "Fiorino",
-  vuc: "VUC",
-  toco: "Toco",
-  carreta: "Carreta",
-};
 
 const formatCPF = (cpf: string) => {
   const cleaned = cpf.replace(/\D/g, "");
@@ -65,7 +64,28 @@ const getDriverAvatarSrc = (driver: Pick<DBDriver, "avatar" | "photo">) => {
   return null;
 };
 
-export function DriverCombobox({ value, onSelect, fleetType }: DriverComboboxProps) {
+/** Foto do motorista ou iniciais (mesmo desenho em toda a tela de entregas). */
+export function DriverAvatar({
+  driver,
+  className = "h-9 w-9",
+  textClassName = "text-sm",
+}: {
+  driver: Pick<DBDriver, "avatar" | "photo" | "name">;
+  className?: string;
+  textClassName?: string;
+}) {
+  const avatarSrc = getDriverAvatarSrc(driver);
+  if (avatarSrc) {
+    return <img src={brandAvatar(avatarSrc)} alt="" className={cn(className, "shrink-0 rounded-full object-cover")} />;
+  }
+  return (
+    <span aria-hidden="true" className={cn(className, "flex shrink-0 items-center justify-center rounded-full bg-primary/10")}>
+      <span className={cn(textClassName, "font-semibold text-primary")}>{getDriverInitials(driver.name)}</span>
+    </span>
+  );
+}
+
+export function DriverCombobox({ value, onSelect, fleetType, id, invalid, describedBy }: DriverComboboxProps) {
   const [open, setOpen] = useState(false);
   const { availableDrivers, drivers, isLoading } = useDBDrivers();
 
@@ -93,85 +113,65 @@ export function DriverCombobox({ value, onSelect, fleetType }: DriverComboboxPro
   }, [drivers, fleetType]);
 
   const getFleetLabel = () => {
-    if (!fleetType) return "Motoristas disponiveis";
-    if (fleetType === "own_fleet") return "Motoristas CLT disponiveis";
-    return "Motoristas agregados disponiveis";
+    if (!fleetType) return "Motoristas livres";
+    if (fleetType === "own_fleet") return "Motoristas CLT livres";
+    return "Motoristas agregados livres";
   };
 
-  const renderDriverAvatar = (driver: Pick<DBDriver, "avatar" | "photo" | "name">, sizeClass: string, textClass: string) => {
-    const avatarSrc = getDriverAvatarSrc(driver);
-
-    if (avatarSrc) {
-      return (
-        <img
-          src={avatarSrc}
-          alt={driver.name}
-          className={cn(sizeClass, "rounded-full object-cover flex-shrink-0")}
-        />
-      );
-    }
-
-    return (
-      <div className={cn(sizeClass, "rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0")}>
-        <span className={cn(textClass, "font-semibold text-primary")}>{getDriverInitials(driver.name)}</span>
-      </div>
-    );
-  };
+  const PlaceholderIcon = fleetType === "own_fleet" ? Building2 : fleetType === "third_party" ? Users : User;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="h-auto min-h-[2.5rem] w-full justify-between py-2"
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
+          className={cn(
+            "h-auto min-h-12 w-full justify-between py-2 text-left font-normal",
+            invalid && "border-destructive",
+          )}
         >
           {value ? (
-            <div className="flex min-w-0 items-center gap-3 text-left">
-              {renderDriverAvatar(value, "h-8 w-8", "text-xs")}
-              <div className="flex-1 min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
-                  <p className="truncate font-medium">{value.name}</p>
-                  {value.is_own_fleet && (
-                    <Badge variant="secondary" className="shrink-0 text-xs">CLT</Badge>
-                  )}
-                </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  CPF: {formatCPF(value.cpf) || "-"} | {vehicleTypeLabels[value.vehicle_type?.toLowerCase()] || value.vehicle_type || "-"} | {value.vehicle_plate || "PENDENTE"}
-                </p>
-              </div>
-            </div>
+            <span className="flex min-w-0 items-center gap-3">
+              <DriverAvatar driver={value} className="h-8 w-8" textClassName="text-xs" />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium text-foreground">{value.name}</span>
+                  {value.is_own_fleet && <Badge variant="secondary" className="shrink-0">CLT</Badge>}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {vehicleTypeLabel(value.vehicle_type)} · {plateText(value.vehicle_plate) || "sem placa"}
+                </span>
+              </span>
+            </span>
           ) : (
             <span className="flex items-center gap-2 text-muted-foreground">
-              {fleetType === "own_fleet" ? (
-                <Building2 className="h-4 w-4" />
-              ) : fleetType === "third_party" ? (
-                <Users className="h-4 w-4" />
-              ) : (
-                <User className="h-4 w-4" />
-              )}
-              Selecionar motorista...
+              <PlaceholderIcon className="h-4 w-4" aria-hidden="true" />
+              Escolher motorista
             </span>
           )}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[400px] max-w-[var(--radix-popover-trigger-width)] p-0" align="start">
+      <PopoverContent aria-label="Escolher motorista" className="w-[var(--radix-popover-trigger-width)] min-w-[min(20rem,calc(100vw-2rem))] p-0" align="start">
         <Command>
-          <CommandInput placeholder="Buscar por nome, CPF ou placa..." />
+          <CommandInput placeholder="Buscar por nome, CPF ou placa" />
           <CommandList>
             {isLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">Carregando...</span>
+              <div className="space-y-2 p-3" role="status" aria-label="Carregando motoristas">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </div>
             ) : (
               <>
                 <CommandEmpty>
-                  <div className="py-4 text-center">
-                    <p className="text-sm text-muted-foreground">Nenhum motorista disponivel.</p>
+                  <div className="px-4 py-4 text-center">
+                    <p className="text-sm text-muted-foreground">Nenhum motorista livre.</p>
                     {unavailableCount > 0 && (
                       <p className="mt-1 text-xs text-warning">
                         {unavailableCount} motorista(s) com romaneio em aberto
@@ -179,7 +179,7 @@ export function DriverCombobox({ value, onSelect, fleetType }: DriverComboboxPro
                     )}
                     {fleetType === "own_fleet" && filteredDrivers.length === 0 && unavailableCount === 0 && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Cadastre motoristas CLT em Motoristas / Novo Motorista
+                        Cadastre motoristas CLT em Motoristas &gt; Cadastrar motorista
                       </p>
                     )}
                   </div>
@@ -194,39 +194,27 @@ export function DriverCombobox({ value, onSelect, fleetType }: DriverComboboxPro
                         onSelect(driver);
                         setOpen(false);
                       }}
-                      className="py-3"
+                      className="gap-3 py-2.5"
                     >
                       <Check
-                        className={cn(
-                          "mr-2 h-4 w-4 flex-shrink-0",
-                          value?.id === driver.id ? "opacity-100" : "opacity-0",
-                        )}
+                        className={cn("h-4 w-4 shrink-0 text-primary", value?.id === driver.id ? "opacity-100" : "opacity-0")}
+                        aria-hidden="true"
                       />
-
-                      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
-                        {renderDriverAvatar(driver, "h-9 w-9", "text-sm")}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <p className="truncate font-medium">{driver.name}</p>
-                            {driver.is_own_fleet && (
-                              <Badge variant="secondary" className="shrink-0 text-xs">CLT</Badge>
-                            )}
-                          </div>
-
-                          <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-                            <span className="shrink-0">{formatCPF(driver.cpf) || "-"}</span>
-                            <span className="shrink-0">|</span>
-                            <span className="flex min-w-0 items-center gap-1 truncate">
-                              <Truck className="h-3 w-3 shrink-0" />
-                              <span className="truncate">
-                                {vehicleTypeLabels[driver.vehicle_type?.toLowerCase()] || driver.vehicle_type || "-"}
-                              </span>
-                            </span>
-                            <span className="shrink-0">|</span>
-                            <span className="truncate font-mono">{driver.vehicle_plate || "PENDENTE"}</span>
-                          </div>
-                        </div>
-                      </div>
+                      <DriverAvatar driver={driver} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-medium">{driver.name}</span>
+                          {driver.is_own_fleet && <Badge variant="secondary" className="shrink-0">CLT</Badge>}
+                        </span>
+                        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="shrink-0 font-data">{formatCPF(driver.cpf) || "Sem CPF"}</span>
+                          <span aria-hidden="true">·</span>
+                          <Truck className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{vehicleTypeLabel(driver.vehicle_type)}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="truncate font-data">{plateText(driver.vehicle_plate) || "sem placa"}</span>
+                        </span>
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

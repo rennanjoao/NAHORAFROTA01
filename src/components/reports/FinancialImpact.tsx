@@ -1,13 +1,6 @@
-import { Card } from "@/components/ui/card";
-import { 
-  AlertTriangle, 
-  RotateCcw, 
-  Clock, 
-  Repeat,
-  TrendingDown,
-  DollarSign
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertTriangle, RotateCcw, Clock, Repeat, TrendingDown } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Section, StatCard } from "@/components/patterns";
 import { formatCurrency } from "@/lib/formatCurrency";
 
 interface FinancialImpactData {
@@ -30,95 +23,60 @@ export function FinancialImpact({ data }: FinancialImpactProps) {
 
   const impactItems = [
     {
-      label: "Custo de Devoluções",
+      label: "Custo de devoluções",
       formula: `${data.returnCount} devoluções × ${formatCurrency(data.returnCost)}`,
       value: returnsCost,
       icon: RotateCcw,
-      color: "text-warning",
-      bgColor: "bg-warning/10",
+      tone: "warning" as const,
     },
     {
-      label: "Custo de Atrasos",
+      label: "Custo de atrasos",
       formula: `${data.delayedCount} atrasos × ${formatCurrency(data.delayPenalty)}`,
       value: delaysCost,
       icon: Clock,
-      color: "text-destructive",
-      bgColor: "bg-destructive/10",
+      tone: "danger" as const,
     },
     {
       label: "Retrabalho",
-      formula: `${data.reworkPercentage.toFixed(1)}% das entregas`,
+      formula: `${data.reworkPercentage.toFixed(1).replace(".", ",")}% das entregas`,
       value: data.reworkCost,
       icon: Repeat,
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10",
+      tone: "warning" as const,
     },
   ];
 
+  const returnsShare = totalImpact > 0 ? (returnsCost / totalImpact) * 100 : 0;
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-destructive/10">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-lg">Impacto Financeiro do Período</h3>
-          <p className="text-sm text-muted-foreground">
-            Custos operacionais que afetam a margem de lucro
-          </p>
-        </div>
+    <Section
+      id="impacto-financeiro"
+      title="Impacto financeiro do período"
+      description="Quanto as devoluções, os atrasos e o retrabalho custaram."
+    >
+      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {impactItems.map((item) => (
+          <StatCard key={item.label} label={item.label} value={item.value} format={formatCurrency} icon={item.icon} tone={item.tone} hint={item.formula} />
+        ))}
+        <StatCard
+          label="Impacto total"
+          value={totalImpact}
+          format={formatCurrency}
+          icon={TrendingDown}
+          tone="danger"
+          hint="Perda somada no período"
+          className="border-destructive/30"
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Impact Cards */}
-        {impactItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Card key={item.label} className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className={cn("p-2 rounded-lg", item.bgColor)}>
-                  <Icon className={cn("h-4 w-4", item.color)} />
-                </div>
-                <span className="text-sm font-medium text-muted-foreground">{item.label}</span>
-              </div>
-              <p className={cn("text-2xl font-bold", item.color)}>
-                {formatCurrency(item.value)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{item.formula}</p>
-            </Card>
-          );
-        })}
-
-        {/* Total Impact Card - Highlighted */}
-        <Card className="p-4 bg-destructive/5 border-destructive/30 border-2">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 rounded-lg bg-destructive/20">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-            </div>
-            <span className="text-sm font-medium text-destructive">Impacto Total</span>
-          </div>
-          <p className="text-3xl font-bold text-destructive">
-            {formatCurrency(totalImpact)}
-          </p>
-          <p className="text-xs text-destructive/80 mt-1">
-            Perda acumulada no período
-          </p>
-        </Card>
-      </div>
-
-      {/* Executive Insight */}
-      <div className="p-4 rounded-lg bg-muted/50 border border-border">
-        <div className="flex items-start gap-3">
-          <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
-          <div>
-            <p className="text-sm font-medium">Análise Executiva</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              O custo de devoluções representa <span className="font-medium text-foreground">{((returnsCost / totalImpact) * 100).toFixed(0)}%</span> do impacto total.
-              Reduzir a taxa de devoluções em 10% economizaria aproximadamente <span className="font-medium text-success">{formatCurrency(returnsCost * 0.1)}</span> no período.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+      <Alert variant="warning">
+        <AlertTriangle aria-hidden="true" />
+        <AlertTitle>Onde economizar</AlertTitle>
+        <AlertDescription>
+          As devoluções são <span className="font-medium text-foreground">{returnsShare.toFixed(0).replace(".", ",")}%</span> do impacto.
+          Reduzir as devoluções em 10% economizaria cerca de{" "}
+          <span className="font-medium text-foreground">{formatCurrency(returnsCost * 0.1)}</span> no período.
+        </AlertDescription>
+      </Alert>
+    </Section>
   );
 }

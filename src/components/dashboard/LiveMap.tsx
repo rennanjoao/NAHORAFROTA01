@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Navigation, Radio, Truck as TruckIcon, MapPin, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
+import { uniqueChannelName } from "@/lib/realtime";
 import { getCurrentTenantId } from '@/lib/tenant';
+import { LiveMapFrame } from './LiveMapFrame';
 
 interface LiveMapProps {
   focusDriverId?: string | null;
@@ -47,6 +47,18 @@ interface DriverInfo {
   current_delay: number | null;
 }
 
+/** Props comuns das duas versoes do mapa (Mapbox e OpenStreetMap). */
+interface MapViewProps {
+  positions: (FleetPosition & { gpsStale: boolean })[];
+  mapboxToken: string | null;
+  center: { longitude: number; latitude: number };
+  onlineCount: number;
+  focusDriverId?: string | null;
+  onFocusHandled?: () => void;
+  onRefresh: () => void;
+  isRefreshing: boolean;
+}
+
 function normalizeMapboxToken(value: unknown): string | null {
   if (typeof value === 'string') {
     const token = value.trim();
@@ -71,82 +83,10 @@ function getEnvMapboxToken() {
   return normalizeMapboxToken(import.meta.env.VITE_MAPBOX_TOKEN);
 }
 
-// Loading placeholder component
-function MapLoading({ positionCount }: { positionCount: number }) {
-  return (
-    <div className="glass-card rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border p-4 bg-card">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Navigation className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
-            <p className="text-sm text-muted-foreground">
-              {positionCount} veículos ativos • São Paulo
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Radio className="h-4 w-4 animate-pulse" />
-          <span className="text-xs font-medium">CARREGANDO</span>
-        </div>
-      </div>
-      <div className="h-[500px] flex flex-col items-center justify-center bg-cyber-dark/50 backdrop-blur">
-        <div className="relative">
-          <MapPin className="h-16 w-16 text-primary/50 animate-pulse" />
-          <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full animate-ping" />
-        </div>
-        <p className="text-muted-foreground mt-4 font-medium">Carregando mapa...</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          Aguarde enquanto o Mapbox é inicializado
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Error placeholder component
-function MapError({ positionCount, error, onRetry }: { positionCount: number; error: string; onRetry: () => void }) {
-  return (
-    <div className="glass-card rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border p-4 bg-card">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-destructive/10 p-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
-            <p className="text-sm text-muted-foreground">
-              {positionCount} veículos ativos • Erro ao carregar
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="h-[500px] flex flex-col items-center justify-center bg-cyber-dark/50 backdrop-blur">
-        <AlertTriangle className="h-16 w-16 text-destructive/50" />
-        <p className="text-muted-foreground mt-4 font-medium">Erro ao carregar o mapa</p>
-        <p className="text-xs text-muted-foreground/70 mt-1 max-w-md text-center px-4">
-          {error}
-        </p>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="mt-4 gap-2"
-          onClick={onRetry}
-        >
-          <RefreshCw className="h-4 w-4" />
-          Tentar novamente
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
   const [positions, setPositions] = useState<FleetPosition[]>([]);
   const [driversInfo, setDriversInfo] = useState<Map<string, DriverInfo>>(new Map());
-  const [MapComponent, setMapComponent] = useState<React.ComponentType<any> | null>(null);
+  const [MapComponent, setMapComponent] = useState<React.ComponentType<MapViewProps> | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
@@ -239,7 +179,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
   }, []);
 
   // Enrich position with driver data
-  const enrichPosition = useCallback((position: any): FleetPosition => {
+  const enrichPosition = useCallback((position: FleetPosition): FleetPosition => {
     const driverInfo = driversInfo.get(position.driver_id);
     return {
       ...position,
@@ -257,6 +197,9 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
 
   // Fetch initial positions - ONLY active drivers
   const fetchPositions = useCallback(async () => {
+    // Sem internet mantem a ultima posicao conhecida (antes zerava o mapa:
+    // "0 veiculos com GPS ligado").
+    if (!navigator.onLine) return;
     const tenantId = await getCurrentTenantId();
     if (!tenantId) {
       setPositions([]);
@@ -270,7 +213,8 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
       .eq('is_active', true);
 
     if (!error && data) {
-      const enrichedPositions = data.map(enrichPosition);
+      // Linhas do banco tem null onde o tipo da tela usa undefined; o enriquecimento cobre os dois.
+      const enrichedPositions = data.map((row) => enrichPosition(row as unknown as FleetPosition));
       setPositions(enrichedPositions);
     } else if (error) {
       console.warn('Error fetching fleet positions:', error);
@@ -292,7 +236,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
 
     // Subscribe to driver changes to keep map info updated
     const driversChannel = supabase
-      .channel('drivers-map-sync')
+      .channel(uniqueChannelName("drivers-map-sync"))
       .on(
         'postgres_changes',
         {
@@ -309,7 +253,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
               return newMap;
             });
           } else if (payload.eventType === 'DELETE') {
-            const deletedId = (payload.old as any).id;
+            const deletedId = (payload.old as { id?: string }).id;
             setDriversInfo((prev) => {
               const newMap = new Map(prev);
               newMap.delete(deletedId);
@@ -346,7 +290,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
       : import('./LiveMapLeaflet');
 
     componentImport.then((module) => {
-      setMapComponent(() => module.default);
+      setMapComponent(() => module.default as React.ComponentType<MapViewProps>);
       setIsLoading(false);
     }).catch((err) => {
       console.error('Failed to load map component:', err);
@@ -359,21 +303,21 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
     loadMapComponent();
   }, [loadMapComponent]);
 
-  // Show loading state (token or component loading)
-  if (tokenLoading || isLoading) {
-    return <MapLoading positionCount={positions.length} />;
+  // Carregando (token ou componente do mapa)
+  if (tokenLoading || isLoading || (!MapComponent && !loadError)) {
+    return <LiveMapFrame state="loading" vehicleCount={positions.length} />;
   }
 
-  // Show error state
   if (loadError) {
-    return <MapError positionCount={positions.length} error={loadError} onRetry={() => window.location.reload()} />;
+    return <LiveMapFrame state="error" vehicleCount={positions.length} error={loadError} onRetry={() => window.location.reload()} />;
   }
 
-  // Mapbox is optional. Without a token the component uses OpenStreetMap.
+  // Mapbox e opcional. Sem token o componente usa o OpenStreetMap.
   if (typeof window === 'undefined' && !mapboxToken) {
     return (
-      <MapError 
-        positionCount={positions.length} 
+      <LiveMapFrame
+        state="error"
+        vehicleCount={positions.length}
         error="Token do Mapbox não encontrado. Verifique a tabela app_config no banco de dados."
         onRetry={() => window.location.reload()}
       />
@@ -381,7 +325,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
   }
 
   if (!MapComponent) {
-    return <MapLoading positionCount={positions.length} />;
+    return <LiveMapFrame state="loading" vehicleCount={positions.length} />;
   }
 
   return (

@@ -2,12 +2,12 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -16,30 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Save, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { FormField } from "@/components/patterns";
+import { OCCURRENCE_TYPES } from "./status";
 
 interface RegisterOccurrenceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deliveryNfe: string;
   deliveryId: number;
-  onSave: (deliveryId: number, occurrenceType: string, observation: string) => void;
-  currentUser?: string;
+  /** Devolve false quando nao gravou (a janela fica aberta para tentar de novo). */
+  onSave: (deliveryId: number, occurrenceType: string, observation: string) => Promise<boolean> | boolean | void;
 }
 
-const occurrenceTypes = [
-  { value: "cliente_ausente", label: "Cliente Ausente" },
-  { value: "endereco_nao_encontrado", label: "Endereço Não Encontrado" },
-  { value: "recusa_recebimento", label: "Recusa de Recebimento" },
-  { value: "avaria_mercadoria", label: "Avaria na Mercadoria" },
-  { value: "falta_mercadoria", label: "Falta de Mercadoria" },
-  { value: "documentacao_incorreta", label: "Documentação Incorreta" },
-  { value: "area_risco", label: "Área de Risco" },
-  { value: "horario_restrito", label: "Horário Restrito" },
-  { value: "veiculo_quebrado", label: "Veículo Quebrado" },
-  { value: "outros", label: "Outros" },
-];
+const occurrenceTypes = OCCURRENCE_TYPES;
 
 export function RegisterOccurrenceDialog({
   open,
@@ -47,41 +38,50 @@ export function RegisterOccurrenceDialog({
   deliveryNfe,
   deliveryId,
   onSave,
-  currentUser = "Gestor",
 }: RegisterOccurrenceDialogProps) {
   const [occurrenceType, setOccurrenceType] = useState("");
   const [observation, setObservation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [typeError, setTypeError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!occurrenceType) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Selecione o tipo de ocorrência.",
-        variant: "destructive",
-      });
+      setTypeError("Escolha o que aconteceu.");
+      document.getElementById("occurrenceType")?.focus();
       return;
     }
 
+    // So avisa sucesso e fecha depois que o banco confirmou (antes fechava mesmo com erro).
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    onSave(deliveryId, occurrenceType, observation);
-
-    toast({
-      title: "⚠️ Ocorrência Registrada",
-      description: `Ocorrência registrada na NF ${deliveryNfe} por ${currentUser}.`,
-    });
-
-    setIsSaving(false);
-    setOccurrenceType("");
-    setObservation("");
-    onOpenChange(false);
+    try {
+      const saved = await onSave(deliveryId, occurrenceType, observation.trim());
+      if (saved === false) {
+        toast({
+          title: "Não foi possível registrar a ocorrência",
+          description: "Confira a internet e tente de novo.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Ocorrência registrada",
+        description: `A NF ${deliveryNfe} ficou marcada como ocorrência.`,
+        variant: "success",
+      });
+      setOccurrenceType("");
+      setObservation("");
+      setTypeError(null);
+      onOpenChange(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleClose = () => {
+    if (isSaving) return;
     setOccurrenceType("");
     setObservation("");
+    setTypeError(null);
     onOpenChange(false);
   };
 
@@ -89,66 +89,60 @@ export function RegisterOccurrenceDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-orange-600">
-            <AlertTriangle className="h-5 w-5" />
-            Registrar Ocorrência
-          </DialogTitle>
+          <DialogTitle>Registrar ocorrência na NF {deliveryNfe}</DialogTitle>
+          <DialogDescription>Conte o que impediu a entrega. A nota fica marcada como ocorrência.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="p-3 rounded-lg bg-muted/50 text-sm">
-            <span className="text-muted-foreground">Nota Fiscal: </span>
-            <span className="font-mono font-semibold">{deliveryNfe}</span>
-          </div>
+        <div className="space-y-4">
+          <FormField id="occurrenceType" label="O que aconteceu" required error={typeError}>
+            {(field) => (
+              <Select
+                value={occurrenceType}
+                onValueChange={(value) => {
+                  setOccurrenceType(value);
+                  setTypeError(null);
+                }}
+              >
+                <SelectTrigger {...field} className={typeError ? "border-destructive" : undefined}>
+                  <SelectValue placeholder="Escolher o motivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {occurrenceTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="occurrenceType">Tipo de Ocorrência *</Label>
-            <Select value={occurrenceType} onValueChange={setOccurrenceType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {occurrenceTypes.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="observation">Observação</Label>
-            <Textarea
-              id="observation"
-              value={observation}
-              onChange={(e) => setObservation(e.target.value)}
-              placeholder="Detalhes adicionais sobre a ocorrência..."
-              rows={3}
-            />
-          </div>
+          <FormField
+            id="occurrence-observation"
+            label="Detalhes"
+            optional
+            hint="O texto fica salvo na observação da nota."
+          >
+            {(field) => (
+              <Textarea
+                {...field}
+                value={observation}
+                onChange={(e) => setObservation(e.target.value)}
+                placeholder="Ex.: Portão fechado, ninguém atendeu o interfone."
+                rows={3}
+                className="resize-none"
+              />
+            )}
+          </FormField>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-orange-600 hover:bg-orange-700"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Registrar Ocorrência
-              </>
-            )}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+            {isSaving ? "Salvando…" : "Registrar ocorrência"}
           </Button>
         </DialogFooter>
       </DialogContent>

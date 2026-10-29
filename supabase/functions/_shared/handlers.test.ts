@@ -79,17 +79,105 @@ Deno.test("create-checkout: valida campos e preços vêm do servidor", async () 
   assertEquals(res.headers.get("Access-Control-Allow-Origin"), ORIGIN);
 });
 
-Deno.test("create-checkout: recusa CNPJ ou e-mail já cadastrados", async () => {
+Deno.test("create-checkout: recusa CNPJ já assinante e e-mail de outra empresa", async () => {
   const { deps, db } = makeDeps();
-  db.tables.tenants.push({ id: "t1", cnpj: VALID_CNPJ });
+  // empresa ativa (ja paga) nao compra de novo
+  db.tables.tenants.push({ id: "t1", cnpj: VALID_CNPJ, status: "active" });
   let res = await handleCreateCheckout(post("create-checkout", GOOD), deps);
   assertEquals(res.status, 409);
   assertEquals((await res.json()).code, "cnpj_exists");
+  // bloqueada depois de ter pago (converted_at) tambem nao
+  db.tables.tenants = [{ id: "t1", cnpj: VALID_CNPJ, status: "blocked", converted_at: "2026-01-01T00:00:00Z", trial_started_at: "2025-12-01T00:00:00Z" }];
+  res = await handleCreateCheckout(post("create-checkout", GOOD), deps);
+  assertEquals(res.status, 409);
+  // e-mail que ja e usuario de outra empresa
   db.tables.tenants = [];
-  db.tables.profiles.push({ id: "u1", email: "ana@exemplo.com.br" });
+  db.tables.profiles.push({ id: "u1", email: "ana@exemplo.com.br", tenant_id: "t-outra" });
   res = await handleCreateCheckout(post("create-checkout", GOOD), deps);
   assertEquals(res.status, 409);
   assertEquals((await res.json()).code, "email_exists");
+});
+
+/** Empresa em teste gratis como register-tenant cria, com um administrador. */
+async function seedTrial(deps: Deps, db: FakeDb, adminEmail: string) {
+  const { data: u } = await deps.admin.auth.admin.createUser({ email: adminEmail, password: "Teste123!", user_metadata: { name: "Bia" } });
+  db.tables.tenants.push({
+    id: "t-trial", cnpj: VALID_CNPJ, razao_social: "Transportes Exemplo LTDA", name: "Transportes Exemplo LTDA", status: "trial", plan: "basic",
+    trial_started_at: "2026-10-20T00:00:00Z", trial_ends_at: "2026-10-27T00:00:00Z", next_due_date: null, financial_status: null,
+  });
+  db.tables.profiles.push({ id: u.user.id, email: adminEmail, tenant_id: "t-trial" });
+  db.tables.user_roles.push({ user_id: u.user.id, role: "admin", tenant_id: "t-trial" });
+  db.tables.tenant_memberships.push({ tenant_id: "t-trial", user_id: u.user.id, role: "admin" });
+  return u.user.id as string;
+}
+
+Deno.test("conversão: empresa em teste grátis + mesmo administrador → assinatura ativa sem senha nova", async () => {
+  const { deps, db, emails } = makeDeps();
+  const adminId = await seedTrial(deps, db, "ana@exemplo.com.br");
+
+  const res = await handleCreateCheckout(post("create-checkout", GOOD), deps);
+  assertEquals(res.status, 200);
+  const created = await res.json();
+  assertEquals(created.kind, "conversion");
+  assertEquals(db.tables.orders[0].tenant_id, "t-trial");
+  assertEquals(db.tables.orders[0].user_id, adminId);
+  assertEquals(db.tables.orders[0].existing_user, true);
+
+  const conf = await (await handleConfirmSandboxPayment(post("confirm-sandbox-payment", { order_id: created.order_id, access_token: created.access_token, outcome: "approved" }), deps)).json();
+  assertEquals(conf, { ok: true, status: "provisioned" });
+
+  // mesma empresa, agora ativa no plano comprado; nenhum usuario novo, senha intacta
+  assertEquals(db.tables.tenants.length, 1);
+  const tenant = db.tables.tenants[0];
+  assertEquals(tenant.status, "active");
+  assertEquals(tenant.plan, "control");
+  assertEquals(tenant.financial_status, "current");
+  assertEquals(tenant.next_due_date, "2026-11-29");
+  assert(tenant.converted_at, "converted_at marcado");
+  assertEquals(db.users.length, 1);
+  assertEquals(db.users[0].password, "Teste123!");
+  assertEquals(db.users[0].user_metadata.must_change_password, undefined);
+  assertEquals(db.tables.tenant_memberships.length, 1);
+  assertEquals(db.tables.payment_history.length, 1);
+  assertEquals(db.tables.payment_history[0].amount, 370);
+
+  // consulta publica: sem senha temporaria; e-mail de "assinatura ativa"
+  const pub = await (await handleGetOrder(post("get-order", { order_id: created.order_id, access_token: created.access_token }), deps)).json();
+  assertEquals(pub.status, "provisioned");
+  assertEquals(pub.kind, "conversion");
+  assertEquals(pub.existing_user, true);
+  assertEquals(pub.temp_password, null);
+  assertEquals(emails.length, 1);
+  assertMatch(String(emails[0].subject), /assinatura/i);
+  assert(!String(emails[0].html).includes("Senha temporária"), "e-mail nao traz senha temporaria");
+  assert(String(emails[0].text).includes("a mesma que você já usa"));
+});
+
+Deno.test("conversão: empresa em teste grátis + e-mail novo → segundo administrador com senha temporária", async () => {
+  const { deps, db, emails } = makeDeps();
+  await seedTrial(deps, db, "dona@exemplo.com.br");
+
+  const created = await (await handleCreateCheckout(post("create-checkout", GOOD), deps)).json();
+  assertEquals(created.kind, "conversion");
+  assertEquals(db.tables.orders[0].existing_user, false);
+  await handleConfirmSandboxPayment(post("confirm-sandbox-payment", { order_id: created.order_id, access_token: created.access_token, outcome: "approved" }), deps);
+
+  assertEquals(db.tables.tenants.length, 1);
+  assertEquals(db.tables.tenants[0].status, "active");
+  assertEquals(db.tables.tenants[0].plan, "control");
+  assertEquals(db.users.length, 2);
+  const novo = db.users.find((u) => u.email === "ana@exemplo.com.br")!;
+  assertEquals(novo.user_metadata.must_change_password, true);
+  assert(db.tables.user_roles.some((r) => r.user_id === novo.id && r.role === "admin" && r.tenant_id === "t-trial"));
+  assert(db.tables.tenant_memberships.some((m) => m.user_id === novo.id && m.tenant_id === "t-trial"));
+  assertEquals(db.tables.profiles.find((p) => p.id === novo.id)?.tenant_id, "t-trial");
+
+  const pub = await (await handleGetOrder(post("get-order", { order_id: created.order_id, access_token: created.access_token }), deps)).json();
+  assertEquals(pub.existing_user, false);
+  assertEquals(pub.temp_password, novo.password);
+  assertEquals(emails.length, 1);
+  assert(String(emails[0].html).includes(novo.password));
+  assert(String(emails[0].html).includes("já estava no Na Hora Frota"));
 });
 
 Deno.test("fluxo completo (sandbox): pagar → provisionar → enviar acesso → consultar", async () => {
@@ -114,7 +202,7 @@ Deno.test("fluxo completo (sandbox): pagar → provisionar → enviar acesso →
   assertEquals(tenant.status, "active");
   assertEquals(tenant.financial_status, "current");
   assertEquals(tenant.next_due_date, "2026-11-29");
-  assertEquals(tenant.max_drivers, 200);
+  assertEquals(tenant.converted_at, undefined);
   const user = db.users[0];
   assertEquals(user.email, "ana@exemplo.com.br");
   assertEquals(user.user_metadata.must_change_password, true);

@@ -4,9 +4,11 @@
  * Uses Supabase Realtime for instant updates
  */
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getTodayBrazil, isOnBrazilDate } from "@/lib/timezone";
+import { uniqueChannelName } from "@/lib/realtime";
+import { getDayBoundsUTC, getTodayBrazil, isOnBrazilDate } from "@/lib/timezone";
+import { fetchAllPages } from "@/lib/supabasePaging";
 import { getCurrentTenantId } from "@/lib/tenant";
 
 // Types for dashboard data
@@ -50,6 +52,7 @@ export interface DashboardManifest {
   status: string;
   created_at: string;
   updated_at: string;
+  completed_at?: string | null;
 }
 
 export interface DashboardInvoice {
@@ -93,8 +96,9 @@ export function useDashboardKPIs() {
   const [drivers, setDrivers] = useState<DashboardDriver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get today's date string in Brazil timezone (America/Sao_Paulo)
-  const today = useMemo(() => getTodayBrazil(), []);
+  // Dia de hoje (Brasilia), recalculado a cada carga: o painel fica aberto e
+  // antes continuava no dia em que foi aberto depois da meia-noite.
+  const [today, setToday] = useState(() => getTodayBrazil());
 
   // Fetch all data
   const fetchData = useCallback(async (showLoading = false) => {
@@ -108,26 +112,42 @@ export function useDashboardKPIs() {
         return;
       }
 
-      const [manifestsRes, invoicesRes, driversRes] = await Promise.all([
-        supabase
-          .from("manifests")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .neq("status", "cancelled")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("invoices")
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .order("imported_at", { ascending: false }),
+      const currentDay = getTodayBrazil();
+      setToday(currentDay);
+      const dayStart = getDayBoundsUTC(currentDay).start;
+
+      // So o que o painel usa: romaneios abertos ou mexidos hoje e NFs abertas ou
+      // finalizadas hoje (antes vinham todas as NFs com o XML, limitadas a 1000).
+      const [manifestsData, invoicesData, driversRes] = await Promise.all([
+        fetchAllPages((from, to) =>
+          supabase
+            .from("manifests")
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .neq("status", "cancelled")
+            .or(`status.in.(pending,in_progress),created_at.gte.${dayStart},updated_at.gte.${dayStart}`)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
+        fetchAllPages((from, to) =>
+          supabase
+            .from("invoices")
+            .select("id, nfe_number, recipient_name, address_full, total_value, total_weight, status, driver_id, manifest_id, occurrence_type, imported_at, updated_at, delivered_at")
+            .eq("tenant_id", tenantId)
+            .or(`status.in.(pending,in_transit,occurrence,returning,returned),updated_at.gte.${dayStart},delivered_at.gte.${dayStart}`)
+            .order("imported_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
         supabase
           .from("drivers")
           .select("id, name, phone, photo_url, avatar, vehicle_plate, vehicle_type, status, is_own_fleet")
           .eq("tenant_id", tenantId),
       ]);
 
-      setManifests((manifestsRes.data as DashboardManifest[]) ?? []);
-      setInvoices((invoicesRes.data as DashboardInvoice[]) ?? []);
+      setManifests((manifestsData as unknown as DashboardManifest[]) ?? []);
+      setInvoices((invoicesData as unknown as DashboardInvoice[]) ?? []);
       setDrivers((driversRes.data as DashboardDriver[]) ?? []);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
@@ -137,25 +157,38 @@ export function useDashboardKPIs() {
   }, []);
 
   // Subscribe to realtime changes
+  // Recarga silenciosa e agrupada: antes o evento do realtime chegava como
+  // "showLoading" (truthy) e cada baixa piscava o painel inteiro em carregamento.
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     fetchData(true);
 
+    const scheduleRefetch = () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+      refetchTimerRef.current = setTimeout(() => void fetchData(false), 1500);
+    };
+
     const manifestsChannel = supabase
-      .channel("dashboard-manifests")
-      .on("postgres_changes", { event: "*", schema: "public", table: "manifests" }, fetchData)
+      .channel(uniqueChannelName("dashboard-manifests"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "manifests" }, scheduleRefetch)
       .subscribe();
 
     const invoicesChannel = supabase
-      .channel("dashboard-invoices")
-      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, fetchData)
+      .channel(uniqueChannelName("dashboard-invoices"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, scheduleRefetch)
       .subscribe();
 
     const driversChannel = supabase
-      .channel("dashboard-drivers")
-      .on("postgres_changes", { event: "*", schema: "public", table: "drivers" }, fetchData)
+      .channel(uniqueChannelName("dashboard-drivers"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "drivers" }, scheduleRefetch)
       .subscribe();
 
+    // Sem realtime (ou com a aba parada), atualiza a cada minuto.
+    const intervalId = window.setInterval(() => void fetchData(false), 60 * 1000);
+
     return () => {
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+      window.clearInterval(intervalId);
       supabase.removeChannel(manifestsChannel);
       supabase.removeChannel(invoicesChannel);
       supabase.removeChannel(driversChannel);
@@ -171,10 +204,11 @@ export function useDashboardKPIs() {
     [drivers]
   );
 
-  // === KPI 1: Motoristas na Rua (today's manifests with active invoices in transit) ===
+  // === KPI 1: Motoristas na Rua (romaneios abertos, de qualquer dia) ===
+  // Antes so contava romaneio criado hoje: quem saiu com o romaneio de ontem sumia.
   const driversInRoute = useMemo((): DriversInRouteData[] => {
     const todayManifests = manifests.filter(
-      (m) => isOnBrazilDate(m.created_at, today) && !["completed", "paid", "cancelled"].includes(m.status)
+      (m) => !["completed", "paid", "cancelled"].includes(m.status)
     );
 
     const seenDriverIds = new Set<string>();
@@ -213,15 +247,21 @@ export function useDashboardKPIs() {
       });
 
     return routesFromManifests;
-  }, [manifests, invoices, today, getDriver]);
+  }, [manifests, invoices, getDriver]);
 
   // === KPI 2: Motoristas que já Finalizaram (Today's completed manifests) ===
   const finishedDrivers = useMemo((): FinishedDriverData[] => {
     const todayCompletedManifests = manifests
       .filter(
-        (m) => isOnBrazilDate(m.created_at, today) && ["completed", "paid"].includes(m.status)
+        // completed_at e gravado ao concluir; romaneio pago sem ter sido concluido nao "finalizou hoje".
+        (m) =>
+          ["completed", "paid"].includes(m.status) &&
+          isOnBrazilDate(m.completed_at ?? (m.status === "completed" ? m.updated_at : null), today)
       )
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.completed_at || b.updated_at).getTime() - new Date(a.completed_at || a.updated_at).getTime()
+      );
 
     return todayCompletedManifests.map((manifest) => {
       const driver = getDriver(manifest.driver_id);
@@ -245,7 +285,7 @@ export function useDashboardKPIs() {
         },
         manifest,
         invoices: manifestInvoices,
-        finishedAt: manifest.updated_at,
+        finishedAt: manifest.completed_at || manifest.updated_at,
         totalDeliveries: manifestInvoices.length,
         completedDeliveries: completed,
         occurrences,

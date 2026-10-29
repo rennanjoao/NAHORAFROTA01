@@ -3,7 +3,7 @@
  * 
  * Performance Ruler (4 Tiers):
  * - Excelente (Verde Esmeralda): Score > 97% - Meta atingida
- * - Bom (Azul/Verde Lima): Score 90% – 96% - Performance aceitável
+ * - Bom (Amarelo, "Atenção"): Score 90% – 96% - Abaixo da meta
  * - Atenção (Amarelo/Laranja): Score 75% – 89% - Requer monitoramento
  * - Crítico (Vermelho): Score < 75% - Alto risco operacional
  */
@@ -38,12 +38,12 @@ export function getSLAColorScheme(sla: number): SLAColorScheme {
     return {
       level: "excellent",
       labelPt: "Excelente",
-      bgClass: "bg-emerald-500/10",
-      textClass: "text-emerald-600",
-      borderClass: "border-emerald-500",
-      progressClass: "[&>div]:bg-emerald-500",
-      ringColor: "text-emerald-500",
-      badgeBgClass: "bg-emerald-600",
+      bgClass: "bg-success/10",
+      textClass: "text-success",
+      borderClass: "border-success",
+      progressClass: "[&>div]:bg-success",
+      ringColor: "text-success",
+      badgeBgClass: "bg-success text-success-foreground",
     };
   }
   
@@ -51,12 +51,13 @@ export function getSLAColorScheme(sla: number): SLAColorScheme {
     return {
       level: "good",
       labelPt: "Atenção",
-      bgClass: "bg-blue-500/10",
-      textClass: "text-blue-600",
-      borderClass: "border-blue-500",
-      progressClass: "[&>div]:bg-blue-500",
-      ringColor: "text-blue-500",
-      badgeBgClass: "bg-blue-600",
+      // Manual da marca: abaixo da meta e "Atenção" (amarelo); azul so para informacao/em transito.
+      bgClass: "bg-warning/10",
+      textClass: "text-warning",
+      borderClass: "border-warning",
+      progressClass: "[&>div]:bg-warning",
+      ringColor: "text-warning",
+      badgeBgClass: "bg-warning text-warning-foreground",
     };
   }
   
@@ -69,7 +70,7 @@ export function getSLAColorScheme(sla: number): SLAColorScheme {
       borderClass: "border-warning",
       progressClass: "[&>div]:bg-warning",
       ringColor: "text-warning",
-      badgeBgClass: "bg-warning",
+      badgeBgClass: "bg-warning text-warning-foreground",
     };
   }
   
@@ -81,7 +82,7 @@ export function getSLAColorScheme(sla: number): SLAColorScheme {
     borderClass: "border-destructive",
     progressClass: "[&>div]:bg-destructive",
     ringColor: "text-destructive",
-    badgeBgClass: "bg-destructive",
+    badgeBgClass: "bg-destructive text-destructive-foreground",
   };
 }
 
@@ -91,8 +92,8 @@ export function getSLAColorScheme(sla: number): SLAColorScheme {
  * @returns Tailwind text color class
  */
 export function getSLATextColor(sla: number): string {
-  if (sla >= SLA_THRESHOLDS.EXCELLENT) return "text-emerald-600";
-  if (sla >= SLA_THRESHOLDS.GOOD) return "text-blue-600";
+  if (sla >= SLA_THRESHOLDS.EXCELLENT) return "text-success";
+  if (sla >= SLA_THRESHOLDS.GOOD) return "text-warning";
   if (sla >= SLA_THRESHOLDS.ATTENTION) return "text-warning";
   return "text-destructive";
 }

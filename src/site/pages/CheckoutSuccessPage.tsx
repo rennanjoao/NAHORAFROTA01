@@ -99,8 +99,11 @@ export default function CheckoutSuccessPage() {
 
   const plan = order ? PLAN_BY_ID[order.plan] : null;
   const loginUrl = order?.login_url || `${window.location.origin}/login`;
+  // Conversão do teste grátis com o mesmo login: a senha da pessoa continua a mesma.
+  const existingUser = !!order?.existing_user;
+  const conversion = order?.kind === "conversion";
   const waText = order
-    ? `Acesso Na Hora Frota\nEmpresa: ${order.company_name}\nLogin: ${order.email}\nSenha temporária: ${order.temp_password ?? "(enviada por e-mail)"}\nEntrar: ${loginUrl}`
+    ? `Acesso Na Hora Frota\nEmpresa: ${order.company_name}\nLogin: ${order.email}\n${existingUser ? "Senha: a mesma que você já usa" : `Senha temporária: ${order.temp_password ?? "(enviada por e-mail)"}`}\nEntrar: ${loginUrl}`
     : "";
 
   return (
@@ -116,7 +119,11 @@ export default function CheckoutSuccessPage() {
         <p className="label-caps text-brand">{status === "provisioned" ? "Tudo pronto" : "Confirmando"}</p>
         <h1 className="mt-3 text-balance font-heading text-3xl font-bold leading-tight sm:text-4xl" aria-live="polite">
           {status === "provisioned" ? (
-            <>Pagamento confirmado. <span className="text-brand">Seu acesso está pronto.</span></>
+            existingUser ? (
+              <>Pagamento confirmado. <span className="text-brand">Sua assinatura está ativa.</span></>
+            ) : (
+              <>Pagamento confirmado. <span className="text-brand">Seu acesso está pronto.</span></>
+            )
           ) : status === "failed" ? (
             <>Pagamento confirmado, mas <span className="text-late">algo travou na criação da conta.</span></>
           ) : (
@@ -126,8 +133,8 @@ export default function CheckoutSuccessPage() {
 
         <ol className="mt-8 grid gap-3 rounded border border-border bg-card p-5 sm:grid-cols-3" aria-label="Etapas">
           <Step n={1} label="Pagamento confirmado" state={steps[0]} />
-          <Step n={2} label="Empresa e usuário criados" state={steps[1]} />
-          <Step n={3} label="Acesso enviado por e-mail" state={steps[2]} />
+          <Step n={2} label={conversion ? "Assinatura ativada na empresa" : "Empresa e usuário criados"} state={steps[1]} />
+          <Step n={3} label={existingUser ? "Confirmação enviada por e-mail" : "Acesso enviado por e-mail"} state={steps[2]} />
         </ol>
 
         {status === "failed" && (
@@ -140,9 +147,15 @@ export default function CheckoutSuccessPage() {
         {status === "provisioned" && order && plan && (
           <>
             <section aria-labelledby="acesso-title" className="mt-6 rounded border border-brand bg-card p-6 glow-brand">
-              <h2 id="acesso-title" className="font-heading text-xl font-bold">Seu acesso de administrador</h2>
+              <h2 id="acesso-title" className="font-heading text-xl font-bold">{existingUser ? "Sua assinatura está ativa" : "Seu acesso de administrador"}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Plano <strong className="text-foreground">{plan.name}</strong> para <strong className="text-foreground">{order.company_name}</strong>. Guarde estes dados: a senha temporária é trocada no primeiro login.
+                {existingUser ? (
+                  <>A <strong className="text-foreground">{order.company_name}</strong> saiu do teste grátis e está no plano <strong className="text-foreground">{plan.name}</strong>. Nada muda no seu login: entre com a senha que você já usa.</>
+                ) : conversion ? (
+                  <>A <strong className="text-foreground">{order.company_name}</strong> já estava no Na Hora Frota e agora está no plano <strong className="text-foreground">{plan.name}</strong>, com você como administrador. Guarde estes dados: a senha temporária é trocada no primeiro login.</>
+                ) : (
+                  <>Plano <strong className="text-foreground">{plan.name}</strong> para <strong className="text-foreground">{order.company_name}</strong>. Guarde estes dados: a senha temporária é trocada no primeiro login.</>
+                )}
               </p>
 
               <dl className="mt-5 space-y-3">
@@ -156,11 +169,20 @@ export default function CheckoutSuccessPage() {
                   </dd>
                 </div>
                 <div className="rounded border border-border bg-background p-3">
-                  <dt className="label-caps text-muted-foreground">Senha temporária</dt>
+                  <dt className="label-caps text-muted-foreground">{existingUser ? "Senha" : "Senha temporária"}</dt>
                   <dd className="mt-1 flex items-center justify-between gap-3">
+                    {existingUser ? (
+                      <span className="text-base">
+                        A mesma que você já usa.{" "}
+                        <Link to="/login" state={{ email: order.email, fromCheckout: true, existingUser: true }} className="text-sm font-semibold text-brand underline-offset-4 hover:underline">
+                          Esqueceu? Redefina na tela de entrada
+                        </Link>
+                      </span>
+                    ) : (
                     <code className="select-all font-data text-base tracking-wider" aria-label={showPass ? `Senha temporária ${order.temp_password}` : "Senha temporária oculta"}>
                       {order.temp_password ? (showPass ? order.temp_password : "•".repeat(order.temp_password.length)) : "enviada por e-mail"}
                     </code>
+                    )}
                     <span className="flex shrink-0 gap-2">
                       {order.temp_password && (
                         <button type="button" onClick={() => setShowPass((v) => !v)} className="inline-flex h-9 items-center gap-1.5 rounded border border-border px-2.5 text-xs font-semibold hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-pressed={showPass} aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}>
@@ -179,14 +201,14 @@ export default function CheckoutSuccessPage() {
 
               <p className="mt-4 flex items-start gap-2 text-sm text-muted-foreground" role="status">
                 <Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                {order.access_email_status === "sent" && <span>Enviamos também para <strong className="text-foreground">{order.email}</strong>. Se não aparecer em 2 minutos, confira o spam.</span>}
+                {order.access_email_status === "sent" && <span>Enviamos {existingUser ? "a confirmação" : "também"} para <strong className="text-foreground">{order.email}</strong>. Se não aparecer em 2 minutos, confira o spam.</span>}
                 {order.access_email_status === "pending" && <span>Enviando para <strong className="text-foreground">{order.email}</strong>…</span>}
                 {order.access_email_status === "failed" && <span>Não conseguimos enviar o e-mail. Anote os dados acima; eles também valem para entrar.</span>}
                 {order.access_email_status === "not_configured" && <span>Anote os dados acima: eles são o seu acesso. (Envio de e-mail não configurado neste ambiente.)</span>}
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Cta size="lg" arrow onClick={() => navigate("/login", { state: { email: order.email, fromCheckout: true } })}>
+                <Cta size="lg" arrow onClick={() => navigate("/login", { state: { email: order.email, fromCheckout: true, existingUser } })}>
                   Entrar agora
                 </Cta>
                 {order.whatsapp && (
@@ -206,8 +228,8 @@ export default function CheckoutSuccessPage() {
               <div className="rounded border border-border bg-card p-5">
                 <p className="label-caps text-brand">Primeiros 10 minutos</p>
                 <ol className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  <li className="flex gap-2"><span className="font-data font-bold text-foreground">1</span> Entre e crie a sua senha definitiva.</li>
-                  <li className="flex gap-2"><span className="font-data font-bold text-foreground">2</span> Cadastre motoristas e veículos.</li>
+                  <li className="flex gap-2"><span className="font-data font-bold text-foreground">1</span> {existingUser ? "Entre com a sua senha de sempre." : "Entre e crie a sua senha definitiva."}</li>
+                  <li className="flex gap-2"><span className="font-data font-bold text-foreground">2</span> {conversion ? "Confira motoristas e veículos já cadastrados." : "Cadastre motoristas e veículos."}</li>
                   <li className="flex gap-2"><span className="font-data font-bold text-foreground">3</span> Importe o XML das notas de hoje e monte o primeiro romaneio.</li>
                 </ol>
               </div>

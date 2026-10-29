@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo } from "react";
+import { useState } from "react";
+import { Building2, Car, FileText, Landmark, Loader2, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,54 +8,47 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Plus, 
-  Building2, 
-  User, 
-  Car, 
-  FileText, 
-  Landmark,
-  Upload,
-  X,
-  Eye,
-  Loader2,
-  KeyRound,
-  Mail,
-  Phone,
-  Copy,
-  Eye as EyeIcon,
-  EyeOff,
-  RefreshCw
-} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { VehicleType } from "@/contexts/LogisticsContext";
 import { supabase } from "@/integrations/supabase/client";
+import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
+import { formatDocument, isValidCPF } from "@/lib/documentValidation";
 import { requireCurrentTenantId } from "@/lib/tenant";
+import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError";
+import { MAX_DRIVER_DOCUMENT_BYTES, uploadDriverDocument, type DriverDocumentType } from "@/lib/driverDocuments";
+import {
+  CNH_CATEGORIES,
+  DRIVER_DOCUMENT_KEYS,
+  DRIVER_DOCUMENT_LABELS,
+  DRIVER_VEHICLE_TYPES,
+  focusField,
+  formatPhone,
+  isCpfTaken,
+  isValidPhone,
+  isValidPlate,
+  normalizePlate,
+  PHONE_ERROR,
+  plainError,
+  PLATE_ERROR,
+} from "./driverConfig";
+import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
+import { FieldGroup, FormField } from "@/components/patterns/FormField";
+import { TabErrorDot } from "./TabErrorDot";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 interface DocumentFile {
   name: string;
   url: string;
   uploadedAt: Date;
+  file: File;
 }
 
-interface DriverDocuments {
-  cnh?: DocumentFile;
-  addressProof?: DocumentFile;
-  vehicleDoc?: DocumentFile;
-  trailerDoc?: DocumentFile;
-}
+type DriverDocuments = Partial<Record<DriverDocumentType, DocumentFile>>;
 
 interface NewDriverDialogProps {
   open: boolean;
@@ -62,10 +56,6 @@ interface NewDriverDialogProps {
   onSave: (driver?: any) => void;
   addDriver?: (driver: any) => Promise<any>;
 }
-
-// Removed login method options - now only uses auto-generated email
-
-const VEHICLE_TYPES: VehicleType[] = ["Fiorino", "VUC", "Toco", "Truck", "Carreta", "Van", "Moto"];
 
 const vehicleTypeLabels: Record<string, VehicleType> = {
   fiorino: "Fiorino",
@@ -83,170 +73,178 @@ const isVehicleTypeConstraintError = (message?: string | null) =>
 const getVehicleTypeCandidates = (dbValue: string, displayValue: string) =>
   Array.from(new Set([dbValue, displayValue, displayValue.toUpperCase()]));
 
+// Sem termos tecnicos: o detalhe vai para o console.
 const getVehicleTypeConstraintMessage = () =>
-  "Tipo de veiculo nao aceito pelo banco de dados. Aplique a migration mais recente de tipos de veiculo e tente novamente.";
+  "Este tipo de veículo ainda não pode ser usado. Escolha outro tipo ou fale com o suporte.";
 
 const getDriverSaveErrorMessage = (message?: string | null) => {
-  if (isVehicleTypeConstraintError(message)) {
-    return "O banco ainda nao aceita este tipo de veiculo. Aplique a migration 20260427090000_fix_driver_vehicle_type_rpc.sql no Supabase e tente novamente.";
-  }
-
-  return message || "Erro ao cadastrar motorista";
+  if (isVehicleTypeConstraintError(message)) return getVehicleTypeConstraintMessage();
+  return plainError(message || "", "Confira os dados e tente de novo.");
 };
+
+const emptyForm = () => ({
+  name: "",
+  cpf: "",
+  phone: "",
+  contactEmail: "",
+  cnhNumber: "",
+  cnhCategory: "d",
+  vehicleType: "",
+  vehiclePlate: "",
+  bankName: "",
+  agency: "",
+  accountNumber: "",
+  accountType: "corrente",
+  pixKeyValue: "",
+});
+
+type FormData = ReturnType<typeof emptyForm>;
+type FieldKey = "name" | "cpf" | "phone" | "contactEmail" | "cnhNumber" | "vehicleType" | "vehiclePlate";
+type FieldErrors = Partial<Record<FieldKey, string>>;
+
+// Ordem de foco quando ha erro, e em que aba cada campo esta.
+const FIELD_ORDER: { key: FieldKey; id: string; tab: "personal" | "vehicle" }[] = [
+  { key: "name", id: "new-name", tab: "personal" },
+  { key: "cpf", id: "new-cpf", tab: "personal" },
+  { key: "phone", id: "new-phone", tab: "personal" },
+  { key: "contactEmail", id: "new-email", tab: "personal" },
+  { key: "cnhNumber", id: "new-cnh", tab: "personal" },
+  { key: "vehicleType", id: "new-vehicle-type", tab: "vehicle" },
+  { key: "vehiclePlate", id: "new-vehicle-plate", tab: "vehicle" },
+];
 
 export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDriverDialogProps) {
   const [isOwnFleet, setIsOwnFleet] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const returnFocus = useReturnFocus();
   const [activeTab, setActiveTab] = useState("personal");
   const [documents, setDocuments] = useState<DriverDocuments>({});
-  
-  // Login creation state
+  const [errors, setErrors] = useState<FieldErrors>({});
   const [createLogin, setCreateLogin] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  
-  // Form fields
-  const [formData, setFormData] = useState({
-    name: "",
-    cpf: "",
-    phone: "",
-    cnhNumber: "",
-    cnhCategory: "d",
-    vehicleType: "",
-    vehiclePlate: "",
-    bankName: "",
-    agency: "",
-    accountNumber: "",
-    accountType: "corrente",
-    pixKeyType: "",
-    pixKeyValue: "",
-  });
+  const [formData, setFormData] = useState<FormData>(emptyForm);
 
-  // File input refs
-  const cnhInputRef = useRef<HTMLInputElement>(null);
-  const addressInputRef = useRef<HTMLInputElement>(null);
-  const vehicleInputRef = useRef<HTMLInputElement>(null);
-  const trailerInputRef = useRef<HTMLInputElement>(null);
-
-  const documentLabels: Record<keyof DriverDocuments, string> = {
-    cnh: "CNH",
-    addressProof: "Comprovante de Endereço",
-    vehicleDoc: "Documento do Veículo (CRLV)",
-    trailerDoc: "Documento da Carreta",
+  const update = (patch: Partial<FormData>) => {
+    setFormData((current) => ({ ...current, ...patch }));
+    const touched = Object.keys(patch) as FieldKey[];
+    if (touched.some((key) => errors[key])) {
+      setErrors((current) => {
+        const next = { ...current };
+        touched.forEach((key) => delete next[key]);
+        return next;
+      });
+    }
   };
 
-  const documentRefs: Record<keyof DriverDocuments, React.RefObject<HTMLInputElement>> = {
-    cnh: cnhInputRef,
-    addressProof: addressInputRef,
-    vehicleDoc: vehicleInputRef,
-    trailerDoc: trailerInputRef,
-  };
-
-  const handleFileUpload = (type: keyof DriverDocuments, file: File) => {
+  const handleFileUpload = (type: DriverDocumentType, file: File) => {
+    if (file.size > MAX_DRIVER_DOCUMENT_BYTES) {
+      toast({
+        title: "Arquivo muito grande",
+        description: "Envie um arquivo de até 10 MB.",
+        variant: "destructive",
+      });
+      return;
+    }
     const url = URL.createObjectURL(file);
-    setDocuments(prev => ({
+    setDocuments((prev) => ({
       ...prev,
-      [type]: { name: file.name, url, uploadedAt: new Date() }
+      [type]: { name: file.name, url, uploadedAt: new Date(), file },
     }));
     toast({
-      title: "📄 Documento carregado",
-      description: `${file.name} foi adicionado com sucesso.`,
+      title: "Documento anexado",
+      description: `${file.name} será enviado ao salvar o motorista.`,
     });
   };
 
-  const handleRemoveDocument = (type: keyof DriverDocuments) => {
-    setDocuments(prev => {
+  const handleRemoveDocument = (type: DriverDocumentType) => {
+    setDocuments((prev) => {
       const newDocs = { ...prev };
       delete newDocs[type];
       return newDocs;
     });
   };
 
-  // Auto-generate email and password from name and CPF
+  // E-mail e senha do app gerados a partir do nome e do CPF.
   const generateDriverEmail = (name: string, cpf: string): string => {
     if (!name.trim()) return "";
-    const parts = name.trim().split(/\s+/);
-    const firstName = parts[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const lastInitial = parts.length > 1 ? parts[parts.length - 1][0].toLowerCase() : "";
+    const parts = name.trim().split(/\s+/).map(toEmailLocalPart).filter(Boolean);
+    const firstName = parts[0] || "motorista";
+    const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
     const cpfDigits = cpf.replace(/\D/g, "");
     const cpfSuffix = cpfDigits.length >= 4 ? cpfDigits.slice(-4) : "";
     return `${firstName}${lastInitial}${cpfSuffix}@driver.nahorafrota.app`;
   };
-  
-  // Generate password from CPF: first 6 digits + "Na"
+
+  // Senha: 6 primeiros digitos do CPF + "Na".
   const generatePasswordFromCPF = (cpf: string): string => {
-    const cleanCPF = cpf.replace(/\D/g, ''); // Remove non-digits
+    const cleanCPF = cpf.replace(/\D/g, "");
     if (cleanCPF.length >= 6) {
-      return cleanCPF.substring(0, 6) + 'Na';
+      return cleanCPF.substring(0, 6) + "Na";
     }
-    // Fallback if CPF is incomplete
-    return 'Mudar123Na';
+    return "Mudar123Na";
   };
 
-  // Copy to clipboard helper
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "✅ Copiado!",
-        description: `${label} copiado para a área de transferência.`,
-      });
-    } catch (err) {
-      toast({
-        title: "❌ Erro ao copiar",
-        description: "Não foi possível copiar. Copie manualmente.",
-        variant: "destructive",
-      });
-    }
-  };
-  
   const generatedEmail = generateDriverEmail(formData.name, formData.cpf);
   const generatedPassword = generatePasswordFromCPF(formData.cpf);
+  const getLoginIdentifier = (): string => generatedEmail;
 
-  // Generate login identifier - now always uses auto-generated email
-  const getLoginIdentifier = (): string => {
-    return generatedEmail;
+  const validate = (): FieldErrors => {
+    const next: FieldErrors = {};
+    if (!formData.name.trim()) next.name = "Informe o nome completo.";
+    if (!formData.cpf.trim()) next.cpf = "Informe o CPF.";
+    else if (!isValidCPF(formData.cpf)) next.cpf = "CPF inválido. Confira os números.";
+    if (!formData.phone.trim()) next.phone = "Informe o telefone com DDD.";
+    else if (!isValidPhone(formData.phone)) next.phone = PHONE_ERROR;
+    if (formData.contactEmail.trim() && !isValidContactEmail(formData.contactEmail)) {
+      next.contactEmail = "E-mail inválido. Confira o endereço.";
+    }
+    if (!formData.cnhNumber.trim()) next.cnhNumber = "Informe o número da CNH.";
+    if (!isOwnFleet) {
+      if (!formData.vehicleType) next.vehicleType = "Escolha o tipo de veículo.";
+      if (!formData.vehiclePlate.trim()) next.vehiclePlate = "Informe a placa do veículo.";
+      else if (!isValidPlate(formData.vehiclePlate)) next.vehiclePlate = PLATE_ERROR;
+    }
+    return next;
+  };
+
+  const showErrors = (found: FieldErrors) => {
+    setErrors(found);
+    const first = FIELD_ORDER.find((field) => found[field.key]);
+    if (!first) return;
+    setActiveTab(first.tab);
+    // Espera a aba aparecer para levar o foco ao primeiro campo com erro.
+    window.setTimeout(() => focusField(first.id), 60);
+  };
+
+  const resetForm = () => {
+    setFormData(emptyForm());
+    setDocuments({});
+    setErrors({});
+    setIsOwnFleet(false);
+    setActiveTab("personal");
+    setCreateLogin(false);
   };
 
   const handleSave = async () => {
     if (isSaving) return;
 
-    // Validate required fields
-    if (!formData.name || !formData.cpf || !formData.phone || !formData.cnhNumber) {
-      toast({
-        title: "⚠️ Campos obrigatórios",
-        description: "Por favor, preencha todos os campos obrigatórios na aba Pessoal.",
-        variant: "destructive",
-      });
-      setActiveTab("personal");
+    const found = validate();
+    if (Object.keys(found).length > 0) {
+      showErrors(found);
       return;
     }
 
-    const cpfToSave = formData.cpf.trim();
-
-    if (!isOwnFleet && (!formData.vehicleType || !formData.vehiclePlate)) {
-      toast({
-        title: "⚠️ Dados do veículo",
-        description: "Para motoristas terceiros, informe o tipo e placa do veículo.",
-        variant: "destructive",
-      });
-      setActiveTab("vehicle");
-      return;
-    }
-
-    // Validate login fields if creating login
-    if (createLogin) {
-      if (!generatedEmail) {
-        toast({
-          title: "⚠️ Nome obrigatório",
-          description: "Preencha o nome para gerar o e-mail de login.",
-          variant: "destructive",
-        });
-        return;
-      }
-      // Password is auto-generated from CPF format (6 primeiros dígitos + "Na")
-    }
+    // Sempre no formato 000.000.000-00: misturar com so digitos furava a checagem de CPF repetido.
+    const cpfToSave = formatDocument(formData.cpf);
 
     setIsSaving(true);
+
+    // O banco aceita CPF repetido: confere antes de criar login ou gravar.
+    // Erro so no campo: um aviso solto roubava o primeiro Esc da janela.
+    if (await isCpfTaken(cpfToSave)) {
+      setIsSaving(false);
+      showErrors({ cpf: "Este CPF já está cadastrado em outro motorista. Confira a lista de motoristas." });
+      return;
+    }
 
     let createdUserId: string | null = null;
     let createdUserEmail: string | null = null;
@@ -254,14 +252,14 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     let loginEmailChanged = false;
 
     try {
-      // Create login if enabled
+      // Cria o login do app, se pedido.
       if (createLogin) {
         const loginIdentifier = getLoginIdentifier();
 
         const normalizedEmail = loginIdentifier.trim().toLowerCase();
         const normalizedPassword = generatedPassword.trim();
         const normalizedName = formData.name.trim();
-        const normalizedPhone = formData.phone.trim() ? formData.phone.trim() : null;
+        const normalizedPhone = formData.phone.trim() ? formatPhone(formData.phone) : null;
         const normalizedCpf = cpfToSave;
 
         const { data, error } = await supabase.functions.invoke("create-user", {
@@ -278,21 +276,19 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           },
         });
 
-        // Check for error in response body
         if (data?.error) {
           const errMsg = data.error;
           if (errMsg.includes("already been registered") || errMsg.includes("email_exists")) {
             toast({
-              title: "❌ Login já existe",
-              description: "Este e-mail ou identificador já está cadastrado no sistema. Use outro e-mail ou desmarque 'Criar Login de Acesso'.",
+              title: "Login já existe",
+              description: "Este e-mail de acesso já está em uso. Confira se o motorista já foi cadastrado ou desligue Criar acesso ao aplicativo.",
               variant: "destructive",
             });
             setIsSaving(false);
             return;
           }
-          // Show error with details
           toast({
-            title: "❌ Erro ao criar login",
+            title: "Não foi possível criar o login",
             description: errMsg,
             variant: "destructive",
           });
@@ -300,83 +296,23 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           return;
         }
 
-        // Check for function invocation error (non-2xx responses)
+        // Erro da funcao (resposta fora de 2xx).
         if (error) {
-          const anyErr = error as any;
-
-          // Extract status code and response body
-          const statusCode = anyErr?.status || anyErr?.context?.status || "unknown";
-          const contextBody =
-            typeof anyErr?.context?.body === "string"
-              ? anyErr.context.body
-              : typeof anyErr?.context?.response === "string"
-                ? anyErr.context.response
-                : null;
-
-          let bodyMessage: string | null = null;
-          let errorCode: string | null = null;
-          if (contextBody) {
-            try {
-              const parsed = JSON.parse(contextBody);
-              bodyMessage = parsed?.error ? String(parsed.error) : contextBody;
-              errorCode = parsed?.code || null;
-            } catch {
-              bodyMessage = contextBody;
-            }
-          }
-
-          const errMsg = bodyMessage || error.message || String(error);
-
-          if (errorCode === "cpf_already_exists" || statusCode === 409) {
-            toast({
-              title: "CPF ja cadastrado",
-              description: "Este CPF ja esta vinculado a outro motorista. Verifique se o motorista ja existe na lista ou use um CPF diferente.",
-              variant: "destructive",
-            });
-            setIsSaving(false);
-            return;
-          }
-
-          // Handle specific error codes with friendly messages
-          if (errorCode === "cpf_already_exists" || statusCode === 409) {
-            toast({
-              title: "⚠️ CPF já cadastrado",
-              description: errMsg || "Este CPF já está vinculado a outro motorista. Verifique os dados ou use um CPF diferente.",
-              variant: "destructive",
-            });
-            setIsSaving(false);
-            return;
-          }
-
-          if (errMsg.includes("Failed to send a request to the Edge Function")) {
-            toast({
-              title: "Login nao criado",
-              description: "Nao foi possivel chamar a funcao create-user. Verifique se ela esta ativa e tente novamente.",
-              variant: "destructive",
-            });
-            console.error("Edge function request failed:", error);
-            setIsSaving(false);
-            return;
-          } else {
-          // Show detailed error with status code
+          const info = await readEdgeFunctionError(error, "Não foi possível criar o login do motorista.");
+          const cpfTaken = info.code === "cpf_already_exists" || /cpf/i.test(info.message);
           toast({
-            title: `❌ Erro ao criar login (${statusCode})`,
-            description: errMsg,
+            title: cpfTaken ? "CPF já cadastrado" : info.status === 409 ? "Login já existe" : "Não foi possível criar o login",
+            description: cpfTaken
+              ? "Este CPF já está ligado a outro motorista. Confira se o motorista já está na lista."
+              : info.message,
             variant: "destructive",
           });
-          
-          console.error("Edge function error:", {
-            statusCode,
-            message: errMsg,
-            fullError: error
-          });
-
+          if (cpfTaken) showErrors({ cpf: "Este CPF já está cadastrado." });
+          console.error("Edge function error:", info, error);
           setIsSaving(false);
           return;
-          }
         }
 
-        // Store the created user ID so the driver can be linked below.
         if (data?.user?.id) {
           createdUserId = data.user.id;
         }
@@ -384,16 +320,11 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           createdUserEmail = data.user.email;
           loginEmailChanged = !!data.user.emailChanged || createdUserEmail !== getLoginIdentifier().trim().toLowerCase();
         }
-        if (createdUserId) {
-        toast({
-          title: "✅ Login criado",
-          description: `Login: ${createdUserEmail || generatedEmail}`,
-        });
-        }
+        // O aviso do login sai junto com o do cadastro, no fim (antes eram dois iguais).
         if (!createdUserId) {
           toast({
-            title: "Erro ao criar login",
-            description: "A funcao respondeu, mas nao retornou o ID do usuario criado.",
+            title: "Não foi possível criar o login",
+            description: "A função respondeu, mas não retornou o ID do usuário criado.",
             variant: "destructive",
           });
           setIsSaving(false);
@@ -401,7 +332,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         }
       }
 
-      // Save driver to database
+      // Grava o motorista.
       const tenantId = await requireCurrentTenantId();
       const normalizedVehicleType = (() => {
         const vt = (formData.vehicleType || "").toLowerCase();
@@ -416,11 +347,11 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       const displayVehicleType = vehicleTypeLabels[normalizedVehicleType] || "Van";
 
       const driverData: any = {
-        name: formData.name,
+        name: formData.name.trim(),
         cpf: cpfToSave,
-        phone: formData.phone,
+        phone: formatPhone(formData.phone),
         avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formData.name)}`,
-        vehicle_plate: formData.vehiclePlate || "PENDENTE",
+        vehicle_plate: normalizePlate(formData.vehiclePlate) || "PENDENTE",
         vehicle_type: normalizedVehicleType,
         cnh: formData.cnhNumber,
         cnh_category: formData.cnhCategory.toUpperCase(),
@@ -461,10 +392,10 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           lastVehicleTypeError = error;
         }
 
-        throw lastVehicleTypeError || new Error("Tipo de veiculo nao aceito pelo banco de dados");
+        throw lastVehicleTypeError || new Error("Tipo de veículo não aceito pelo banco de dados");
       };
 
-      // If login was created, link/create the driver row using the existing RPC.
+      // Com login criado, liga/cria o motorista pela RPC existente.
       if (createdUserId) {
         const completeDriver = (vehicleType: string) =>
           supabase.rpc("create_driver_complete", {
@@ -552,52 +483,83 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         if (!savedDriver) {
           throw new Error("Falha ao salvar motorista no banco de dados");
         }
+        createdDriverId = savedDriver.id;
       } else {
-        // Fallback: save directly via Supabase (no login - insert new driver)
-        await insertDriverDirectly();
+        // Sem login: grava direto no Supabase.
+        const savedDriver = await insertDriverDirectly();
+        createdDriverId = savedDriver?.id ?? null;
       }
-      
+
+      // Documentos anexados no cadastro (antes eram descartados ao salvar)
+      const pendingDocuments = Object.entries(documents) as Array<[DriverDocumentType, DocumentFile]>;
+      if (createdDriverId && pendingDocuments.length > 0) {
+        const failed: string[] = [];
+        for (const [type, doc] of pendingDocuments) {
+          try {
+            await uploadDriverDocument({ driverId: createdDriverId, tenantId, type, file: doc.file });
+          } catch (uploadError) {
+            console.error("Driver document upload error:", uploadError);
+            failed.push(DRIVER_DOCUMENT_LABELS[type]);
+          }
+        }
+        if (failed.length > 0) {
+          toast({
+            title: "Documentos não enviados",
+            description: `Motorista salvo, mas falhou o envio de: ${failed.join(", ")}. Envie de novo em Editar dados.`,
+            variant: "destructive",
+          });
+        }
+      }
+
       onSave();
+
+      // Dispara o e-mail com os dados de cadastro para o motorista
+      if (createdDriverId && formData.contactEmail.trim()) {
+        const emailResult = await sendDriverCredentialsEmail({
+          driverId: createdDriverId,
+          contactEmail: formData.contactEmail,
+          password: createLogin ? generatedPassword : null,
+        });
+        const feedback = describeCredentialsEmailResult(emailResult);
+        if (feedback) {
+          toast({
+            title: feedback.title,
+            description: feedback.description,
+            variant: feedback.kind === "error" ? "destructive" : undefined,
+          });
+        }
+      }
       if (createLogin) {
         toast({
           title: loginEmailChanged ? "Motorista cadastrado com login ajustado" : "Motorista cadastrado com login",
-          description: `Login: ${createdUserEmail || generatedEmail} | Senha: ${generatedPassword}`,
+          description: `Login: ${createdUserEmail || generatedEmail} · Senha: ${generatedPassword}`,
         });
       } else {
         toast({
           title: "Motorista cadastrado",
-          description: `${driverData.name} foi adicionado e esta disponivel em todo o sistema.`,
+          description: `${driverData.name} foi adicionado e está disponível em todo o sistema.`,
         });
       }
-      
-      // Reset form
-      setFormData({
-        name: "",
-        cpf: "",
-        phone: "",
-        cnhNumber: "",
-        cnhCategory: "d",
-        vehicleType: "",
-        vehiclePlate: "",
-        bankName: "",
-        agency: "",
-        accountNumber: "",
-        accountType: "corrente",
-        pixKeyType: "",
-        pixKeyValue: "",
-      });
-      setDocuments({});
-      setIsOwnFleet(false);
-      setActiveTab("personal");
-      setCreateLogin(false);
+
+      resetForm();
     } catch (err: any) {
       console.error("Error saving driver:", err);
+      // Login criado mas cadastro do motorista falhou: remove o login para nao
+      // deixar um acesso solto (e liberar o e-mail para a proxima tentativa).
+      if (createdUserId && !createdDriverId) {
+        const { data: rollback, error: rollbackError } = await supabase.rpc("delete_user_complete", {
+          p_user_id: createdUserId,
+        });
+        if (rollbackError || !(rollback as { success?: boolean } | null)?.success) {
+          console.error("Rollback do login do motorista falhou:", rollbackError || rollback);
+        }
+      }
       const errorMessage = getDriverSaveErrorMessage(err?.message);
       if (isVehicleTypeConstraintError(err?.message)) {
         setActiveTab("vehicle");
       }
       toast({
-        title: "❌ Erro ao cadastrar",
+        title: "Não foi possível cadastrar",
         description: errorMessage,
         variant: "destructive",
       });
@@ -609,572 +571,221 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   const handleClose = () => {
     onOpenChange(false);
     setActiveTab("personal");
+    setErrors({});
   };
+
+  const bankValues: BankValues = {
+    banco: formData.bankName,
+    agencia: formData.agency,
+    conta: formData.accountNumber,
+    tipo_conta: formData.accountType,
+    chave_pix: formData.pixKeyValue,
+  };
+
+  const personalHasError = Boolean(errors.name || errors.cpf || errors.phone || errors.contactEmail || errors.cnhNumber);
+  const vehicleHasError = Boolean(errors.vehicleType || errors.vehiclePlate);
+
+  const personalFields = (
+    <div className="space-y-4">
+      <FormField id="new-name" label="Nome completo" required error={errors.name}>
+        {(control) => (
+          <Input {...control} placeholder="Nome do motorista" autoComplete="off" value={formData.name} onChange={(e) => update({ name: e.target.value })} />
+        )}
+      </FormField>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField id="new-cpf" label="CPF" required error={errors.cpf}>
+          {(control) => (
+            <Input {...control} placeholder="000.000.000-00" inputMode="numeric" value={formData.cpf} onChange={(e) => update({ cpf: e.target.value })} />
+          )}
+        </FormField>
+        <FormField id="new-phone" label="Telefone (WhatsApp)" required error={errors.phone}>
+          {(control) => (
+            <Input {...control} type="tel" placeholder="(11) 99999-0000" value={formData.phone} onChange={(e) => update({ phone: e.target.value })} />
+          )}
+        </FormField>
+      </div>
+      <FormField
+        id="new-email"
+        label="E-mail do motorista"
+        optional
+        error={errors.contactEmail}
+        hint="Recebe por e-mail os dados do cadastro e o acesso ao aplicativo."
+      >
+        {(control) => (
+          <Input {...control} type="email" placeholder="motorista@email.com" value={formData.contactEmail} onChange={(e) => update({ contactEmail: e.target.value })} />
+        )}
+      </FormField>
+      <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-4">
+        <FormField id="new-cnh" label="Número da CNH" required error={errors.cnhNumber}>
+          {(control) => (
+            <Input {...control} placeholder="Número da CNH" inputMode="numeric" value={formData.cnhNumber} onChange={(e) => update({ cnhNumber: e.target.value })} />
+          )}
+        </FormField>
+        <FormField id="new-cnh-category" label="Categoria">
+          {(control) => (
+            <Select value={formData.cnhCategory} onValueChange={(value) => update({ cnhCategory: value })}>
+              <SelectTrigger {...control}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CNH_CATEGORIES.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </FormField>
+      </div>
+      <AppLoginFields
+        enabled={createLogin}
+        onEnabledChange={setCreateLogin}
+        email={generatedEmail}
+        password={generatedPassword}
+        hasName={Boolean(formData.name.trim())}
+      />
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="top-[5dvh] flex max-h-[90dvh] min-h-0 w-[calc(100vw-2rem)] translate-y-0 flex-col overflow-hidden sm:max-w-xl">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5 text-primary" />
-            Cadastrar Novo Motorista
-          </DialogTitle>
+      <DialogContent {...returnFocus} className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden sm:h-[min(90vh,50rem)] sm:max-h-[90vh] sm:max-w-2xl">
+        <DialogHeader className="shrink-0 pb-4">
+          <DialogTitle>Cadastrar motorista</DialogTitle>
           <DialogDescription>
-            Preencha os dados do motorista. Após o cadastro, ele será enviado para aprovação de risco.
+            Preencha os dados do motorista. Depois do cadastro, ele passa pela aprovação de risco.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Driver Type Toggle - Always visible */}
-        <div className="flex shrink-0 items-center justify-between rounded-lg border bg-secondary/30 p-3">
-          <div className="space-y-0.5">
-            <Label htmlFor="new-own-fleet-toggle" className="text-sm cursor-pointer font-medium">
-              Motorista da Casa (CLT)
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {isOwnFleet 
-                ? "Utilizará veículos da frota própria" 
-                : "Agregado/terceiro com veículo próprio"}
-            </p>
-          </div>
-          <Switch
-            id="new-own-fleet-toggle"
-            checked={isOwnFleet}
-            onCheckedChange={setIsOwnFleet}
-          />
-        </div>
+        <form
+          id="new-driver-form"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleSave();
+          }}
+          className="-mx-5 min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-5 sm:-mx-6 sm:px-6"
+        >
+          <FieldGroup title="Tipo de motorista">
+            <DriverKindChoice isOwnFleet={isOwnFleet} onChange={setIsOwnFleet} />
+          </FieldGroup>
 
-        {isOwnFleet ? (
-          // CLT Driver - Simple form without vehicle/documents
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-4 pr-1">
-            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm">
-              <div className="flex items-center gap-2 text-primary font-medium">
-                <Building2 className="h-4 w-4" />
-                Motorista CLT selecionado
-              </div>
-              <p className="text-muted-foreground mt-1">
-                Este motorista selecionará um veículo da frota ao iniciar uma rota.
-              </p>
+          {isOwnFleet ? (
+            <div className="space-y-4">
+              <Alert variant="info">
+                <Building2 aria-hidden="true" />
+                <AlertDescription>
+                  O motorista da casa escolhe um veículo da empresa ao começar cada rota. Veículo, documentos e dados bancários não são pedidos.
+                </AlertDescription>
+              </Alert>
+              {personalFields}
             </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="sticky top-0 z-10 grid h-auto w-full grid-cols-4 shadow-[0_0_0_4px_hsl(var(--popover))]">
+                <TabsTrigger value="personal" className="h-8 gap-1.5 px-1.5 text-xs sm:text-sm">
+                  <User className="hidden sm:block" aria-hidden="true" />
+                  Pessoal
+                  <TabErrorDot show={personalHasError} />
+                </TabsTrigger>
+                <TabsTrigger value="vehicle" className="h-8 gap-1.5 px-1.5 text-xs sm:text-sm">
+                  <Car className="hidden sm:block" aria-hidden="true" />
+                  Veículo
+                  <TabErrorDot show={vehicleHasError} />
+                </TabsTrigger>
+                <TabsTrigger value="documents" className="h-8 gap-1.5 px-1.5 text-xs sm:text-sm">
+                  <FileText className="hidden sm:block" aria-hidden="true" />
+                  Documentos
+                </TabsTrigger>
+                <TabsTrigger value="banking" className="h-8 gap-1.5 px-1.5 text-xs sm:text-sm">
+                  <Landmark className="hidden sm:block" aria-hidden="true" />
+                  Pagamento
+                </TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-2">
-              <Label>Nome Completo *</Label>
-              <Input 
-                placeholder="Nome do motorista" 
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>CPF *</Label>
-                <Input 
-                  placeholder="000.000.000-00" 
-                  value={formData.cpf}
-                  onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Telefone *</Label>
-                <Input 
-                  placeholder="(11) 99999-0000" 
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>CNH *</Label>
-                <Input 
-                  placeholder="Número da CNH" 
-                  value={formData.cnhNumber}
-                  onChange={(e) => setFormData({ ...formData, cnhNumber: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select 
-                  value={formData.cnhCategory} 
-                  onValueChange={(v) => setFormData({ ...formData, cnhCategory: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="a">A</SelectItem>
-                    <SelectItem value="b">B</SelectItem>
-                    <SelectItem value="c">C</SelectItem>
-                    <SelectItem value="d">D</SelectItem>
-                    <SelectItem value="e">E</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Login Creation Section for CLT */}
-            <div className="border-t pt-4 mt-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="space-y-0.5">
-                  <Label htmlFor="create-login-clt" className="text-sm font-medium flex items-center gap-2">
-                    <KeyRound className="h-4 w-4 text-primary" />
-                    Criar Login de Acesso
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Permite que o motorista acesse o app
-                  </p>
-                </div>
-                <Switch
-                  id="create-login-clt"
-                  checked={createLogin}
-                  onCheckedChange={setCreateLogin}
-                />
-              </div>
-
-              {createLogin && (
-                <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
-                  {/* Auto-generated email display */}
-                  <div className="space-y-2">
-                    <Label className="text-sm">E-mail de Login</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="email"
-                        value={generatedEmail}
-                        disabled
-                        className="bg-muted font-mono flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => copyToClipboard(generatedEmail, "E-mail")}
-                        title="Copiar e-mail"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Gerado automaticamente a partir do nome e CPF
-                    </p>
-                  </div>
-
-                  {/* Password (CPF-based) */}
-                  <div className="space-y-2">
-                    <Label className="text-sm">Senha padrão (CPF)</Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          type={showPassword ? "text" : "password"}
-                          value={generatedPassword}
-                          disabled
-                          className="pr-10 bg-muted font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                        </button>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => copyToClipboard(generatedPassword, "Senha")}
-                        title="Copiar senha"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Formato: 6 primeiros dígitos do CPF + "Na" (ex: 123456Na)
-                    </p>
-                  </div>
-
-                  {!formData.name && (
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm">
-                      <p className="text-amber-600 dark:text-amber-400">
-                        ⚠️ Preencha o nome para gerar o e-mail de login
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          // Third-party Driver - Full form with tabs
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <TabsList className="grid shrink-0 grid-cols-4">
-              <TabsTrigger value="personal" className="flex items-center gap-1.5 text-xs">
-                <User className="h-4 w-4" />
-                Pessoal
-              </TabsTrigger>
-              <TabsTrigger value="vehicle" className="flex items-center gap-1.5 text-xs">
-                <Car className="h-4 w-4" />
-                Veículo
-              </TabsTrigger>
-              <TabsTrigger value="documents" className="flex items-center gap-1.5 text-xs">
-                <FileText className="h-4 w-4" />
-                Docs
-              </TabsTrigger>
-              <TabsTrigger value="banking" className="flex items-center gap-1.5 text-xs">
-                <Landmark className="h-4 w-4" />
-                Bancário
-              </TabsTrigger>
-            </TabsList>
-
-            <div className="min-h-0 flex-1 overflow-y-auto py-4 pr-1">
-              {/* Personal Data */}
-              <TabsContent value="personal" className="mt-0 space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome Completo *</Label>
-                  <Input 
-                    placeholder="Nome do motorista" 
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>CPF *</Label>
-                    <Input 
-                      placeholder="000.000.000-00" 
-                      value={formData.cpf}
-                      onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Telefone *</Label>
-                    <Input 
-                      placeholder="(11) 99999-0000" 
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>CNH *</Label>
-                    <Input 
-                      placeholder="Número da CNH" 
-                      value={formData.cnhNumber}
-                      onChange={(e) => setFormData({ ...formData, cnhNumber: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Categoria</Label>
-                    <Select 
-                      value={formData.cnhCategory} 
-                      onValueChange={(v) => setFormData({ ...formData, cnhCategory: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover">
-                        <SelectItem value="a">A</SelectItem>
-                        <SelectItem value="b">B</SelectItem>
-                        <SelectItem value="c">C</SelectItem>
-                        <SelectItem value="d">D</SelectItem>
-                        <SelectItem value="e">E</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {/* Login Creation Section for Third-party */}
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="create-login-third" className="text-sm font-medium flex items-center gap-2">
-                        <KeyRound className="h-4 w-4 text-primary" />
-                        Criar Login de Acesso
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Permite que o motorista acesse o app
-                      </p>
-                    </div>
-                    <Switch
-                      id="create-login-third"
-                      checked={createLogin}
-                      onCheckedChange={setCreateLogin}
-                    />
-                  </div>
-
-                  {createLogin && (
-                    <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
-                      {/* Auto-generated email display */}
-                      <div className="space-y-2">
-                        <Label className="text-sm">E-mail de Login</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="email"
-                            value={generatedEmail}
-                            disabled
-                            className="bg-muted font-mono flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => copyToClipboard(generatedEmail, "E-mail")}
-                            title="Copiar e-mail"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Gerado automaticamente a partir do nome e CPF
-                        </p>
-                      </div>
-
-                      {/* Password (CPF-based) */}
-                      <div className="space-y-2">
-                        <Label className="text-sm">Senha padrão (CPF)</Label>
-                        <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <Input
-                              type={showPassword ? "text" : "password"}
-                              value={generatedPassword}
-                              disabled
-                              className="pr-10 bg-muted font-mono"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              {showPassword ? <EyeOff className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                            </button>
-                           </div>
-                           <Button
-                             type="button"
-                             variant="outline"
-                             size="icon"
-                             onClick={() => copyToClipboard(generatedPassword, "Senha")}
-                             title="Copiar senha"
-                           >
-                             <Copy className="h-4 w-4" />
-                           </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Formato: 6 primeiros dígitos do CPF + "Na" (ex: 123456Na)
-                        </p>
-                      </div>
-
-                      {!formData.name && (
-                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm">
-                          <p className="text-amber-600 dark:text-amber-400">
-                            ⚠️ Preencha o nome para gerar o e-mail de login
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <TabsContent value="personal" className="mt-5">
+                {personalFields}
               </TabsContent>
 
-              {/* Vehicle Data */}
-              <TabsContent value="vehicle" className="mt-0 space-y-4">
-                <div className="space-y-2">
-                  <Label>Tipo de Veículo *</Label>
-                  <Select 
-                    value={formData.vehicleType} 
-                    onValueChange={(v) => setFormData({ ...formData, vehicleType: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover">
-                      {VEHICLE_TYPES.map((vt) => (
-                        <SelectItem key={vt} value={vt}>{vt}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Placa do Veículo *</Label>
-                  <Input 
-                    placeholder="ABC-1234" 
-                    value={formData.vehiclePlate}
-                    onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value.toUpperCase() })}
-                    className="uppercase"
-                  />
-                </div>
-              </TabsContent>
-
-              {/* Documents */}
-              <TabsContent value="documents" className="mt-0 space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Faça upload dos documentos do motorista e veículo.
-                </p>
-
-                {(Object.keys(documentLabels) as Array<keyof DriverDocuments>).map((docType) => (
-                  <div key={docType} className="space-y-2">
-                    <Label>{documentLabels[docType]}</Label>
-                    
-                    <input
-                      type="file"
-                      ref={documentRefs[docType]}
-                      className="hidden"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFileUpload(docType, file);
-                      }}
-                    />
-
-                    {documents[docType] ? (
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-primary" />
-                          <div>
-                            <p className="text-sm font-medium truncate max-w-[200px]">
-                              {documents[docType]?.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Enviado em {documents[docType]?.uploadedAt.toLocaleDateString('pt-BR')}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => window.open(documents[docType]?.url, '_blank')}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => documentRefs[docType].current?.click()}
-                          >
-                            <Upload className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemoveDocument(docType)}
-                          >
-                            <X className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start gap-2"
-                        onClick={() => documentRefs[docType].current?.click()}
-                      >
-                        <Upload className="h-4 w-4" />
-                        Fazer Upload
-                      </Button>
-                    )}
-                  </div>
-                ))}
-
-                <div className="pt-2 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: PDF, JPG, PNG. Tamanho máximo: 10MB
-                  </p>
-                </div>
-              </TabsContent>
-
-              {/* Banking Data */}
-              <TabsContent value="banking" className="mt-0 space-y-4">
-                <div className="space-y-2">
-                  <Label>Nome do Banco</Label>
-                  <Input
-                    placeholder="Ex: Banco do Brasil, Itaú..."
-                    value={formData.bankName}
-                    onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Agência</Label>
-                    <Input
-                      placeholder="1234"
-                      value={formData.agency}
-                      onChange={(e) => setFormData({ ...formData, agency: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Conta (com dígito)</Label>
-                    <Input
-                      placeholder="56789-0"
-                      value={formData.accountNumber}
-                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tipo de Conta</Label>
-                  <Select
-                    value={formData.accountType}
-                    onValueChange={(v) => setFormData({ ...formData, accountType: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo de conta" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover">
-                      <SelectItem value="corrente">Conta Corrente</SelectItem>
-                      <SelectItem value="poupanca">Conta Poupanca</SelectItem>
-                      <SelectItem value="salario">Conta Salario</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="border-t border-border pt-4 mt-2">
-                  <h5 className="text-sm font-medium text-muted-foreground mb-3">Dados PIX</h5>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Tipo de Chave</Label>
-                      <Select
-                        value={formData.pixKeyType}
-                        onValueChange={(v) => setFormData({ ...formData, pixKeyType: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
+              <TabsContent value="vehicle" className="mt-5 space-y-4">
+                <p className="text-sm text-muted-foreground">O veículo que o agregado usa nas entregas.</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField id="new-vehicle-type" label="Tipo de veículo" required error={errors.vehicleType}>
+                    {(control) => (
+                      <Select value={formData.vehicleType} onValueChange={(value) => update({ vehicleType: value })}>
+                        <SelectTrigger {...control} className={invalidSelectClass}>
+                          <SelectValue placeholder="Escolha o tipo" />
                         </SelectTrigger>
-                        <SelectContent className="bg-popover">
-                          <SelectItem value="cpf">CPF</SelectItem>
-                          <SelectItem value="email">E-mail</SelectItem>
-                          <SelectItem value="phone">Telefone</SelectItem>
-                          <SelectItem value="random">Chave Aleatória</SelectItem>
+                        <SelectContent>
+                          {DRIVER_VEHICLE_TYPES.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Chave PIX</Label>
+                    )}
+                  </FormField>
+                  <FormField id="new-vehicle-plate" label="Placa" required error={errors.vehiclePlate} hint="Placa antiga ou Mercosul.">
+                    {(control) => (
                       <Input
-                        placeholder="Sua chave PIX"
-                        value={formData.pixKeyValue}
-                        onChange={(e) => setFormData({ ...formData, pixKeyValue: e.target.value })}
+                        {...control}
+                        placeholder="ABC1D23"
+                        autoComplete="off"
+                        className="font-data uppercase tracking-wider"
+                        value={formData.vehiclePlate}
+                        onChange={(e) => update({ vehiclePlate: normalizePlate(e.target.value) })}
                       />
-                    </div>
-                  </div>
+                    )}
+                  </FormField>
                 </div>
               </TabsContent>
-            </div>
-          </Tabs>
-        )}
 
-        <DialogFooter className="shrink-0 border-t border-border pt-4">
-          <Button variant="outline" onClick={handleClose}>
+              <TabsContent value="documents" className="mt-5">
+                <DocumentSlotList note={<p className="text-sm text-muted-foreground">Opcional. Os arquivos são enviados quando você salvar o motorista.</p>}>
+                  {DRIVER_DOCUMENT_KEYS.map((type) => (
+                    <DocumentSlot
+                      key={type}
+                      id={`new-doc-${type}`}
+                      label={DRIVER_DOCUMENT_LABELS[type]}
+                      pickLabel="Anexar"
+                      file={documents[type]}
+                      onFile={(file) => handleFileUpload(type, file)}
+                      onOpen={documents[type] ? () => window.open(documents[type]?.url, "_blank") : undefined}
+                      onRemove={documents[type] ? () => handleRemoveDocument(type) : undefined}
+                    />
+                  ))}
+                </DocumentSlotList>
+              </TabsContent>
+
+              <TabsContent value="banking" className="mt-5 space-y-4">
+                <p className="text-sm text-muted-foreground">Opcional. Usado para pagar o frete no acerto financeiro.</p>
+                <BankFields
+                  idPrefix="new-"
+                  values={bankValues}
+                  onChange={(patch) =>
+                    update({
+                      ...(patch.banco !== undefined && { bankName: patch.banco }),
+                      ...(patch.agencia !== undefined && { agency: patch.agencia }),
+                      ...(patch.conta !== undefined && { accountNumber: patch.conta }),
+                      ...(patch.tipo_conta !== undefined && { accountType: patch.tipo_conta }),
+                      ...(patch.chave_pix !== undefined && { pixKeyValue: patch.chave_pix }),
+                    })
+                  }
+                />
+              </TabsContent>
+            </Tabs>
+          )}
+        </form>
+
+        <DialogFooter className="shrink-0 border-t pt-4">
+          <Button type="button" variant="outline" onClick={handleClose}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              "Cadastrar Motorista"
-            )}
+          <Button type="submit" form="new-driver-form" disabled={isSaving}>
+            {isSaving && <Loader2 className="animate-spin" aria-hidden="true" />}
+            {isSaving ? "Salvando..." : "Cadastrar motorista"}
           </Button>
         </DialogFooter>
       </DialogContent>

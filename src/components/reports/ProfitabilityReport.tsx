@@ -1,22 +1,31 @@
 import { useState, useMemo, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Lock, Crown, CalendarIcon, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Crown, FileText, LineChart as LineChartIcon, Lock, Minus, Package, Wallet } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfDay, endOfDay, isWithinInterval, subMonths } from "date-fns";
+import { CardsSkeleton, EmptyState, StatCard, StatusBadge, type Tone } from "@/components/patterns";
+import {
+  axisLine,
+  axisTick,
+  CHART_FONT_SMALL,
+  chartScale,
+  fmtPercent,
+  GOOD,
+  gridProps,
+  SERIES,
+  tooltipItemStyle,
+  tooltipLabelStyle,
+  tooltipStyle,
+} from "./chartTheme";
+import { ChartFrame, ReportCard } from "./ReportCard";
+import { format, startOfMonth, endOfMonth, isWithinInterval, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { cn } from "@/lib/utils";
+import { isDayInRange, previousRange } from "@/lib/reportFilters";
+import { toDateStringBrazil } from "@/lib/timezone";
 import { useEffect } from "react";
-
-type PeriodType = "day" | "month" | "year";
 
 interface ManifestRow {
   id: string;
@@ -33,32 +42,29 @@ interface MonthlyPoint {
   date: Date;
   thirdPartyFreight: number;
   totalCargo: number;
-  percentage: number;
+  /** null: mes sem romaneio (nao e 0%). */
+  percentage: number | null;
 }
 
 // ========== LOCKED STATE ==========
-function LockedState() {
+function LockedState({ planLabel }: { planLabel: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-      <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-6">
-        <Lock className="h-10 w-10 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-semibold text-foreground mb-2">
-        Relatório de Rentabilidade
-      </h3>
-      <p className="text-sm text-muted-foreground max-w-md mb-6">
-        Analise a eficiência dos seus custos com agregados ao longo do tempo. 
-        Identifique tendências e otimize sua operação.
-      </p>
-      <div className="inline-flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/20 px-5 py-3">
-        <Crown className="h-5 w-5 text-primary" />
-        <span className="text-sm font-medium text-primary">
-          Upgrade para Plano Controle: Libere relatórios de rentabilidade histórica
+    <EmptyState
+      icon={Lock}
+      title="Relatório de rentabilidade"
+      description="Acompanhe quanto do valor das cargas vai para o frete de agregados, mês a mês, e veja onde dá para economizar."
+      action={
+        <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+          <Crown className="h-4 w-4" aria-hidden="true" />
+          Disponível no plano {planLabel || "Controle Total"}
         </span>
-      </div>
-    </div>
+      }
+    />
   );
 }
+
+// Faixas do custo de frete sobre a carga: ate 20% bom, ate 40% atencao, acima ruim.
+const shareTone = (pct: number): Tone => (pct <= 20 ? "success" : pct <= 40 ? "warning" : "danger");
 
 // ========== MINI GAUGE (reused from dashboard) ==========
 function EfficiencyGauge({ percentage }: { percentage: number }) {
@@ -74,7 +80,7 @@ function EfficiencyGauge({ percentage }: { percentage: number }) {
     clamped <= 20 ? "hsl(var(--success))" : clamped <= 40 ? "hsl(var(--warning))" : "hsl(var(--destructive))";
 
   return (
-    <svg width="120" height="72" viewBox="0 0 120 72" className="shrink-0">
+    <svg width="120" height="72" viewBox="0 0 120 72" className="shrink-0" aria-hidden="true">
       <path
         d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
         fill="none"
@@ -90,17 +96,8 @@ function EfficiencyGauge({ percentage }: { percentage: number }) {
         strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={offset}
-        className="transition-all duration-700 ease-out"
+        className="transition-all duration-slow ease-out"
       />
-      <text
-        x={cx}
-        y={cy - 8}
-        textAnchor="middle"
-        className="fill-[#1e3a5f] dark:fill-blue-300"
-        style={{ fontSize: "20px", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}
-      >
-        {clamped.toFixed(1)}%
-      </text>
     </svg>
   );
 }
@@ -110,13 +107,22 @@ function EfficiencyGauge({ percentage }: { percentage: number }) {
 interface ProfitabilityReportProps {
   allowed: boolean;
   upgradePlanLabel: string;
+  /** Periodo escolhido no topo da tela (antes esta aba tinha um periodo proprio). */
+  dateRange: { from?: Date; to?: Date };
 }
 
-export function ProfitabilityReport({ allowed, upgradePlanLabel }: ProfitabilityReportProps) {
-  const [periodType, setPeriodType] = useState<PeriodType>("month");
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), "yyyy-MM"));
-  const [selectedYear, setSelectedYear] = useState(() => format(new Date(), "yyyy"));
+const inRange = (createdAt: string, range: { from?: Date; to?: Date }) =>
+  isDayInRange(toDateStringBrazil(createdAt), { from: range.from, to: range.to });
+
+/** Frete de agregados, valor das cargas e a relacao entre eles num conjunto de romaneios. */
+function summarize(list: ManifestRow[]) {
+  const third = list.filter((m) => m.is_own_fleet === false);
+  const freight = third.reduce((s, m) => s + (m.freight_value || 0), 0);
+  const cargo = list.reduce((s, m) => s + (m.total_value || 0), 0);
+  return { third, freight, cargo, percentage: cargo > 0 ? (freight / cargo) * 100 : 0 };
+}
+
+export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: ProfitabilityReportProps) {
   const [manifests, setManifests] = useState<ManifestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -141,33 +147,21 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
     if (allowed) fetchData();
   }, [allowed, fetchData]);
 
-  // Date range based on period type
-  const dateRange = useMemo(() => {
-    if (periodType === "day") {
-      return { from: startOfDay(selectedDate), to: endOfDay(selectedDate) };
-    }
-    if (periodType === "month") {
-      const [y, m] = selectedMonth.split("-").map(Number);
-      const d = new Date(y, m - 1, 1);
-      return { from: startOfMonth(d), to: endOfMonth(d) };
-    }
-    const d = new Date(Number(selectedYear), 0, 1);
-    return { from: startOfYear(d), to: endOfYear(d) };
-  }, [periodType, selectedDate, selectedMonth, selectedYear]);
-
-  // Filtered manifests for current period
-  const filtered = useMemo(() => {
-    return manifests.filter((m) => {
-      const d = new Date(m.created_at);
-      return isWithinInterval(d, { start: dateRange.from, end: dateRange.to });
-    });
+  // Romaneios do periodo (dia do cadastro, em Brasilia) e do periodo anterior de mesmo tamanho
+  const filtered = useMemo(() => manifests.filter((m) => inRange(m.created_at, dateRange)), [manifests, dateRange]);
+  const current = useMemo(() => summarize(filtered), [filtered]);
+  const previous = useMemo(() => {
+    const range = previousRange({ from: dateRange.from, to: dateRange.to });
+    return range ? summarize(manifests.filter((m) => inRange(m.created_at, range))) : null;
   }, [manifests, dateRange]);
 
-  // Calculations
-  const thirdPartyManifests = useMemo(() => filtered.filter((m) => m.is_own_fleet === false), [filtered]);
-  const thirdPartyFreight = useMemo(() => thirdPartyManifests.reduce((s, m) => s + (m.freight_value || 0), 0), [thirdPartyManifests]);
-  const totalCargo = useMemo(() => filtered.reduce((s, m) => s + (m.total_value || 0), 0), [filtered]);
-  const percentage = totalCargo > 0 ? (thirdPartyFreight / totalCargo) * 100 : 0;
+  const thirdPartyManifests = current.third;
+  const thirdPartyFreight = current.freight;
+  const totalCargo = current.cargo;
+  const percentage = current.percentage;
+  // Carga so dos romaneios de agregados (o total da tabela soma as linhas que ela mostra).
+  const thirdPartyCargo = thirdPartyManifests.reduce((s, m) => s + (m.total_value || 0), 0);
+  const thirdPartyShare = thirdPartyCargo > 0 ? (thirdPartyFreight / thirdPartyCargo) * 100 : 0;
 
   // Monthly evolution data (last 12 months)
   const evolutionData = useMemo((): MonthlyPoint[] => {
@@ -187,234 +181,176 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
         date: mStart,
         thirdPartyFreight: tp,
         totalCargo: tc,
-        percentage: tc > 0 ? (tp / tc) * 100 : 0,
+        percentage: tc > 0 ? (tp / tc) * 100 : null,
       });
     }
     return points;
   }, [manifests]);
 
-  // Trend
-  const lastTwo = evolutionData.slice(-2);
-  const trend = lastTwo.length === 2 ? lastTwo[1].percentage - lastTwo[0].percentage : 0;
+  // Variacao contra o periodo anterior (null: sem cargas antes para comparar)
+  const trend = previous && previous.cargo > 0 && totalCargo > 0 ? percentage - previous.percentage : null;
 
-  if (!allowed) return <LockedState />;
+  if (!allowed) return <LockedState planLabel={upgradePlanLabel} />;
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-40" />
-          <Skeleton className="h-40" />
-          <Skeleton className="h-40" />
-        </div>
-        <Skeleton className="h-64" />
+      <div role="status" aria-label="Carregando" className="space-y-6">
+        <Skeleton className="h-5 w-96 max-w-full" />
+        <CardsSkeleton count={3} className="xl:grid-cols-3" />
+        <Skeleton className="h-[320px] rounded-lg" />
       </div>
     );
   }
 
-  // Generate month options
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const d = subMonths(new Date(), i);
-    return { value: format(d, "yyyy-MM"), label: format(d, "MMMM yyyy", { locale: ptBR }) };
-  });
-
-  const yearOptions = Array.from({ length: 3 }, (_, i) => {
-    const y = new Date().getFullYear() - i;
-    return { value: String(y), label: String(y) };
-  });
+  const trendValue = trend ?? 0;
+  const TrendIcon = trendValue > 0.5 ? ArrowUpRight : trendValue < -0.5 ? ArrowDownRight : Minus;
+  const trendClass =
+    trendValue > 0.5 ? "bg-destructive/10 text-destructive" : trendValue < -0.5 ? "bg-success/10 text-success" : "bg-muted text-muted-foreground";
+  // Eixo de 0 ate pelo menos 25%, em passos redondos: a meta (20%) aparece sempre.
+  const maxShare = Math.max(0, ...evolutionData.map((p) => p.percentage ?? 0));
+  const yMax = Math.max(25, Math.ceil(maxShare / 5) * 5);
+  const yStep = yMax <= 50 ? 5 : 10;
+  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, i) => i * yStep);
+  const last = evolutionData[evolutionData.length - 1];
+  const monthsWithData = evolutionData.filter((p) => p.percentage !== null);
+  const evolutionSummary = `Gráfico de linha do custo com agregados sobre o valor das cargas nos últimos 12 meses. ${
+    monthsWithData.length
+      ? monthsWithData.map((p) => `${p.label}: ${fmtPercent(p.percentage as number)}`).join("; ")
+      : "Nenhum mês com romaneio"
+  }. Os outros meses não tiveram romaneio. Meta de até 20%.${
+    last?.percentage != null ? ` Mês atual: ${fmtPercent(last.percentage)}.` : ""
+  }`;
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="day">Dia Específico</SelectItem>
-            <SelectItem value="month">Mês / Ano</SelectItem>
-            <SelectItem value="year">Ano Completo</SelectItem>
-          </SelectContent>
-        </Select>
+      <p className="text-sm text-muted-foreground">
+        Quanto do valor das cargas foi gasto com frete de agregados no período. Quanto menor, melhor. Meta: até 20%.
+      </p>
 
-        {periodType === "day" && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                {format(selectedDate, "dd/MM/yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(d) => d && setSelectedDate(d)}
-                locale={ptBR}
-              />
-            </PopoverContent>
-          </Popover>
-        )}
-
-        {periodType === "month" && (
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monthOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {periodType === "year" && (
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {yearOptions.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {/* Gauge Card */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Eficiência do Custo Frete
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-4">
+      {/* Indicadores */}
+      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <Card className="flex min-h-[8.5rem] flex-col gap-3 p-5 sm:col-span-2 xl:col-span-1">
+          <p className="text-sm font-medium text-muted-foreground">Custo do frete sobre a carga</p>
+          <div className="flex items-center gap-4">
             <EfficiencyGauge percentage={percentage} />
-            <div>
-              <p className="text-3xl font-bold font-mono" style={{ color: "#1e3a5f" }}>
-                {percentage.toFixed(1)}%
+            <div className="space-y-1.5">
+              <p className="font-data text-[2rem] font-semibold leading-none tracking-tight text-foreground">
+                {totalCargo > 0 ? fmtPercent(percentage) : "—"}
               </p>
-              <div className="flex items-center gap-1 mt-1">
-                {trend > 0.5 ? (
-                  <TrendingUp className="h-3 w-3 text-destructive" />
-                ) : trend < -0.5 ? (
-                  <TrendingDown className="h-3 w-3 text-success" />
-                ) : (
-                  <Minus className="h-3 w-3 text-muted-foreground" />
-                )}
-                <span className={cn("text-xs font-medium",
-                  trend > 0.5 ? "text-destructive" : trend < -0.5 ? "text-success" : "text-muted-foreground"
-                )}>
-                  {trend > 0 ? "+" : ""}{trend.toFixed(1)}pp vs. mês anterior
-                </span>
-              </div>
+              {totalCargo > 0 ? (
+                <StatusBadge tone={shareTone(percentage)}>
+                  {percentage <= 20 ? "Dentro da meta" : percentage <= 40 ? "Atenção" : "Acima do ideal"}
+                </StatusBadge>
+              ) : (
+                <StatusBadge tone="neutral">Sem cargas no período</StatusBadge>
+              )}
+              {trend === null ? (
+                <p className="text-xs text-muted-foreground">Sem dados do período anterior</p>
+              ) : (
+                <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold ${trendClass}`}>
+                    <TrendIcon className="h-3 w-3" aria-hidden="true" />
+                    {trend > 0 ? "+" : ""}
+                    {trend.toFixed(1).replace(".", ",")} p.p.
+                    <span className="sr-only">{trend > 0.5 ? " a mais, pior" : trend < -0.5 ? " a menos, melhor" : " sem variação"}</span>
+                  </span>
+                  vs. período anterior
+                </p>
+              )}
             </div>
-          </CardContent>
+          </div>
         </Card>
-
-        {/* Total Cargo */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Valor Total das Cargas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold font-mono text-foreground">
-              {formatCurrency(totalCargo)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {filtered.length} romaneio(s) no período
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Third Party Cost */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Custo com Agregados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold font-mono text-warning">
-              {formatCurrency(thirdPartyFreight)}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {thirdPartyManifests.length} romaneio(s) de terceiros
-            </p>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Valor das cargas"
+          value={totalCargo}
+          format={formatCurrency}
+          icon={Package}
+          tone="info"
+          hint={`${filtered.length} romaneio${filtered.length === 1 ? "" : "s"} no período`}
+        />
+        <StatCard
+          label="Custo com agregados"
+          value={thirdPartyFreight}
+          format={formatCurrency}
+          icon={Wallet}
+          tone="warning"
+          hint={`${thirdPartyManifests.length} romaneio${thirdPartyManifests.length === 1 ? "" : "s"} de terceiros`}
+        />
       </div>
 
-      {/* Evolution Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Evolução da Eficiência do Custo Frete</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={evolutionData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  stroke="hsl(var(--muted-foreground))"
-                  tickFormatter={(v) => `${v}%`}
-                  domain={[0, "auto"]}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, "Custo Agregados / Cargas"]}
-                />
-                <ReferenceLine y={20} stroke="hsl(var(--success))" strokeDasharray="5 5" label={{ value: "Meta 20%", fontSize: 10, fill: "hsl(var(--success))" }} />
-                <Line
-                  type="monotone"
-                  dataKey="percentage"
-                  stroke="#1e3a5f"
-                  strokeWidth={2.5}
-                  dot={{ fill: "#1e3a5f", r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Evolucao */}
+      <ReportCard
+        icon={LineChartIcon}
+        title="Evolução nos últimos 12 meses"
+        description="Custo com agregados dividido pelo valor das cargas, mês a mês. A linha verde é a meta."
+      >
+        <ChartFrame height={280} summary={evolutionSummary}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={evolutionData} margin={{ top: 12, right: 12, left: -8, bottom: 0 }}>
+              <CartesianGrid {...gridProps} vertical={false} />
+              <XAxis dataKey="label" tick={axisTick} axisLine={axisLine} tickLine={false} interval="preserveStartEnd" />
+              {/* Topo de pelo menos 25%: a linha da meta (20%) aparece sempre. */}
+              <YAxis
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${v}%`}
+                domain={[0, yMax]}
+                ticks={yTicks}
+                width={Math.round(48 * chartScale())}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                labelStyle={tooltipLabelStyle}
+                itemStyle={tooltipItemStyle}
+                cursor={{ stroke: "hsl(var(--border))" }}
+                formatter={(value: number | null) => [value == null ? "Sem romaneio" : fmtPercent(value), "Agregados / cargas"]}
+              />
+              <ReferenceLine
+                y={20}
+                stroke={GOOD}
+                strokeDasharray="5 5"
+                label={{ value: "Meta 20%", fontSize: CHART_FONT_SMALL, fill: GOOD, position: "insideTopLeft" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="percentage"
+                stroke={SERIES[0]}
+                strokeWidth={2.5}
+                dot={{ fill: SERIES[0], r: 3, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+                activeDot={{ r: 5, stroke: "hsl(var(--card))", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartFrame>
+      </ReportCard>
 
-      {/* Detail Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Detalhamento por Romaneio (Agregados)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {thirdPartyManifests.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Nenhum romaneio de agregado encontrado no período selecionado.
-            </p>
-          ) : (
-            <div className="overflow-auto max-h-[400px]">
+      {/* Detalhe */}
+      <ReportCard
+        icon={FileText}
+        title="Romaneios de agregados"
+        description="Valor da carga, frete pago e quanto o frete representa em cada romaneio."
+      >
+        {thirdPartyManifests.length === 0 ? (
+          <EmptyState
+            compact
+            icon={FileText}
+            title="Nenhum romaneio de agregado no período"
+            description="Escolha outro período no topo da tela."
+          />
+        ) : (
+          <>
+            {/* Tabela so do computador grande; no tablet as 6 colunas nao cabiam e a ultima sumia. */}
+            <div className="-mx-5 hidden max-h-[420px] overflow-auto border-t sm:-mx-6 lg:block">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-[1] bg-muted">
                   <TableRow>
-                    <TableHead>Romaneio</TableHead>
+                    <TableHead className="pl-5 sm:pl-6">Romaneio</TableHead>
                     <TableHead>Motorista</TableHead>
                     <TableHead>Data</TableHead>
-                    <TableHead className="text-right">Valor Carga</TableHead>
-                    <TableHead className="text-right">Frete Pago</TableHead>
-                    <TableHead className="text-right">%</TableHead>
+                    <TableHead className="text-right">Valor da carga</TableHead>
+                    <TableHead className="text-right">Frete pago</TableHead>
+                    <TableHead className="pr-5 text-right sm:pr-6">Frete / carga</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -422,41 +358,80 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                     const pct = (m.total_value || 0) > 0 ? ((m.freight_value || 0) / (m.total_value || 1)) * 100 : 0;
                     return (
                       <TableRow key={m.id}>
-                        <TableCell className="font-mono text-xs">{m.manifest_code}</TableCell>
-                        <TableCell className="truncate max-w-[160px]">{m.driver_name}</TableCell>
-                        <TableCell className="text-xs">{format(new Date(m.created_at), "dd/MM/yy")}</TableCell>
-                        <TableCell className="text-right font-mono text-xs">{formatCurrency(m.total_value || 0)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs text-warning">{formatCurrency(m.freight_value || 0)}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="outline" className={cn(
-                            "text-xs",
-                            pct <= 20 ? "bg-success/10 text-success border-success/30" :
-                            pct <= 40 ? "bg-warning/10 text-warning border-warning/30" :
-                            "bg-destructive/10 text-destructive border-destructive/30"
-                          )}>
-                            {pct.toFixed(1)}%
-                          </Badge>
+                        <TableCell className="whitespace-nowrap pl-5 font-data text-xs sm:pl-6">{m.manifest_code}</TableCell>
+                        <TableCell className="max-w-[180px] truncate" title={m.driver_name}>
+                          {m.driver_name}
+                        </TableCell>
+                        <TableCell className="font-data text-xs text-muted-foreground">{format(new Date(m.created_at), "dd/MM/yyyy")}</TableCell>
+                        <TableCell className="text-right font-data">{formatCurrency(m.total_value || 0)}</TableCell>
+                        <TableCell className="text-right font-data">{formatCurrency(m.freight_value || 0)}</TableCell>
+                        <TableCell className="pr-5 text-right sm:pr-6">
+                          <StatusBadge tone={shareTone(pct)} className="font-data">
+                            {fmtPercent(pct)}
+                          </StatusBadge>
                         </TableCell>
                       </TableRow>
                     );
                   })}
-                  {/* Totals row */}
-                  <TableRow className="font-semibold bg-muted/50">
-                    <TableCell colSpan={3}>Total</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(totalCargo)}</TableCell>
-                    <TableCell className="text-right font-mono text-warning">{formatCurrency(thirdPartyFreight)}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="default" className="text-xs">
-                        {percentage.toFixed(1)}%
-                      </Badge>
+                </TableBody>
+                <TableFooter>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={3} className="pl-5 font-semibold sm:pl-6">Total dos agregados</TableCell>
+                    <TableCell className="text-right font-data font-semibold">{formatCurrency(thirdPartyCargo)}</TableCell>
+                    <TableCell className="text-right font-data font-semibold">{formatCurrency(thirdPartyFreight)}</TableCell>
+                    <TableCell className="pr-5 text-right sm:pr-6">
+                      <StatusBadge tone={shareTone(thirdPartyShare)} className="font-data">
+                        {fmtPercent(thirdPartyShare)}
+                      </StatusBadge>
                     </TableCell>
                   </TableRow>
-                </TableBody>
+                </TableFooter>
               </Table>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            <ul className="grid gap-3 md:grid-cols-2 lg:hidden">
+              {thirdPartyManifests.map((m) => {
+                const pct = (m.total_value || 0) > 0 ? ((m.freight_value || 0) / (m.total_value || 1)) * 100 : 0;
+                return (
+                  <li key={m.id}>
+                    <Card className="space-y-3 p-4 shadow-none">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium" title={m.driver_name}>
+                            {m.driver_name}
+                          </p>
+                          <p className="font-data text-xs text-muted-foreground">
+                            {m.manifest_code} · {format(new Date(m.created_at), "dd/MM/yyyy")}
+                          </p>
+                        </div>
+                        <StatusBadge tone={shareTone(pct)} className="font-data">
+                          {fmtPercent(pct)}
+                        </StatusBadge>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Valor da carga</dt>
+                          <dd className="font-data font-semibold">{formatCurrency(m.total_value || 0)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Frete pago</dt>
+                          <dd className="font-data font-semibold">{formatCurrency(m.freight_value || 0)}</dd>
+                        </div>
+                      </dl>
+                    </Card>
+                  </li>
+                );
+              })}
+              <li className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3 text-sm md:col-span-2">
+                <span className="font-semibold">Total dos agregados</span>
+                <span className="font-data font-semibold">
+                  {formatCurrency(thirdPartyFreight)} de {formatCurrency(thirdPartyCargo)}
+                </span>
+              </li>
+            </ul>
+          </>
+        )}
+      </ReportCard>
     </div>
   );
 }

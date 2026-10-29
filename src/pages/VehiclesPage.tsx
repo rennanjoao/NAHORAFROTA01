@@ -1,181 +1,188 @@
-import { useState, useMemo, useEffect } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { Badge } from "@/components/ui/badge";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { AlertTriangle, CheckCircle2, Plus, Route, SearchX, Truck, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Search,
-  Plus,
-  Truck,
-  CheckCircle,
-  Wrench,
-  MoreVertical,
-  Pencil,
-  Trash2,
-  AlertTriangle,
-  Building2,
-  User,
-  Loader2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { toast } from "@/hooks/use-toast";
-import { usePlanLimits } from "@/hooks/usePlanLimits";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CardsSkeleton, ConfirmDialog, EmptyState, FilterBar, PageHeader, SearchInput } from "@/components/patterns";
+import { FilterStatCard } from "@/components/patterns/FilterStatCard";
+import { VehicleCard } from "@/components/vehicles/VehicleCard";
+import { VehicleFormDialog } from "@/components/vehicles/VehicleFormDialog";
+import { COMPANY_VEHICLE_TYPES, emptyVehicleForm, type VehicleFormValues } from "@/components/vehicles/vehicleConfig";
+import { OFFLINE_MESSAGE, plainError } from "@/components/drivers/driverConfig";
+import { useReturnFocusOnClose } from "@/hooks/useReturnFocus";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
-import { 
-  companyVehicleStore, 
-  CompanyVehicle, 
-  CompanyVehicleType, 
-  VehicleStatus 
+import { toast } from "@/hooks/use-toast";
+import { useQueryAction } from "@/hooks/useQueryAction";
+import { useUrlSearchTerm } from "@/hooks/useUrlSearchTerm";
+import { usePlanLimits, invalidatePlanStatus } from "@/hooks/usePlanLimits";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  companyVehicleStore,
+  CompanyVehicle,
+  CompanyVehicleType,
+  VehicleStatus,
+  vehicleCapacityByType,
 } from "@/stores/companyVehicleStore";
 
-const VEHICLE_TYPES: CompanyVehicleType[] = ["Fiorino", "VUC", "Toco", "Truck", "Carreta", "Van"];
+const capacityByType = vehicleCapacityByType;
 
-const statusConfig: Record<VehicleStatus, { label: string; className: string; icon: typeof CheckCircle }> = {
-  available: { label: "Disponível", className: "bg-success/20 text-success border-success/30", icon: CheckCircle },
-  in_use: { label: "Em Uso", className: "bg-primary/20 text-primary border-primary/30", icon: Truck },
-  maintenance: { label: "Manutenção", className: "bg-warning/20 text-warning border-warning/30", icon: Wrench },
-};
+type StatusFilter = "all" | VehicleStatus;
 
-const capacityByType: Record<CompanyVehicleType, string> = {
-  Fiorino: "650kg",
-  VUC: "3.5t",
-  Toco: "8t",
-  Truck: "15t",
-  Carreta: "25t",
-  Van: "1.5t",
-};
+// Erro do banco em linguagem simples (placa repetida vinha como "duplicate key value...").
+// Sem internet o store acusava "Sessão inválida. Faça login novamente." (enganoso): plainError trata.
+function friendlyVehicleError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : "";
+  if (navigator.onLine && /duplicate key|unique|já existe/i.test(message)) {
+    return "Já existe um veículo com esta placa. Confira a placa e tente de novo.";
+  }
+  return plainError(error, fallback);
+}
+
+// Busca sem acento, sem caixa e sem traco na placa ("abc-1d23" acha ABC1D23).
+const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// Celular estreito: o icone decorativo sai do cartao para o rotulo ("Disponíveis",
+// "Em manutenção") caber sem o icone vazar da borda. Ate 359px sempre; ate 419px
+// so com texto ampliado (Configuracoes > Aparencia).
+const narrowStat =
+  "max-[359px]:[&>div:first-child>span]:hidden [html[data-text-size]_&]:max-[419px]:[&>div:first-child>span]:hidden";
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<CompanyVehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { canAddVehicle, vehiclesCount, limits, plan, planLabels, isLoading: planLoading } = usePlanLimits();
+  const { canAddVehicle, vehiclesCount, limits, plan, planLabels } = usePlanLimits();
+  const queryClient = useQueryClient();
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isNewVehicleDialogOpen, setIsNewVehicleDialogOpen] = useState(false);
-  const [isEditVehicleDialogOpen, setIsEditVehicleDialogOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"new" | "edit">("new");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formInitial, setFormInitial] = useState<VehicleFormValues>(emptyVehicleForm);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<CompanyVehicle | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const captureDeleteFocus = useReturnFocusOnClose(isDeleteDialogOpen);
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // New vehicle form state
-  const [newVehicle, setNewVehicle] = useState({
-    plate: "",
-    model: "",
-    brand: "",
-    type: "" as CompanyVehicleType | "",
-    year: new Date().getFullYear(),
-    renavam: "",
+  useUrlSearchTerm((term) => {
+    setSearchQuery(term);
+    setFilterStatus("all");
+    setFilterType("all");
   });
 
-  // Load vehicles from database
+  const openNewVehicle = () => {
+    if (!canAddVehicle) {
+      toast({ title: "Limite do plano atingido", description: `Seu plano permite até ${limits.max_vehicles} veículos.`, variant: "destructive" });
+      return;
+    }
+    setSelectedVehicle(null);
+    setFormMode("new");
+    setFormInitial(emptyVehicleForm());
+    setIsFormOpen(true);
+  };
+
+  // Ctrl K > "Cadastrar veiculo" abre /vehicles?action=new. O foco passa antes
+  // pelo botao da tela: ao fechar a janela, ele volta para la (e nao para o topo).
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+  useQueryAction("new", () => {
+    newButtonRef.current?.focus();
+    openNewVehicle();
+  });
+
+  // O cartao removido levava o foco junto: passa para o cartao vizinho (ou para o cadastro).
+  const focusVehicleAt = (index: number) => {
+    window.setTimeout(() => {
+      const cards = [...document.querySelectorAll<HTMLElement>("[data-vehicle-open]")];
+      (cards[Math.min(index, cards.length - 1)] ?? newButtonRef.current)?.focus();
+    }, 50);
+  };
+
+  const loadVehicles = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const data = await companyVehicleStore.initialize();
+      setVehicles(data);
+    } catch (error) {
+      console.error("Error loading vehicles:", error);
+      // Mensagem simples na tela; o detalhe tecnico fica no console.
+      setLoadError(
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? OFFLINE_MESSAGE
+          : "Tente de novo em instantes. Se continuar, fale com o suporte.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Carrega do banco e acompanha as mudancas do store.
   useEffect(() => {
-    const loadVehicles = async () => {
-      setIsLoading(true);
-      try {
-        const data = await companyVehicleStore.getAllAsync();
-        setVehicles(data);
-      } catch (error) {
-        console.error("Error loading vehicles:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     loadVehicles();
-    
-    // Subscribe to store changes
+
     const unsubscribe = companyVehicleStore.subscribe(() => {
       setVehicles(companyVehicleStore.getAll());
     });
     return unsubscribe;
   }, []);
 
-  // Stats
-  const stats = useMemo(() => companyVehicleStore.getStats(), [vehicles]);
+  const stats = useMemo(
+    () => ({
+      total: vehicles.length,
+      available: vehicles.filter((v) => v.status === "available").length,
+      inUse: vehicles.filter((v) => v.status === "in_use").length,
+      maintenance: vehicles.filter((v) => v.status === "maintenance").length,
+    }),
+    [vehicles],
+  );
 
-  // Filtered vehicles
   const filteredVehicles = useMemo(() => {
+    const term = fold(searchQuery.trim());
+    const plateTerm = term.replace(/[^a-z0-9]/g, "");
     return vehicles.filter((v) => {
       const matchesStatus = filterStatus === "all" || v.status === filterStatus;
       const matchesType = filterType === "all" || v.type === filterType;
-      const matchesSearch = 
-        searchQuery === "" || 
-        v.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        v.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        v.brand.toLowerCase().includes(searchQuery.toLowerCase());
-      
+      const matchesSearch =
+        term === "" ||
+        (plateTerm !== "" && v.plate.toLowerCase().includes(plateTerm)) ||
+        fold(v.model).includes(term) ||
+        fold(v.brand).includes(term) ||
+        fold(`${v.brand} ${v.model}`).includes(term);
+
       return matchesStatus && matchesType && matchesSearch;
     });
   }, [vehicles, filterStatus, filterType, searchQuery]);
 
-  const handleNewVehicle = async () => {
-    if (!newVehicle.plate || !newVehicle.model || !newVehicle.brand || !newVehicle.type) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const hasFilters = filterStatus !== "all" || filterType !== "all" || searchQuery !== "";
+  const clearFilters = () => {
+    setFilterStatus("all");
+    setFilterType("all");
+    setSearchQuery("");
+  };
 
+  const handleNewVehicle = async (values: VehicleFormValues, year: number | undefined) => {
     setIsSaving(true);
     try {
       await companyVehicleStore.add({
-        plate: newVehicle.plate.toUpperCase(),
-        model: newVehicle.model,
-        brand: newVehicle.brand,
-        type: newVehicle.type as CompanyVehicleType,
+        plate: values.plate.trim().toUpperCase(),
+        model: values.model.trim(),
+        brand: values.brand.trim(),
+        type: values.type as CompanyVehicleType,
         status: "available",
-        capacity: capacityByType[newVehicle.type as CompanyVehicleType],
-        year: newVehicle.year,
-        renavam: newVehicle.renavam,
+        capacity: capacityByType[values.type as CompanyVehicleType],
+        year,
+        renavam: values.renavam.trim() || undefined,
       });
+      invalidatePlanStatus(queryClient);
 
       toast({
-        title: "✅ Veículo Cadastrado!",
-        description: `${newVehicle.plate} foi adicionado à frota e salvo no banco de dados.`,
+        title: "Veículo cadastrado",
+        description: `${values.plate} entrou na frota.`,
       });
 
-      setNewVehicle({ plate: "", model: "", brand: "", type: "", year: new Date().getFullYear(), renavam: "" });
-      setIsNewVehicleDialogOpen(false);
-    } catch (error: any) {
+      setIsFormOpen(false);
+    } catch (error) {
       toast({
-        title: "Erro ao cadastrar",
-        description: error.message || "Não foi possível cadastrar o veículo.",
+        title: "Não foi possível cadastrar",
+        description: friendlyVehicleError(error, "Confira a placa e tente de novo."),
         variant: "destructive",
       });
     } finally {
@@ -183,31 +190,34 @@ export default function VehiclesPage() {
     }
   };
 
-  const handleEditVehicle = async () => {
+  const handleEditVehicle = async (values: VehicleFormValues, year: number | undefined) => {
     if (!selectedVehicle) return;
 
     setIsSaving(true);
     try {
+      const type = values.type as CompanyVehicleType;
       await companyVehicleStore.update(selectedVehicle.id, {
-        plate: newVehicle.plate.toUpperCase() || selectedVehicle.plate,
-        model: newVehicle.model || selectedVehicle.model,
-        brand: newVehicle.brand || selectedVehicle.brand,
-        type: (newVehicle.type as CompanyVehicleType) || selectedVehicle.type,
-        year: newVehicle.year || selectedVehicle.year,
-        renavam: newVehicle.renavam || selectedVehicle.renavam,
+        plate: values.plate.trim().toUpperCase(),
+        model: values.model.trim(),
+        brand: values.brand.trim(),
+        type,
+        // Capacidade segue o tipo: trocar Van por Truck mantinha "1.5t".
+        ...(type !== selectedVehicle.type ? { capacity: capacityByType[type] } : {}),
+        year: year ?? null,
+        renavam: values.renavam.trim() || null,
       });
 
       toast({
-        title: "✅ Veículo Atualizado!",
-        description: `${selectedVehicle.plate} foi atualizado no banco de dados.`,
+        title: "Veículo atualizado",
+        description: `${selectedVehicle.plate} foi atualizado.`,
       });
 
-      setIsEditVehicleDialogOpen(false);
+      setIsFormOpen(false);
       setSelectedVehicle(null);
-    } catch (error: any) {
+    } catch (error) {
       toast({
-        title: "Erro ao atualizar",
-        description: error.message || "Não foi possível atualizar o veículo.",
+        title: "Não foi possível salvar",
+        description: friendlyVehicleError(error, "Confira os dados e tente de novo."),
         variant: "destructive",
       });
     } finally {
@@ -220,23 +230,29 @@ export default function VehiclesPage() {
 
     setIsSaving(true);
     try {
-      const success = await companyVehicleStore.delete(selectedVehicle.id);
-      
-      if (success) {
-        toast({
-          title: "🗑️ Veículo Removido",
-          description: `${selectedVehicle.plate} foi removido da frota e do banco de dados.`,
-        });
-      } else {
-        throw new Error("Não foi possível remover o veículo");
+      if (selectedVehicle.status === "in_use") {
+        throw new Error(
+          `${selectedVehicle.plate} está com ${selectedVehicle.currentDriverName || "um motorista"} agora. Ele fica livre quando a rota terminar; remova depois disso.`,
+        );
       }
+
+      const index = filteredVehicles.findIndex((vehicle) => vehicle.id === selectedVehicle.id);
+      await companyVehicleStore.delete(selectedVehicle.id);
+      invalidatePlanStatus(queryClient);
+      focusVehicleAt(Math.max(0, index));
+      toast({
+        title: "Veículo removido",
+        description: `${selectedVehicle.plate} saiu da frota.`,
+      });
 
       setIsDeleteDialogOpen(false);
       setSelectedVehicle(null);
-    } catch (error: any) {
+    } catch (error) {
+      // Como antes: fecha a confirmacao e explica o motivo no aviso.
+      setIsDeleteDialogOpen(false);
       toast({
-        title: "Erro ao remover",
-        description: error.message || "Não foi possível remover o veículo.",
+        title: "Não foi possível remover",
+        description: friendlyVehicleError(error, "Tente de novo em instantes."),
         variant: "destructive",
       });
     } finally {
@@ -249,20 +265,22 @@ export default function VehiclesPage() {
       if (vehicle.status === "maintenance") {
         await companyVehicleStore.update(vehicle.id, { status: "available" });
         toast({
-          title: "Veículo Disponível",
+          title: "Veículo disponível",
           description: `${vehicle.plate} voltou a ficar disponível.`,
         });
       } else {
-        await companyVehicleStore.setMaintenance(vehicle.id);
+        // setMaintenance devolve false em vez de lancar: antes o aviso de sucesso saia mesmo com erro.
+        const done = await companyVehicleStore.setMaintenance(vehicle.id);
+        if (!done) throw new Error("Não foi possível enviar para manutenção. Tente de novo em instantes.");
         toast({
-          title: "Em Manutenção",
+          title: "Veículo em manutenção",
           description: `${vehicle.plate} foi enviado para manutenção.`,
         });
       }
     } catch (error) {
       toast({
-        title: "Erro",
-        description: "Não foi possível alterar o status do veículo.",
+        title: "Não foi possível alterar a situação",
+        description: friendlyVehicleError(error, "Tente de novo em instantes."),
         variant: "destructive",
       });
     }
@@ -270,47 +288,42 @@ export default function VehiclesPage() {
 
   const openEditDialog = (vehicle: CompanyVehicle) => {
     setSelectedVehicle(vehicle);
-    setNewVehicle({
+    setFormMode("edit");
+    setFormInitial({
       plate: vehicle.plate,
       model: vehicle.model,
       brand: vehicle.brand,
       type: vehicle.type,
-      year: vehicle.year || new Date().getFullYear(),
+      year: vehicle.year ? String(vehicle.year) : "",
       renavam: vehicle.renavam || "",
     });
-    setIsEditVehicleDialogOpen(true);
+    setIsFormOpen(true);
   };
 
-  return (
-    <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold font-heading flex items-center gap-2">
-              <Building2 className="h-6 w-6 text-primary" />
-              Veículos da Casa
-            </h1>
-            <p className="text-muted-foreground">Gerencie a frota própria da empresa</p>
-          </div>
-          <Button 
-            className="bg-primary hover:bg-primary/90 btn-neon" 
-            disabled={!canAddVehicle}
-            onClick={() => {
-              if (!canAddVehicle) {
-                toast({ title: "Limite atingido", description: `Seu plano permite até ${limits.max_vehicles} veículos.`, variant: "destructive" });
-                return;
-              }
-              setNewVehicle({ plate: "", model: "", brand: "", type: "", year: new Date().getFullYear(), renavam: "" });
-              setIsNewVehicleDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Veículo
-          </Button>
-        </div>
+  const openDeleteDialog = (vehicle: CompanyVehicle) => {
+    captureDeleteFocus();
+    setSelectedVehicle(vehicle);
+    setIsDeleteDialogOpen(true);
+  };
 
-        {/* Plan Limit Banner */}
+  const toggleStatus = (status: VehicleStatus) => (on: boolean) => setFilterStatus(on ? status : "all");
+  const isFirstLoad = isLoading && vehicles.length === 0;
+
+  return (
+    <>
+      <PageHeader
+        icon={Truck}
+        title="Veículos"
+        description="Veículos da empresa, usados pelos motoristas da casa (CLT) nos romaneios. Agregados usam o próprio veículo."
+        actions={
+          <Button ref={newButtonRef} onClick={openNewVehicle} disabled={!canAddVehicle}>
+            <Plus aria-hidden="true" />
+            Cadastrar veículo
+          </Button>
+        }
+      />
+
+      <div className="space-y-6 md:space-y-8">
         <PlanLimitBanner
           plan={plan}
           resourceLabel="veículos"
@@ -319,394 +332,164 @@ export default function VehiclesPage() {
           planLabels={planLabels}
         />
 
-        {/* Info Banner */}
-        <div className="p-4 rounded-lg bg-info/10 border border-info/20 flex items-start gap-3">
-          <Building2 className="h-5 w-5 text-info mt-0.5" />
-          <div>
-            <p className="font-medium text-info">Frota Própria</p>
-            <p className="text-sm text-muted-foreground">
-              Veículos cadastrados aqui ficam disponíveis para motoristas CLT durante a montagem de romaneios.
-              Motoristas terceiros/agregados utilizam seus próprios veículos.
-            </p>
-          </div>
+        {/* Indicadores que tambem filtram a lista por situacao */}
+        <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <FilterStatCard
+            className={narrowStat}
+            label="Total"
+            value={stats.total}
+            icon={Truck}
+            tone="brand"
+            loading={isFirstLoad}
+            hint="Veículos da frota"
+            pressed={filterStatus === "all"}
+            onPressedChange={() => setFilterStatus("all")}
+          />
+          <FilterStatCard
+            className={narrowStat}
+            label="Disponíveis"
+            value={stats.available}
+            icon={CheckCircle2}
+            tone="success"
+            loading={isFirstLoad}
+            hint="Livres para a próxima rota"
+            pressed={filterStatus === "available"}
+            onPressedChange={toggleStatus("available")}
+          />
+          <FilterStatCard
+            className={narrowStat}
+            label="Em uso"
+            value={stats.inUse}
+            icon={Route}
+            tone="info"
+            loading={isFirstLoad}
+            hint="Com um motorista agora"
+            pressed={filterStatus === "in_use"}
+            onPressedChange={toggleStatus("in_use")}
+          />
+          <FilterStatCard
+            className={narrowStat}
+            label="Em manutenção"
+            value={stats.maintenance}
+            icon={Wrench}
+            tone="warning"
+            loading={isFirstLoad}
+            hint="Fora de uso por enquanto"
+            pressed={filterStatus === "maintenance"}
+            onPressedChange={toggleStatus("maintenance")}
+          />
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <div className="glass-card rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">Total da Frota</p>
-            <p className="text-2xl font-bold font-heading">{stats.total}</p>
-          </div>
-          <div className="glass-card rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">Disponíveis</p>
-            <p className="text-2xl font-bold text-success font-heading">{stats.available}</p>
-          </div>
-          <div className="glass-card rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">Em Uso</p>
-            <p className="text-2xl font-bold text-primary font-heading">{stats.inUse}</p>
-          </div>
-          <div className="glass-card rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">Manutenção</p>
-            <p className="text-2xl font-bold text-warning font-heading">{stats.maintenance}</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input 
-              placeholder="Buscar por placa, modelo ou marca..." 
-              className="pl-10 bg-secondary border-0" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-full sm:w-[160px]">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              <SelectItem value="all">Todos os Tipos</SelectItem>
-              {VEHICLE_TYPES.map((vt) => (
-                <SelectItem key={vt} value={vt}>{vt}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full sm:w-[160px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent className="bg-popover">
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="available">Disponíveis</SelectItem>
-              <SelectItem value="in_use">Em Uso</SelectItem>
-              <SelectItem value="maintenance">Manutenção</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Vehicle Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {isLoading ? (
-            <div className="col-span-full flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Carregando veículos...</span>
-            </div>
-          ) : filteredVehicles.length === 0 ? (
-            <div className="col-span-full text-center py-12 text-muted-foreground">
-              Nenhum veículo encontrado.
-            </div>
-          ) : (
-            filteredVehicles.map((vehicle) => {
-              const status = statusConfig[vehicle.status];
-              const StatusIcon = status.icon;
-
-              return (
-                <div
-                  key={vehicle.id}
-                  className="glass-card rounded-xl p-5 hover:border-primary/30 transition-all"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-lg bg-secondary p-3">
-                        <Truck className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-semibold font-mono">{vehicle.plate}</p>
-                        <p className="text-sm text-muted-foreground">{vehicle.brand} {vehicle.model}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={cn("flex items-center gap-1", status.className)}>
-                        <StatusIcon className="h-3 w-3" />
-                        {status.label}
-                      </Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-popover">
-                          <DropdownMenuItem onClick={() => openEditDialog(vehicle)}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSetMaintenance(vehicle)}>
-                            <Wrench className="h-4 w-4 mr-2" />
-                            {vehicle.status === "maintenance" ? "Liberar Manutenção" : "Enviar p/ Manutenção"}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            onClick={() => {
-                              setSelectedVehicle(vehicle);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Remover
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Tipo</span>
-                      <span>{vehicle.type}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Capacidade</span>
-                      <span>{vehicle.capacity}</span>
-                    </div>
-                    {vehicle.year && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Ano</span>
-                        <span>{vehicle.year}</span>
-                      </div>
-                    )}
-                    {vehicle.currentDriverName && (
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <span className="text-muted-foreground flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          Motorista
-                        </span>
-                        <span className="font-medium">{vehicle.currentDriverName}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
+        <section aria-labelledby="lista-veiculos" className="space-y-4">
+          <h2 id="lista-veiculos" className="sr-only">
+            Lista de veículos
+          </h2>
+          {/* Sem veiculos nao ha o que filtrar: a lista vazia mostra o proximo passo. */}
+          {(isFirstLoad || vehicles.length > 0) && (
+            <FilterBar
+              actions={
+                <>
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {isFirstLoad
+                      ? "Carregando..."
+                      : `${filteredVehicles.length.toLocaleString("pt-BR")} ${filteredVehicles.length === 1 ? "veículo" : "veículos"}`}
+                  </p>
+                  {hasFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </>
+              }
+            >
+              <SearchInput label="Buscar veículo" placeholder="Placa, marca ou modelo" value={searchQuery} onChange={setSearchQuery} className="sm:max-w-xs" />
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-full sm:w-44" aria-label="Tipo de veículo">
+                  <SelectValue placeholder="Tipo de veículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {COMPANY_VEHICLE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterBar>
           )}
-        </div>
+
+          {isFirstLoad ? (
+            <CardsSkeleton count={3} className="sm:grid-cols-2 xl:grid-cols-3" />
+          ) : loadError ? (
+            <EmptyState
+              icon={AlertTriangle}
+              title="Não foi possível carregar os veículos"
+              description={loadError}
+              action={
+                <Button variant="outline" onClick={loadVehicles}>
+                  Tentar de novo
+                </Button>
+              }
+            />
+          ) : vehicles.length === 0 ? (
+            <EmptyState
+              icon={Truck}
+              title="Nenhum veículo cadastrado"
+              description="Cadastre os veículos da empresa para os motoristas da casa usarem nas rotas."
+              action={
+                <Button onClick={openNewVehicle} disabled={!canAddVehicle}>
+                  <Plus aria-hidden="true" />
+                  Cadastrar veículo
+                </Button>
+              }
+            />
+          ) : filteredVehicles.length === 0 ? (
+            <EmptyState
+              icon={SearchX}
+              title="Nenhum veículo encontrado"
+              description="Tente outra placa, marca ou modelo, ou limpe os filtros para ver todos."
+              action={
+                <Button variant="outline" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Veículos">
+              {filteredVehicles.map((vehicle) => (
+                <VehicleCard
+                  key={vehicle.id}
+                  vehicle={vehicle}
+                  onEdit={openEditDialog}
+                  onToggleMaintenance={handleSetMaintenance}
+                  onRemove={openDeleteDialog}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
 
-      {/* New Vehicle Dialog */}
-      <Dialog open={isNewVehicleDialogOpen} onOpenChange={setIsNewVehicleDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5 text-primary" />
-              Cadastrar Veículo da Casa
-            </DialogTitle>
-            <DialogDescription>
-              Adicione um novo veículo à frota própria.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Placa *</Label>
-              <Input 
-                placeholder="ABC1D23" 
-                value={newVehicle.plate}
-                onChange={(e) => setNewVehicle({ ...newVehicle, plate: e.target.value.toUpperCase() })}
-                maxLength={7}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Marca *</Label>
-                <Input 
-                  placeholder="Ex: Volkswagen" 
-                  value={newVehicle.brand}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, brand: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Modelo *</Label>
-                <Input 
-                  placeholder="Ex: Delivery Express" 
-                  value={newVehicle.model}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo de Veículo *</Label>
-                <Select 
-                  value={newVehicle.type} 
-                  onValueChange={(v) => setNewVehicle({ ...newVehicle, type: v as CompanyVehicleType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    {VEHICLE_TYPES.map((vt) => (
-                      <SelectItem key={vt} value={vt}>{vt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Ano</Label>
-                <Input 
-                  type="number"
-                  placeholder="2024" 
-                  value={newVehicle.year}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, year: parseInt(e.target.value) || new Date().getFullYear() })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>RENAVAM</Label>
-              <Input 
-                placeholder="Número do RENAVAM" 
-                value={newVehicle.renavam}
-                onChange={(e) => setNewVehicle({ ...newVehicle, renavam: e.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewVehicleDialogOpen(false)} disabled={isSaving}>
-              Cancelar
-            </Button>
-            <Button onClick={handleNewVehicle} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                "Cadastrar Veículo"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <VehicleFormDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        mode={formMode}
+        initialValues={formInitial}
+        saving={isSaving}
+        onSubmit={formMode === "new" ? handleNewVehicle : handleEditVehicle}
+      />
 
-      {/* Edit Vehicle Dialog */}
-      <Dialog open={isEditVehicleDialogOpen} onOpenChange={setIsEditVehicleDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-5 w-5 text-primary" />
-              Editar Veículo
-            </DialogTitle>
-            <DialogDescription>
-              Atualize os dados do veículo {selectedVehicle?.plate}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Placa *</Label>
-              <Input 
-                placeholder="ABC1D23" 
-                value={newVehicle.plate}
-                onChange={(e) => setNewVehicle({ ...newVehicle, plate: e.target.value.toUpperCase() })}
-                maxLength={7}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Marca *</Label>
-                <Input 
-                  placeholder="Ex: Volkswagen" 
-                  value={newVehicle.brand}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, brand: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Modelo *</Label>
-                <Input 
-                  placeholder="Ex: Delivery Express" 
-                  value={newVehicle.model}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tipo de Veículo *</Label>
-                <Select 
-                  value={newVehicle.type} 
-                  onValueChange={(v) => setNewVehicle({ ...newVehicle, type: v as CompanyVehicleType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    {VEHICLE_TYPES.map((vt) => (
-                      <SelectItem key={vt} value={vt}>{vt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Ano</Label>
-                <Input 
-                  type="number"
-                  placeholder="2024" 
-                  value={newVehicle.year}
-                  onChange={(e) => setNewVehicle({ ...newVehicle, year: parseInt(e.target.value) || new Date().getFullYear() })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>RENAVAM</Label>
-              <Input 
-                placeholder="Número do RENAVAM" 
-                value={newVehicle.renavam}
-                onChange={(e) => setNewVehicle({ ...newVehicle, renavam: e.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditVehicleDialogOpen(false)} disabled={isSaving}>
-              Cancelar
-            </Button>
-            <Button onClick={handleEditVehicle} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                "Salvar Alterações"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Remover Veículo
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja remover o veículo <strong>{selectedVehicle?.plate}</strong> da frota?
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSaving}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteVehicle}
-              className="bg-destructive hover:bg-destructive/90"
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Removendo...
-                </>
-              ) : (
-                "Remover Veículo"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </AppLayout>
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        tone="danger"
+        title={`Remover o veículo ${selectedVehicle?.plate ?? ""}?`}
+        description="O veículo sai da frota. Não dá para desfazer."
+        confirmLabel={isSaving ? "Removendo..." : "Remover veículo"}
+        loading={isSaving}
+        onConfirm={handleDeleteVehicle}
+      />
+    </>
   );
 }

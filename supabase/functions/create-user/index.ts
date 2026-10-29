@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { listAllUserEmails } from "../_shared/authUsers.ts";
 
 interface CreateUserRequest {
   email: string;
@@ -25,8 +26,7 @@ async function findUniqueEmail(
   baseEmail: string
 ): Promise<{ email: string; attempts: number }> {
   // First try the base email
-  const { data: existingUsers } = await adminClient.auth.admin.listUsers();
-  const existingEmails = new Set(existingUsers?.users?.map((u) => u.email?.toLowerCase()) || []);
+  const existingEmails = await listAllUserEmails(adminClient);
 
   if (!existingEmails.has(baseEmail.toLowerCase())) {
     return { email: baseEmail, attempts: 0 };
@@ -131,6 +131,23 @@ serve(async (req) => {
 
     console.log(`Creating user with email: ${normalizedEmail}, role: ${role}`);
 
+    const allowedRoles = ["admin", "fleet_manager", "dispatcher", "viewer"];
+    if (!allowedRoles.includes(role)) {
+      return new Response(
+        JSON.stringify({ error: "Nivel de acesso invalido" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Hierarquia: so o Administrador cria usuarios do painel. O Gestor de Frota
+    // cria apenas logins de motorista (viewer).
+    if (role !== "viewer" && !isAdmin) {
+      return new Response(
+        JSON.stringify({ error: "Apenas o Administrador pode criar usuarios do painel" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Validate required fields
     if (!normalizedEmail || !password || !normalizedName) {
       return new Response(
@@ -161,10 +178,13 @@ serve(async (req) => {
 
     // Pre-check: CPF must be unique (drivers.cpf has UNIQUE constraint)
     if (normalizedCpf) {
+      // O painel grava o CPF formatado; compara nos dois formatos.
+      const formattedCpf = normalizedCpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
       const { data: existingDriver, error: cpfCheckError } = await adminClient
         .from("drivers")
         .select("id,name,cpf")
-        .eq("cpf", normalizedCpf)
+        .in("cpf", [normalizedCpf, formattedCpf])
+        .limit(1)
         .maybeSingle();
 
       if (cpfCheckError) {
@@ -181,6 +201,19 @@ serve(async (req) => {
             error: `CPF já cadastrado para o motorista: ${existingDriver.name || existingDriver.id}`,
             code: "cpf_already_exists",
           }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Usuario do painel digita o proprio e-mail: se ja existe, avisa em vez de
+    // trocar por "nome1@" sem ninguem saber qual e o login. So o login do
+    // motorista (gerado a partir do nome) ganha numero automaticamente.
+    if (role !== "viewer") {
+      const existingEmails = await listAllUserEmails(adminClient);
+      if (existingEmails.has(normalizedEmail)) {
+        return new Response(
+          JSON.stringify({ error: "Este e-mail já está cadastrado no sistema", code: "email_exists" }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -242,11 +275,21 @@ serve(async (req) => {
 
       const callerTenantId = callerMembership?.tenant_id || null;
 
-      // Upsert the role
-      await adminClient.from("user_roles").upsert(
+      // Upsert the role. Se o banco recusar (ex.: limite do plano), desfaz o
+      // login: antes ficava um usuario criado sem nenhum acesso.
+      const { error: roleError } = await adminClient.from("user_roles").upsert(
         { user_id: newUser.user.id, role, tenant_id: callerTenantId },
         { onConflict: "user_id,role" }
       );
+
+      if (roleError) {
+        console.error("Role assignment error:", roleError);
+        await adminClient.auth.admin.deleteUser(newUser.user.id);
+        return new Response(
+          JSON.stringify({ error: roleError.message || "Não foi possível definir o nível de acesso" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Remove default viewer if assigning a different role
       if (role !== "viewer") {
@@ -282,9 +325,9 @@ serve(async (req) => {
           name: normalizedName,
           role,
         },
-        message: emailAttempts > 0 
-          ? `Motorista criado com email ${finalEmail} (email original já existia)`
-          : "Motorista criado com sucesso",
+        message: emailAttempts > 0
+          ? `Usuário criado com e-mail ${finalEmail} (o e-mail original já existia)`
+          : "Usuário criado com sucesso",
       }),
       { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

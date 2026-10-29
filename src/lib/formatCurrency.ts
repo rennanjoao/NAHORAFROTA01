@@ -41,3 +41,16 @@ export function parseCurrency(value: string): number {
   const cleaned = value.replace(/R\$|\s|\./g, '').replace(',', '.');
   return parseFloat(cleaned) || 0;
 }
+
+/**
+ * Le numero digitado em formato brasileiro ou com ponto decimal:
+ * "R$ 1.234,56" -> 1234.56, "10,5kg" -> 10.5, "10.5" -> 10.5. Vazio/invalido -> null.
+ */
+export function parseDecimalInput(value: string | number | null | undefined): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const cleaned = String(value ?? "").replace(/[^\d.,-]/g, "");
+  if (!cleaned) return null;
+  const normalized = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}

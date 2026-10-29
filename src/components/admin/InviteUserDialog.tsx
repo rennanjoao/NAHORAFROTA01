@@ -1,38 +1,50 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Mail, Loader2, Copy, Check, Shield, Lock, Crown } from "lucide-react";
+import { Mail, Loader2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
+import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
+import { FormField } from "@/components/patterns/FormField";
+import { CredentialsCard } from "./CredentialsCard";
+import { INVITE_ROLES, looksLikeEmail } from "./roleOptions";
+import { friendlyServerMessage, isDuplicateEmail } from "./serverMessages";
 
-const ROLES = [
-  { value: "dispatcher", label: "Lançador", description: "Importa notas e cria romaneios" },
-  { value: "fleet_manager", label: "Gestor de Frota", description: "Gerencia motoristas e frota" },
-  { value: "viewer", label: "Visualizador", description: "Apenas visualiza dados" },
-  { value: "admin", label: "Administrador", description: "Acesso total ao sistema" },
-] as const;
+const FALLBACK_ERROR = "Não foi possível gerar o acesso. Confira os dados e tente de novo.";
+const DUPLICATE = "Este e-mail já está cadastrado. Use outro e-mail.";
 
 interface InviteUserDialogProps {
   onUserInvited?: () => void;
 }
 
+type FieldKey = "name" | "email";
+
 export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
-  const { canAddUser, systemUsersCount, limits, plan, planLabels } = usePlanLimits();
+  const { canAddUser, limits, plan, planLabels } = usePlanLimits();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  // O campo fica desabilitado enquanto envia: o foco vai para o e-mail quando ele volta.
+  const [focusEmail, setFocusEmail] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("dispatcher");
+  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focusEmail && !isLoading) {
+      emailRef.current?.focus();
+      setFocusEmail(false);
+    }
+  }, [focusEmail, isLoading]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
@@ -40,27 +52,35 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
       setEmail("");
       setRole("dispatcher");
       setInviteResult(null);
-      setCopied(false);
+      setErrors({});
     }
     setOpen(newOpen);
   };
 
-  const handleInvite = async () => {
+  const handleInvite = async (event?: FormEvent) => {
+    event?.preventDefault();
+    // O botao continua focavel enquanto gera (aria-disabled): evita gerar duas vezes.
+    if (isLoading) return;
     if (!canAddUser) {
-      toast.error(`Limite de ${limits.max_users} usuário(s) de sistema atingido no Plano ${planLabels[plan] || plan}. Faça upgrade.`);
+      toast.error(
+        `O plano ${planLabels[plan] || plan} permite até ${limits.max_users} ${limits.max_users === 1 ? "usuário" : "usuários"}. Fale com a equipe para mudar de plano.`,
+      );
       return;
     }
 
-    if (!name.trim() || !email.trim()) {
-      toast.error("Nome e e-mail são obrigatórios");
-      return;
-    }
+    const next: Partial<Record<FieldKey, string>> = {};
+    if (!name.trim()) next.name = "Digite o nome da pessoa.";
+    if (!email.trim()) next.email = "Digite o e-mail que a pessoa vai usar para entrar.";
+    else if (!looksLikeEmail(email)) next.email = "Confira o e-mail. Exemplo: nome@empresa.com.br";
+    setErrors(next);
+    if (next.name) return nameRef.current?.focus();
+    if (next.email) return emailRef.current?.focus();
 
     setIsLoading(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session?.access_token) {
-        toast.error("Sessão expirada. Faça login novamente.");
+        toast.error("Sessão expirada. Entre de novo para continuar.");
         return;
       }
 
@@ -71,136 +91,131 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
 
       if (error) {
         console.error("Invite error:", error);
-        toast.error(error.message || "Erro ao convidar usuário");
+        const info = await readEdgeFunctionError(error, FALLBACK_ERROR);
+        if (isDuplicateEmail(info.message, info.code)) {
+          setErrors({ email: DUPLICATE });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(info.message, FALLBACK_ERROR));
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || "Erro ao convidar usuário");
+        if (isDuplicateEmail(data?.error, data?.code)) {
+          setErrors({ email: DUPLICATE });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(data?.error, FALLBACK_ERROR));
         return;
       }
 
       setInviteResult({ email: data.user.email, tempPassword: data.tempPassword });
-      toast.success(`Convite criado para ${data.user.email}!`);
+      toast.success(`Acesso criado para ${data.user.email}.`);
       onUserInvited?.();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error inviting:", err);
-      toast.error(err.message || "Erro ao convidar");
+      toast.error(friendlyServerMessage(err instanceof Error ? err.message : "", FALLBACK_ERROR));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCopyCredentials = async () => {
-    if (!inviteResult) return;
-    const text = `Acesso ao NaHora Frota:\nE-mail: ${inviteResult.email}\nSenha temporária: ${inviteResult.tempPassword}\n\nAcesse: ${window.location.origin}/login`;
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast.success("Credenciais copiadas!");
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const selectedRole = INVITE_ROLES.find((r) => r.value === role);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2" disabled={!canAddUser}>
+        <Button variant="outline" disabled={!canAddUser}>
           {!canAddUser ? (
             <>
-              <Lock className="h-4 w-4" />
-              Limite de Usuários
+              <Lock aria-hidden="true" />
+              Limite de usuários
             </>
           ) : (
             <>
-              <Mail className="h-4 w-4" />
-              Convidar Usuário
+              <Mail aria-hidden="true" />
+              Convidar usuário
             </>
           )}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Convidar Usuário
-          </DialogTitle>
+          <DialogTitle>{inviteResult ? "Acesso criado" : "Convidar usuário"}</DialogTitle>
           <DialogDescription>
-            Envie um convite para um colaborador acessar o sistema
+            {inviteResult
+              ? "Nenhum e-mail é enviado sozinho: passe estes dados para a pessoa."
+              : "Gera um acesso com senha temporária para você repassar à pessoa."}
           </DialogDescription>
         </DialogHeader>
 
         {inviteResult ? (
-          <div className="space-y-4 py-4">
-            <div className="rounded-lg border border-success/30 bg-success/10 p-4 space-y-3">
-              <p className="font-semibold text-success flex items-center gap-2">
-                <Check className="h-5 w-5" />
-                Convite criado com sucesso!
-              </p>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">E-mail:</span>{" "}
-                  <span className="font-mono font-medium">{inviteResult.email}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Senha temporária:</span>{" "}
-                  <span className="font-mono font-medium">{inviteResult.tempPassword}</span>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Compartilhe essas credenciais com o usuário convidado. Ele deve trocar a senha no primeiro acesso.
-              </p>
-            </div>
-            <Button onClick={handleCopyCredentials} className="w-full gap-2">
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copiado!" : "Copiar Credenciais"}
-            </Button>
-          </div>
+          <CredentialsCard
+            title="Acesso pronto"
+            rows={[
+              { label: "E-mail", value: inviteResult.email, mono: true },
+              { label: "Senha temporária", value: inviteResult.tempPassword, mono: true },
+            ]}
+            note="A pessoa pode trocar a senha em Configurações, na aba Segurança."
+            copyText={`Acesso ao Na Hora Frota:\nE-mail: ${inviteResult.email}\nSenha temporária: ${inviteResult.tempPassword}\n\nAcesse: ${window.location.origin}/login`}
+          />
         ) : (
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="inviteName">Nome Completo *</Label>
-              <Input
-                id="inviteName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Nome do colaborador"
-                disabled={isLoading}
-              />
-            </div>
+          <form id="invite-user-form" onSubmit={handleInvite} noValidate className="space-y-4">
+            <FormField id="inviteName" label="Nome completo" error={errors.name}>
+              {(control) => (
+                <Input
+                  {...control}
+                  ref={nameRef}
+                  value={name}
+                  autoComplete="off"
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
+                  placeholder="Nome do colaborador"
+                  disabled={isLoading}
+                />
+              )}
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="inviteEmail">E-mail *</Label>
-              <Input
-                id="inviteEmail"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="colaborador@empresa.com.br"
-                disabled={isLoading}
-              />
-            </div>
+            <FormField id="inviteEmail" label="E-mail" error={errors.email} hint="Será o login da pessoa no painel.">
+              {(control) => (
+                <Input
+                  {...control}
+                  ref={emailRef}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="off"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  placeholder="colaborador@empresa.com.br"
+                  disabled={isLoading}
+                />
+              )}
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="inviteRole">Nível de Acesso</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.value} value={r.value}>
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4" />
-                        <div>
-                          <span className="font-medium">{r.label}</span>
-                          <span className="text-muted-foreground ml-2 text-xs">— {r.description}</span>
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            <FormField id="inviteRole" label="Nível de acesso" hint={selectedRole?.description}>
+              {(control) => (
+                <Select value={role} onValueChange={setRole} disabled={isLoading}>
+                  <SelectTrigger {...control}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INVITE_ROLES.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </FormField>
+          </form>
         )}
 
         <DialogFooter>
@@ -210,21 +225,12 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
                 Cancelar
               </Button>
-              <Button onClick={handleInvite} disabled={isLoading} className="gap-2">
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Convidando...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="h-4 w-4" />
-                    Enviar Convite
-                  </>
-                )}
+              <Button type="submit" form="invite-user-form" aria-disabled={isLoading || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
+                {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Mail aria-hidden="true" />}
+                {isLoading ? "Gerando..." : "Gerar acesso"}
               </Button>
             </>
           )}

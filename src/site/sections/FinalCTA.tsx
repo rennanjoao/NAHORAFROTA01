@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Cta } from "../components/Cta";
 import { Reveal } from "../components/Reveal";
 import { LiveClock } from "../components/LiveClock";
@@ -21,6 +22,12 @@ export function FinalCTA() {
             <Cta href="#planos" size="lg" arrow>
               Ver planos e começar
             </Cta>
+            <Link
+              to="/register"
+              className="inline-flex h-14 items-center justify-center px-6 font-heading font-semibold text-white/85 underline-offset-4 hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nhf-green"
+            >
+              Testar grátis por 7 dias
+            </Link>
             <a
               href="mailto:suporte@nahorafrota.com.br?subject=Quero%20conhecer%20o%20Na%20Hora%20Frota"
               className="inline-flex h-14 items-center justify-center px-6 font-heading font-semibold text-white/85 underline-offset-4 hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nhf-green"
