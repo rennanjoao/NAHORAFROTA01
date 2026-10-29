@@ -129,6 +129,7 @@ const actionLabels: Record<string, string> = {
 export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpdated }: DeliveryDetailSheetProps) {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [occurrenceEntries, setOccurrenceEntries] = useState<DeliveryOccurrenceEntry[]>([]);
+  const [proofImages, setProofImages] = useState<ProofImage[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -158,28 +159,32 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
       if (!open || !delivery?.dbId) {
         setAuditLogs([]);
         setOccurrenceEntries([]);
+        setProofImages([]);
         return;
       }
 
       setIsLoadingLogs(true);
       try {
-        const [auditResult, occurrenceResult] = await Promise.all([
+        const [auditResult, occurrenceResult, proofResult] = await Promise.all([
           supabase
             .from('manifest_audit_logs')
             .select('*')
             .eq('invoice_id', delivery.dbId)
             .order('created_at', { ascending: false }),
           fetchOccurrenceEntries(delivery.dbId),
+          fetchProofImages(delivery.dbId),
         ]);
 
         const { data, error } = auditResult;
         if (error) throw error;
         setAuditLogs(data || []);
         setOccurrenceEntries(occurrenceResult);
+        setProofImages(proofResult);
       } catch (err) {
         console.error('Error fetching audit logs:', err);
         setAuditLogs([]);
         setOccurrenceEntries([]);
+        setProofImages([]);
       } finally {
         setIsLoadingLogs(false);
       }
@@ -453,11 +458,12 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                     )}
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Data: <strong>{delivery.receivedAt?.toLocaleDateString('pt-BR') || new Date().toLocaleDateString('pt-BR')}</strong></span>
+                      {/* Sem data registrada mostra "—" (antes caia para a data de hoje). */}
+                      <span>Data: <strong>{delivery.receivedAt?.toLocaleDateString('pt-BR') || "—"}</strong></span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>Hora: <strong>{delivery.receivedAt?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                      <span>Hora: <strong>{delivery.receivedAt?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) || "—"}</strong></span>
                     </div>
                     {delivery.driver && (
                       <div className="flex items-center gap-2">
@@ -471,6 +477,30 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                       </div>
                     )}
                   </div>
+                  {proofImages.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 pl-6">
+                      {proofImages.map((image) => (
+                        <a
+                          key={image.url}
+                          href={image.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group block overflow-hidden rounded-lg border"
+                          title={`Abrir ${image.label.toLowerCase()}`}
+                        >
+                          <img
+                            src={image.url}
+                            alt={image.label}
+                            className={cn("h-32 w-full", image.kind === "signature" ? "object-contain bg-white" : "object-cover")}
+                            onError={(event) => {
+                              event.currentTarget.src = "/placeholder.svg";
+                            }}
+                          />
+                          <p className="px-2 py-1 text-xs text-muted-foreground">{image.label}</p>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -669,6 +699,35 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
   );
 }
 
+
+interface ProofImage {
+  url: string;
+  kind: "photo" | "signature";
+  label: string;
+}
+
+/** Foto e assinatura do comprovante de entrega (links assinados na hora). */
+async function fetchProofImages(invoiceId: string): Promise<ProofImage[]> {
+  const { data, error } = await supabase
+    .from("delivery_proofs")
+    .select("photo_url, signature_url, created_at")
+    .eq("invoice_id", invoiceId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.warn("Error fetching delivery proof:", error);
+    return [];
+  }
+  const proof = data?.[0];
+  if (!proof) return [];
+
+  const [fresh] = await withFreshProofPhotos([proof], ["photo_url", "signature_url"]);
+  const images: ProofImage[] = [];
+  if (fresh.photo_url) images.push({ url: fresh.photo_url, kind: "photo", label: "Foto do comprovante" });
+  if (fresh.signature_url) images.push({ url: fresh.signature_url, kind: "signature", label: "Assinatura" });
+  return images;
+}
 
 async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurrenceEntry[]> {
   const columns = "id, occurrence_type, description, photo_url, created_at";
