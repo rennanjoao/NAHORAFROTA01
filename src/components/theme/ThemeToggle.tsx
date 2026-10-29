@@ -54,8 +54,9 @@ const OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
   { value: "system", label: "Automático", icon: Monitor },
 ];
 
-/** Escolha completa (claro, escuro, automatico) para menus e Configuracoes. */
-export function ThemeSegmented({ className }: { className?: string }) {
+/** Escolha completa (claro, escuro, automatico) para menus e Configuracoes.
+ *  size="lg": botoes de 48px (app do motorista, toque com luva). */
+export function ThemeSegmented({ className, size = "default" }: { className?: string; size?: "default" | "lg" }) {
   const { theme, setTheme } = usePreferences();
 
   return (
@@ -70,14 +71,15 @@ export function ThemeSegmented({ className }: { className?: string }) {
             aria-checked={selected}
             onClick={(event) => setTheme(value, clickOrigin(event))}
             className={cn(
-              "flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-all duration ease-out",
+              "flex items-center justify-center gap-1.5 rounded-md px-2 font-medium transition-all duration ease-out",
+              size === "lg" ? "min-h-12 text-sm" : "min-h-9 text-xs",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               selected
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            <Icon className={size === "lg" ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden="true" />
             {label}
           </button>
         );

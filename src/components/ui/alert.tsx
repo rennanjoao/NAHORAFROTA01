@@ -29,9 +29,10 @@ const Alert = React.forwardRef<
 ));
 Alert.displayName = "Alert";
 
-const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
+// <p> e nao <h5>: um aviso dentro da tela nao deve pular a ordem dos titulos.
+const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn("mb-1 font-semibold leading-snug tracking-tight", className)} {...props} />
+    <p ref={ref} className={cn("mb-1 font-semibold leading-snug tracking-tight text-foreground", className)} {...props} />
   ),
 );
 AlertTitle.displayName = "AlertTitle";
