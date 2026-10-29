@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenantData } from "@/hooks/useTenantData";
 import { DataList, DataRow } from "./DriverBits";
 import { FormField } from "./FormField";
+import { useReturnFocus } from "./useReturnFocus";
 
 // O pedido vai por e-mail para a equipe Na Hora, que confirma disponibilidade e
 // prazo pelo mesmo canal. Antes a tela mostrava "APROVADO" e nada era enviado.
@@ -122,6 +123,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
   const { tenant } = useTenantData();
 
   const [step, setStep] = useState<Step>("cargo");
+  const returnFocus = useReturnFocus();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -217,7 +219,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
         onOpenChange(isOpen);
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent {...returnFocus} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Pedir carro extra</DialogTitle>
           <DialogDescription>{currentStep.description}</DialogDescription>

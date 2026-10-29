@@ -62,7 +62,7 @@ function DateRangeButton({ value, onChange, isMobile }: DateRangeButtonProps) {
           <span className="font-data">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
+      <PopoverContent aria-label="Escolher período" align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
         <div className="border-b px-4 py-3">
           <p className="text-sm font-semibold text-foreground">Escolha o período</p>
           <p className="text-xs text-muted-foreground">Toque no dia inicial e depois no dia final.</p>

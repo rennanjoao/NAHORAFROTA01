@@ -2,13 +2,8 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { CheckCircle2, FileSpreadsheet, MoreHorizontal, Plus, Route, SearchX, Truck, UserX, Users, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { EmptyState, FilterBar, ListSkeleton, PageHeader, SearchInput } from "@/components/patterns";
+import { ActionMenu } from "@/components/drivers/ActionMenu";
 import { RequestVehicleWizard } from "@/components/drivers/RequestVehicleWizard";
 import { ImportDriversDialog } from "@/components/drivers/ImportDriversDialog";
 import { DriverDetailSheet } from "@/components/drivers/DriverDetailSheet";
@@ -321,24 +316,19 @@ export default function DriversPage() {
                 Pedir carro extra
               </Button>
             </div>
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
+            <ActionMenu
+              align="start"
+              trigger={
                 <Button variant="outline" className="sm:hidden">
                   <MoreHorizontal aria-hidden="true" />
                   Mais ações
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuItem onSelect={() => setIsImportOpen(true)} disabled={!canAddDriver}>
-                  <FileSpreadsheet aria-hidden="true" />
-                  Importar planilha
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setIsRequestVehicleOpen(true)}>
-                  <Truck aria-hidden="true" />
-                  Pedir carro extra
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              items={[
+                { label: "Importar planilha", icon: FileSpreadsheet, onSelect: () => setIsImportOpen(true), disabled: !canAddDriver },
+                { label: "Pedir carro extra", icon: Truck, onSelect: () => setIsRequestVehicleOpen(true) },
+              ]}
+            />
             <Button onClick={openNewDriver} disabled={!canAddDriver}>
               <Plus aria-hidden="true" />
               {canAddDriver ? "Cadastrar motorista" : "Limite de motoristas atingido"}

@@ -18,11 +18,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/patterns";
 import {
   Upload,
   FileUp,
   CheckCircle2,
+  Info,
   Loader2,
   MapPin,
   MapPinOff,
@@ -475,11 +477,20 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
             )}
 
             <div className="flex flex-wrap gap-2">
-              <StatusBadge tone="success">{notesLabel(nonDuplicateCount)} para importar</StatusBadge>
+              <StatusBadge tone={nonDuplicateCount > 0 ? "success" : "neutral"}>{notesLabel(nonDuplicateCount)} para importar</StatusBadge>
               {duplicateCount > 0 && <StatusBadge tone="neutral">{notesLabel(duplicateCount)} já importada(s)</StatusBadge>}
               {notGeocodedCount > 0 && <StatusBadge tone="warning">{notesLabel(notGeocodedCount)} sem local no mapa</StatusBadge>}
               {errorCount > 0 && <StatusBadge tone="danger">{errorCount} arquivo(s) com erro</StatusBadge>}
             </div>
+
+            {nonDuplicateCount === 0 && processedInvoices.length > 0 && (
+              <Alert variant="info">
+                <Info aria-hidden="true" />
+                <AlertDescription className="text-foreground">
+                  Todas as notas destes arquivos já estão no sistema. Escolha outros arquivos ou feche esta janela.
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div
               role="region"

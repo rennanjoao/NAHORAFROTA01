@@ -4,18 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toneText } from "@/components/patterns";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
+import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
 import { slaTone } from "./driverConfig";
 import { DriverAvatar, DriverStatusBadge, PlateTag } from "./DriverBits";
 import type { DriverRecord } from "./useDriverQuickActions";
@@ -69,38 +62,26 @@ function BalanceValue({ driver }: { driver: DriverRecord }) {
 }
 
 function DriverActionsMenu({ driver, canManage, onOpen, onEdit, onWhatsApp, onShowOnMap }: Omit<DriverListProps, "drivers"> & { driver: DriverRecord }) {
+  const items: ActionMenuItem[] = [
+    { label: "Ver detalhes", icon: Eye, onSelect: () => onOpen(driver) },
+    { label: "Editar dados", icon: Pencil, onSelect: () => onEdit(driver) },
+  ];
+  if (canManage) {
+    items.push(
+      { label: "Chamar no WhatsApp", icon: MessageCircle, onSelect: () => onWhatsApp(driver), immediate: true, separatorBefore: true },
+      { label: "Ver no mapa", icon: MapPin, onSelect: () => onShowOnMap(driver), immediate: true },
+    );
+  }
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
+    <ActionMenu
+      title={driver.name}
+      items={items}
+      trigger={
         <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${driver.name}`} className="h-9 w-9">
           <MoreHorizontal aria-hidden="true" />
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel className="truncate">{driver.name}</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => onOpen(driver)}>
-          <Eye aria-hidden="true" />
-          Ver detalhes
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEdit(driver)}>
-          <Pencil aria-hidden="true" />
-          Editar dados
-        </DropdownMenuItem>
-        {canManage && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onWhatsApp(driver)}>
-              <MessageCircle aria-hidden="true" />
-              Chamar no WhatsApp
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onShowOnMap(driver)}>
-              <MapPin aria-hidden="true" />
-              Ver no mapa
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+    />
   );
 }
 

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPES, DRIVER_DOCUMENT_LABELS, PENDING_PLATE, slaTone, type DriverDocumentKey } from "./driverConfig";
 import { DataList, DataRow, DriverAvatar, DriverStatusBadge, IconAction, PlateTag } from "./DriverBits";
 import { driverDbId, useDriverQuickActions, type DriverRecord } from "./useDriverQuickActions";
+import { useReturnFocus, useReturnFocusOnClose } from "./useReturnFocus";
 
 interface DriverDetailSheetProps {
   driver: Driver | null;
@@ -71,10 +72,13 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
   const { roles } = useAuth();
   const { callOnWhatsApp, showOnMap } = useDriverQuickActions();
   const [tab, setTab] = useState("resumo");
+  const returnFocus = useReturnFocus();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isInactivateDialogOpen, setIsInactivateDialogOpen] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+  const captureDeleteFocus = useReturnFocusOnClose(isDeleteDialogOpen);
+  const captureInactivateFocus = useReturnFocusOnClose(isInactivateDialogOpen);
   const [documents, setDocuments] = useState<DriverDocument[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const { canViewDocuments } = useDriverDocumentsAccess();
@@ -193,6 +197,7 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
     }
 
     if (!isInactive) {
+      captureInactivateFocus();
       setIsInactivateDialogOpen(true);
       return;
     }
@@ -290,7 +295,7 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+      <SheetContent {...returnFocus} className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
         <SheetHeader className="shrink-0 gap-4 border-b p-5 pr-5 sm:p-6 sm:pr-6">
           <div className="flex items-center gap-4 pr-9">
             <DriverAvatar photo={driver.photo} className="h-16 w-16 border-2 border-primary/25 shadow-sm" />
@@ -542,7 +547,14 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
 
         <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-popover px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
           {canManageDriver ? (
-            <Button variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+            <Button
+              variant="ghost"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => {
+                captureDeleteFocus();
+                setIsDeleteDialogOpen(true);
+              }}
+            >
               <Trash2 aria-hidden="true" />
               Excluir
             </Button>

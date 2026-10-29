@@ -44,7 +44,7 @@ import { ManifestRecord, manifestStore } from "@/stores/manifestStore";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { companyVehicleStore, CompanyVehicle } from "@/stores/companyVehicleStore";
 import { useManifestsDB, CreateManifestInput, DBManifest } from "@/hooks/useManifestsDB";
-import { decodePolyline, geocodeAddress, optimizeRouteNearestNeighbor, formatDistance, formatDuration, Waypoint } from "@/lib/routeOptimization";
+import { decodePolyline, geocodeAddress, optimizeRouteNearestNeighbor, formatDistance as formatDistanceRaw, formatDuration, Waypoint } from "@/lib/routeOptimization";
 import { useTenantData } from "@/hooks/useTenantData";
 import { supabase } from "@/integrations/supabase/client";
 import { useDBDrivers } from "@/hooks/useDBDrivers";
@@ -112,6 +112,13 @@ function stopName(point: Waypoint, idx: number) {
   if (point.id.includes("return")) return "Retorno à base";
   return `Parada ${idx}: ${(point.label || "Entrega").replace(/^\d+\.\s*/, "")}`;
 }
+
+/** Distancia com virgula decimal (pt-BR). */
+const formatDistance = (km: number) => formatDistanceRaw(km).replace(".", ",");
+
+/** Endereco vazio da base (", - /") vira um aviso legivel. */
+const readableAddress = (address?: string) =>
+  address && address.replace(/[\s,\-/]/g, "") ? address : "Endereço não cadastrado";
 
 /** Letra/numero dentro do marcador: P (partida), R (retorno) ou a ordem. */
 const stopMark = (point: Waypoint, idx: number) => (idx === 0 ? "P" : point.id.includes("return") ? "R" : String(idx));
@@ -181,8 +188,8 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
         iconAnchor: [15, 15],
       });
 
-      // Nome acessivel do marcador (leitor de tela e dica do mouse).
-      L.marker([point.lat, point.lng], { icon, title: name, alt: name, keyboard: true })
+      // Nome do marcador (dica do mouse). Fora da ordem do Tab: a lista de paradas abaixo do mapa tem o mesmo conteudo.
+      L.marker([point.lat, point.lng], { icon, title: name, alt: name, keyboard: false })
         .bindPopup(`<div style="padding:10px 12px;font-size:13px;line-height:1.4"><strong>${name}</strong><br>${point.address}</div>`)
         .addTo(map);
     });
@@ -716,8 +723,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
 
       if (!tenant?.latitude || !tenant?.longitude) {
         toast({
-          title: "Base sem coordenadas",
-          description: "Vá em Configurações > Dados da Empresa e clique em 'Obter Coordenadas'.",
+          title: "A base da empresa está sem localização",
+          description: "Em Configurações > Empresa, use Obter coordenadas para definir o ponto de partida.",
           variant: "destructive",
         });
       }
@@ -746,14 +753,14 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           const geocodedCount = Math.max(0, invoicesMissingGps - unresolvedCount);
           if (geocodedCount > 0) {
             toast({
-              title: `${geocodedCount} NF(s) geocodificada(s)`,
+              title: `${geocodedCount} nota(s) localizada(s) pelo endereço`,
               description: "Usamos o endereço da nota para montar a rota.",
             });
           }
           if (unresolvedCount > 0) {
             toast({
-              title: `${unresolvedCount} NF(s) sem coordenadas`,
-              description: "Essas notas ficaram fora do cálculo porque o endereço não pode ser geocodificado.",
+              title: `${unresolvedCount} nota(s) sem local no mapa`,
+              description: "Ficaram fora do cálculo porque o endereço não foi encontrado.",
             });
           }
         }
@@ -766,8 +773,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         setRouteDistanceSource("estimated");
         setHasCalculatedRoute(true);
         toast({
-          title: "Rota sem coordenadas",
-          description: "Nenhuma NF pôde ser localizada no mapa. Dá para gerar o romaneio, mas sem distância (frete por KM indisponível).",
+          title: "Nenhuma nota foi localizada no mapa",
+          description: "Dá para gerar o romaneio, mas sem distância (frete por km fica indisponível).",
           variant: "destructive",
         });
         return;
@@ -842,8 +849,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       setRouteCalculationError(null);
 
       toast({
-        title: "Rota Calculada",
-        description: `${finalRoute.waypoints.length} paradas, ${formatDistance(finalRoute.totalDistance)}, ~${formatDuration(finalRoute.totalDuration)}${usedRoadDistance ? " (malha viária)" : " (estimativa)"}`,
+        title: "Rota calculada",
+        description: `${finalRoute.waypoints.length} paradas, ${formatDistance(finalRoute.totalDistance)}, cerca de ${formatDuration(finalRoute.totalDuration)}${usedRoadDistance ? " (pelas ruas)" : " (estimada)"}`,
       });
     } catch (error) {
       console.error("Route optimization error:", error);
@@ -851,8 +858,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       setOptimizedRoute({ waypoints: [], totalDistance: 0, totalDuration: 0 });
       setHasCalculatedRoute(true);
       toast({
-        title: "Erro na roteirização",
-        description: "Não foi possível calcular a rota. Dá para seguir sem a distância.",
+        title: "Não foi possível calcular a rota",
+        description: "Dá para seguir sem a distância ou tentar de novo.",
         variant: "destructive",
       });
     } finally {
@@ -1372,7 +1379,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                     </div>
                   </dl>
 
-                  <div className="h-64 w-full overflow-hidden rounded-lg border bg-muted/40">
+                  <div role="region" aria-label="Mapa da rota" className="h-64 w-full overflow-hidden rounded-lg border bg-muted/40">
                     {mapboxToken && routeMapPoints.length > 0 ? (
                       <Map
                         initialViewState={routeMapView}
@@ -1430,7 +1437,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="break-words text-sm font-medium leading-snug text-foreground">{stopName(waypoint, idx)}</p>
-                              <p className="break-words text-xs text-muted-foreground">{waypoint.address}</p>
+                              <p className="break-words text-xs text-muted-foreground">{readableAddress(waypoint.address)}</p>
                             </div>
                           </li>
                         );

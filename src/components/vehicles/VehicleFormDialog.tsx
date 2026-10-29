@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/drivers/FormField";
 import { invalidSelectClass } from "@/components/drivers/DriverFormParts";
+import { useReturnFocus } from "@/components/drivers/useReturnFocus";
 import { vehicleCapacityByType, type CompanyVehicleType } from "@/stores/companyVehicleStore";
 import {
   COMPANY_VEHICLE_TYPES,
@@ -46,6 +47,7 @@ const FIELD_IDS: Record<keyof VehicleFormValues, string> = {
 /** Formulario de cadastro e edicao de veiculo da empresa. */
 export function VehicleFormDialog({ open, onOpenChange, mode, initialValues, saving, onSubmit }: VehicleFormDialogProps) {
   const [values, setValues] = useState(initialValues);
+  const returnFocus = useReturnFocus();
   const [errors, setErrors] = useState<VehicleFormErrors>({});
 
   useEffect(() => {
@@ -83,7 +85,7 @@ export function VehicleFormDialog({ open, onOpenChange, mode, initialValues, sav
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent {...returnFocus} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isNew ? "Cadastrar veículo" : "Editar veículo"}</DialogTitle>
           <DialogDescription>

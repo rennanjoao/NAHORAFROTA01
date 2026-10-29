@@ -86,7 +86,7 @@ export function vehicleTypeLabel(type?: string | null) {
 }
 
 export const FREIGHT_TYPE_LABELS: Record<string, string> = {
-  fixed: "Valor por entrega",
-  lumpsum: "Valor fechado da rota",
-  per_km: "Valor por km",
+  fixed: "Frete fixo (por entrega)",
+  lumpsum: "Frete fechado (rota inteira)",
+  per_km: "Frete por km",
 };

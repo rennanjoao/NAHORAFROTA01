@@ -158,7 +158,7 @@ export function DriverCombobox({ value, onSelect, fleetType, id, invalid, descri
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] min-w-[min(20rem,calc(100vw-2rem))] p-0" align="start">
+      <PopoverContent aria-label="Escolher motorista" className="w-[var(--radix-popover-trigger-width)] min-w-[min(20rem,calc(100vw-2rem))] p-0" align="start">
         <Command>
           <CommandInput placeholder="Buscar por nome, CPF ou placa" />
           <CommandList>

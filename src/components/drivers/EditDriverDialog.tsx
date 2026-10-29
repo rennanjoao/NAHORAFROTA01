@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Car, FileText, Landmark, Loader2, User } from "lucide-react";
 import {
   Dialog,
@@ -29,6 +29,7 @@ import {
 } from "./DriverFormParts";
 import { FieldGroup, FormField } from "./FormField";
 import { TabErrorDot } from "./TabErrorDot";
+import { useReturnFocus } from "./useReturnFocus";
 
 type DriverDocuments = Partial<Record<DriverDocumentKey, { id?: string; name: string; url?: string; path?: string; uploadedAt: Date }>>;
 
@@ -52,7 +53,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
   const [uploadingDoc, setUploadingDoc] = useState<DriverDocumentKey | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   // Ao fechar, o foco volta para o botao que abriu (a folha de detalhe fica aberta por baixo).
-  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const returnFocus = useReturnFocus();
   // Abrir/baixar arquivo e exclusivo do Super Admin; a empresa so envia/substitui.
   const { canViewDocuments } = useDriverDocumentsAccess();
 
@@ -312,16 +313,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden sm:h-[min(90vh,42rem)] sm:max-h-[90vh] sm:max-w-2xl"
-        onOpenAutoFocus={() => {
-          returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        }}
-        onCloseAutoFocus={(event) => {
-          const target = returnFocusRef.current;
-          if (target && target !== document.body && document.contains(target)) {
-            event.preventDefault();
-            target.focus();
-          }
-        }}
+        {...returnFocus}
       >
         <DialogHeader className="shrink-0 pb-4">
           <DialogTitle>Editar motorista</DialogTitle>

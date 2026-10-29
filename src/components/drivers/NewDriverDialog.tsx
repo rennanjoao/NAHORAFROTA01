@@ -25,6 +25,7 @@ import { CNH_CATEGORIES, DRIVER_DOCUMENT_KEYS, DRIVER_DOCUMENT_LABELS, DRIVER_VE
 import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
 import { FieldGroup, FormField } from "./FormField";
 import { TabErrorDot } from "./TabErrorDot";
+import { useReturnFocus } from "./useReturnFocus";
 
 interface DocumentFile {
   name: string;
@@ -103,6 +104,7 @@ const FIELD_ORDER: { key: FieldKey; id: string; tab: "personal" | "vehicle" }[] 
 export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDriverDialogProps) {
   const [isOwnFleet, setIsOwnFleet] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const returnFocus = useReturnFocus();
   const [activeTab, setActiveTab] = useState("personal");
   const [documents, setDocuments] = useState<DriverDocuments>({});
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -631,7 +633,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden sm:h-[min(90vh,50rem)] sm:max-h-[90vh] sm:max-w-2xl">
+      <DialogContent {...returnFocus} className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden sm:h-[min(90vh,50rem)] sm:max-h-[90vh] sm:max-w-2xl">
         <DialogHeader className="shrink-0 pb-4">
           <DialogTitle>Cadastrar motorista</DialogTitle>
           <DialogDescription>

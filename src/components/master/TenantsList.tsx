@@ -237,7 +237,8 @@ function TenantRowActions({
       </Tooltip>
 
       {menuItems.length > 0 ? (
-        <DropdownMenu>
+        // Nao modal: o resto da tela continua acessivel enquanto o menu esta aberto.
+        <DropdownMenu modal={false}>
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>

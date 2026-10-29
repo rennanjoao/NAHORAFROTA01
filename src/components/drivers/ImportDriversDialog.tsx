@@ -23,6 +23,7 @@ import {
   FIELD_LABELS,
   parseDriverRows,
 } from "@/lib/driverImport";
+import { useReturnFocus } from "./useReturnFocus";
 
 interface ImportDriversDialogProps {
   open: boolean;
@@ -62,6 +63,7 @@ function Step({ number, title, description, children }: { number: number; title:
 
 export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainingSlots, onImported }: ImportDriversDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const returnFocus = useReturnFocus();
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<DriverImportRow[]>([]);
   const [isReading, setIsReading] = useState(false);
@@ -193,7 +195,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent {...returnFocus} className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Importar motoristas</DialogTitle>
           <DialogDescription>Cadastre vários motoristas de uma vez com uma planilha .xlsx ou .csv.</DialogDescription>

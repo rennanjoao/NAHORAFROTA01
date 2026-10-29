@@ -1,14 +1,7 @@
 import { MoreHorizontal, Pencil, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/patterns";
+import { ActionMenu } from "@/components/drivers/ActionMenu";
 import type { CompanyVehicle } from "@/stores/companyVehicleStore";
 import { formatCapacity, VEHICLE_STATUS } from "./vehicleConfig";
 
@@ -46,29 +39,25 @@ export function VehicleCard({ vehicle, onEdit, onToggleMaintenance, onRemove }: 
           </p>
         </div>
         <div className="relative z-10 -mr-2 -mt-1.5">
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
+          <ActionMenu
+            title={vehicle.plate}
+            titleClassName="font-data tracking-wider"
+            trigger={
               <Button variant="ghost" size="icon" aria-label={`Ações do veículo ${vehicle.plate}`}>
                 <MoreHorizontal aria-hidden="true" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="font-data tracking-wider">{vehicle.plate}</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => onEdit(vehicle)}>
-                <Pencil aria-hidden="true" />
-                Editar dados
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onToggleMaintenance(vehicle)}>
-                <Wrench aria-hidden="true" />
-                {inMaintenance ? "Liberar da manutenção" : "Enviar para manutenção"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onRemove(vehicle)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                <Trash2 aria-hidden="true" />
-                Remover veículo
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            items={[
+              { label: "Editar dados", icon: Pencil, onSelect: () => onEdit(vehicle) },
+              {
+                label: inMaintenance ? "Liberar da manutenção" : "Enviar para manutenção",
+                icon: Wrench,
+                onSelect: () => onToggleMaintenance(vehicle),
+                immediate: true,
+              },
+              { label: "Remover veículo", icon: Trash2, onSelect: () => onRemove(vehicle), destructive: true, separatorBefore: true },
+            ]}
+          />
         </div>
       </div>
 

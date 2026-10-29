@@ -74,7 +74,7 @@ export function RegionFilter({ selectedRegions, onRegionsChange, availableRegion
           <ChevronDown className="opacity-60" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-0" align="start">
+      <PopoverContent aria-label="Filtrar por região" className="w-[min(20rem,calc(100vw-2rem))] p-0" align="start">
         <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-foreground">Filtrar por região</p>

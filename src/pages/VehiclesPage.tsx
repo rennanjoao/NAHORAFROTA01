@@ -7,6 +7,7 @@ import { FilterStatCard } from "@/components/drivers/FilterStatCard";
 import { VehicleCard } from "@/components/vehicles/VehicleCard";
 import { VehicleFormDialog } from "@/components/vehicles/VehicleFormDialog";
 import { COMPANY_VEHICLE_TYPES, emptyVehicleForm, type VehicleFormValues } from "@/components/vehicles/vehicleConfig";
+import { useReturnFocusOnClose } from "@/components/drivers/useReturnFocus";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
 import { toast } from "@/hooks/use-toast";
 import { useQueryAction } from "@/hooks/useQueryAction";
@@ -37,6 +38,7 @@ export default function VehiclesPage() {
   const [formInitial, setFormInitial] = useState<VehicleFormValues>(emptyVehicleForm);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<CompanyVehicle | null>(null);
+  const captureDeleteFocus = useReturnFocusOnClose(isDeleteDialogOpen);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -252,6 +254,7 @@ export default function VehiclesPage() {
   };
 
   const openDeleteDialog = (vehicle: CompanyVehicle) => {
+    captureDeleteFocus();
     setSelectedVehicle(vehicle);
     setIsDeleteDialogOpen(true);
   };
