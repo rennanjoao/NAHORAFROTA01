@@ -43,11 +43,16 @@ ALTER TABLE public.payment_history ENABLE ROW LEVEL SECURITY;
 
 -- 3) tenant_id nas tabelas operacionais, preenchido a partir da tabela "pai"
 --    (entrega → nota/romaneio/motorista, comprovante → nota, carteira → motorista...).
+--    Linha a linha: registro duplicado de antes do isolamento (ex.: a mesma nota
+--    importada duas vezes, uma órfã) violaria a chave única por empresa; esse fica
+--    sem empresa (continua invisível) em vez de derrubar a atualização inteira.
 DO $ensure$
 DECLARE
   tbl text;
   spec record;
+  r record;
   one_tenant uuid;
+  skipped integer := 0;
 BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'drivers', 'invoices', 'manifests', 'company_vehicles', 'fleet_positions',
@@ -91,11 +96,17 @@ BEGIN
        AND EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_schema = 'public' AND table_name = spec.parent AND column_name = 'tenant_id')
     THEN
-      EXECUTE format(
-        'UPDATE public.%1$I c SET tenant_id = p.tenant_id FROM public.%2$I p
-          WHERE c.tenant_id IS NULL AND c.%3$I = p.id AND p.tenant_id IS NOT NULL',
+      FOR r IN EXECUTE format(
+        'SELECT c.ctid AS rid, p.tenant_id AS tid FROM public.%1$I c JOIN public.%2$I p ON c.%3$I = p.id
+          WHERE c.tenant_id IS NULL AND p.tenant_id IS NOT NULL',
         spec.child, spec.parent, spec.fk
-      );
+      ) LOOP
+        BEGIN
+          EXECUTE format('UPDATE public.%I SET tenant_id = $1 WHERE ctid = $2', spec.child) USING r.tid, r.rid;
+        EXCEPTION WHEN unique_violation THEN
+          skipped := skipped + 1;
+        END;
+      END LOOP;
     END IF;
   END LOOP;
 
@@ -109,9 +120,19 @@ BEGIN
       'settlements', 'settlement_items', 'settlement_audit_logs'
     ] LOOP
       IF to_regclass('public.' || tbl) IS NOT NULL THEN
-        EXECUTE format('UPDATE public.%I SET tenant_id = $1 WHERE tenant_id IS NULL', tbl) USING one_tenant;
+        FOR r IN EXECUTE format('SELECT ctid AS rid FROM public.%I WHERE tenant_id IS NULL', tbl) LOOP
+          BEGIN
+            EXECUTE format('UPDATE public.%I SET tenant_id = $1 WHERE ctid = $2', tbl) USING one_tenant, r.rid;
+          EXCEPTION WHEN unique_violation THEN
+            skipped := skipped + 1;
+          END;
+        END LOOP;
       END IF;
     END LOOP;
+  END IF;
+
+  IF skipped > 0 THEN
+    RAISE NOTICE 'ensure_billing_and_tenant_columns: % registro(s) duplicado(s) ficaram sem empresa (invisíveis).', skipped;
   END IF;
 END
 $ensure$;
