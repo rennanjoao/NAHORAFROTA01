@@ -1,38 +1,41 @@
+import { useState } from "react";
 import { HelpCircle } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface HelperTooltipProps {
   term: string;
   explanation: string;
 }
 
+/**
+ * Ajuda contextual. Era um Tooltip, que nao abre com toque: no celular o icone
+ * nao fazia nada. Agora abre ao tocar ou clicar.
+ */
 export function HelperTooltip({ term, explanation }: HelperTooltipProps) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <TooltipProvider delayDuration={100}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label={`Ajuda sobre ${term}`}
-          >
-            <HelpCircle className="h-4 w-4" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent
-          side="top"
-          className="max-w-[280px] text-sm"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label={`Ajuda sobre ${term}`}
+          // Nao deixa o clique chegar ao card clicavel em volta.
+          onClick={(event) => event.stopPropagation()}
         >
-          <p className="font-medium text-foreground mb-1">{term}</p>
-          <p className="text-muted-foreground">{explanation}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          <HelpCircle className="h-4 w-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        className="w-auto max-w-[280px] p-3 text-sm"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <p className="font-medium text-foreground mb-1">{term}</p>
+        <p className="text-muted-foreground">{explanation}</p>
+      </PopoverContent>
+    </Popover>
   );
 }
 

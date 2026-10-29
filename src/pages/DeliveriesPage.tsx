@@ -1109,20 +1109,20 @@ export default function DeliveriesPage() {
   };
 
   const timeFilterOptions = [
-    { value: "daily", label: "Diario", icon: Calendar },
+    { value: "daily", label: "Diário", icon: Calendar },
     { value: "weekly", label: "Semanal", icon: CalendarDays },
     { value: "monthly", label: "Mensal", icon: CalendarRange },
   ];
 
   const timeFilterLabels: Record<TimeFilter, string> = {
-    daily: "Diario",
+    daily: "Diário",
     weekly: "Semanal",
     monthly: "Mensal",
   };
-  const periodLabel = "Periodo:";
-  const startLabel = "Inicio";
+  const periodLabel = "Período:";
+  const startLabel = "Início";
   const endLabel = "Fim";
-  const untilLabel = "ate";
+  const untilLabel = "até";
   const clearPeriodLabel = "Limpar período";
 
   return (
@@ -1722,7 +1722,7 @@ export default function DeliveriesPage() {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" aria-label={`Ações da NF ${delivery.nfe}`}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>

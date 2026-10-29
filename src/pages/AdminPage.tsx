@@ -292,6 +292,8 @@ export default function AdminPage() {
                   size="icon"
                   onClick={refetch}
                   disabled={isLoading}
+                  aria-label="Atualizar lista de usuários"
+                  title="Atualizar lista de usuários"
                 >
                   <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
                 </Button>

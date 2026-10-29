@@ -142,6 +142,8 @@ function DriverOccurrenceCard({
           variant="ghost"
           className="md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-success hover:text-success hover:bg-success/10" 
           onClick={handleWhatsApp}
+          aria-label={`Chamar ${driver.driver_name} no WhatsApp`}
+          title={`Chamar ${driver.driver_name} no WhatsApp`}
         >
           <MessageCircle className="h-4 w-4" />
         </Button>
