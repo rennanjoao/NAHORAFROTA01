@@ -16,17 +16,22 @@ const QA = [
 
 export function FAQ() {
   return (
-    <section id="duvidas" className="scroll-mt-nav border-t border-border py-20 lg:py-28" aria-labelledby="duvidas-title">
-      <div className="container grid gap-12 lg:grid-cols-[1fr_1.4fr]">
-        <SectionHeader eyebrow="Dúvidas" title="O que perguntam antes de assinar." accent="antes de assinar." lead="Se a sua não está aqui, escreva para suporte@nahorafrota.com.br. Respondemos no mesmo dia útil." />
-        <Reveal delay={0.1}>
-          <Accordion type="single" collapsible className="rounded border border-border bg-card px-5">
+    <section id="duvidas" className="scroll-mt-nav border-t hairline py-24 lg:py-36" aria-labelledby="duvidas-title">
+      <div className="container grid gap-12 lg:grid-cols-[1fr_1.5fr] lg:gap-20">
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <SectionHeader index="09" size="md" eyebrow="Dúvidas" title="O que perguntam antes de assinar." accent="antes de assinar." lead="Se a sua não está aqui, escreva para suporte@nahorafrota.com.br. Respondemos no mesmo dia útil." />
+        </div>
+        <Reveal>
+          <Accordion type="single" collapsible className="border-t hairline">
             {QA.map(([q, a], i) => (
-              <AccordionItem key={q} value={`q-${i}`} className="border-border">
-                <AccordionTrigger className="py-5 text-left font-heading text-base font-semibold hover:no-underline hover:text-brand [&[data-state=open]]:text-brand">
-                  {q}
+              <AccordionItem key={q} value={`q${i}`} className="border-b hairline">
+                <AccordionTrigger className="gap-6 py-6 text-left font-heading text-lg font-semibold tracking-tight hover:no-underline sm:text-xl [&>svg]:h-5 [&>svg]:w-5 [&>svg]:text-brand">
+                  <span className="flex items-baseline gap-4">
+                    <span className="font-data text-xs text-muted-foreground">0{i + 1}</span>
+                    {q}
+                  </span>
                 </AccordionTrigger>
-                <AccordionContent className="text-pretty pb-5 text-[15px] leading-relaxed text-muted-foreground">{a}</AccordionContent>
+                <AccordionContent className="pb-7 pl-9 text-base leading-relaxed text-muted-foreground">{a}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>

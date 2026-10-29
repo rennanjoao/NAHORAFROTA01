@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, useScroll, useSpring } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
@@ -30,6 +31,9 @@ export function Nav() {
   const anchor = useAnchor();
   const location = useLocation();
 
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30 });
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
@@ -55,9 +59,10 @@ export function Nav() {
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow,border-color] duration-300",
-        scrolled || open ? "border-b border-border bg-background/85 backdrop-blur-xl" : "border-b border-transparent bg-transparent",
+        scrolled || open ? "glass border-b hairline" : "border-b border-transparent bg-transparent",
       )}
     >
+      <motion.div aria-hidden="true" style={{ scaleX: progress }} className="absolute inset-x-0 top-0 h-[2px] origin-left bg-brand" />
       <nav aria-label="Principal" className="container flex h-[72px] items-center justify-between gap-4">
         <Link to="/" className="flex items-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Na Hora Frota — início">
           <Logo variant="linha" className="h-7 w-auto" />

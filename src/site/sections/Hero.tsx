@@ -1,12 +1,13 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useResolvedTheme } from "@/components/theme/PreferencesProvider";
-import { motion, useReducedMotion } from "framer-motion";
-import { CheckCircle2, Clock, Lock, MonitorSmartphone } from "lucide-react";
+import { motion, useInView, useReducedMotion, useScroll, useTransform } from "framer-motion";
+import { ArrowDown, Clock, Lock, MonitorSmartphone } from "lucide-react";
 import { Cta } from "../components/Cta";
 import { LiveClock } from "../components/LiveClock";
-import { Tilt3D } from "../components/Tilt3D";
-import { DashboardMockup } from "../components/mockups/DashboardMockup";
-import { PhoneMockup } from "../components/mockups/PhoneMockup";
+import { Magnetic } from "../motion/Magnetic";
+import { TextReveal, LineReveal } from "../motion/TextReveal";
+import { Counter } from "../motion/Counter";
+import { RouteMap } from "../components/mockups/RouteMap";
 
 const Hero3D = lazy(() => import("../components/Hero3D"));
 
@@ -16,15 +17,21 @@ const TRUST = [
   { icon: Lock, text: "Dados isolados por empresa" },
 ];
 
+/** Capa: cidade 3D com rotas ao vivo e a mensagem principal. Ocupa a tela inteira. */
 export function Hero() {
   const resolvedTheme = useResolvedTheme();
   const reduce = useReducedMotion();
+  const ref = useRef<HTMLElement>(null);
+  const inView = useInView(ref, { margin: "0px 0px -20% 0px" });
   const [mounted, setMounted] = useState(false);
   const [show3D, setShow3D] = useState(false);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
+  const fade = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
+  const rise = useTransform(scrollYProgress, [0, 1], [0, -120]);
+
   useEffect(() => {
     setMounted(true);
-    // Só carrega o 3D em telas maiores e quando o navegador tem WebGL.
-    const wide = window.matchMedia("(min-width: 768px)").matches;
+    const wide = window.matchMedia("(min-width: 1024px)").matches;
     let webgl = false;
     try {
       const c = document.createElement("canvas");
@@ -32,110 +39,109 @@ export function Hero() {
     } catch {
       webgl = false;
     }
-    const id = window.setTimeout(() => setShow3D(wide && webgl), 300);
+    const id = window.setTimeout(() => setShow3D(wide && webgl), 200);
     return () => window.clearTimeout(id);
   }, []);
   const dark = mounted ? resolvedTheme !== "light" : true;
 
   return (
-    <section id="inicio" className="relative isolate overflow-hidden pt-[72px]" aria-labelledby="hero-title">
-      {/* fundo 3D */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-routes opacity-70 mask-fade-b" />
-        {show3D && (
-          <div className="absolute inset-0 opacity-60 [mask-image:radial-gradient(62%_95%_at_74%_52%,#000_10%,transparent_96%)]">
+    <section ref={ref} id="inicio" className="relative isolate flex min-h-[100svh] flex-col overflow-hidden" aria-labelledby="hero-title">
+      {/* cena */}
+      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+        {show3D ? (
+          <div className="absolute inset-0 [mask-image:linear-gradient(to_bottom,#000_55%,transparent_100%)]">
             <Suspense fallback={null}>
-              <Hero3D dark={dark} animate={!reduce} />
+              <Hero3D dark={dark} animate={!reduce && inView} scroll={scrollYProgress} />
             </Suspense>
           </div>
+        ) : (
+          <div className="absolute inset-0 opacity-70 [mask-image:radial-gradient(70%_70%_at_70%_40%,#000_20%,transparent_100%)]">
+            <RouteMap showLegend={false} compact className="scale-[1.6] lg:scale-100" />
+          </div>
         )}
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-background" />
+        {/* legibilidade do texto: sombra a esquerda e base que funde com a proxima secao */}
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent lg:via-background/40 lg:to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-b from-transparent to-background" />
+        <div className="orb -left-40 top-20 h-[520px] w-[520px] bg-brand/10" />
       </div>
 
-      <div className="container grid items-center gap-12 pb-16 pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pb-24 lg:pt-20">
-        <div className="relative z-10 max-w-2xl">
-          <motion.div initial={reduce ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <LiveClock label="Ao vivo" />
-          </motion.div>
+      {/* HUD do topo: hora ao vivo e numeros da operacao */}
+      <div className="container relative z-10 flex items-center justify-between pt-[96px]">
+        <motion.div initial={reduce ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}>
+          <LiveClock label="Ao vivo" />
+        </motion.div>
+        <motion.ul
+          className="hidden items-center gap-6 font-data text-[11px] uppercase tracking-[0.12em] text-muted-foreground md:flex"
+          initial={reduce ? false : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          aria-label="Exemplo de indicadores do painel"
+        >
+          <li><span className="text-brand"><Counter to={14} /></span> em rota</li>
+          <li><span className="text-foreground"><Counter to={148} /></span> entregues hoje</li>
+          <li><span className="text-brand"><Counter to={98} suffix="%" /></span> no prazo</li>
+        </motion.ul>
+      </div>
 
-          <motion.h1
+      {/* mensagem */}
+      <motion.div style={reduce ? undefined : { opacity: fade, y: rise }} className="container relative z-10 flex flex-1 flex-col justify-center py-14 lg:py-10">
+        <div className="max-w-[46rem]">
+          <TextReveal
+            as="h1"
             id="hero-title"
-            className="mt-6 text-balance font-heading text-[2.6rem] font-bold leading-[0.98] tracking-tight sm:text-6xl lg:text-[4.4rem]"
-            initial={reduce ? false : { opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.08 }}
-          >
-            Quem vê a rota inteira <span className="text-brand">chega primeiro.</span>
-          </motion.h1>
-
-          <motion.p
-            className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl"
-            initial={reduce ? false : { opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.16 }}
-          >
-            Romaneio na mão do motorista. Cada placa no mapa. SLA medido por entrega e acerto fechado no mesmo dia. Tudo numa tela, no navegador e no celular.
-          </motion.p>
-
+            text="Quem vê a rota inteira chega primeiro."
+            accent="chega primeiro."
+            className="display text-[clamp(2.9rem,8.2vw,6.6rem)]"
+            delay={0.15}
+          />
+          <LineReveal delay={0.55} className="mt-7 max-w-xl">
+            <p className="text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
+              Romaneio na mão do motorista. Cada placa no mapa. SLA medido por entrega e acerto fechado no mesmo dia. Tudo numa tela, no navegador e no celular.
+            </p>
+          </LineReveal>
           <motion.div
-            className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
-            initial={reduce ? false : { opacity: 0, y: 18 }}
+            className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
+            initial={reduce ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.24 }}
+            transition={{ duration: 0.8, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
           >
-            <Cta href="#planos" size="lg" arrow>
-              Ver planos e começar
-            </Cta>
-            <Cta href="#como-funciona" size="lg" variant="outline">
-              Como funciona
-            </Cta>
+            <Magnetic>
+              <Cta href="#planos" size="lg" arrow>
+                Ver planos e começar
+              </Cta>
+            </Magnetic>
+            <Magnetic strength={0.2}>
+              <Cta href="#produto" size="lg" variant="outline">
+                Ver o painel
+              </Cta>
+            </Magnetic>
           </motion.div>
-
           <motion.ul
-            className="mt-10 grid gap-3 sm:grid-cols-3"
+            className="mt-12 flex flex-col gap-3 sm:flex-row sm:gap-8"
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
+            transition={{ duration: 0.8, delay: 1 }}
           >
             {TRUST.map((t) => (
-              <li key={t.text} className="flex items-start gap-2.5 text-sm text-foreground/80">
+              <li key={t.text} className="flex items-start gap-2.5 text-sm text-foreground/75">
                 <t.icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                 <span>{t.text}</span>
               </li>
             ))}
           </motion.ul>
         </div>
+      </motion.div>
 
-        {/* mockups 3D */}
-        <motion.div
-          className="relative z-10 mx-auto w-full max-w-[640px] pb-8 lg:max-w-none xl:pr-12"
-          initial={reduce ? false : { opacity: 0, y: 30, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.9, delay: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-        >
-          <Tilt3D className="relative">
-            <div className="relative" style={{ transform: "translateZ(0)" }}>
-              <DashboardMockup className="glow-brand" />
-            </div>
-            <div className="absolute -bottom-16 -right-16 hidden w-[172px] xl:block 2xl:-right-24 2xl:w-[180px]" style={{ transform: "translateZ(60px)" }}>
-              <PhoneMockup className="w-full" static />
-            </div>
-            <motion.div
-              className="absolute -bottom-8 -left-3 hidden w-[250px] rounded border border-border bg-card p-3 shadow-lift md:block lg:-left-8"
-              style={{ transform: "translateZ(40px)" }}
-              animate={reduce ? undefined : { y: [0, -8, 0] }}
-              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-              aria-hidden="true"
-            >
-              <p className="flex items-center gap-2 font-data text-[11px] uppercase tracking-wider text-brand">
-                <CheckCircle2 className="h-3.5 w-3.5" /> 14:32 · Entrega confirmada
-              </p>
-              <p className="mt-1 text-sm font-semibold">ABC1D23 entregou em Osasco</p>
-              <p className="text-xs text-muted-foreground">Canhoto com foto e assinatura · 3 paradas restantes</p>
-            </motion.div>
-          </Tilt3D>
-        </motion.div>
-      </div>
+      {/* indicador de rolagem */}
+      <motion.div style={reduce ? undefined : { opacity: fade }} className="container relative z-10 flex items-end justify-between pb-8" aria-hidden="true">
+        <div className="flex items-center gap-3 font-data text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="scroll-cue h-10 w-px overflow-hidden" />
+          <span className="flex items-center gap-1.5">
+            Role para ver o painel <ArrowDown className="h-3 w-3" />
+          </span>
+        </div>
+        <p className="hidden font-data text-[11px] uppercase tracking-[0.14em] text-muted-foreground md:block">Gestão de entregas e frota · Brasil</p>
+      </motion.div>
     </section>
   );
 }
