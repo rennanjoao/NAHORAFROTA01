@@ -103,7 +103,7 @@ export function BankDetailsDialog({ open, onOpenChange, bankDetails }: BankDetai
               <dl className="grid grid-cols-2 gap-4">
                 <div>
                   <dt className="mb-1 text-xs text-muted-foreground">Banco</dt>
-                  <dd className="font-data font-medium">{bankDetails.banco || "—"}</dd>
+                  <dd className="break-words font-medium">{bankDetails.banco || "—"}</dd>
                 </div>
                 <div>
                   <dt className="mb-1 text-xs text-muted-foreground">Tipo de conta</dt>

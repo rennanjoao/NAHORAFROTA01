@@ -83,7 +83,10 @@ export function UnroutedSheet({ open, onOpenChange }: UnroutedSheetProps) {
               weight: invoice.total_weight,
               status: isReturned ? { tone: "danger" as const, label: "Devolvida" } : { tone: "warning" as const, label: "Nova" },
               meta: [
-                `${isReturned ? "Devolvida em" : "Importada em"} ${new Date(invoice.updated_at).toLocaleDateString("pt-BR")}`,
+                // Nova: data da importacao (antes mostrava a ultima alteracao).
+                isReturned
+                  ? `Devolvida em ${new Date(invoice.updated_at).toLocaleDateString("pt-BR")}`
+                  : `Importada em ${new Date(invoice.imported_at || invoice.updated_at).toLocaleDateString("pt-BR")}`,
                 invoice.occurrence_type ? `Ocorrência: ${invoiceStatus("occurrence", invoice.occurrence_type).label}` : null,
               ]
                 .filter(Boolean)

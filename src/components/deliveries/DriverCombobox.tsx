@@ -19,7 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDBDrivers, DBDriver } from "@/hooks/useDBDrivers";
-import { vehicleTypeLabel } from "./status";
+import { plateText, vehicleTypeLabel } from "./status";
 
 interface DriverComboboxProps {
   value: DBDriver | null;
@@ -144,7 +144,7 @@ export function DriverCombobox({ value, onSelect, fleetType, id, invalid, descri
                   {value.is_own_fleet && <Badge variant="secondary" className="shrink-0">CLT</Badge>}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {vehicleTypeLabel(value.vehicle_type)} · {value.vehicle_plate || "sem placa"}
+                  {vehicleTypeLabel(value.vehicle_type)} · {plateText(value.vehicle_plate) || "sem placa"}
                 </span>
               </span>
             </span>
@@ -212,7 +212,7 @@ export function DriverCombobox({ value, onSelect, fleetType, id, invalid, descri
                           <Truck className="h-3 w-3 shrink-0" aria-hidden="true" />
                           <span className="truncate">{vehicleTypeLabel(driver.vehicle_type)}</span>
                           <span aria-hidden="true">·</span>
-                          <span className="truncate font-data">{driver.vehicle_plate || "sem placa"}</span>
+                          <span className="truncate font-data">{plateText(driver.vehicle_plate) || "sem placa"}</span>
                         </span>
                       </span>
                     </CommandItem>

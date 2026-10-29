@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { MapPinned, Route, Smartphone, type LucideIcon } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -27,6 +27,8 @@ interface AuthLayoutProps {
   badge?: ReactNode;
   /** Largura do conteudo. */
   width?: "sm" | "md";
+  /** Nome da tela na aba do navegador (ex.: "Entrar" -> "Entrar · Na Hora Frota"). */
+  pageTitle?: string;
 }
 
 /** Ilustracao do painel: um romaneio andando (decorativa). */
@@ -72,8 +74,14 @@ export function AuthLayout({
   points = DEFAULT_POINTS,
   badge,
   width = "sm",
+  pageTitle,
 }: AuthLayoutProps) {
   const split = variant === "split";
+
+  // Cada tela publica com o proprio titulo (leitor de tela anuncia; abas do navegador se distinguem).
+  useEffect(() => {
+    if (pageTitle) document.title = `${pageTitle} · Na Hora Frota`;
+  }, [pageTitle]);
 
   return (
     <div className={cn("relative min-h-dvh overflow-hidden bg-background text-foreground", split && "lg:grid lg:grid-cols-2")}>
@@ -136,9 +144,13 @@ export function AuthLayout({
           <div className={cn("w-full animate-fade-in", width === "sm" ? "max-w-sm" : "max-w-md")}>{children}</div>
         </main>
 
-        <footer className="px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground sm:px-8">
+        <footer className="px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground sm:px-8">
           © {new Date().getFullYear()} Na Hora Frota ·{" "}
-          <Link to="/install" className="font-medium underline-offset-4 hover:text-foreground hover:underline">
+          {/* Link com 44px de altura: facil de tocar no celular. */}
+          <Link
+            to="/install"
+            className="inline-flex min-h-11 items-center rounded-md px-1 font-medium underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             Instalar o app no celular
           </Link>
         </footer>

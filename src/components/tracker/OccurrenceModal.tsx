@@ -32,6 +32,7 @@ export function OccurrenceModal({
   defaultType,
 }: OccurrenceModalProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [typeError, setTypeError] = useState<string | undefined>();
   const [type, setType] = useState<string>("");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -66,6 +67,8 @@ export function OccurrenceModal({
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     filePickerOpenRef.current = false;
     const file = event.target.files?.[0];
+    // Limpa o campo: escolher a mesma foto de novo (depois de remover) volta a funcionar.
+    event.target.value = "";
     if (!file) return;
 
     try {
@@ -80,8 +83,11 @@ export function OccurrenceModal({
   };
 
   const handleSubmit = async () => {
+    if (isLoading) return;
+    // Antes o botao ficava apagado; agora diz o que falta e leva o foco para as opcoes.
     if (!type) {
-      toast.error("Escolha o que aconteceu");
+      setTypeError("Escolha o que aconteceu para enviar.");
+      document.querySelector<HTMLInputElement>('input[name="tipo-ocorrencia"]')?.focus();
       return;
     }
 
@@ -132,9 +138,9 @@ export function OccurrenceModal({
       toast.success("Problema enviado para a base");
       resetAndClose();
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Não foi possível enviar. Confira a internet e tente de novo.");
+      toast.error("Não foi possível enviar o problema", { description: "Confira a internet e tente de novo." });
     } finally {
       setIsLoading(false);
     }
@@ -144,6 +150,7 @@ export function OccurrenceModal({
     filePickerOpenRef.current = false;
     setType("");
     setDescription("");
+    setTypeError(undefined);
     setPhotoFile(null);
     revokeObjectUrl(photoPreview);
     setPhotoPreview(null);
@@ -178,8 +185,12 @@ export function OccurrenceModal({
             legend="O que aconteceu?"
             options={DRIVER_OCCURRENCE_TYPES}
             value={type}
-            onChange={setType}
+            onChange={(value) => {
+              setType(value);
+              setTypeError(undefined);
+            }}
             disabled={isLoading}
+            error={typeError}
           />
 
           <div className="space-y-2">
@@ -214,7 +225,7 @@ export function OccurrenceModal({
           <Button variant="outline" size="lg" onClick={resetAndClose} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button size="lg" onClick={handleSubmit} disabled={isLoading || !type}>
+          <Button size="lg" onClick={handleSubmit} aria-disabled={isLoading || undefined}>
             {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
             {isLoading ? "Enviando" : "Enviar para a base"}
           </Button>

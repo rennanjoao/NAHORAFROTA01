@@ -9,17 +9,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Save, Loader2, Truck, FileText } from "lucide-react";
-import { StatusBadge } from "@/components/patterns";
+import { FormField, StatusBadge } from "@/components/patterns";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
+import { formatCurrency, formatCurrencyValue, parseDecimalInput } from "@/lib/formatCurrency";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
+import { manifestStatusInfo } from "./settlementConfig";
 
 interface EditManifestDialogProps {
   manifest: DBManifest | null;
@@ -32,36 +32,27 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
   const [value, setValue] = useState("");
   const [observation, setObservation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState<{ value?: string; observation?: string }>({});
 
+  // Reabrir a janela descarta o que foi digitado e nao salvo.
   useEffect(() => {
-    if (manifest) {
-      setValue(String(manifest.freight_value).replace(".", ","));
+    if (manifest && open) {
+      setValue(formatCurrencyValue(manifest.freight_value || 0));
       setObservation(manifest.observation ?? "");
+      setErrors({});
     }
-  }, [manifest]);
+  }, [manifest, open]);
 
   const handleSave = async () => {
-    if (!manifest || !value) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha o valor.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!observation.trim()) {
-      toast({
-        title: "Observação obrigatória",
-        description: "Informe o motivo da alteração para registro.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!manifest) return;
     const numericValue = parseDecimalInput(value);
-    if (numericValue === null || numericValue < 0) {
-      toast({ title: "Valor inválido", description: "Informe um valor válido.", variant: "destructive" });
+    const found: typeof errors = {};
+    if (!value.trim()) found.value = "Informe o novo valor.";
+    else if (numericValue === null || numericValue < 0) found.value = "Valor inválido. Use números, como 150,00.";
+    if (!observation.trim()) found.observation = "Informe o motivo da alteração.";
+    if (found.value || found.observation || numericValue === null) {
+      setErrors(found);
+      document.getElementById(found.value ? "manifest-value" : "manifest-observation")?.focus();
       return;
     }
 
@@ -73,7 +64,7 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
 
     toast({
       title: "Romaneio atualizado",
-      description: `Valor alterado para ${formatCurrency(numericValue)}`,
+      description: `Valor alterado para ${formatCurrency(numericValue)}.`,
     });
   };
 
@@ -93,6 +84,7 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
 
         <form
           className="space-y-4"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             void handleSave();
@@ -109,8 +101,9 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
                   Frota própria
                 </Badge>
               )}
-              <StatusBadge tone={manifest.status === "paid" ? "success" : "warning"}>
-                {manifest.status === "paid" ? "Pago" : "Pendente"}
+              {/* Mesmo rotulo da tabela de romaneios ("Em rota", "A pagar", "Pago"). */}
+              <StatusBadge tone={manifestStatusInfo[manifest.status]?.tone ?? "neutral"}>
+                {manifestStatusInfo[manifest.status]?.label ?? manifest.status}
               </StatusBadge>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -138,40 +131,50 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="manifest-value">Novo valor (R$)</Label>
-            <Input
-              id="manifest-value"
-              inputMode="decimal"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="0,00"
-              className="font-data"
-            />
-          </div>
+          <FormField id="manifest-value" label="Novo valor (R$)" required error={errors.value}>
+            {(control) => (
+              <Input
+                {...control}
+                inputMode="decimal"
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  setErrors((prev) => ({ ...prev, value: undefined }));
+                }}
+                placeholder="0,00"
+                className="font-data"
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="manifest-observation">Motivo da alteração</Label>
-            <Textarea
-              id="manifest-observation"
-              value={observation}
-              onChange={(e) => setObservation(e.target.value)}
-              placeholder="Ex: valor ajustado conforme acordo com o motorista"
-              rows={3}
-              aria-describedby="manifest-observation-hint"
-            />
-            <p id="manifest-observation-hint" className="text-xs text-muted-foreground">
-              Obrigatório. Ajuda a entender a mudança numa conferência futura.
-            </p>
-          </div>
+          <FormField
+            id="manifest-observation"
+            label="Motivo da alteração"
+            required
+            error={errors.observation}
+            hint="Ajuda a entender a mudança numa conferência futura."
+          >
+            {(control) => (
+              <Textarea
+                {...control}
+                value={observation}
+                onChange={(e) => {
+                  setObservation(e.target.value);
+                  setErrors((prev) => ({ ...prev, observation: undefined }));
+                }}
+                placeholder="Ex.: valor ajustado conforme acordo com o motorista"
+                rows={3}
+              />
+            )}
+          </FormField>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSaving || !observation.trim()}>
+            <Button type="submit" disabled={isSaving}>
               {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
-              {isSaving ? "Salvando" : "Salvar valor"}
+              {isSaving ? "Salvando..." : "Salvar valor"}
             </Button>
           </DialogFooter>
         </form>

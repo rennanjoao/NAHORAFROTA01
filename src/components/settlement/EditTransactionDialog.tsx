@@ -20,9 +20,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Minus, Plus, Save, Loader2 } from "lucide-react";
+import { FormField } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
-import { parseDecimalInput } from "@/lib/formatCurrency";
+import { formatCurrencyValue, parseDecimalInput } from "@/lib/formatCurrency";
 import { cn } from "@/lib/utils";
+import { validateAdjustment } from "./AdjustmentDialog";
 import { categoryLabels, type LocalAdjustment } from "./settlementConfig";
 
 interface EditTransactionDialogProps {
@@ -32,6 +34,11 @@ interface EditTransactionDialogProps {
   onSave: (transaction: LocalAdjustment) => Promise<boolean> | boolean | void;
 }
 
+const typeOptions = [
+  { value: "debit", id: "tx-debit", label: "Débito", hint: "Desconta do motorista", icon: Minus, tone: "text-destructive" },
+  { value: "credit", id: "tx-credit", label: "Crédito", hint: "Soma para o motorista", icon: Plus, tone: "text-success" },
+] as const;
+
 export function EditTransactionDialog({ transaction, open, onOpenChange, onSave }: EditTransactionDialogProps) {
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
@@ -39,41 +46,38 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
   const [category, setCategory] = useState<string>("other");
   const [observation, setObservation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [errors, setErrors] = useState<ReturnType<typeof validateAdjustment>>({});
 
   useEffect(() => {
-    if (transaction) {
+    if (transaction && open) {
       setDescription(transaction.description);
-      setValue(String(Math.abs(transaction.value)).replace(".", ","));
+      // Valor no formato brasileiro (1.234,50), como o usuario digita.
+      setValue(formatCurrencyValue(Math.abs(transaction.value)));
       setType(transaction.type);
       setCategory(transaction.category || "other");
       setObservation(transaction.observation || "");
+      setErrors({});
     }
-  }, [transaction]);
+  }, [transaction, open]);
 
   const handleSave = async () => {
-    if (!transaction || !description || !value) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha a descrição e o valor.",
-        variant: "destructive",
-      });
+    if (!transaction) return;
+    const found = validateAdjustment(description, value);
+    if (found.description || found.value) {
+      setErrors(found);
+      document.getElementById(found.description ? "tx-description" : "tx-value")?.focus();
       return;
     }
-
-    const numericValue = parseDecimalInput(value);
-    if (numericValue === null || numericValue === 0) {
-      toast({ title: "Valor inválido", description: "Informe um valor maior que zero.", variant: "destructive" });
-      return;
-    }
+    const numericValue = parseDecimalInput(value) as number;
 
     setIsSaving(true);
     const updatedTransaction: LocalAdjustment = {
       ...transaction,
-      description,
+      description: description.trim(),
       value: type === "credit" ? Math.abs(numericValue) : -Math.abs(numericValue),
       type,
       category: category as LocalAdjustment["category"],
-      observation,
+      observation: observation.trim(),
     };
 
     const saved = await onSave(updatedTransaction);
@@ -83,16 +87,11 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
 
     toast({
       title: "Lançamento atualizado",
-      description: `${description} foi atualizado.`,
+      description: `${updatedTransaction.description} foi atualizado.`,
     });
   };
 
   if (!transaction) return null;
-
-  const typeOptions = [
-    { value: "debit", id: "tx-debit", label: "Débito", hint: "Desconta do motorista", icon: Minus, tone: "text-destructive" },
-    { value: "credit", id: "tx-credit", label: "Crédito", hint: "Soma para o motorista", icon: Plus, tone: "text-success" },
-  ] as const;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -104,6 +103,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
 
         <form
           className="space-y-4"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             void handleSave();
@@ -113,7 +113,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
             <legend className="mb-2 text-sm font-medium">Tipo</legend>
             <RadioGroup
               value={type}
-              onValueChange={(value) => setType(value as "credit" | "debit")}
+              onValueChange={(next) => setType(next as "credit" | "debit")}
               className="grid grid-cols-2 gap-3"
             >
               {typeOptions.map((option) => {
@@ -141,54 +141,64 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
             </RadioGroup>
           </fieldset>
 
-          <div className="space-y-2">
-            <Label htmlFor="tx-category">Categoria</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="tx-category">
-                <SelectValue placeholder="Escolha a categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(categoryLabels).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FormField id="tx-category" label="Categoria">
+            {(control) => (
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger {...control}>
+                  <SelectValue placeholder="Escolha a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(categoryLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="tx-description">Descrição</Label>
-            <Input
-              id="tx-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: ajuste de combustível, bônus por desempenho"
-            />
-          </div>
+          <FormField id="tx-description" label="Descrição" required error={errors.description}>
+            {(control) => (
+              <Input
+                {...control}
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  setErrors((prev) => ({ ...prev, description: undefined }));
+                }}
+                placeholder="Ex.: ajuste de combustível, bônus por desempenho"
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="tx-value">Valor (R$)</Label>
-            <Input
-              id="tx-value"
-              inputMode="decimal"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="0,00"
-              className="font-data"
-            />
-          </div>
+          <FormField id="tx-value" label="Valor (R$)" required error={errors.value}>
+            {(control) => (
+              <Input
+                {...control}
+                inputMode="decimal"
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  setErrors((prev) => ({ ...prev, value: undefined }));
+                }}
+                placeholder="0,00"
+                className="font-data"
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="tx-observation">
-              Motivo <span className="font-normal text-muted-foreground">(opcional)</span>
-            </Label>
-            <Textarea
-              id="tx-observation"
-              value={observation}
-              onChange={(e) => setObservation(e.target.value)}
-              placeholder="Ex: desconto pela avaria na NF 12345"
-              rows={2}
-            />
-          </div>
+          <FormField id="tx-observation" label="Motivo" optional>
+            {(control) => (
+              <Textarea
+                {...control}
+                value={observation}
+                onChange={(e) => setObservation(e.target.value)}
+                placeholder="Ex.: desconto pela avaria na NF 12345"
+                rows={2}
+              />
+            )}
+          </FormField>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -196,7 +206,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
-              {isSaving ? "Salvando" : "Salvar lançamento"}
+              {isSaving ? "Salvando..." : "Salvar lançamento"}
             </Button>
           </DialogFooter>
         </form>

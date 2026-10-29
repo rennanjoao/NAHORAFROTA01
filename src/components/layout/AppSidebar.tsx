@@ -69,7 +69,15 @@ export function AppSidebar() {
       )}
     >
       <div className={cn("flex h-topbar shrink-0 items-center", collapsed ? "justify-center px-2" : "justify-between pl-5 pr-2")}>
-        <NavLink to="/" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring" aria-label="Na Hora Frota, ir para o início">
+        <NavLink
+          to="/"
+          // Area de toque de 40px tambem com o menu recolhido (so o simbolo).
+          className={cn(
+            "inline-flex h-10 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+            collapsed && "w-10 justify-center",
+          )}
+          aria-label="Na Hora Frota, ir para o início"
+        >
           {collapsed ? (
             <BrandLogo arrangement="simbolo" className="w-8" />
           ) : (
@@ -83,7 +91,7 @@ export function AppSidebar() {
                 type="button"
                 onClick={toggleSidebar}
                 aria-label={toggleLabel}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
               >
                 <ToggleIcon className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -125,7 +133,7 @@ export function AppSidebar() {
                   type="button"
                   onClick={toggleSidebar}
                   aria-label={toggleLabel}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
                 >
                   <ToggleIcon className="h-4 w-4" aria-hidden="true" />
                 </button>

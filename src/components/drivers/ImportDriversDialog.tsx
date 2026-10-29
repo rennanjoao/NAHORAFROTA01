@@ -24,6 +24,7 @@ import {
   parseDriverRows,
 } from "@/lib/driverImport";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
+import { DRIVER_VEHICLE_TYPES, PENDING_PLATE } from "./driverConfig";
 
 interface ImportDriversDialogProps {
   open: boolean;
@@ -40,6 +41,14 @@ interface ImportOutcome {
 }
 
 const plural = (count: number, one: string, many: string) => `${count.toLocaleString("pt-BR")} ${count === 1 ? one : many}`;
+
+// Mesmo texto da lista de motoristas: "Van · ABC1D23", "Veículo da empresa" (CLT sem placa).
+function vehicleText({ vehicleType, vehiclePlate, isOwnFleet }: DriverImportRow["data"]) {
+  const hasPlate = vehiclePlate && vehiclePlate !== PENDING_PLATE;
+  if (isOwnFleet && !hasPlate) return "CLT · Veículo da empresa";
+  const label = DRIVER_VEHICLE_TYPES.find((type) => type.toLowerCase() === vehicleType) ?? vehicleType;
+  return `${isOwnFleet ? "CLT · " : ""}${label} · ${hasPlate ? vehiclePlate : "Placa pendente"}`;
+}
 
 function Step({ number, title, description, children }: { number: number; title: string; description: string; children: React.ReactNode }) {
   return (
@@ -265,7 +274,8 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
             {overLimit > 0 && (
               <Alert variant="warning">
                 <AlertDescription>
-                  Seu plano permite mais {Math.max(0, remainingSlots)} motorista(s): {overLimit} linha(s) válida(s) ficarão de fora.
+                  Seu plano permite mais {plural(Math.max(0, remainingSlots), "motorista", "motoristas")}:{" "}
+                  {plural(overLimit, "linha pronta fica", "linhas prontas ficam")} de fora.
                 </AlertDescription>
               </Alert>
             )}
@@ -290,8 +300,8 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
                         <p className="whitespace-nowrap text-foreground">{row.data.name || "Sem nome"}</p>
                         <p className="whitespace-nowrap font-data text-xs text-muted-foreground">{row.data.cpf || "Sem CPF"}</p>
                       </td>
-                      <td className="hidden whitespace-nowrap px-3 py-2 text-xs text-muted-foreground sm:table-cell">
-                        {row.data.vehicleType} · {row.data.vehiclePlate}
+                      <td className="hidden whitespace-nowrap px-3 py-2 text-xs leading-5 text-muted-foreground sm:table-cell">
+                        {vehicleText(row.data)}
                       </td>
                       <td className="px-3 py-2">
                         {row.errors.length === 0 ? (
@@ -299,7 +309,11 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
                         ) : (
                           <div className="space-y-1">
                             <StatusBadge tone="danger">Com erro</StatusBadge>
-                            <p className="text-xs text-destructive">{row.errors.join("; ")}</p>
+                            <ul className="space-y-0.5 text-xs text-destructive">
+                              {row.errors.map((message) => (
+                                <li key={message}>{message}</li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </td>

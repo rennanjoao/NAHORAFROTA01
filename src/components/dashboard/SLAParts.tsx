@@ -36,7 +36,20 @@ export function SLATrend({ trend, diff, compared }: { trend: "up" | "down" | "st
 }
 
 /** Anel de progresso do SLA, com o numero no meio. */
-export function SLARing({ value, tone, label, size = 112 }: { value: number; tone: Tone; label: string; size?: number }) {
+export function SLARing({
+  value,
+  tone,
+  label,
+  size = 112,
+  display,
+}: {
+  value: number;
+  tone: Tone;
+  label: string;
+  size?: number;
+  /** Texto no meio no lugar do numero (ex.: "—" sem entregas). */
+  display?: string;
+}) {
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
   // Comeca vazio e enche ate o valor (sem animacao com "reduzir movimento", via CSS).
@@ -63,7 +76,7 @@ export function SLARing({ value, tone, label, size = 112 }: { value: number; ton
         />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center font-data text-2xl font-semibold tracking-tight text-foreground" aria-hidden="true">
-        {formatSLA(value)}%
+        {display ?? `${formatSLA(value)}%`}
       </span>
     </div>
   );

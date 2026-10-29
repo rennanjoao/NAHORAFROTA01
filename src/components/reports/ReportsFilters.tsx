@@ -25,12 +25,14 @@ interface ReportsFiltersProps {
   options: ReportFilterOptions;
   onFiltersChange: (filters: FilterState) => void;
   onClearFilters: () => void;
+  /** false nas abas em que so o periodo vale (cliente, regiao etc. ficam escondidos). */
+  showEntityFilters?: boolean;
 }
 
 const fmt = (date?: Date) => (date ? format(date, "dd/MM/yyyy", { locale: ptBR }) : "");
 
 /** Periodo + filtros (cliente, regiao, motorista, operacao). Todos os graficos acompanham. */
-export function ReportsFilters({ filters, options, onFiltersChange, onClearFilters }: ReportsFiltersProps) {
+export function ReportsFilters({ filters, options, onFiltersChange, onClearFilters, showEntityFilters = true }: ReportsFiltersProps) {
   const [customMode, setCustomMode] = useState(() => matchPreset(filters.dateRange) === CUSTOM_PRESET);
   const [showMore, setShowMore] = useState(false);
   const preset = customMode ? CUSTOM_PRESET : matchPreset(filters.dateRange);
@@ -74,7 +76,7 @@ export function ReportsFilters({ filters, options, onFiltersChange, onClearFilte
             <span className="font-data">{value ? fmt(value) : "escolher"}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0" align="start" aria-label={which === "from" ? "Escolher a data inicial" : "Escolher a data final"}>
           <Calendar
             mode="single"
             selected={value}
@@ -130,68 +132,74 @@ export function ReportsFilters({ filters, options, onFiltersChange, onClearFilte
           )}
         </div>
 
-        {/* Mais filtros: no celular ficam recolhidos */}
-        <Button
-          variant="outline"
-          className="justify-between lg:hidden"
-          aria-expanded={showMore}
-          aria-controls="reports-more-filters"
-          onClick={() => setShowMore((v) => !v)}
-        >
-          <span className="flex items-center gap-2">
-            <SlidersHorizontal aria-hidden="true" />
-            {showMore ? "Esconder filtros" : "Mais filtros"}
-          </span>
-          {activeFiltersCount > 0 && (
-            <span className="rounded-full bg-primary px-2 py-0.5 font-data text-xs text-primary-foreground">
-              {activeFiltersCount}
-              <span className="sr-only"> ativo{activeFiltersCount > 1 ? "s" : ""}</span>
-            </span>
-          )}
-        </Button>
-
-        <div
-          id="reports-more-filters"
-          className={cn(
-            "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-2",
-            showMore ? "animate-fade-in" : "hidden lg:flex",
-          )}
-        >
-          {entityFilters.map((filter) => (
-            <Select
-              key={filter.key}
-              value={filters[filter.key]}
-              onValueChange={(value) => onFiltersChange({ ...filters, [filter.key]: value })}
-            >
-              <SelectTrigger
-                aria-label={filter.label}
-                className={cn("w-full lg:w-[11.5rem]", filters[filter.key] !== "all" && "border-primary/50 bg-primary/5")}
-              >
-                <SelectValue placeholder={filter.label} />
-              </SelectTrigger>
-              <SelectContent>
-                {filter.items.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ))}
-          {activeFiltersCount > 0 && (
+        {showEntityFilters ? (
+          <>
+            {/* Mais filtros: no celular ficam recolhidos */}
             <Button
-              variant="ghost"
-              className="text-muted-foreground"
-              onClick={() => {
-                setCustomMode(false);
-                onClearFilters();
-              }}
+              variant="outline"
+              className="justify-between lg:hidden"
+              aria-expanded={showMore}
+              aria-controls="reports-more-filters"
+              onClick={() => setShowMore((v) => !v)}
             >
-              <X aria-hidden="true" />
-              Limpar filtros ({activeFiltersCount})
+              <span className="flex items-center gap-2">
+                <SlidersHorizontal aria-hidden="true" />
+                {showMore ? "Esconder filtros" : "Mais filtros"}
+              </span>
+              {activeFiltersCount > 0 && (
+                <span className="rounded-full bg-primary px-2 py-0.5 font-data text-xs text-primary-foreground">
+                  {activeFiltersCount}
+                  <span className="sr-only"> ativo{activeFiltersCount > 1 ? "s" : ""}</span>
+                </span>
+              )}
             </Button>
-          )}
-        </div>
+
+            <div
+              id="reports-more-filters"
+              className={cn(
+                "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-2",
+                showMore ? "animate-fade-in" : "hidden lg:flex",
+              )}
+            >
+              {entityFilters.map((filter) => (
+                <Select
+                  key={filter.key}
+                  value={filters[filter.key]}
+                  onValueChange={(value) => onFiltersChange({ ...filters, [filter.key]: value })}
+                >
+                  <SelectTrigger
+                    aria-label={filter.label}
+                    className={cn("w-full lg:w-[11.5rem]", filters[filter.key] !== "all" && "border-primary/50 bg-primary/5")}
+                  >
+                    <SelectValue placeholder={filter.label} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filter.items.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ))}
+              {activeFiltersCount > 0 && (
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => {
+                    setCustomMode(false);
+                    onClearFilters();
+                  }}
+                >
+                  <X aria-hidden="true" />
+                  Limpar filtros ({activeFiltersCount})
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground lg:ml-auto">Nesta aba, só o período muda os números.</p>
+        )}
       </div>
     </div>
   );

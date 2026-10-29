@@ -53,7 +53,13 @@ export function MobileBottomNav() {
           );
         })}
         <li className="flex min-w-0 flex-1">
-          <button type="button" onClick={() => openPanel("more")} className={tabClass(moreActive)} aria-haspopup="dialog">
+          <button
+            type="button"
+            onClick={() => openPanel("more")}
+            className={tabClass(moreActive)}
+            aria-haspopup="dialog"
+            aria-expanded={panel === "more"}
+          >
             <span className={pill(moreActive)}>
               <LayoutGrid className="h-5 w-5" aria-hidden="true" />
             </span>
@@ -68,13 +74,13 @@ export function MobileBottomNav() {
 /** Folha "Mais": todas as telas em grade, tema, ajuda e sair. */
 export function MobileMoreSheet() {
   const { groups, isActive } = useNavigation();
-  const { panel, closePanel, openPanel } = useShell();
+  const { panel, closePanel, openPanel, restoreFocus } = useShell();
   const { profile, roles, signOut } = useAuth();
   const navigate = useNavigate();
 
   return (
     <Sheet open={panel === "more"} onOpenChange={(open) => !open && closePanel()}>
-      <SheetContent side="bottom" className="overflow-y-auto px-4 pt-3">
+      <SheetContent side="bottom" onCloseAutoFocus={restoreFocus} className="overflow-y-auto px-4 pt-3">
         <div aria-hidden="true" className="mx-auto -mt-1 mb-1 h-1.5 w-10 rounded-full bg-muted-foreground/25" />
         <SheetHeader className="flex-row items-center gap-3 space-y-0 pr-10">
           <UserAvatar name={profile?.name} className="h-10 w-10" />
@@ -107,7 +113,8 @@ export function MobileMoreSheet() {
                     <li key={item.path}>
                       <NavLink
                         to={item.path}
-                        onClick={closePanel}
+                        // Escolheu uma tela: o foco vai para o conteudo dela.
+                        onClick={() => closePanel({ focusMain: true })}
                         aria-current={active ? "page" : undefined}
                         className={cn(
                           "flex h-full min-h-[5.25rem] flex-col items-center justify-center gap-2 rounded-xl border p-2 text-center text-xs font-medium transition-colors duration-fast active:scale-[0.97]",

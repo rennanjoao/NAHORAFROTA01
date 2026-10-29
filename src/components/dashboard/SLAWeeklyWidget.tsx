@@ -31,7 +31,9 @@ export function SLAWeeklyWidget() {
     weeklyTrend,
   } = useSLADB();
 
-  const status = slaStatus(fleetSLA.weekly);
+  // Sem entregas finalizadas na semana o calculo devolve 100%: mostra "—".
+  const hasWeek = driverStats.some((d) => d.weeklyTotalInvoices > 0) || orphanInvoices.length > 0;
+  const status = hasWeek ? slaStatus(fleetSLA.weekly) : { tone: "neutral" as const, label: "Sem entregas" };
   const criticalCount = criticalWeeklyDrivers.length;
   const attentionCount = attentionWeeklyDrivers.length;
   const nearGoalCount = worstWeeklyDrivers.length - criticalCount - attentionCount;
@@ -76,12 +78,22 @@ export function SLAWeeklyWidget() {
 
         <CardContent className="flex flex-1 flex-col gap-5">
           <div className="flex items-center gap-5">
-            <SLARing value={fleetSLA.weekly} tone={status.tone} label={`SLA da semana: ${formatSLA(fleetSLA.weekly)}%`} size={104} />
+            <SLARing
+              value={hasWeek ? fleetSLA.weekly : 0}
+              tone={status.tone}
+              label={hasWeek ? `SLA da semana: ${formatSLA(fleetSLA.weekly)}%` : "SLA da semana: sem entregas finalizadas"}
+              display={hasWeek ? undefined : "—"}
+              size={104}
+            />
             <div className="min-w-0 space-y-1.5">
               <p className="text-sm text-muted-foreground">
                 Meta de <span className="font-data font-semibold text-foreground">{pct(SLA_THRESHOLDS.EXCELLENT)}</span>
               </p>
-              <SLATrend trend={weeklyTrend} diff={trendDiff} compared="lastWeek" />
+              {hasWeek ? (
+                <SLATrend trend={weeklyTrend} diff={trendDiff} compared="lastWeek" />
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma entrega finalizada nos últimos 7 dias.</p>
+              )}
             </div>
           </div>
 
@@ -102,7 +114,9 @@ export function SLAWeeklyWidget() {
           </dl>
 
           <ul className="space-y-2 border-t pt-4" aria-label="Resumo da semana">
-            {isTrulyHealthy ? (
+            {!hasWeek ? (
+              <SLANote tone="neutral">O SLA aparece assim que os motoristas baixarem as entregas.</SLANote>
+            ) : isTrulyHealthy ? (
               <SLANote tone="success">Operação saudável: todos acima da meta de {pct(SLA_THRESHOLDS.EXCELLENT)}.</SLANote>
             ) : (
               <>

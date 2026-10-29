@@ -258,7 +258,17 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
           <Progress value={((stepIndex + 1) / STEPS.length) * 100} aria-label={`Passo ${stepIndex + 1} de ${STEPS.length}`} className="h-1.5" />
         </div>
 
-        <div key={step} className="animate-fade-in">
+        {/* Enter num campo avanca o passo (nunca envia o pedido sozinho). */}
+        <form
+          id="request-vehicle-form"
+          key={step}
+          noValidate
+          className="animate-fade-in"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (step !== "confirm") handleNext();
+          }}
+        >
           {step === "cargo" && (
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -384,7 +394,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
               </Alert>
             </div>
           )}
-        </div>
+        </form>
 
         <DialogFooter>
           {step === "cargo" ? (
@@ -403,7 +413,9 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
             </Button>
           )}
           {step !== "confirm" ? (
-            <Button onClick={handleNext}>Continuar</Button>
+            <Button type="submit" form="request-vehicle-form">
+              Continuar
+            </Button>
           ) : (
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="animate-spin" aria-hidden="true" />}

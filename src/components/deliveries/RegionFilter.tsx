@@ -87,7 +87,8 @@ export function RegionFilter({ selectedRegions, onRegionsChange, availableRegion
           )}
         </div>
 
-        <ScrollArea className="h-[min(24rem,60vh)]">
+        {/* Altura cabe na tela que sobra (antes o botao "Ver resultado" saia pela borda de baixo). */}
+        <ScrollArea className="h-[min(24rem,60vh,calc(var(--radix-popover-content-available-height,100vh)-8.5rem))] min-h-[8rem]">
           <div className="space-y-4 p-2">
             {CATEGORIES.map((category) => {
               const regions = groupedRegions[category] || [];

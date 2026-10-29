@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, CircleAlert } from "lucide-react";
 import { toneSoftBg, toneText } from "@/components/patterns";
 import { cn } from "@/lib/utils";
 import type { OccurrenceOption } from "./occurrenceTypes";
@@ -11,16 +11,25 @@ interface OptionTilesProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Mensagem quando nada foi escolhido (anunciada na hora). */
+  error?: string;
 }
 
 /**
  * Escolha unica em blocos grandes (bom para toque com luva). Radios nativos:
  * setas do teclado e leitor de tela funcionam sem codigo extra.
  */
-export function OptionTiles({ name, legend, options, value, onChange, disabled }: OptionTilesProps) {
+export function OptionTiles({ name, legend, options, value, onChange, disabled, error }: OptionTilesProps) {
+  const errorId = `${name}-erro`;
   return (
-    <fieldset className="space-y-2" disabled={disabled}>
+    <fieldset className="space-y-2" disabled={disabled} aria-describedby={error ? errorId : undefined}>
       <legend className="mb-2 text-sm font-medium text-foreground">{legend}</legend>
+      {error && (
+        <p id={errorId} role="alert" className="flex items-start gap-1.5 text-sm font-medium text-destructive animate-fade-in">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         {options.map((option) => {
           const Icon = option.icon;
@@ -32,6 +41,7 @@ export function OptionTiles({ name, legend, options, value, onChange, disabled }
                 "relative flex min-h-[4.75rem] cursor-pointer flex-col justify-between gap-2 rounded-lg border bg-card p-3 text-left shadow-xs transition-[border-color,background-color,box-shadow] duration-fast ease-out",
                 "hover:border-foreground/25 active:scale-[0.98] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
                 selected && "border-primary bg-primary/10 hover:border-primary",
+                error && !selected && "border-destructive/50",
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >

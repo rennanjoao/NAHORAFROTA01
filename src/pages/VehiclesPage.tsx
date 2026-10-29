@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle2, Plus, Route, SearchX, Truck, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +25,17 @@ import {
 const capacityByType = vehicleCapacityByType;
 
 type StatusFilter = "all" | VehicleStatus;
+
+// Erro do banco em linguagem simples (placa repetida vinha como "duplicate key value...").
+function friendlyVehicleError(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : "";
+  if (/duplicate key|unique|já existe/i.test(message)) return "Já existe um veículo com esta placa. Confira a placa e tente de novo.";
+  if (/permission|permiss|row-level|policy/i.test(message)) return "Você não tem permissão para esta tarefa. Fale com o administrador.";
+  return message || fallback;
+}
+
+// Busca sem acento, sem caixa e sem traco na placa ("abc-1d23" acha ABC1D23).
+const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<CompanyVehicle[]>([]);
@@ -59,8 +70,21 @@ export default function VehiclesPage() {
     setIsFormOpen(true);
   };
 
-  // Ctrl K > "Cadastrar veiculo" abre /vehicles?action=new.
-  useQueryAction("new", openNewVehicle);
+  // Ctrl K > "Cadastrar veiculo" abre /vehicles?action=new. O foco passa antes
+  // pelo botao da tela: ao fechar a janela, ele volta para la (e nao para o topo).
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+  useQueryAction("new", () => {
+    newButtonRef.current?.focus();
+    openNewVehicle();
+  });
+
+  // O cartao removido levava o foco junto: passa para o cartao vizinho (ou para o cadastro).
+  const focusVehicleAt = (index: number) => {
+    window.setTimeout(() => {
+      const cards = [...document.querySelectorAll<HTMLElement>("[data-vehicle-open]")];
+      (cards[Math.min(index, cards.length - 1)] ?? newButtonRef.current)?.focus();
+    }, 50);
+  };
 
   const loadVehicles = async () => {
     setIsLoading(true);
@@ -97,14 +121,17 @@ export default function VehiclesPage() {
   );
 
   const filteredVehicles = useMemo(() => {
+    const term = fold(searchQuery.trim());
+    const plateTerm = term.replace(/[^a-z0-9]/g, "");
     return vehicles.filter((v) => {
       const matchesStatus = filterStatus === "all" || v.status === filterStatus;
       const matchesType = filterType === "all" || v.type === filterType;
       const matchesSearch =
-        searchQuery === "" ||
-        v.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        v.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        v.brand.toLowerCase().includes(searchQuery.toLowerCase());
+        term === "" ||
+        (plateTerm !== "" && v.plate.toLowerCase().includes(plateTerm)) ||
+        fold(v.model).includes(term) ||
+        fold(v.brand).includes(term) ||
+        fold(`${v.brand} ${v.model}`).includes(term);
 
       return matchesStatus && matchesType && matchesSearch;
     });
@@ -141,7 +168,7 @@ export default function VehiclesPage() {
     } catch (error) {
       toast({
         title: "Não foi possível cadastrar",
-        description: error instanceof Error ? error.message : "Confira a placa e tente de novo.",
+        description: friendlyVehicleError(error, "Confira a placa e tente de novo."),
         variant: "destructive",
       });
     } finally {
@@ -176,7 +203,7 @@ export default function VehiclesPage() {
     } catch (error) {
       toast({
         title: "Não foi possível salvar",
-        description: error instanceof Error ? error.message : "Confira os dados e tente de novo.",
+        description: friendlyVehicleError(error, "Confira os dados e tente de novo."),
         variant: "destructive",
       });
     } finally {
@@ -190,11 +217,15 @@ export default function VehiclesPage() {
     setIsSaving(true);
     try {
       if (selectedVehicle.status === "in_use") {
-        throw new Error("O veículo está em uso. Libere-o antes de remover.");
+        throw new Error(
+          `${selectedVehicle.plate} está com ${selectedVehicle.currentDriverName || "um motorista"} agora. Ele fica livre quando a rota terminar; remova depois disso.`,
+        );
       }
 
+      const index = filteredVehicles.findIndex((vehicle) => vehicle.id === selectedVehicle.id);
       await companyVehicleStore.delete(selectedVehicle.id);
       invalidatePlanStatus(queryClient);
+      focusVehicleAt(Math.max(0, index));
       toast({
         title: "Veículo removido",
         description: `${selectedVehicle.plate} saiu da frota.`,
@@ -207,7 +238,7 @@ export default function VehiclesPage() {
       setIsDeleteDialogOpen(false);
       toast({
         title: "Não foi possível remover",
-        description: error instanceof Error ? error.message : "Tente de novo em instantes.",
+        description: friendlyVehicleError(error, "Tente de novo em instantes."),
         variant: "destructive",
       });
     } finally {
@@ -224,7 +255,9 @@ export default function VehiclesPage() {
           description: `${vehicle.plate} voltou a ficar disponível.`,
         });
       } else {
-        await companyVehicleStore.setMaintenance(vehicle.id);
+        // setMaintenance devolve false em vez de lancar: antes o aviso de sucesso saia mesmo com erro.
+        const done = await companyVehicleStore.setMaintenance(vehicle.id);
+        if (!done) throw new Error("Não foi possível enviar para manutenção. Tente de novo em instantes.");
         toast({
           title: "Veículo em manutenção",
           description: `${vehicle.plate} foi enviado para manutenção.`,
@@ -233,7 +266,7 @@ export default function VehiclesPage() {
     } catch (error) {
       toast({
         title: "Não foi possível alterar a situação",
-        description: error instanceof Error ? error.message : "Tente de novo em instantes.",
+        description: friendlyVehicleError(error, "Tente de novo em instantes."),
         variant: "destructive",
       });
     }
@@ -269,7 +302,7 @@ export default function VehiclesPage() {
         title="Veículos"
         description="Veículos da empresa, usados pelos motoristas da casa (CLT) nos romaneios. Agregados usam o próprio veículo."
         actions={
-          <Button onClick={openNewVehicle} disabled={!canAddVehicle}>
+          <Button ref={newButtonRef} onClick={openNewVehicle} disabled={!canAddVehicle}>
             <Plus aria-hidden="true" />
             Cadastrar veículo
           </Button>
@@ -333,37 +366,40 @@ export default function VehiclesPage() {
           <h2 id="lista-veiculos" className="sr-only">
             Lista de veículos
           </h2>
-          <FilterBar
-            actions={
-              <>
-                <p className="text-sm text-muted-foreground" aria-live="polite">
-                  {isFirstLoad
-                    ? "Carregando..."
-                    : `${filteredVehicles.length.toLocaleString("pt-BR")} ${filteredVehicles.length === 1 ? "veículo" : "veículos"}`}
-                </p>
-                {hasFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
-                    Limpar filtros
-                  </Button>
-                )}
-              </>
-            }
-          >
-            <SearchInput label="Buscar veículo" placeholder="Placa, marca ou modelo" value={searchQuery} onChange={setSearchQuery} className="sm:max-w-xs" />
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-full sm:w-44" aria-label="Tipo de veículo">
-                <SelectValue placeholder="Tipo de veículo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                {COMPANY_VEHICLE_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterBar>
+          {/* Sem veiculos nao ha o que filtrar: a lista vazia mostra o proximo passo. */}
+          {(isFirstLoad || vehicles.length > 0) && (
+            <FilterBar
+              actions={
+                <>
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {isFirstLoad
+                      ? "Carregando..."
+                      : `${filteredVehicles.length.toLocaleString("pt-BR")} ${filteredVehicles.length === 1 ? "veículo" : "veículos"}`}
+                  </p>
+                  {hasFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </>
+              }
+            >
+              <SearchInput label="Buscar veículo" placeholder="Placa, marca ou modelo" value={searchQuery} onChange={setSearchQuery} className="sm:max-w-xs" />
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-full sm:w-44" aria-label="Tipo de veículo">
+                  <SelectValue placeholder="Tipo de veículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {COMPANY_VEHICLE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterBar>
+          )}
 
           {isFirstLoad ? (
             <CardsSkeleton count={3} className="sm:grid-cols-2 xl:grid-cols-3" />

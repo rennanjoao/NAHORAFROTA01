@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save } from "lucide-react";
 import { FormField } from "@/components/patterns/FormField";
-import { looksLikeEmail } from "./roleOptions";
+import { INVITE_ROLES, looksLikeEmail } from "./roleOptions";
+import { friendlyServerMessage, isDuplicateEmail } from "./serverMessages";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { SystemUser } from "@/hooks/useSystemUsers";
@@ -27,13 +29,12 @@ interface EditAccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  /** E-mails ja usados na empresa (o servidor so devolve um erro generico nesse caso). */
+  takenEmails?: string[];
 }
 
-const ROLES = [
-  { value: "admin", label: "Administrador" },
-  { value: "fleet_manager", label: "Gestor de Frota" },
-  { value: "dispatcher", label: "Despachante" },
-] as const;
+// Do mais alto para o mais baixo, com os mesmos nomes da Administracao.
+const ROLES = [...INVITE_ROLES].reverse();
 
 const DRIVER_STATUS = [
   { value: "active", label: "Disponível" },
@@ -52,7 +53,8 @@ const VEHICLE_TYPES = [
   { value: "carreta", label: "Carreta" },
 ] as const;
 
-export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAccessDialogProps) {
+export function EditAccessDialog({ target, open, onOpenChange, onSaved, takenEmails = [] }: EditAccessDialogProps) {
+  const { user } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -143,8 +145,14 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     if (!name.trim()) nextErrors.name = "Digite o nome.";
     if (!email.trim()) nextErrors.email = "Digite o e-mail de login.";
     else if (!looksLikeEmail(email)) nextErrors.email = "Confira o e-mail. Exemplo: nome@empresa.com.br";
+    else {
+      const next = email.trim().toLowerCase();
+      const current = (target.record.email || "").toLowerCase();
+      if (next !== current && takenEmails.some((taken) => taken.toLowerCase() === next))
+        nextErrors.email = "Este e-mail já está em uso por outra pessoa. Use outro e-mail.";
+    }
     if (password.trim() && password.trim().length < 8)
-      nextErrors.password = "A nova senha precisa ter pelo menos 8 caracteres. Exemplo: 123456Na";
+      nextErrors.password = "A nova senha precisa ter pelo menos 8 caracteres.";
     setErrors(nextErrors);
     const firstError = (["name", "email", "password"] as const).find((key) => nextErrors[key]);
     if (firstError) {
@@ -157,7 +165,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.access_token) {
-        throw new Error("Sessão expirada. Faça login novamente.");
+        throw new Error("Sua sessão expirou. Entre de novo para continuar.");
       }
 
       const body =
@@ -190,8 +198,18 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
         body,
       });
 
-      if (error) throw new Error(await getFunctionErrorMessage(error));
-      if (!data?.success) throw new Error(data?.error || "Erro ao salvar alterações");
+      const failure = error ? await getFunctionErrorMessage(error) : !data?.success ? data?.error || "" : null;
+      if (failure !== null) {
+        // E-mail que ja existe: aviso embaixo do campo.
+        if (isDuplicateEmail(failure)) {
+          setErrors({ email: "Este e-mail já está em uso por outra pessoa. Use outro e-mail." });
+          document.getElementById("edit-email")?.focus();
+          return;
+        }
+        throw new Error(
+          friendlyServerMessage(failure, "Confira os dados e tente de novo. Se trocou o e-mail, ele pode já estar em uso."),
+        );
+      }
 
       toast({
         title: "Acesso atualizado",
@@ -203,8 +221,8 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
       onOpenChange(false);
     } catch (error) {
       toast({
-        title: "Erro ao atualizar",
-        description: error instanceof Error ? error.message : "Não foi possível salvar.",
+        title: "Não foi possível salvar",
+        description: error instanceof Error ? error.message : "Confira os dados e tente de novo.",
         variant: "destructive",
       });
     } finally {
@@ -213,6 +231,8 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
   };
 
   const isDriver = target?.type === "driver";
+  // O proprio nivel nao muda por aqui (o servidor tambem recusa).
+  const isSelf = target?.type === "user" && target.record.user_id === user?.id;
   const clearError = (key: keyof typeof errors) => errors[key] && setErrors((prev) => ({ ...prev, [key]: undefined }));
 
   return (
@@ -276,9 +296,13 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved }: EditAc
           </FormField>
 
           {!isDriver && (
-            <FormField id="edit-role" label="Nível de acesso">
+            <FormField
+              id="edit-role"
+              label="Nível de acesso"
+              hint={isSelf ? "Você não pode mudar o seu próprio nível." : ROLES.find((item) => item.value === role)?.description}
+            >
               {(control) => (
-                <Select value={role} onValueChange={(value) => setRole(value as SystemUser["role"])}>
+                <Select value={role} onValueChange={(value) => setRole(value as SystemUser["role"])} disabled={isSelf}>
                   <SelectTrigger {...control}>
                     <SelectValue />
                   </SelectTrigger>

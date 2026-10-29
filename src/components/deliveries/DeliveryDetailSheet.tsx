@@ -3,7 +3,6 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
@@ -31,8 +30,23 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { getOccurrenceLabel } from "@/hooks/useSLADB";
-import { DeliveryStatusBadge } from "./status";
+import { buildFullAddress } from "@/lib/nfeXmlParser";
+import { FormField } from "@/components/patterns";
+import { DeliveryStatusBadge, occurrenceLabel } from "./status";
+
+const UFS = new Set([
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA",
+  "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+]);
+
+type AddressErrors = Partial<Record<"address" | "city" | "state" | "zipCode", string>>;
+
+/** "Rua X, 120" -> rua e numero separados (o numero ficava duplicado ao salvar). */
+function splitStreetNumber(text: string) {
+  const match = text.match(/^(.*),\s*([^,]{1,10})$/);
+  if (match && /\d|s\/?n/i.test(match[2])) return { street: match[1].trim(), number: match[2].trim() };
+  return { street: text, number: "" };
+}
 
 interface AuditLogEntry {
   id: string;
@@ -72,6 +86,8 @@ export interface DeliveryWithHistory {
   manifestId?: string;
   manifestUuid?: string;
   occurrenceType?: string;
+  addressStreet?: string;
+  addressNumber?: string;
   lastUpdatedBy?: string;
   lastUpdatedAt?: Date;
   receivedBy?: string;
@@ -119,6 +135,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [addressErrors, setAddressErrors] = useState<AddressErrors>({});
   const [addressForm, setAddressForm] = useState({
     address: "",
     city: "",
@@ -137,6 +154,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     });
     setIsEditingAddress(false);
     setIsSavingAddress(false);
+    setAddressErrors({});
   }, [delivery?.id, delivery?.address, delivery?.city, delivery?.state, delivery?.zipCode]);
 
   // Fetch audit logs when sheet opens
@@ -181,6 +199,9 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
 
   if (!delivery) return null;
 
+  const hasOpenOccurrence =
+    !!delivery.occurrenceType && ["occurrence", "delayed", "returning", "returned"].includes(delivery.status);
+
   // Format date for display
   const formatDateTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -222,30 +243,46 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
     const city = addressForm.city.trim();
     const state = addressForm.state.trim().toUpperCase();
     const zipCode = addressForm.zipCode.trim();
+    const zipDigits = zipCode.replace(/\D/g, "");
 
-    if (!address || !city || !state) {
-      toast({
-        title: "Endereço incompleto",
-        description: "Preencha rua, cidade e UF antes de salvar.",
-        variant: "destructive",
-      });
+    // Erro embaixo de cada campo (antes era so um aviso no canto da tela).
+    const errors: AddressErrors = {};
+    if (!address) errors.address = "Informe a rua e o número.";
+    if (!city) errors.city = "Informe a cidade.";
+    if (!state) errors.state = "Informe a UF.";
+    else if (!UFS.has(state)) errors.state = "UF inválida. Use a sigla, como SP.";
+    if (zipCode && zipDigits.length !== 8) errors.zipCode = "O CEP tem 8 números.";
+    setAddressErrors(errors);
+    const firstError = (["address", "city", "state", "zipCode"] as const).find((key) => errors[key]);
+    if (firstError) {
+      const ids = { address: "invoice-address", city: "invoice-city", state: "invoice-state", zipCode: "invoice-zip" };
+      document.getElementById(ids[firstError])?.focus();
       return;
     }
 
     setIsSavingAddress(true);
     try {
-      const addressFull = [address, `${city} - ${state}${zipCode ? `, ${zipCode}` : ""}`]
-        .filter(Boolean)
-        .join(", ");
+      // Mesmo endereco de antes: mantem rua e numero como estavam.
+      const { street, number } =
+        address === delivery.address && delivery.addressStreet !== undefined
+          ? { street: delivery.addressStreet || address, number: delivery.addressNumber || "" }
+          : splitStreetNumber(address);
+      const { data: current } = await supabase
+        .from("invoices")
+        .select("address_neighborhood")
+        .eq("id", delivery.dbId)
+        .maybeSingle();
+      const addressFull = buildFullAddress(street, number, current?.address_neighborhood || "", city, state, zipDigits);
 
       const { error } = await supabase
         .from("invoices")
         .update({
           address_full: addressFull,
-          address_street: address,
+          address_street: street,
+          address_number: number || null,
           address_city: city,
           address_state: state,
-          address_zip: zipCode || null,
+          address_zip: zipDigits || null,
           latitude: null,
           longitude: null,
           updated_at: new Date().toISOString(),
@@ -266,7 +303,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
       console.error("Error updating invoice address:", error);
       toast({
         title: "Não foi possível salvar o endereço",
-        description: error.message || "Tente de novo em instantes.",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
     } finally {
@@ -281,6 +318,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
       state: delivery.state || "",
       zipCode: delivery.zipCode || "",
     });
+    setAddressErrors({});
     setIsEditingAddress(false);
   };
 
@@ -313,7 +351,16 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
               <div className="flex items-center justify-between gap-3">
                 {sectionTitle("detail-recipient", User, "Cliente")}
                 {!isEditingAddress && (
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setIsEditingAddress(true)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsEditingAddress(true);
+                      // Leva o foco ao primeiro campo (o botao some ao abrir o formulario).
+                      window.setTimeout(() => document.getElementById("invoice-address")?.focus(), 0);
+                    }}
+                  >
                     <Pencil aria-hidden="true" />
                     Corrigir endereço
                   </Button>
@@ -323,45 +370,68 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                 <p className="font-medium text-foreground">{delivery.recipient}</p>
                 {isEditingAddress ? (
                   <div className="space-y-3 pt-1 animate-fade-in">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="invoice-address">Rua e número</Label>
-                      <Input
-                        id="invoice-address"
-                        value={addressForm.address}
-                        onChange={(event) => setAddressForm((current) => ({ ...current, address: event.target.value }))}
-                        placeholder="Rua, avenida, número e complemento"
-                      />
-                    </div>
-                    <div className="grid grid-cols-[1fr_5rem] gap-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="invoice-city">Cidade</Label>
+                    <FormField id="invoice-address" label="Rua e número" required error={addressErrors.address}>
+                      {(field) => (
                         <Input
-                          id="invoice-city"
-                          value={addressForm.city}
-                          onChange={(event) => setAddressForm((current) => ({ ...current, city: event.target.value }))}
+                          {...field}
+                          value={addressForm.address}
+                          onChange={(event) => {
+                            setAddressForm((current) => ({ ...current, address: event.target.value }));
+                            setAddressErrors((current) => ({ ...current, address: undefined }));
+                          }}
+                          placeholder="Ex.: Rua das Flores, 120"
+                          autoComplete="off"
                         />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="invoice-state">UF</Label>
+                      )}
+                    </FormField>
+                    <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-3">
+                      <FormField id="invoice-city" label="Cidade" required error={addressErrors.city}>
+                        {(field) => (
+                          <Input
+                            {...field}
+                            value={addressForm.city}
+                            onChange={(event) => {
+                              setAddressForm((current) => ({ ...current, city: event.target.value }));
+                              setAddressErrors((current) => ({ ...current, city: undefined }));
+                            }}
+                            autoComplete="off"
+                          />
+                        )}
+                      </FormField>
+                      <FormField id="invoice-state" label="UF" required error={addressErrors.state}>
+                        {(field) => (
+                          <Input
+                            {...field}
+                            value={addressForm.state}
+                            onChange={(event) => {
+                              setAddressForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }));
+                              setAddressErrors((current) => ({ ...current, state: undefined }));
+                            }}
+                            placeholder="SP"
+                            maxLength={2}
+                            autoComplete="off"
+                            className="uppercase"
+                          />
+                        )}
+                      </FormField>
+                    </div>
+                    <FormField id="invoice-zip" label="CEP" optional error={addressErrors.zipCode}>
+                      {(field) => (
                         <Input
-                          id="invoice-state"
-                          value={addressForm.state}
-                          onChange={(event) => setAddressForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))}
-                          placeholder="SP"
-                          maxLength={2}
+                          {...field}
+                          value={addressForm.zipCode}
+                          onChange={(event) => {
+                            setAddressForm((current) => ({ ...current, zipCode: event.target.value }));
+                            setAddressErrors((current) => ({ ...current, zipCode: undefined }));
+                          }}
+                          placeholder="00000-000"
+                          inputMode="numeric"
+                          maxLength={9}
+                          autoComplete="off"
+                          className="font-data"
                         />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="invoice-zip">CEP</Label>
-                      <Input
-                        id="invoice-zip"
-                        value={addressForm.zipCode}
-                        onChange={(event) => setAddressForm((current) => ({ ...current, zipCode: event.target.value }))}
-                        placeholder="00000-000"
-                        inputMode="numeric"
-                      />
-                    </div>
+                      )}
+                    </FormField>
                     <p className="text-xs text-muted-foreground">Ao salvar, a localização no mapa é refeita na próxima rota.</p>
                     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                       <Button type="button" variant="outline" onClick={resetAddressForm} disabled={isSavingAddress}>
@@ -369,7 +439,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                       </Button>
                       <Button type="button" onClick={handleSaveAddress} disabled={isSavingAddress}>
                         {isSavingAddress ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
-                        Salvar endereço
+                        {isSavingAddress ? "Salvando…" : "Salvar endereço"}
                       </Button>
                     </div>
                   </div>
@@ -493,17 +563,17 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
               </section>
             )}
 
-            {/* Ocorrencia */}
-            {delivery.occurrenceType && (
+            {/* Ocorrencia (so enquanto a nota esta com problema; depois o motivo antigo fica no historico) */}
+            {hasOpenOccurrence && (
               <section aria-labelledby="detail-occurrence" className="space-y-3">
                 {sectionTitle("detail-occurrence", AlertTriangle, "Ocorrência registrada")}
                 <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
-                  <p className="font-medium text-foreground">{getOccurrenceLabel(delivery.occurrenceType)}</p>
+                  <p className="font-medium text-foreground">{occurrenceLabel(delivery.occurrenceType)}</p>
                   {delivery.observation && <p className="text-muted-foreground">{delivery.observation}</p>}
                   {occurrenceEntries.map((occurrence) => (
                     <div key={occurrence.id} className="space-y-2 rounded-lg border bg-card p-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium text-foreground">{getOccurrenceLabel(occurrence.type)}</span>
+                        <span className="text-xs font-medium text-foreground">{occurrenceLabel(occurrence.type)}</span>
                         <span className="font-data text-xs text-muted-foreground">{formatDateTime(occurrence.created_at)}</span>
                       </div>
                       {occurrence.description && <p className="text-xs text-muted-foreground">{occurrence.description}</p>}
@@ -541,7 +611,7 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
             )}
 
             {/* Observacoes */}
-            {delivery.observation && !delivery.occurrenceType && (
+            {delivery.observation && !hasOpenOccurrence && (
               <section aria-labelledby="detail-observation" className="space-y-3">
                 {sectionTitle("detail-observation", FileText, "Observação para o motorista")}
                 <p className="rounded-lg bg-muted/50 p-3 text-sm text-foreground">{delivery.observation}</p>

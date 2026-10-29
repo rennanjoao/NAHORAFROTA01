@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Loader2 } from "lucide-react";
+import { Check, CircleAlert, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getDriverTenantId, getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
@@ -23,6 +23,19 @@ interface FinishDeliveryModalProps {
 
 const DRAFT_KEY = (id: string) => `delivery_draft_${id}`;
 
+type FieldErrors = { name?: string; doc?: string };
+
+/** Erro embaixo do campo (ligado por aria-describedby); letra 14px para ler no sol. */
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="flex items-start gap-1.5 text-sm font-medium text-destructive animate-fade-in">
+      <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      {message}
+    </p>
+  );
+}
+
 export function FinishDeliveryModal({
   open,
   onClose,
@@ -40,7 +53,10 @@ export function FinishDeliveryModal({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [receiverName, setReceiverName] = useState("");
   const [receiverDocument, setReceiverDocument] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const filePickerOpenRef = useRef(false);
 
   useEffect(() => {
@@ -51,7 +67,7 @@ export function FinishDeliveryModal({
         const data = JSON.parse(saved);
         if (data.receiverName) setReceiverName(data.receiverName);
         if (data.receiverDocument) setReceiverDocument(data.receiverDocument);
-        toast.info("Recuperamos o que você já tinha digitado.");
+        toast.info("Recuperamos o que você já tinha digitado.", { id: `rascunho-${invoiceId}` });
       }
     } catch {
       // ignore invalid draft
@@ -95,17 +111,21 @@ export function FinishDeliveryModal({
 
   const handleReceiverNameChange = (value: string) => {
     setReceiverName(value);
+    if (errors.name && value.trim()) setErrors((current) => ({ ...current, name: undefined }));
     saveDraft(value, receiverDocument);
   };
 
   const handleReceiverDocChange = (value: string) => {
     setReceiverDocument(value);
+    if (errors.doc && value.trim()) setErrors((current) => ({ ...current, doc: undefined }));
     saveDraft(receiverName, value);
   };
 
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     filePickerOpenRef.current = false;
     const file = event.target.files?.[0];
+    // Limpa o campo: escolher a mesma foto de novo (depois de remover) volta a funcionar.
+    event.target.value = "";
     if (!file) return;
 
     try {
@@ -151,13 +171,15 @@ export function FinishDeliveryModal({
   };
 
   const handleSubmit = async () => {
-    if (!receiverName.trim()) {
-      toast.error("Digite o nome de quem recebeu");
-      return;
-    }
-
-    if (!receiverDocument.trim()) {
-      toast.error("Digite o documento de quem recebeu");
+    if (isLoading) return;
+    // Antes o botao ficava apagado sem dizer o que faltava; agora o erro aparece no campo.
+    const nextErrors: FieldErrors = {
+      name: receiverName.trim() ? undefined : "Digite o nome de quem recebeu.",
+      doc: receiverDocument.trim() ? undefined : "Digite o RG ou o CPF de quem recebeu.",
+    };
+    if (nextErrors.name || nextErrors.doc) {
+      setErrors(nextErrors);
+      (nextErrors.name ? nameRef : docRef).current?.focus();
       return;
     }
 
@@ -215,27 +237,32 @@ export function FinishDeliveryModal({
         if (deliveryError) console.error("Delivery insert error (non-fatal):", deliveryError);
       }
 
-      const { error: proofError } = await supabase.from("delivery_proofs").insert({
-        invoice_id: invoiceId,
-        driver_id: driverId,
-        photo_url: photoUrl,
-        receiver_name: receiverName.trim(),
-        receiver_document: receiverDocument.trim() || null,
-        latitude: latitude || null,
-        longitude: longitude || null,
-        delivered_at: deliveryTimestamp,
-        tenant_id: tenantId,
-      });
-      if (proofError) console.error("Proof insert error (non-fatal):", proofError);
+      // delivery_proofs.photo_url e NOT NULL no banco: sem foto o insert sempre falhava (400).
+      if (photoUrl) {
+        const { error: proofError } = await supabase.from("delivery_proofs").insert({
+          invoice_id: invoiceId,
+          driver_id: driverId,
+          photo_url: photoUrl,
+          receiver_name: receiverName.trim(),
+          receiver_document: receiverDocument.trim() || null,
+          latitude: latitude || null,
+          longitude: longitude || null,
+          delivered_at: deliveryTimestamp,
+          tenant_id: tenantId,
+        });
+        if (proofError) console.error("Proof insert error (non-fatal):", proofError);
+      }
 
       localStorage.removeItem(DRAFT_KEY(invoiceId));
 
       toast.success("Entrega finalizada", { description: `${recipientName} recebeu a mercadoria.` });
       resetAndClose();
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Não foi possível finalizar. Confira a internet e tente de novo.");
+      toast.error("Não foi possível finalizar a entrega", {
+        description: "Confira a internet e tente de novo. O que você digitou fica salvo.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -248,6 +275,7 @@ export function FinishDeliveryModal({
     setPhotoPreview(null);
     setReceiverName("");
     setReceiverDocument("");
+    setErrors({});
     onClose();
   };
 
@@ -256,8 +284,6 @@ export function FinishDeliveryModal({
     revokeObjectUrl(photoPreview);
     setPhotoPreview(null);
   };
-
-  const missingFields = !receiverName.trim() || !receiverDocument.trim();
 
   return (
     <Dialog
@@ -293,20 +319,26 @@ export function FinishDeliveryModal({
           <div className="space-y-2">
             <Label htmlFor="receiver-name">Nome de quem recebeu</Label>
             <Input
+              ref={nameRef}
               id="receiver-name"
               value={receiverName}
               onChange={(event) => handleReceiverNameChange(event.target.value)}
               placeholder="Nome completo"
               autoComplete="off"
+              autoCapitalize="words"
               aria-required="true"
+              aria-invalid={errors.name ? true : undefined}
+              aria-describedby={errors.name ? "receiver-name-erro" : undefined}
               className="h-12 text-base"
               disabled={isLoading}
             />
+            <FieldError id="receiver-name-erro" message={errors.name} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="receiver-doc">Documento de quem recebeu</Label>
             <Input
+              ref={docRef}
               id="receiver-doc"
               value={receiverDocument}
               onChange={(event) => handleReceiverDocChange(event.target.value)}
@@ -314,11 +346,13 @@ export function FinishDeliveryModal({
               inputMode="numeric"
               autoComplete="off"
               aria-required="true"
-              aria-describedby="receiver-doc-hint"
+              aria-invalid={errors.doc ? true : undefined}
+              aria-describedby={errors.doc ? "receiver-doc-erro receiver-doc-hint" : "receiver-doc-hint"}
               className="h-12 text-base"
               disabled={isLoading}
             />
-            <p id="receiver-doc-hint" className="text-xs text-muted-foreground">
+            <FieldError id="receiver-doc-erro" message={errors.doc} />
+            <p id="receiver-doc-hint" className="text-sm text-muted-foreground">
               RG ou CPF. Só os números já bastam.
             </p>
           </div>
@@ -331,19 +365,13 @@ export function FinishDeliveryModal({
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={isLoading || missingFields}
-            aria-describedby={missingFields ? "finish-missing" : undefined}
+            aria-disabled={isLoading || undefined}
             className="bg-success text-success-foreground hover:bg-success/90"
           >
             {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
             {isLoading ? "Enviando" : "Confirmar entrega"}
           </Button>
         </DialogFooter>
-        {missingFields && (
-          <p id="finish-missing" className="-mt-2 text-center text-xs text-muted-foreground">
-            Preencha o nome e o documento para confirmar.
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   );

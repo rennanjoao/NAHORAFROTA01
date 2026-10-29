@@ -39,7 +39,7 @@ import { STATUS_HEX } from "@/lib/brandSymbol";
 import { DriverAvatar, DriverCombobox, ExtendedDriver } from "./DriverCombobox";
 import { ManifestSuccessDialog } from "./ManifestSuccessDialog";
 import { WizardSteps } from "./WizardSteps";
-import { FREIGHT_TYPE_LABELS, vehicleTypeLabel } from "./status";
+import { FREIGHT_TYPE_LABELS, plateText, vehicleTypeLabel } from "./status";
 import { ManifestRecord, manifestStore } from "@/stores/manifestStore";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { companyVehicleStore, CompanyVehicle } from "@/stores/companyVehicleStore";
@@ -65,6 +65,8 @@ interface FreightDialogProps {
   onConfirm: (freightData: FreightData, manifest: ManifestRecord, dbManifest?: DBManifest | null) => void;
   /** Abre a impressao do romaneio recem-criado (botao do dialogo de sucesso). */
   onPrint?: () => void;
+  /** Onde o foco fica se o botao que abriu sumiu (ex.: barra de selecao). */
+  focusFallback?: () => HTMLElement | null;
 }
 
 export interface FreightData {
@@ -113,7 +115,28 @@ function stopName(point: Waypoint, idx: number) {
   return `Parada ${idx}: ${(point.label || "Entrega").replace(/^\d+\.\s*/, "")}`;
 }
 
-/** Distancia com virgula decimal (pt-BR). */
+/**
+ * Valor digitado em reais: aceita "2,50", "2.50", "1.500" e "1.500,00".
+ * (O campo numerico do navegador lia "2,50" como 2 ou vazio.) Invalido -> NaN.
+ */
+function parseMoney(text: string): number {
+  if (/[^\d.,\sR$-]/.test(text)) return NaN;
+  const cleaned = text.replace(/[^\d.,-]/g, "");
+  if (!cleaned) return NaN;
+  let normalized = cleaned;
+  if (cleaned.includes(",")) normalized = cleaned.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) normalized = cleaned.replace(/\./g, "");
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : NaN;
+}
+
+const plural = (count: number, one: string, many: string) => (count === 1 ? `1 ${one}` : `${count} ${many}`);
+
+/** Entregas da rota (sem contar a base de partida e o retorno). */
+const deliveryStops = (waypoints: Waypoint[]) => waypoints.filter((point, idx) => idx > 0 && !point.id.includes("return")).length;
+
+/** Distancia com virgula decimal; sem rota calculada diz isso em vez de "0m". */
+const distanceText = (km: number) => (km > 0 ? formatDistance(km) : "Não calculada");
 
 /** Endereco vazio da base (", - /") vira um aviso legivel. */
 const readableAddress = (address?: string) =>
@@ -217,7 +240,16 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
   return <div ref={mapContainerRef} className="h-full w-full" />;
 }
 
-export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliveryIds, dbInvoiceIds, onConfirm, onPrint }: FreightDialogProps) {
+export function FreightDialog({
+  open,
+  onOpenChange,
+  selectedCount,
+  selectedDeliveryIds,
+  dbInvoiceIds,
+  onConfirm,
+  onPrint,
+  focusFallback,
+}: FreightDialogProps) {
   // NEW ORDER: fleet_type → route → freight (skip if own_fleet) → driver → preview
   const [step, setStep] = useState<StepType>("fleet_type");
   const [fleetType, setFleetType] = useState<FleetType | null>(null);
@@ -242,6 +274,9 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Erros de preenchimento mostrados abaixo de cada campo.
   const [errors, setErrors] = useState<Partial<Record<"fleet" | "freight" | "driver" | "vehicle", string>>>({});
+  // Botao que abriu o assistente: o foco volta para ele quando a janela de sucesso fecha
+  // (o botao "Confirmar" some com a etapa e o foco caia no topo da pagina).
+  const openerRef = useRef<HTMLElement | null>(null);
   const { drivers } = useDBDrivers();
   
   // Database hook for persisting manifests
@@ -385,11 +420,11 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     
     switch (freightType) {
       case "fixed":
-        return unitValue ? parseFloat(unitValue) * selectedCount : 0;
+        return (parseMoney(unitValue) || 0) * selectedCount;
       case "lumpsum":
-        return totalValue ? parseFloat(totalValue) : 0;
+        return parseMoney(totalValue) || 0;
       case "per_km":
-        return perKmValue && estimatedDistance ? estimatedDistance * parseFloat(perKmValue) : 0;
+        return estimatedDistance ? estimatedDistance * (parseMoney(perKmValue) || 0) : 0;
       default:
         return 0;
     }
@@ -752,14 +787,17 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           const geocodedCount = Math.max(0, invoicesMissingGps - unresolvedCount);
           if (geocodedCount > 0) {
             toast({
-              title: `${geocodedCount} nota(s) localizada(s) pelo endereço`,
+              title: geocodedCount === 1 ? "1 nota localizada pelo endereço" : `${geocodedCount} notas localizadas pelo endereço`,
               description: "Usamos o endereço da nota para montar a rota.",
             });
           }
           if (unresolvedCount > 0) {
             toast({
-              title: `${unresolvedCount} nota(s) sem local no mapa`,
-              description: "Ficaram fora do cálculo porque o endereço não foi encontrado.",
+              title: unresolvedCount === 1 ? "1 nota sem local no mapa" : `${unresolvedCount} notas sem local no mapa`,
+              description:
+                unresolvedCount === 1
+                  ? "Ficou fora do cálculo porque o endereço não foi encontrado."
+                  : "Ficaram fora do cálculo porque o endereço não foi encontrado.",
             });
           }
         }
@@ -849,7 +887,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
 
       toast({
         title: "Rota calculada",
-        description: `${finalRoute.waypoints.length} paradas, ${formatDistance(finalRoute.totalDistance)}, cerca de ${formatDuration(finalRoute.totalDuration)}${usedRoadDistance ? " (pelas ruas)" : " (estimada)"}`,
+        description: `${plural(deliveryStops(finalRoute.waypoints), "entrega", "entregas")}, ${formatDistance(finalRoute.totalDistance)}, cerca de ${formatDuration(finalRoute.totalDuration)}${usedRoadDistance ? " (pelas ruas)" : " (estimada)"}`,
       });
     } catch (error) {
       console.error("Route optimization error:", error);
@@ -889,6 +927,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     if (step === "fleet_type") {
       if (!fleetType) {
         setErrors({ fleet: "Escolha quem vai fazer a rota." });
+        document.getElementById("fleet-third_party")?.focus();
         return;
       }
       setStep("route");
@@ -909,16 +948,19 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       }
     } else if (step === "freight") {
       // Validate freight data
-      if (freightType === "fixed" && !unitValue) {
-        setErrors({ freight: "Informe o valor por entrega." });
-        return;
-      }
-      if (freightType === "lumpsum" && !totalValue) {
-        setErrors({ freight: "Informe o valor total da rota." });
-        return;
-      }
-      if (freightType === "per_km" && !perKmValue) {
-        setErrors({ freight: "Informe o valor por km." });
+      const typed = { fixed: unitValue, lumpsum: totalValue, per_km: perKmValue }[freightType];
+      const emptyMessage = {
+        fixed: "Informe o valor por entrega.",
+        lumpsum: "Informe o valor total da rota.",
+        per_km: "Informe o valor por km.",
+      }[freightType];
+      const amount = parseMoney(typed);
+      const fieldId = { fixed: "unitValue", lumpsum: "totalValue", per_km: "perKmValue" }[freightType];
+      if (!typed.trim() || Number.isNaN(amount) || amount <= 0) {
+        setErrors({
+          freight: !typed.trim() ? emptyMessage : Number.isNaN(amount) ? "Digite só números, como 25 ou 2,50." : "O valor precisa ser maior que zero.",
+        });
+        document.getElementById(fieldId)?.focus();
         return;
       }
       if (freightType === "per_km" && estimatedDistance <= 0) {
@@ -929,6 +971,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     } else if (step === "driver") {
       if (!selectedDriver) {
         setErrors({ driver: "Escolha o motorista da rota." });
+        document.getElementById("freight-driver")?.focus();
         return;
       }
       // If own fleet has vehicles available, require one. If none exists, allow the
@@ -980,13 +1023,13 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
     if (fleetType === "third_party") {
       switch (freightType) {
         case "fixed":
-          freightData.unitValue = parseFloat(unitValue);
+          freightData.unitValue = parseMoney(unitValue);
           break;
         case "lumpsum":
-          freightData.totalValue = parseFloat(totalValue);
+          freightData.totalValue = parseMoney(totalValue);
           break;
         case "per_km":
-          freightData.perKmValue = parseFloat(perKmValue);
+          freightData.perKmValue = parseMoney(perKmValue);
           break;
       }
     }
@@ -1122,7 +1165,10 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   const stepDescriptions: Record<StepType, string> = {
     fleet_type: `Romaneio com ${notesLabel}. Escolha o tipo de motorista.`,
     route: "Calculamos a ordem das paradas com o menor caminho a partir da base.",
-    freight: `Distância da rota: ${formatDistance(estimatedDistance)}. Escolha como o motorista vai receber.`,
+    freight:
+      estimatedDistance > 0
+        ? `Distância da rota: ${formatDistance(estimatedDistance)}. Escolha como o motorista vai receber.`
+        : "A rota ficou sem distância calculada. Escolha como o motorista vai receber.",
     driver: isOwnFleet ? "Escolha o motorista CLT e o veículo da empresa." : "Escolha quem vai fazer as entregas.",
     preview: "Confira os dados. Ao gerar, as entregas aparecem no app do motorista.",
   };
@@ -1148,9 +1194,9 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
   const baseAddress = tenant?.logradouro && tenant?.cidade
     ? `${tenant.logradouro}, ${tenant.numero} - ${tenant.bairro}, ${tenant.cidade}/${tenant.uf}`
     : null;
-  const unitTotal = unitValue ? parseFloat(unitValue) * selectedCount : 0;
-  const lumpsumPerKm = totalValue && estimatedDistance > 0 ? parseFloat(totalValue) / estimatedDistance : 0;
-  const perKmTotal = perKmValue && estimatedDistance > 0 ? estimatedDistance * parseFloat(perKmValue) : 0;
+  const unitTotal = (parseMoney(unitValue) || 0) * selectedCount;
+  const lumpsumPerKm = estimatedDistance > 0 ? (parseMoney(totalValue) || 0) / estimatedDistance : 0;
+  const perKmTotal = estimatedDistance > 0 ? estimatedDistance * (parseMoney(perKmValue) || 0) : 0;
 
   const freightOptions: { value: "fixed" | "lumpsum" | "per_km"; title: string; description: string; icon: typeof Truck }[] = [
     { value: "fixed", title: "Frete fixo", description: "Um valor para cada entrega feita.", icon: Truck },
@@ -1160,17 +1206,17 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
 
   const renderFreightInput = (value: "fixed" | "lumpsum" | "per_km") => {
     const config = {
-      fixed: { id: "unitValue", label: "Valor por entrega (R$)", placeholder: "Ex.: 25", state: unitValue, set: setUnitValue },
-      lumpsum: { id: "totalValue", label: "Valor total da rota (R$)", placeholder: "Ex.: 350", state: totalValue, set: setTotalValue },
+      fixed: { id: "unitValue", label: "Valor por entrega (R$)", placeholder: "Ex.: 25,00", state: unitValue, set: setUnitValue },
+      lumpsum: { id: "totalValue", label: "Valor total da rota (R$)", placeholder: "Ex.: 350,00", state: totalValue, set: setTotalValue },
       per_km: { id: "perKmValue", label: "Valor por km (R$)", placeholder: "Ex.: 2,50", state: perKmValue, set: setPerKmValue },
     }[value];
     const hintId = `${config.id}-hint`;
     const invalid = !!errors.freight;
     let hint: string | null = null;
-    if (value === "fixed" && unitValue) hint = `Total estimado: ${formatCurrency(unitTotal)} (${notesLabel})`;
-    if (value === "lumpsum" && totalValue && lumpsumPerKm > 0) hint = `Dá cerca de ${formatCurrency(lumpsumPerKm)} por km`;
-    if (value === "per_km" && perKmValue && estimatedDistance > 0)
-      hint = `${formatDistance(estimatedDistance)} × ${formatCurrency(parseFloat(perKmValue))} = ${formatCurrency(perKmTotal)}`;
+    if (value === "fixed" && unitTotal > 0) hint = `Total estimado: ${formatCurrency(unitTotal)} (${notesLabel})`;
+    if (value === "lumpsum" && lumpsumPerKm > 0) hint = `Dá cerca de ${formatCurrency(lumpsumPerKm)} por km`;
+    if (value === "per_km" && perKmTotal > 0)
+      hint = `${formatDistance(estimatedDistance)} × ${formatCurrency(parseMoney(perKmValue))} = ${formatCurrency(perKmTotal)}`;
     if (value === "per_km" && estimatedDistance <= 0) hint = "A rota está sem distância calculada. Prefira frete fixo ou fechado.";
 
     return (
@@ -1178,10 +1224,9 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         <Label htmlFor={config.id}>{config.label}</Label>
         <Input
           id={config.id}
-          type="number"
+          type="text"
           inputMode="decimal"
-          min="0"
-          step="0.01"
+          autoComplete="off"
           placeholder={config.placeholder}
           value={config.state}
           onChange={(e) => {
@@ -1211,10 +1256,10 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         { label: "Tipo de motorista", value: isOwnFleet ? "Frota própria" : "Terceiro / agregado" },
         { label: "Notas", value: selectedCount },
         ...(!isOwnFleet ? [{ label: "Frete", value: FREIGHT_TYPE_LABELS[freightType] }] : []),
-        { label: "Distância", value: formatDistance(estimatedDistance) },
+        { label: "Distância", value: distanceText(estimatedDistance) },
         { label: "Volta à base", value: returnToBase ? "Sim" : "Não" },
         { label: "Motorista", value: selectedDriver.name },
-        { label: "Veículo", value: `${vehicleTypeLabel(selectedVehicle?.type || selectedDriver.vehicle_type)} · ${selectedVehicle?.plate || selectedDriver.vehicle_plate || "sem placa"}` },
+        { label: "Veículo", value: `${vehicleTypeLabel(selectedVehicle?.type || selectedDriver.vehicle_type)} · ${selectedVehicle?.plate || plateText(selectedDriver.vehicle_plate) || "sem placa"}` },
         {
           label: "Valor do frete",
           value: isOwnFleet ? "Sem acerto (frota própria)" : formatCurrency(calculatedTotal),
@@ -1225,12 +1270,22 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
+      // Enquanto grava, Esc e clique fora nao fecham (o romaneio ficaria pela metade na tela).
+      if (!isOpen && isSubmitting) return;
       if (!isOpen) resetForm();
       onOpenChange(isOpen);
     }}>
       {/* Com o romaneio gerado, so a janela de sucesso fica na tela. */}
       {!showSuccessDialog && (
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent
+        className="sm:max-w-2xl"
+        onOpenAutoFocus={() => {
+          const active = document.activeElement;
+          if (active instanceof HTMLElement && active !== document.body && !active.closest("[role=dialog]")) {
+            openerRef.current = active;
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{stepTitles[step]}</DialogTitle>
           <DialogDescription>{stepDescriptions[step]}</DialogDescription>
@@ -1366,17 +1421,19 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                   </div>
 
                   <dl className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <div className="rounded-lg bg-muted/60 p-3">
-                      <dt className="text-xs text-muted-foreground">Paradas</dt>
-                      <dd className="whitespace-nowrap font-data text-base font-semibold text-foreground sm:text-lg">{optimizedRoute.waypoints.length}</dd>
+                    <div className="min-w-0 rounded-lg bg-muted/60 p-3">
+                      <dt className="text-xs text-muted-foreground">Entregas</dt>
+                      <dd className="whitespace-nowrap font-data text-base font-semibold text-foreground sm:text-lg">{deliveryStops(optimizedRoute.waypoints)}</dd>
                     </div>
-                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <div className="min-w-0 rounded-lg border border-primary/30 bg-primary/5 p-3">
                       <dt className="text-xs text-muted-foreground">Distância</dt>
-                      <dd className="whitespace-nowrap font-data text-base font-semibold text-primary sm:text-lg">{formatDistance(optimizedRoute.totalDistance)}</dd>
+                      <dd className="truncate font-data text-base font-semibold text-primary sm:text-lg">{distanceText(optimizedRoute.totalDistance)}</dd>
                     </div>
-                    <div className="rounded-lg bg-muted/60 p-3">
+                    <div className="min-w-0 rounded-lg bg-muted/60 p-3">
                       <dt className="text-xs text-muted-foreground">Tempo</dt>
-                      <dd className="whitespace-nowrap font-data text-base font-semibold text-foreground sm:text-lg">{formatDuration(optimizedRoute.totalDuration)}</dd>
+                      <dd className="truncate font-data text-base font-semibold text-foreground sm:text-lg">
+                        {optimizedRoute.totalDuration > 0 ? formatDuration(optimizedRoute.totalDuration) : "—"}
+                      </dd>
                     </div>
                   </dl>
 
@@ -1470,7 +1527,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                 <MapPin className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted-foreground">Distância da rota</p>
-                  <p className="font-data text-xl font-semibold text-primary">{formatDistance(estimatedDistance)}</p>
+                  <p className="font-data text-xl font-semibold text-primary">{distanceText(estimatedDistance)}</p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="secondary">{returnToBase ? "Com volta à base" : "Sem volta à base"}</Badge>
@@ -1612,7 +1669,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                       </div>
                       <div className="min-w-0">
                         <dt className="inline text-muted-foreground">Placa: </dt>
-                        <dd className="inline break-all font-data text-foreground">{selectedVehicle?.plate || selectedDriver.vehicle_plate || "—"}</dd>
+                        <dd className="inline break-all font-data text-foreground">{selectedVehicle?.plate || plateText(selectedDriver.vehicle_plate) || "—"}</dd>
                       </div>
                     </dl>
                   </div>
@@ -1671,7 +1728,8 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           )}
         </div>
 
-        <DialogFooter>
+        {/* Rodape preso embaixo: "Continuar" sempre a vista, mesmo com muitas paradas. */}
+        <DialogFooter className="sticky bottom-0 z-10 -mx-6 -mb-6 border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
           {step === "fleet_type" ? (
             <Button
               type="button"
@@ -1717,6 +1775,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
         onOpenChange={handleSuccessClose}
         manifest={createdManifest}
         driverPhone={successDriverPhone}
+        returnFocusTo={() => (openerRef.current?.isConnected ? openerRef.current : focusFallback?.() ?? null)}
         onPrint={
           onPrint
             ? () => {

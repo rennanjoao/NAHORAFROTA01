@@ -94,7 +94,7 @@ export default function ResetPasswordPage() {
   ];
 
   return (
-    <AuthLayout>
+    <AuthLayout pageTitle={status === "invalid" ? "Link expirado" : "Criar nova senha"}>
       <span aria-hidden="true" className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border bg-card text-primary shadow-xs">
         {status === "invalid" ? <Link2Off className="h-5 w-5" /> : <KeyRound className="h-5 w-5" />}
       </span>

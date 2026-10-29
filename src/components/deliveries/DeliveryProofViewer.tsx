@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { getOccurrenceLabel } from "@/hooks/useSLADB";
+import { DeliveryStatusBadge, occurrenceLabel } from "./status";
 
 interface DeliveryProof {
   id: string;
@@ -182,9 +182,8 @@ export function DeliveryProofViewer({
 
           <div className="space-y-5">
             <div>
-              <StatusBadge tone={isDelivered ? "success" : hasOccurrence ? "danger" : "neutral"}>
-                {isDelivered ? "Entregue" : hasOccurrence ? "Ocorrência" : "Pendente"}
-              </StatusBadge>
+              {/* Status real da nota (antes "Devolvida" aparecia como "Ocorrência"). */}
+              <DeliveryStatusBadge status={status} />
             </div>
 
             {isLoading ? (
@@ -198,7 +197,7 @@ export function DeliveryProofViewer({
                   <section aria-labelledby="proofs-title" className="space-y-3">
                     <h3 id="proofs-title" className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                      Comprovantes ({proofs.length})
+                      {proofs.length === 1 ? "Comprovante" : `Comprovantes (${proofs.length})`}
                     </h3>
 
                     {proofs.map((proof) => (
@@ -255,13 +254,13 @@ export function DeliveryProofViewer({
                   <section aria-labelledby="occurrences-title" className="space-y-3">
                     <h3 id="occurrences-title" className="flex items-center gap-2 text-sm font-semibold text-foreground">
                       <AlertTriangle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                      Ocorrências ({occurrences.length})
+                      {occurrences.length === 1 ? "Ocorrência" : `Ocorrências (${occurrences.length})`}
                     </h3>
 
                     {occurrences.map((occ) => (
                       <div key={occ.id} className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                         <div className="flex items-start justify-between gap-2">
-                          <StatusBadge tone="danger">{getOccurrenceLabel(occ.type)}</StatusBadge>
+                          <StatusBadge tone="danger">{occurrenceLabel(occ.type)}</StatusBadge>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                             <span className="font-data">{format(new Date(occ.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>

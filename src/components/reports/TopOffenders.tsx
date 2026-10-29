@@ -1,23 +1,27 @@
 import type { ReactNode } from "react";
 import { AlertCircle, ArrowDownRight, ArrowUpRight, Building2, ChevronRight, MapPin, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Section, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { getOccurrenceLabel } from "@/hooks/useSLADB";
 import { cn } from "@/lib/utils";
+
+/** Variacao contra o periodo anterior: % , "new" (nao aparecia antes) ou null (sem como comparar). */
+export type OffenderTrend = number | "new" | null;
 
 interface TopRoute {
   rank: number;
   name: string;
   delays: number;
   occurrences?: number;
-  trend: number;
+  trend: OffenderTrend;
 }
 
 interface TopClient {
   rank: number;
   name: string;
   returns: number;
-  trend: number;
+  trend: OffenderTrend;
 }
 
 interface TopReason {
@@ -35,6 +39,8 @@ interface TopOffendersData {
 
 interface TopOffendersProps {
   data: TopOffendersData;
+  /** Primeira carga: linhas de esqueleto em vez de "nenhum atraso". */
+  loading?: boolean;
   onRouteClick?: (route: string) => void;
   onClientClick?: (client: string) => void;
 }
@@ -58,7 +64,15 @@ function Rank({ rank }: { rank: number }) {
 }
 
 /** Mais atrasos/devolucoes = pior: subir e vermelho, cair e verde. */
-function Trend({ value }: { value: number }) {
+function Trend({ value }: { value: OffenderTrend }) {
+  if (value === null) return null;
+  if (value === "new") {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-semibold text-destructive">
+        Novo<span className="sr-only">: não aparecia no período anterior</span>
+      </span>
+    );
+  }
   if (value === 0) {
     return (
       <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-0.5 font-data text-xs font-semibold text-muted-foreground">
@@ -101,20 +115,36 @@ function OffenderCard({ icon: Icon, title, hint, children }: { icon: LucideIcon;
 
 const empty = (message: string) => <p className="py-6 text-center text-sm text-muted-foreground">{message}</p>;
 
+const skeletonRows = (
+  <div className="space-y-3 py-1" aria-hidden="true">
+    {[0, 1, 2].map((i) => (
+      <div key={i} className="flex items-center gap-3">
+        <Skeleton className="h-7 w-7 rounded-full" />
+        <div className="flex-1 space-y-1.5">
+          <Skeleton className="h-3.5 w-2/3" />
+          <Skeleton className="h-3 w-1/3" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 // Linha clicavel: botao de verdade (teclado e leitor de tela).
 const rowButton =
   "group flex w-full min-h-[3rem] items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffendersProps) {
+export function TopOffenders({ data, loading, onRouteClick, onClientClick }: TopOffendersProps) {
   return (
     <Section
       id="pontos-de-atencao"
       title="Pontos de atenção"
-      description="Regiões, clientes e motivos que mais pesaram no período. Toque numa região ou cliente para filtrar a tela."
+      description="Regiões, clientes e motivos que mais pesaram no período. Escolha uma região ou um cliente para filtrar a tela."
     >
       <div className="grid gap-4 lg:grid-cols-3">
-        <OffenderCard icon={MapPin} title="Top 5 Regiões com Atraso" hint="Regiões da roteirização (ZS, ZN, ZL...) com mais atrasos e ocorrências">
-          {data.routes.length === 0 ? (
+        <OffenderCard icon={MapPin} title="Regiões com mais atrasos" hint="As 5 regiões de entrega com mais atrasos e ocorrências">
+          {loading ? (
+            skeletonRows
+          ) : data.routes.length === 0 ? (
             empty("Nenhum atraso ou ocorrência no período")
           ) : (
             <ul className="-mx-2 space-y-1">
@@ -123,7 +153,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
                   <button type="button" className={rowButton} onClick={() => onRouteClick?.(route.name)}>
                     <Rank rank={route.rank} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">{route.name}</span>
+                      <span className="block truncate text-sm font-medium text-foreground" title={route.name}>{route.name}</span>
                       <span className="block text-xs text-muted-foreground">
                         {route.delays} atraso{route.delays === 1 ? "" : "s"}
                         {typeof route.occurrences === "number" &&
@@ -140,8 +170,10 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
           )}
         </OffenderCard>
 
-        <OffenderCard icon={Building2} title="Top 5 Clientes com Devolução" hint="Clientes com mais devoluções e ocorrências">
-          {data.clients.length === 0 ? (
+        <OffenderCard icon={Building2} title="Clientes com mais devoluções" hint="Os 5 clientes com mais devoluções e ocorrências">
+          {loading ? (
+            skeletonRows
+          ) : data.clients.length === 0 ? (
             empty("Nenhuma devolução no período")
           ) : (
             <ul className="-mx-2 space-y-1">
@@ -150,7 +182,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
                   <button type="button" className={rowButton} onClick={() => onClientClick?.(client.name)}>
                     <Rank rank={client.rank} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">{client.name}</span>
+                      <span className="block truncate text-sm font-medium text-foreground" title={client.name}>{client.name}</span>
                       <span className="block text-xs text-muted-foreground">
                         {client.returns} devoluç{client.returns === 1 ? "ão" : "ões"}
                       </span>
@@ -165,8 +197,10 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
           )}
         </OffenderCard>
 
-        <OffenderCard icon={AlertCircle} title="Top 5 Motivos de Ocorrência" hint="Por que as entregas não deram certo">
-          {data.reasons.length === 0 ? (
+        <OffenderCard icon={AlertCircle} title="Motivos mais comuns" hint="Por que as entregas não deram certo">
+          {loading ? (
+            skeletonRows
+          ) : data.reasons.length === 0 ? (
             empty("Nenhuma ocorrência no período")
           ) : (
             <ul className="space-y-3">
@@ -174,7 +208,9 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
                 <li key={reason.rank} className="flex min-h-[2.5rem] items-center gap-3">
                   <Rank rank={reason.rank} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">{getOccurrenceLabel(reason.reason)}</span>
+                    <span className="block truncate text-sm font-medium text-foreground" title={getOccurrenceLabel(reason.reason)}>
+                      {getOccurrenceLabel(reason.reason)}
+                    </span>
                     <span className="block text-xs text-muted-foreground">
                       {reason.count} ocorrência{reason.count === 1 ? "" : "s"}
                     </span>

@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/patterns";
+import { useOnline } from "@/components/layout/useOnline";
 import { BRAZIL_TIMEZONE, formatBrazilDateTime } from "@/lib/timezone";
 import { firstName } from "@/lib/user";
+import { cn } from "@/lib/utils";
 
 function greetingFor(hour: number) {
   if (hour < 5) return "Boa noite";
@@ -17,6 +19,7 @@ function greetingFor(hour: number) {
  */
 export function DashboardHeader({ actions }: { actions?: ReactNode }) {
   const { profile } = useAuth();
+  const online = useOnline();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -31,7 +34,10 @@ export function DashboardHeader({ actions }: { actions?: ReactNode }) {
 
   return (
     <>
-      <p className="nhf-live mb-3 w-fit">Ao vivo · {formatBrazilDateTime(iso, "HH:mm")}</p>
+      {/* Sem internet o selo nao pode dizer "ao vivo": os numeros param na ultima carga. */}
+      <p className={cn("nhf-live mb-3 w-fit", !online && "nhf-live--off")}>
+        {online ? "Ao vivo" : "Sem internet"} · {formatBrazilDateTime(iso, "HH:mm")}
+      </p>
       <PageHeader
         title={name ? `${greeting}, ${name}` : greeting}
         description={`${date.charAt(0).toUpperCase()}${date.slice(1)}. Veja quem está na rua, o que já foi entregue e o que precisa de atenção.`}

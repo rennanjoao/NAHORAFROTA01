@@ -8,7 +8,34 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { StatusBadge, type Tone } from "@/components/patterns";
+import { getOccurrenceLabel } from "@/hooks/useSLADB";
+import { PENDING_PLATE } from "@/components/drivers/driverConfig";
 import type { DeliveryStatus } from "./types";
+
+/**
+ * Motivos de ocorrencia registrados pelo painel (lista unica para a tela toda:
+ * menu da nota e detalhe do romaneio gravam os mesmos codigos).
+ */
+export const OCCURRENCE_TYPES = [
+  { value: "cliente_ausente", label: "Cliente ausente" },
+  { value: "endereco_nao_encontrado", label: "Endereço não encontrado" },
+  { value: "recusa_recebimento", label: "Recusa de recebimento" },
+  { value: "avaria_mercadoria", label: "Avaria na mercadoria" },
+  { value: "falta_mercadoria", label: "Falta de mercadoria" },
+  { value: "documentacao_incorreta", label: "Documentação incorreta" },
+  { value: "area_risco", label: "Área de risco" },
+  { value: "horario_restrito", label: "Horário restrito" },
+  { value: "veiculo_quebrado", label: "Veículo quebrado" },
+  { value: "outros", label: "Outros" },
+];
+
+/** Nome do motivo em frase simples ("Cliente ausente", nao "Cliente Ausente"). */
+export function occurrenceLabel(type: string | null | undefined) {
+  const known = OCCURRENCE_TYPES.find((option) => option.value === type);
+  if (known) return known.label;
+  const label = getOccurrenceLabel(type);
+  return label.charAt(0) + label.slice(1).toLowerCase();
+}
 
 interface StatusMeta {
   label: string;
@@ -79,6 +106,11 @@ export const VEHICLE_TYPE_LABELS: Record<string, string> = {
   toco: "Toco",
   carreta: "Carreta",
 };
+
+/** Placa para mostrar; "PENDENTE" (cadastro sem placa) e vazio viram null. */
+export function plateText(plate?: string | null) {
+  return !plate || plate.toUpperCase() === PENDING_PLATE ? null : plate;
+}
 
 export function vehicleTypeLabel(type?: string | null) {
   if (!type) return "Veículo";

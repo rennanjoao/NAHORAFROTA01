@@ -9,13 +9,13 @@ import { Label } from "@/components/ui/label";
 import { EmptyState, StatusBadge, toneDot, toneText, type Tone } from "@/components/patterns";
 import { supabase } from "@/integrations/supabase/client";
 import { uniqueChannelName } from "@/lib/realtime";
+import { getDayBoundsUTC, getTodayBrazil } from "@/lib/timezone";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
 import { useSLADB, isSLACritical, SLA_THRESHOLDS, getOccurrenceLabel } from "@/hooks/useSLADB";
 import {
   MIN_INVOICES_FOR_ATTENTION,
   SLA_PERIODS,
-  SLA_PERIOD_LABELS,
   rankBySLA,
   type PeriodSLA,
   type SLAPeriodDays,
@@ -72,7 +72,11 @@ interface DriverAttention {
 const DELIVERY_TONE: Record<DeliveryState, Tone> = { completed: "success", occurrence: "danger", pending: "neutral" };
 const DELIVERY_LABEL: Record<DeliveryState, string> = { completed: "Finalizada", occurrence: "Ocorrência", pending: "Pendente" };
 
-const periodShort = (days: SLAPeriodDays) => (days === 180 ? "Geral" : `${days}d`);
+/** Rotulos do periodo em linguagem simples ("Geral (6m)" virou "6 meses"). */
+const PERIOD_LABEL: Record<SLAPeriodDays, string> = { 7: "7 dias", 15: "15 dias", 30: "30 dias", 90: "90 dias", 180: "6 meses" };
+const periodShort = (days: SLAPeriodDays) => (days === 180 ? "6m" : `${days}d`);
+/** "nos últimos 30 dias", "nos últimos 6 meses". */
+const periodPhrase = (days: SLAPeriodDays) => `nos últimos ${PERIOD_LABEL[days]}`;
 
 function RankLabel({ rank }: { rank: PeriodRank }) {
   if (rank.rank === null) return <span className="text-muted-foreground">sem ranking</span>;
@@ -110,7 +114,10 @@ function PeriodHistoryRow({ driver, selected }: { driver: DriverAttention; selec
             className={cn("rounded-md border px-1 py-1.5", days === selected ? "border-primary/40 bg-primary/5" : "border-border")}
             title={hasData ? `${plural(stats.total, "nota", "notas")}, ${plural(stats.occurrences, "ocorrência", "ocorrências")}` : "Sem entregas no período"}
           >
-            <dt className="text-[0.6875rem] leading-tight text-muted-foreground">{periodShort(days)}</dt>
+            <dt className="text-[0.6875rem] leading-tight text-muted-foreground">
+              <span aria-hidden="true">{periodShort(days)}</span>
+              <span className="sr-only">{PERIOD_LABEL[days]}</span>
+            </dt>
             <dd className={cn("font-data text-xs font-semibold", hasData ? toneText[slaStatus(stats.sla).tone] : "text-muted-foreground")}>
               {hasData ? `${formatSLA(stats.sla)}%` : "—"}
             </dd>
@@ -124,7 +131,7 @@ function PeriodHistoryRow({ driver, selected }: { driver: DriverAttention; selec
 /** Bolinhas das entregas de hoje, na ordem do roteiro. */
 function DeliveryDots({ driver }: { driver: DriverAttention }) {
   if (driver.todayDeliveries.length === 0) return null;
-  const summary = `Entregas de hoje: ${driver.completedCount} finalizadas, ${driver.occurrenceCount} com ocorrência, ${driver.pendingCount} pendentes`;
+  const summary = `Entregas de hoje: ${plural(driver.completedCount, "finalizada", "finalizadas")}, ${plural(driver.occurrenceCount, "com ocorrência", "com ocorrência")}, ${plural(driver.pendingCount, "pendente", "pendentes")}`;
   return (
     <div role="img" aria-label={summary} className="flex flex-wrap items-center gap-1.5">
       {driver.todayDeliveries.slice(0, 15).map((delivery, idx) => (
@@ -160,7 +167,7 @@ function DriverAttentionCard({ driver, period, onClick }: { driver: DriverAttent
             {driver.isInRoute && <StatusBadge tone="info">Em rota</StatusBadge>}
           </div>
           <p className="text-xs text-muted-foreground">
-            Ranking {SLA_PERIOD_LABELS[period]}: <RankLabel rank={driver.ranks[period]} />
+            Posição no ranking: <RankLabel rank={driver.ranks[period]} />
           </p>
         </div>
         <span className={cn("shrink-0 font-data text-lg font-semibold", toneText[status.tone])}>{formatSLA(driver.historicalSLA)}%</span>
@@ -212,7 +219,7 @@ function DriverDetailSheet({
       icon={UserCheck}
       tone={status.tone}
       title={driver.name}
-      description={`SLA ${SLA_PERIOD_LABELS[period].toLowerCase()}: ${formatSLA(driver.historicalSLA)}%. Histórico, posição no ranking e entregas de hoje.`}
+      description={`SLA ${periodPhrase(period)}: ${formatSLA(driver.historicalSLA)}%. Histórico, posição no ranking e entregas de hoje.`}
       bodyLabel={`Detalhes de ${driver.name}`}
     >
       <section className="space-y-2">
@@ -227,7 +234,7 @@ function DriverDetailSheet({
                 <th scope="col" className="px-3 py-2 text-left font-medium">Período</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">SLA</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Notas</th>
-                <th scope="col" className="hidden px-3 py-2 text-right font-medium sm:table-cell">Ocorr.</th>
+                <th scope="col" className="hidden px-3 py-2 text-right font-medium sm:table-cell">Ocorrências</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Ranking</th>
               </tr>
             </thead>
@@ -237,7 +244,7 @@ function DriverDetailSheet({
                 const hasData = stats.total > 0;
                 return (
                   <tr key={days} className={cn("border-t", days === period && "bg-primary/5")}>
-                    <th scope="row" className="px-3 py-2 text-left font-normal">{SLA_PERIOD_LABELS[days]}</th>
+                    <th scope="row" className="px-3 py-2 text-left font-normal">{PERIOD_LABEL[days]}</th>
                     <td className={cn("px-3 py-2 text-right font-data font-semibold", hasData ? toneText[slaStatus(stats.sla).tone] : "text-muted-foreground")}>
                       {hasData ? `${formatSLA(stats.sla)}%` : "—"}
                     </td>
@@ -316,8 +323,9 @@ export function PredictiveIntelligence() {
   // Fetch drivers currently in route and their today's invoices
   useEffect(() => {
     const fetchData = async () => {
-      const today = new Date();
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      // Inicio do dia no horario de Brasilia (antes cortava pela data UTC e
+      // trazia notas da noite anterior como "de hoje").
+      const todayStart = getDayBoundsUTC(getTodayBrazil()).start;
 
       const [driversResult, invoicesResult] = await Promise.all([
         // Get drivers with status 'in_route'
@@ -330,7 +338,7 @@ export function PredictiveIntelligence() {
         supabase
           .from("invoices")
           .select("id, nfe_number, recipient_name, status, occurrence_type, driver_id, updated_at")
-          .gte("updated_at", todayStart.slice(0, 10)),
+          .gte("updated_at", todayStart),
       ]);
 
       setDriversInRoute((driversResult.data || []).map(d => d.id));
@@ -467,32 +475,41 @@ export function PredictiveIntelligence() {
   return (
     <Card>
       <CardHeader className="gap-4 pb-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5">
-            <CardTitle className="text-base">Motoristas que Precisam de Atenção</CardTitle>
-            <HelperTooltip
-              term="Histórico de SLA"
-              explanation={`SLA de cada motorista no período escolhido. Entram na lista os motoristas abaixo de ${pct(SLA_THRESHOLDS.EXCELLENT)} com um mínimo de notas finalizadas. O ranking compara todos os motoristas com entregas no período (1º = melhor SLA).`}
-            />
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-base">Histórico de SLA por motorista</CardTitle>
+            <CardDescription>
+              SLA {periodPhrase(period)} e posição de cada um no ranking da frota.
+            </CardDescription>
           </div>
-          <CardDescription>
-            Histórico de SLA dos últimos {SLA_PERIOD_LABELS[period].toLowerCase()} e posição no ranking da frota
-          </CardDescription>
+          <HelperTooltip
+            term="Histórico de SLA"
+            explanation={`SLA de cada motorista no período escolhido. Entram na lista os motoristas abaixo de ${pct(SLA_THRESHOLDS.EXCELLENT)} com um mínimo de notas finalizadas. O ranking compara todos os motoristas com entregas no período (1º = melhor SLA).`}
+          />
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          {/* Mesmo visual do SegmentedControl; no celular o rotulo encurta (7d), o nome lido continua "7 dias". */}
           <ToggleGroup
             type="single"
-            size="sm"
-            variant="outline"
             aria-label="Período do histórico"
             value={String(period)}
             onValueChange={(value) => value && setPeriod(Number(value) as SLAPeriodDays)}
-            className="justify-start"
+            className="flex h-11 w-full gap-1 rounded-lg bg-muted p-1 text-muted-foreground sm:inline-flex sm:h-10 sm:w-auto"
           >
             {SLA_PERIODS.map((days) => (
-              <ToggleGroupItem key={days} value={String(days)} className="min-w-10 px-3 text-xs font-semibold data-[state=on]:border-primary/50 data-[state=on]:bg-primary/10 data-[state=on]:text-primary" title={SLA_PERIOD_LABELS[days]}>
-                {periodShort(days)}
+              <ToggleGroupItem
+                key={days}
+                value={String(days)}
+                aria-label={PERIOD_LABEL[days]}
+                className="h-full flex-1 whitespace-nowrap px-2 hover:bg-card/60 sm:flex-none sm:px-3"
+              >
+                <span aria-hidden="true" className="sm:hidden">
+                  {periodShort(days)}
+                </span>
+                <span aria-hidden="true" className="hidden sm:inline">
+                  {PERIOD_LABEL[days]}
+                </span>
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
@@ -535,7 +552,7 @@ export function PredictiveIntelligence() {
             description={
               emptyInRoute
                 ? "Aguardando o início das rotas do dia."
-                : `Ninguém abaixo de ${pct(SLA_THRESHOLDS.EXCELLENT)} em ${SLA_PERIOD_LABELS[period].toLowerCase()} (conta quem tem ao menos ${MIN_INVOICES_FOR_ATTENTION[period]} notas finalizadas no período).`
+                : `Ninguém abaixo de ${pct(SLA_THRESHOLDS.EXCELLENT)} ${periodPhrase(period)} (conta quem tem ao menos ${MIN_INVOICES_FOR_ATTENTION[period]} notas finalizadas no período).`
             }
           />
         )}

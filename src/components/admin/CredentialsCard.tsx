@@ -17,7 +17,13 @@ export function CredentialsCard({ title, rows, copyText, note }: CredentialsCard
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(copyText);
+    try {
+      await navigator.clipboard.writeText(copyText);
+    } catch {
+      // Sem permissao de area de transferencia (ex.: site sem https): orienta a copiar a mao.
+      toast.error("Não foi possível copiar. Selecione os dados acima e copie.");
+      return;
+    }
     setCopied(true);
     toast.success("Dados de acesso copiados.");
     setTimeout(() => setCopied(false), 2000);
@@ -34,7 +40,7 @@ export function CredentialsCard({ title, rows, copyText, note }: CredentialsCard
           {rows.map((row) => (
             <div key={row.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
               <dt className="text-muted-foreground">{row.label}</dt>
-              <dd className={cn("min-w-0 break-all font-medium text-foreground", row.mono && "font-data")}>{row.value}</dd>
+              <dd className={cn("min-w-0 select-all break-all font-medium text-foreground", row.mono && "font-data")}>{row.value}</dd>
             </div>
           ))}
         </dl>

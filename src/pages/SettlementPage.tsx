@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { AlertCircle, ArrowLeft, CalendarDays, CheckCircle2, Clock, Users, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock, Users, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -29,7 +29,8 @@ import {
 } from "@/components/settlement/settlementConfig";
 // Database hooks
 import { useSettlementsDB } from "@/hooks/useSettlementsDB";
-import { useManifestsDB, DBManifest } from "@/hooks/useManifestsDB";
+import { useManifestsDB, DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
+import { useSLADB } from "@/hooks/useSLADB";
 import { useDBDrivers, DBDriver } from "@/hooks/useDBDrivers";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -61,6 +62,12 @@ function toAdjustment(row: WalletAdjustmentRow): LocalAdjustment {
   };
 }
 
+// Cartoes de resumo mais baixos no celular: o passo a passo do acerto aparece sem rolar tanto.
+const compactStat = "min-h-0 gap-2 p-4 sm:min-h-[8.5rem] sm:gap-3 sm:p-5";
+
+// Foco depois que a tela troca (o botao clicado some da tela).
+const focusById = (id: string) => window.setTimeout(() => document.getElementById(id)?.focus(), 50);
+
 const PAGE_TITLE = "Acerto financeiro";
 const PAGE_DESCRIPTION = "Quanto pagar a cada motorista, o que já foi pago e o que está pendente.";
 
@@ -73,6 +80,8 @@ export default function SettlementPage() {
   const { manifests, isLoading: manifestsLoading, fetchManifests } = useManifestsDB();
   // Mantido: carrega os acertos (settlements) do banco junto com a tela.
   useSettlementsDB();
+  // Mesmo "No prazo (6 meses)" da tela de Motoristas (antes mostrava individual_sla, sempre 100%).
+  const { driverStats: slaDriverStats } = useSLADB();
 
   const [selectedDriver, setSelectedDriver] = useState<DBDriver | null>(null);
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
@@ -112,13 +121,12 @@ export default function SettlementPage() {
 
     const paid = filtered.filter(m => m.status === "paid").reduce((sum, m) => sum + (m.freight_value || 0), 0);
     const pending = filtered.filter(m => m.status === "pending" || m.status === "in_progress" || m.status === "completed").reduce((sum, m) => sum + (m.freight_value || 0), 0);
-    const disputed = 0; // No disputed status in DB yet
 
+    // "Em disputa" saiu da tela: nao existe esse status no banco (o cartao mostrava sempre R$ 0,00).
     return {
       totalPaid: paid,
       totalPending: pending,
-      totalDisputed: disputed,
-      totalGeneral: paid + pending + disputed,
+      totalGeneral: paid + pending,
       manifestCount: filtered.length,
     };
   }, [manifests, activePeriod]);
@@ -210,11 +218,17 @@ export default function SettlementPage() {
       .order("created_at", { ascending: false });
     if (error) {
       console.error("Error loading adjustments:", error);
-      toast({ title: "Erro ao carregar lançamentos", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível carregar os lançamentos", description: error.message, variant: "destructive" });
       return;
     }
     setLocalAdjustments(((data || []) as WalletAdjustmentRow[]).map(toAdjustment));
   }, []);
+
+  const selectedDriverSLA = useMemo(() => {
+    if (!selectedDriver) return null;
+    const stats = slaDriverStats.find((stat) => stat.driver_id === selectedDriver.id)?.periodStats[180];
+    return stats && stats.total > 0 ? stats.sla : null;
+  }, [selectedDriver, slaDriverStats]);
 
   const handleSelectDriver = useCallback((driver: DBDriver) => {
     setSelectedDriver(driver);
@@ -224,15 +238,18 @@ export default function SettlementPage() {
   }, [fetchAdjustments]);
 
   // Motorista com pendencia pode nao estar na lista (ex.: inativo): busca direto.
+  // O botao clicado some com a lista: o foco vai para o nome do motorista escolhido.
   const handleSelectPendingDriver = useCallback(async (driverId: string) => {
     const driver = drivers.find(d => d.id === driverId);
     if (driver) {
       handleSelectDriver(driver);
+      focusById("acerto-motorista");
       return;
     }
     const { data } = await supabase.from("drivers").select("*").eq("id", driverId).maybeSingle();
     if (data) {
       handleSelectDriver(data as unknown as DBDriver);
+      focusById("acerto-motorista");
     } else {
       toast({ title: "Motorista não encontrado", description: "O cadastro deste motorista foi removido.", variant: "destructive" });
     }
@@ -256,21 +273,28 @@ export default function SettlementPage() {
 
     setIsSavingAdjustment(true);
     const signedValue = form.type === "credit" ? Math.abs(value) : -Math.abs(value);
-    const { error } = await supabase.from("driver_wallet").insert({
-      driver_id: selectedDriver.id,
-      tenant_id: await requireCurrentTenantId(),
-      type: form.type,
-      category: form.category,
-      description: form.description.trim(),
-      observation: form.observation.trim() || null,
-      amount: signedValue,
-      date: getTodayBrazil(),
-      status: "pending",
-    });
-    setIsSavingAdjustment(false);
+    // try/finally: se a empresa nao for encontrada, o botao nao fica preso em "Salvando...".
+    let error: { message: string } | null = null;
+    try {
+      ({ error } = await supabase.from("driver_wallet").insert({
+        driver_id: selectedDriver.id,
+        tenant_id: await requireCurrentTenantId(),
+        type: form.type,
+        category: form.category,
+        description: form.description.trim(),
+        observation: form.observation.trim() || null,
+        amount: signedValue,
+        date: getTodayBrazil(),
+        status: "pending",
+      }));
+    } catch (err) {
+      error = { message: err instanceof Error ? err.message : "Tente de novo em instantes." };
+    } finally {
+      setIsSavingAdjustment(false);
+    }
 
     if (error) {
-      toast({ title: "Erro ao registrar lançamento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível registrar o lançamento", description: error.message, variant: "destructive" });
       return false;
     }
 
@@ -279,15 +303,20 @@ export default function SettlementPage() {
 
     toast({
       title: form.type === "credit" ? "Crédito registrado" : "Débito registrado",
-      description: `${form.description}: ${form.type === "credit" ? "+" : "-"}${formatCurrency(Math.abs(value))}`,
+      description: `${form.description.trim()}: ${form.type === "credit" ? "+" : "-"}${formatCurrency(Math.abs(value))}`,
     });
     return true;
   };
 
   const handleRemoveAdjustment = async (adjustmentId: string) => {
-    const { error } = await supabase.from("driver_wallet").delete().eq("id", adjustmentId);
-    if (error) {
-      toast({ title: "Erro ao excluir lançamento", description: error.message, variant: "destructive" });
+    // RLS sem permissao nao da erro: so nao apaga nada. Confere o que saiu.
+    const { data: removed, error } = await supabase.from("driver_wallet").delete().eq("id", adjustmentId).select("id");
+    if (error || !removed?.length) {
+      toast({
+        title: "Não foi possível excluir o lançamento",
+        description: error?.message || "Você não tem permissão para esta tarefa.",
+        variant: "destructive",
+      });
       return;
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
@@ -315,7 +344,7 @@ export default function SettlementPage() {
       })
       .eq("id", updatedAdjustment.id);
     if (error) {
-      toast({ title: "Erro ao salvar lançamento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível salvar o lançamento", description: error.message, variant: "destructive" });
       return false;
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
@@ -328,7 +357,7 @@ export default function SettlementPage() {
       .update({ status: paid ? "paid" : "pending", updated_at: new Date().toISOString() })
       .eq("id", adjustment.id);
     if (error) {
-      toast({ title: "Erro ao atualizar lançamento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível atualizar o lançamento", description: error.message, variant: "destructive" });
       return;
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
@@ -362,7 +391,7 @@ export default function SettlementPage() {
 
     if (error) {
       toast({
-        title: "Erro ao marcar como pago",
+        title: "Não foi possível marcar como pago",
         description: error.message,
         variant: "destructive",
       });
@@ -393,7 +422,7 @@ export default function SettlementPage() {
 
     if (error) {
       toast({
-        title: "Erro ao atualizar romaneio",
+        title: "Não foi possível salvar o romaneio",
         description: error.message,
         variant: "destructive",
       });
@@ -421,7 +450,7 @@ export default function SettlementPage() {
 
     if (error) {
       toast({
-        title: "Erro ao estornar",
+        title: "Não foi possível estornar",
         description: error.message,
         variant: "destructive",
       });
@@ -477,7 +506,7 @@ export default function SettlementPage() {
 
       <div className="space-y-6 md:space-y-8">
         {/* Resumo do periodo (so agregados; frota propria nao recebe frete) */}
-        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="stagger grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           <StatCard
             label="Total pago"
             value={globalStats.totalPaid}
@@ -486,6 +515,7 @@ export default function SettlementPage() {
             tone="success"
             hint="Romaneios já pagos"
             loading={statsLoading}
+            className={compactStat}
           />
           <StatCard
             label="A pagar"
@@ -495,15 +525,7 @@ export default function SettlementPage() {
             tone="warning"
             hint="Romaneios ainda em aberto"
             loading={statsLoading}
-          />
-          <StatCard
-            label="Em disputa"
-            value={globalStats.totalDisputed}
-            format={formatCurrency}
-            icon={AlertCircle}
-            tone="danger"
-            hint="Valores contestados"
-            loading={statsLoading}
+            className={compactStat}
           />
           <StatCard
             label="Total geral"
@@ -513,6 +535,7 @@ export default function SettlementPage() {
             tone="brand"
             hint={`${globalStats.manifestCount.toLocaleString("pt-BR")} romaneio${globalStats.manifestCount === 1 ? "" : "s"} · ${periodLabel.toLowerCase()}`}
             loading={statsLoading}
+            className={`${compactStat} sm:col-span-2 lg:col-span-1`}
           />
         </div>
 
@@ -538,7 +561,15 @@ export default function SettlementPage() {
                 loading={driversLoading && drivers.length === 0}
               />
               {selectedDriver && (
-                <Button variant="ghost" onClick={() => setSelectedDriver(null)} className="self-start sm:self-auto">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedDriver(null);
+                    // O botao some: o foco volta para a busca de motorista.
+                    focusById("driver-picker");
+                  }}
+                  className="self-start sm:self-auto"
+                >
                   <ArrowLeft aria-hidden="true" />
                   Voltar à lista
                 </Button>
@@ -574,6 +605,7 @@ export default function SettlementPage() {
             <DriverSummaryCard
               driver={selectedDriver}
               stats={driverStats}
+              sla={selectedDriverSLA}
               periodLabel={periodLabel}
               onOpenBankDetails={() => setIsBankDetailsDialogOpen(true)}
               onAddAdjustment={() => setIsAdjustmentDialogOpen(true)}
@@ -648,6 +680,7 @@ export default function SettlementPage() {
         onOpenChange={setIsReversalDialogOpen}
         onConfirm={confirmReversal}
         manifestCode={manifestToReverse?.id}
+        manifestLabel={manifestToReverse ? formatManifestNumber(manifestToReverse) : undefined}
         driverName={selectedDriver?.name}
       />
     </>

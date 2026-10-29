@@ -129,7 +129,7 @@ export function DriverList(props: DriverListProps) {
                       <DriverAvatar photo={driver.photo} className="h-9 w-9" />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <button type="button" onClick={() => onOpen(driver)} className={cn(stretchedButton, "max-w-[15rem] truncate")} title={driver.name}>
+                          <button type="button" data-driver-open={driver._dbId} onClick={() => onOpen(driver)} className={cn(stretchedButton, "max-w-[15rem] truncate")} title={driver.name}>
                             {driver.name}
                           </button>
                           {driver.isOwnFleet && <Badge variant="secondary">CLT</Badge>}
@@ -183,7 +183,7 @@ export function DriverList(props: DriverListProps) {
             <div className="flex flex-1 items-start gap-3">
               <DriverAvatar photo={driver.photo} className="h-11 w-11" />
               <div className="min-w-0 flex-1">
-                <button type="button" onClick={() => onOpen(driver)} className={cn(stretchedButton, "block max-w-full truncate leading-snug after:rounded-lg")}>
+                <button type="button" data-driver-open={driver._dbId} onClick={() => onOpen(driver)} className={cn(stretchedButton, "block max-w-full truncate leading-snug after:rounded-lg")}>
                   {driver.name}
                 </button>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">

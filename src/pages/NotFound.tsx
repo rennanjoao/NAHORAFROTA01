@@ -15,7 +15,7 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <AuthLayout variant="centered" width="md">
+    <AuthLayout variant="centered" width="md" pageTitle="Página não encontrada">
       <div className="space-y-6">
         <span className="nhf-live nhf-live--off">Erro 404</span>
         <h1 className="text-[2rem] font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">

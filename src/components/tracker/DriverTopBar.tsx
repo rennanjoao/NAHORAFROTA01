@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { Battery, BatteryLow, WifiOff } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { StatusBadge, type Tone } from "@/components/patterns";
@@ -6,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { brandAvatar } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 import { initialsOf, shortName } from "./initials";
+import { useOnline } from "./useOnline";
 
 export type GpsState = "on" | "weak" | "paused";
 
@@ -14,17 +14,6 @@ const GPS_BADGE: Record<GpsState, { label: string; tone: Tone }> = {
   weak: { label: "Sinal fraco", tone: "warning" },
   paused: { label: "GPS pausado", tone: "warning" },
 };
-
-// Conexao do aparelho (so para avisar; nada muda no envio).
-const subscribeOnline = (callback: () => void) => {
-  window.addEventListener("online", callback);
-  window.addEventListener("offline", callback);
-  return () => {
-    window.removeEventListener("online", callback);
-    window.removeEventListener("offline", callback);
-  };
-};
-const useOnline = () => useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
 
 interface DriverTopBarProps {
   name: string;
@@ -45,8 +34,9 @@ export function DriverTopBar({ name, plate, vehicleType, photo, gps, batteryLeve
   return (
     <header className="surface-glass sticky top-0 z-30 border-b pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-16 w-full max-w-2xl items-center gap-3 px-4">
-        <BrandLogo arrangement="simbolo" className="w-8 shrink-0" />
-        <span aria-hidden="true" className="h-7 w-px shrink-0 bg-border" />
+        {/* Abaixo de 360px o simbolo sai para o nome do motorista caber. */}
+        <BrandLogo arrangement="simbolo" className="w-8 shrink-0 max-[359px]:hidden" />
+        <span aria-hidden="true" className="h-7 w-px shrink-0 bg-border max-[359px]:hidden" />
         <Avatar className="h-9 w-9 border border-border">
           <AvatarImage src={brandAvatar(photo)} alt="" />
           <AvatarFallback className="bg-primary/10 text-primary">{initialsOf(name)}</AvatarFallback>

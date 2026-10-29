@@ -65,7 +65,7 @@ function RankingRow({ driver, rank, onClick }: { driver: DriverSLAStats; rank: n
               {plural(driver.todayOccurrenceCount, "ocorrência", "ocorrências")}
             </span>
           ) : (
-            <span className="block truncate text-xs text-muted-foreground">Em rota, aguardando as primeiras baixas</span>
+            <span className="block text-xs text-muted-foreground">Em rota, aguardando as primeiras baixas</span>
           )}
           {driver.todayOccurrences.length > 0 && (
             <span className="mt-1 flex flex-wrap gap-1">
@@ -111,7 +111,9 @@ export function SLARealTimeWidget() {
 
   const [showDrilldown, setShowDrilldown] = useState(false);
 
-  const status = slaStatus(fleetSLA.today);
+  // Sem nenhuma baixa hoje o SLA nao existe ainda (o calculo devolve 100%).
+  const hasToday = driverStats.some((d) => d.todayTotalInvoices > 0);
+  const status = hasToday ? slaStatus(fleetSLA.today) : { tone: "neutral" as const, label: "Sem baixas ainda" };
   const criticalCount = todayProblematicDrivers.filter((d) => isSLACritical(d.todaySLA)).length;
   const warningCount = todayProblematicDrivers.filter((d) => isSLAAttention(d.todaySLA)).length;
   const driversWithActivity = activeDriverStats.filter((d) => d.todayTotalInvoices > 0);
@@ -171,20 +173,33 @@ export function SLARealTimeWidget() {
               <div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                   <p className="font-data text-[2.5rem] font-semibold leading-none tracking-tight text-foreground">
-                    {formatSLA(fleetSLA.today)}%
+                    {hasToday ? (
+                      `${formatSLA(fleetSLA.today)}%`
+                    ) : (
+                      <>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">Sem SLA ainda</span>
+                      </>
+                    )}
                   </p>
                   <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                 </div>
                 <div className="mt-2 flex flex-col gap-1">
-                  <SLATrend trend={todayTrend} diff={trendDiff} compared="yesterday" />
-                  <span className="text-sm text-muted-foreground">
-                    {plural(driversWithActivity.length, "motorista com baixa", "motoristas com baixa")} hoje
-                  </span>
+                  {hasToday ? (
+                    <>
+                      <SLATrend trend={todayTrend} diff={trendDiff} compared="yesterday" />
+                      <span className="text-sm text-muted-foreground">
+                        {plural(driversWithActivity.length, "motorista com baixa", "motoristas com baixa")} hoje
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">O SLA aparece assim que a primeira entrega do dia for baixada.</span>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <SLABar value={fleetSLA.today} tone={status.tone} goal={SLA_THRESHOLDS.EXCELLENT} />
+                <SLABar value={hasToday ? fleetSLA.today : 0} tone={status.tone} goal={SLA_THRESHOLDS.EXCELLENT} />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Crítico abaixo de {pct(SLA_THRESHOLDS.ATTENTION)}</span>
                   <span>Meta {pct(SLA_THRESHOLDS.EXCELLENT)}</span>

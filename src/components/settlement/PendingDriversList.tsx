@@ -39,7 +39,9 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
                 <TableCell>
                   <span className="flex items-center gap-3">
                     <DriverAvatar name={driver.driverName} />
-                    <span className="max-w-[240px] truncate font-medium">{driver.driverName}</span>
+                    <span className="max-w-[240px] truncate font-medium" title={driver.driverName}>
+                      {driver.driverName}
+                    </span>
                   </span>
                 </TableCell>
                 <TableCell className="font-data text-muted-foreground">{driver.driverCpf || "—"}</TableCell>
@@ -68,7 +70,9 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
               <div className="flex items-start gap-3">
                 <DriverAvatar name={driver.driverName} className="h-10 w-10" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-foreground">{driver.driverName}</p>
+                  <p className="truncate font-medium text-foreground" title={driver.driverName}>
+                    {driver.driverName}
+                  </p>
                   <p className="font-data text-xs text-muted-foreground">
                     {driver.driverCpf ? `CPF ${driver.driverCpf}` : "CPF não informado"}
                   </p>

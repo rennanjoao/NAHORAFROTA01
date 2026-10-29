@@ -13,6 +13,9 @@ import { z } from "zod";
 import { isValidCPF } from "@/lib/documentValidation";
 import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
 import { FormField } from "@/components/patterns/FormField";
+import { friendlyServerMessage } from "./serverMessages";
+
+const FALLBACK_ERROR = "Não foi possível salvar o motorista. Confira os dados e tente de novo.";
 
 function generatePasswordFromCPF(cpf: string): string {
   const cleanCPF = cpf.replace(/\D/g, "");
@@ -135,20 +138,21 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
       vehicleType,
     });
 
+    // Todos os erros de uma vez (antes o e-mail so era conferido depois do CPF).
+    const next: Partial<Record<FieldKey, string>> = {};
     if (!validation.success) {
-      const next: Partial<Record<FieldKey, string>> = {};
       for (const issue of validation.error.errors) {
         const key = issue.path[0];
         if ((key === "name" || key === "cpf") && !next[key]) next[key] = issue.message;
       }
       // O e-mail de login e gerado pelo nome: erro nele = nome invalido.
-      if (!next.name && !next.cpf) next.name = validation.error.errors[0].message;
-      showErrors(next);
-      return;
+      if (!next.name && !next.cpf) next.name = "Confira o nome: use letras, sem símbolos.";
     }
-
     if (contactEmail.trim() && !isValidContactEmail(contactEmail)) {
-      showErrors({ contactEmail: "Confira o e-mail do motorista. Exemplo: nome@email.com" });
+      next.contactEmail = "Confira o e-mail do motorista. Exemplo: nome@email.com";
+    }
+    if (!validation.success || next.contactEmail) {
+      showErrors(next);
       return;
     }
 
@@ -186,14 +190,19 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
       });
 
       if (edgeError) {
-        const info = await readEdgeFunctionError(edgeError, "Erro ao salvar motorista");
+        const info = await readEdgeFunctionError(edgeError, FALLBACK_ERROR);
         console.error("create-driver error:", info, edgeError);
-        toast.error(info.message);
+        // CPF repetido: aviso embaixo do campo.
+        if (info.code === "cpf_already_exists" || /cpf j[aá] cadastrado/i.test(info.message)) {
+          showErrors({ cpf: "Este CPF já está cadastrado para outro motorista." });
+          return;
+        }
+        toast.error(friendlyServerMessage(info.message, FALLBACK_ERROR));
         return;
       }
 
       if (!edgeData?.success) {
-        toast.error(edgeData?.error || "Erro ao salvar motorista");
+        toast.error(friendlyServerMessage(edgeData?.error, FALLBACK_ERROR));
         return;
       }
 
@@ -203,7 +212,7 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
       }
 
       if (!edgeData.driver?.id) {
-        toast.error("Erro: cadastro retornou sem o ID do motorista");
+        toast.error("O cadastro não terminou. Confira a lista de motoristas e tente de novo.");
         return;
       }
 
@@ -231,9 +240,8 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
       setOpen(false);
       onUserCreated?.();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao salvar motorista";
       console.error("Error creating driver:", err);
-      toast.error(message);
+      toast.error(friendlyServerMessage(err instanceof Error ? err.message : "", FALLBACK_ERROR));
     } finally {
       setIsLoading(false);
     }

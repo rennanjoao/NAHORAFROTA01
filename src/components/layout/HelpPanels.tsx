@@ -2,20 +2,20 @@ import { Keyboard, Lightbulb, Mail, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { NAV_ITEMS, SUPPORT_EMAIL } from "@/config/navigation";
+import { SUPPORT_EMAIL } from "@/config/navigation";
 import { useNavigation } from "@/hooks/useNavigation";
 import { isMac } from "@/lib/platform";
 import { useShell } from "./ShellContext";
 
 /** "Ajuda desta tela": o que da para fazer aqui, passo a passo, e contato. */
 export function HelpSheet() {
-  const { panel, closePanel, openPanel } = useShell();
+  const { panel, closePanel, openPanel, restoreFocus } = useShell();
   const { current } = useNavigation();
   const Icon = current?.icon ?? Lightbulb;
 
   return (
     <Sheet open={panel === "help"} onOpenChange={(open) => !open && closePanel()}>
-      <SheetContent className="flex flex-col gap-6 overflow-y-auto sm:max-w-md">
+      <SheetContent onCloseAutoFocus={restoreFocus} className="flex flex-col gap-6 overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <span className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Icon className="h-5 w-5" aria-hidden="true" />
@@ -95,29 +95,32 @@ function Keys({ keys }: { keys: string[] }) {
 
 /** Lista de atalhos ("?"). */
 export function ShortcutsDialog() {
-  const { panel, closePanel } = useShell();
+  const { panel, closePanel, restoreFocus } = useShell();
+  // So as telas que a pessoa pode abrir (papel e plano).
+  const { items } = useNavigation();
   const mod = isMac() ? "⌘" : "Ctrl";
 
   const general: { label: string; keys: string[] }[] = [
     { label: "Abrir a busca", keys: [mod, "K"] },
     { label: "Abrir a busca (alternativo)", keys: ["/"] },
     { label: "Ver esta lista", keys: ["?"] },
-    { label: "Recolher ou abrir o menu lateral", keys: ["["] },
+    { label: "Recolher ou abrir o menu", keys: ["["] },
     { label: "Fechar janela", keys: ["Esc"] },
   ];
 
   return (
     <Dialog open={panel === "shortcuts"} onOpenChange={(open) => !open && closePanel()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent onCloseAutoFocus={restoreFocus} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Atalhos do teclado</DialogTitle>
           <DialogDescription>Faça tudo sem tirar as mãos do teclado.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 sm:grid-cols-2">
           <section aria-labelledby="atalhos-gerais">
-            <h3 id="atalhos-gerais" className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <h3 id="atalhos-gerais" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Geral
             </h3>
+            <p className="mb-2 mt-0.5 text-xs text-muted-foreground">Funcionam em qualquer tela.</p>
             <ul className="space-y-2">
               {general.map((item) => (
                 <li key={item.label} className="flex items-center justify-between gap-3 text-sm">
@@ -128,11 +131,12 @@ export function ShortcutsDialog() {
             </ul>
           </section>
           <section aria-labelledby="atalhos-telas">
-            <h3 id="atalhos-telas" className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Ir para (aperte G e depois a letra)
+            <h3 id="atalhos-telas" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Ir para
             </h3>
+            <p className="mb-2 mt-0.5 text-xs text-muted-foreground">Aperte G e depois a letra.</p>
             <ul className="space-y-2">
-              {NAV_ITEMS.filter((item) => item.shortcut).map((item) => (
+              {items.filter((item) => item.shortcut).map((item) => (
                 <li key={item.path} className="flex items-center justify-between gap-3 text-sm">
                   <span>{item.label}</span>
                   <Keys keys={["G", item.shortcut!.toUpperCase()]} />

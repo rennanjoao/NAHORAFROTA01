@@ -21,7 +21,19 @@ import { formatDocument, isValidCPF } from "@/lib/documentValidation";
 import { requireCurrentTenantId } from "@/lib/tenant";
 import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError";
 import { MAX_DRIVER_DOCUMENT_BYTES, uploadDriverDocument, type DriverDocumentType } from "@/lib/driverDocuments";
-import { CNH_CATEGORIES, DRIVER_DOCUMENT_KEYS, DRIVER_DOCUMENT_LABELS, DRIVER_VEHICLE_TYPES } from "./driverConfig";
+import {
+  CNH_CATEGORIES,
+  DRIVER_DOCUMENT_KEYS,
+  DRIVER_DOCUMENT_LABELS,
+  DRIVER_VEHICLE_TYPES,
+  formatPhone,
+  isCpfTaken,
+  isValidPhone,
+  isValidPlate,
+  normalizePlate,
+  PHONE_ERROR,
+  PLATE_ERROR,
+} from "./driverConfig";
 import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
 import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
@@ -59,15 +71,13 @@ const isVehicleTypeConstraintError = (message?: string | null) =>
 const getVehicleTypeCandidates = (dbValue: string, displayValue: string) =>
   Array.from(new Set([dbValue, displayValue, displayValue.toUpperCase()]));
 
+// Sem termos tecnicos: o detalhe vai para o console.
 const getVehicleTypeConstraintMessage = () =>
-  "Tipo de veículo não aceito pelo banco de dados. Aplique a migration mais recente de tipos de veículo e tente novamente.";
+  "Este tipo de veículo ainda não pode ser usado. Escolha outro tipo ou fale com o suporte.";
 
 const getDriverSaveErrorMessage = (message?: string | null) => {
-  if (isVehicleTypeConstraintError(message)) {
-    return "O banco ainda nao aceita este tipo de veiculo. Aplique a migration 20260427090000_fix_driver_vehicle_type_rpc.sql no Supabase e tente novamente.";
-  }
-
-  return message || "Erro ao cadastrar motorista";
+  if (isVehicleTypeConstraintError(message)) return getVehicleTypeConstraintMessage();
+  return message || "Confira os dados e tente de novo.";
 };
 
 const emptyForm = () => ({
@@ -181,6 +191,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     if (!formData.cpf.trim()) next.cpf = "Informe o CPF.";
     else if (!isValidCPF(formData.cpf)) next.cpf = "CPF inválido. Confira os números.";
     if (!formData.phone.trim()) next.phone = "Informe o telefone com DDD.";
+    else if (!isValidPhone(formData.phone)) next.phone = PHONE_ERROR;
     if (formData.contactEmail.trim() && !isValidContactEmail(formData.contactEmail)) {
       next.contactEmail = "E-mail inválido. Confira o endereço.";
     }
@@ -188,6 +199,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     if (!isOwnFleet) {
       if (!formData.vehicleType) next.vehicleType = "Escolha o tipo de veículo.";
       if (!formData.vehiclePlate.trim()) next.vehiclePlate = "Informe a placa do veículo.";
+      else if (!isValidPlate(formData.vehiclePlate)) next.vehiclePlate = PLATE_ERROR;
     }
     return next;
   };
@@ -224,6 +236,18 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
     setIsSaving(true);
 
+    // O banco aceita CPF repetido: confere antes de criar login ou gravar.
+    if (await isCpfTaken(cpfToSave)) {
+      setIsSaving(false);
+      toast({
+        title: "CPF já cadastrado",
+        description: "Este CPF já está ligado a outro motorista. Confira se ele já está na lista.",
+        variant: "destructive",
+      });
+      showErrors({ cpf: "Este CPF já está cadastrado." });
+      return;
+    }
+
     let createdUserId: string | null = null;
     let createdUserEmail: string | null = null;
     let createdDriverId: string | null = null;
@@ -237,7 +261,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         const normalizedEmail = loginIdentifier.trim().toLowerCase();
         const normalizedPassword = generatedPassword.trim();
         const normalizedName = formData.name.trim();
-        const normalizedPhone = formData.phone.trim() ? formData.phone.trim() : null;
+        const normalizedPhone = formData.phone.trim() ? formatPhone(formData.phone) : null;
         const normalizedCpf = cpfToSave;
 
         const { data, error } = await supabase.functions.invoke("create-user", {
@@ -298,12 +322,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           createdUserEmail = data.user.email;
           loginEmailChanged = !!data.user.emailChanged || createdUserEmail !== getLoginIdentifier().trim().toLowerCase();
         }
-        if (createdUserId) {
-          toast({
-            title: "Login criado",
-            description: `Login: ${createdUserEmail || generatedEmail}`,
-          });
-        }
+        // O aviso do login sai junto com o do cadastro, no fim (antes eram dois iguais).
         if (!createdUserId) {
           toast({
             title: "Não foi possível criar o login",
@@ -330,11 +349,11 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       const displayVehicleType = vehicleTypeLabels[normalizedVehicleType] || "Van";
 
       const driverData: any = {
-        name: formData.name,
+        name: formData.name.trim(),
         cpf: cpfToSave,
-        phone: formData.phone,
+        phone: formatPhone(formData.phone),
         avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formData.name)}`,
-        vehicle_plate: formData.vehiclePlate || "PENDENTE",
+        vehicle_plate: normalizePlate(formData.vehiclePlate) || "PENDENTE",
         vehicle_type: normalizedVehicleType,
         cnh: formData.cnhNumber,
         cnh_category: formData.cnhCategory.toUpperCase(),
@@ -515,7 +534,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       if (createLogin) {
         toast({
           title: loginEmailChanged ? "Motorista cadastrado com login ajustado" : "Motorista cadastrado com login",
-          description: `Login: ${createdUserEmail || generatedEmail} | Senha: ${generatedPassword}`,
+          description: `Login: ${createdUserEmail || generatedEmail} · Senha: ${generatedPassword}`,
         });
       } else {
         toast({
@@ -718,7 +737,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                         autoComplete="off"
                         className="font-data uppercase tracking-wider"
                         value={formData.vehiclePlate}
-                        onChange={(e) => update({ vehiclePlate: e.target.value.toUpperCase() })}
+                        onChange={(e) => update({ vehiclePlate: normalizePlate(e.target.value) })}
                       />
                     )}
                   </FormField>

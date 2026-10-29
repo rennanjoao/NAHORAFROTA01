@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/patterns";
+import { parseDecimalInput } from "@/lib/formatCurrency";
 import { cn } from "@/lib/utils";
 import { categoryLabels, type AdjustmentCategory } from "./settlementConfig";
 
@@ -34,20 +36,50 @@ const TYPE_OPTIONS = [
   { value: "credit", id: "adj-credit", label: "Crédito", hint: "Soma para o motorista", icon: Plus, tone: "text-success" },
 ] as const;
 
+type FieldErrors = Partial<Record<"description" | "value", string>>;
+
+/** Descricao e valor obrigatorios; valor maior que zero. Usado tambem na edicao. */
+export function validateAdjustment(description: string, value: string): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!description.trim()) errors.description = "Informe a descrição.";
+  const parsed = parseDecimalInput(value);
+  if (!value.trim()) errors.value = "Informe o valor.";
+  else if (parsed === null || parsed === 0) errors.value = "Informe um valor maior que zero, como 35,50.";
+  return errors;
+}
+
 /** Novo credito ou debito no extrato do motorista. */
 export function AdjustmentDialog({ open, onOpenChange, driverName, saving, onSubmit }: AdjustmentDialogProps) {
   const [values, setValues] = useState<AdjustmentFormValues>(EMPTY);
-  const set = <K extends keyof AdjustmentFormValues>(key: K, value: AdjustmentFormValues[K]) =>
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const set = <K extends keyof AdjustmentFormValues>(key: K, value: AdjustmentFormValues[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }));
+    if (key in errors) setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
 
   // Ao fechar sem salvar, o que foi digitado fica; ao salvar, limpa.
   const handleSubmit = async () => {
+    const found = validateAdjustment(values.description, values.value);
+    if (found.description || found.value) {
+      setErrors(found);
+      document.getElementById(found.description ? "adj-description" : "adj-value")?.focus();
+      return;
+    }
     const saved = await onSubmit(values);
-    if (saved) setValues(EMPTY);
+    if (saved) {
+      setValues(EMPTY);
+      setErrors({});
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setErrors({});
+        onOpenChange(next);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Adicionar lançamento</DialogTitle>
@@ -58,6 +90,7 @@ export function AdjustmentDialog({ open, onOpenChange, driverName, saving, onSub
 
         <form
           className="space-y-4"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             void handleSubmit();
@@ -95,56 +128,58 @@ export function AdjustmentDialog({ open, onOpenChange, driverName, saving, onSub
             </RadioGroup>
           </fieldset>
 
-          <div className="space-y-2">
-            <Label htmlFor="adj-category">Categoria</Label>
-            <Select value={values.category} onValueChange={(v) => set("category", v as AdjustmentCategory)}>
-              <SelectTrigger id="adj-category">
-                <SelectValue placeholder="Escolha a categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(categoryLabels).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FormField id="adj-category" label="Categoria">
+            {(control) => (
+              <Select value={values.category} onValueChange={(v) => set("category", v as AdjustmentCategory)}>
+                <SelectTrigger {...control}>
+                  <SelectValue placeholder="Escolha a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(categoryLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="adj-description">Descrição</Label>
-            <Input
-              id="adj-description"
-              placeholder="Ex: Vale combustível, avaria na NF 12345"
-              value={values.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </div>
+          <FormField id="adj-description" label="Descrição" required error={errors.description}>
+            {(control) => (
+              <Input
+                {...control}
+                placeholder="Ex.: Vale combustível, avaria na NF 12345"
+                value={values.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="adj-value">Valor (R$)</Label>
-            <Input
-              id="adj-value"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={values.value}
-              onChange={(e) => set("value", e.target.value)}
-              className="font-data"
-            />
-          </div>
+          <FormField id="adj-value" label="Valor (R$)" required error={errors.value}>
+            {(control) => (
+              <Input
+                {...control}
+                inputMode="decimal"
+                placeholder="0,00"
+                value={values.value}
+                onChange={(e) => set("value", e.target.value)}
+                className="font-data"
+              />
+            )}
+          </FormField>
 
-          <div className="space-y-2">
-            <Label htmlFor="adj-observation">
-              Motivo <span className="font-normal text-muted-foreground">(opcional)</span>
-            </Label>
-            <Textarea
-              id="adj-observation"
-              placeholder="Ex: desconto pela avaria na NF 12345, mercadoria danificada no transporte"
-              value={values.observation}
-              onChange={(e) => set("observation", e.target.value)}
-              rows={2}
-            />
-          </div>
+          <FormField id="adj-observation" label="Motivo" optional>
+            {(control) => (
+              <Textarea
+                {...control}
+                placeholder="Ex.: desconto pela avaria na NF 12345, mercadoria danificada no transporte"
+                value={values.observation}
+                onChange={(e) => set("observation", e.target.value)}
+                rows={2}
+              />
+            )}
+          </FormField>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -152,7 +187,7 @@ export function AdjustmentDialog({ open, onOpenChange, driverName, saving, onSub
             </Button>
             <Button type="submit" disabled={saving}>
               {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Plus aria-hidden="true" />}
-              {saving ? "Salvando" : "Adicionar lançamento"}
+              {saving ? "Salvando..." : "Adicionar lançamento"}
             </Button>
           </DialogFooter>
         </form>

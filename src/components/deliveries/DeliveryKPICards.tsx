@@ -48,9 +48,10 @@ export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: Delive
     <div
       role="group"
       aria-label="Filtrar notas por status"
-      className="stagger grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-5"
+      // Celular: 3 em cima e 2 embaixo, sem buraco no fim da grade.
+      className="stagger grid grid-cols-6 gap-2 sm:gap-3 lg:grid-cols-5"
     >
-      {TILES.map((tile) => {
+      {TILES.map((tile, index) => {
         const meta = DELIVERY_STATUS[tile.key];
         const Icon = meta.icon;
         const count = stats[tile.key] || 0;
@@ -63,7 +64,8 @@ export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: Delive
             aria-pressed={active}
             onClick={() => onFilterChange(active ? "all" : tile.key)}
             className={cn(
-              "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4",
+              "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4 lg:col-span-1",
+              index < 3 ? "col-span-2" : "col-span-3",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
               active && cn("ring-4", activeTone[meta.tone]),
             )}

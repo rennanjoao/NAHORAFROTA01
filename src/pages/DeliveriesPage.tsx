@@ -80,6 +80,8 @@ export default function DeliveriesPage() {
   const [manifestSearch, setManifestSearch] = useState<{ term: string; nonce: number } | null>(null);
   const [isXmlDialogOpen, setIsXmlDialogOpen] = useState(false);
   const [isFreightDialogOpen, setIsFreightDialogOpen] = useState(false);
+  const generateButtonRef = useRef<HTMLButtonElement>(null);
+  const importButtonRef = useRef<HTMLButtonElement>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
   const [periodFilter, setPeriodFilter] = useState<{ from?: Date; to?: Date }>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -129,9 +131,6 @@ export default function DeliveriesPage() {
   const [isConfirmDeliveryDialogOpen, setIsConfirmDeliveryDialogOpen] = useState(false);
   const [deliveryForConfirm, setDeliveryForConfirm] = useState<Delivery | null>(null);
 
-  // Current user (in a real app, this would come from auth context)
-  const currentUser = "Gestor";
-
   // Region filter state
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
 
@@ -144,7 +143,6 @@ export default function DeliveriesPage() {
     refetch: refetchInvoices,
     deleteInvoice: dbDeleteInvoice,
     updateInvoice: dbUpdateInvoice,
-    updateInvoiceStatus: dbUpdateInvoiceStatus
   } = useInvoicesDB();
   const {
     manifests: dbManifests,
@@ -165,7 +163,8 @@ export default function DeliveriesPage() {
       setStatusFilter("all");
       setSearch(term);
     }
-  }, ["tab"]);
+    // "?tab=romaneios" fica na URL: recarregar a pagina mantem a aba.
+  });
   const urlStatus = searchParams.get('status');
 
   // Busca (Ctrl K) > "Importar notas": abre a importacao de XML.
@@ -174,6 +173,8 @@ export default function DeliveriesPage() {
     () => {
       setActiveTab("nfs");
       if (batchAccess.allowed) {
+        // Vindo de link/busca nao ha botao com foco: o foco volta para "Importar notas" ao fechar.
+        importButtonRef.current?.focus({ preventScroll: true });
         setIsXmlDialogOpen(true);
       } else {
         toast({
@@ -246,7 +247,7 @@ export default function DeliveriesPage() {
 
   // Convert DB invoices to Delivery format for unified display
   const dbDeliveries: Delivery[] = useMemo(() => {
-    return dbInvoices.map((inv, idx) => {
+    const mapped = dbInvoices.map((inv, idx) => {
       // Format manifest number as "N/YYYY"
       const manifestYear = inv.manifest_created_at 
         ? new Date(inv.manifest_created_at).getFullYear() 
@@ -288,6 +289,12 @@ export default function DeliveriesPage() {
         eventDate: new Date(getInvoiceEventDate(inv)),
       };
     }) as any[];
+    // Mais recentes primeiro; notas importadas juntas ficam em ordem de numero
+    // (antes saiam embaralhadas a cada recarga).
+    return mapped.sort(
+      (a: Delivery, b: Delivery) =>
+        b.scheduledDate.getTime() - a.scheduledDate.getTime() || b.nfe.localeCompare(a.nfe, "pt-BR", { numeric: true }),
+    );
   }, [dbInvoices, selectedDbIds]);
 
   // Combined deliveries: DB invoices take priority
@@ -617,56 +624,55 @@ export default function DeliveriesPage() {
     setIsOccurrenceDialogOpen(true);
   };
 
-  // Handler to save occurrence - persists to database with audit log
-  const handleSaveOccurrence = async (deliveryId: number, occurrenceType: string, observation: string) => {
+  // Grava a ocorrencia (com historico quando a nota esta em romaneio). Devolve false se nao gravou.
+  const handleSaveOccurrence = async (deliveryId: number, occurrenceType: string, observation: string): Promise<boolean> => {
     const occurrenceLabel = occurrenceTypes.find(t => t.value === occurrenceType)?.label || occurrenceType;
-    
-    // Find the DB invoice by the delivery ID (which is offset by 10000)
     const delivery = deliveries.find(d => d.id === deliveryId);
-    const dbId = (delivery as any)?.dbId;
-    
-    if (dbId) {
-      // Persist to database
-      await dbUpdateInvoiceStatus(dbId, "occurrence", occurrenceType, observation);
-      
-      // Create audit log for the occurrence if invoice is linked to a manifest
-      const invoice = dbInvoices.find(inv => inv.id === dbId);
-      if (invoice?.manifest_id) {
-        try {
-          const { data: userData } = await supabase.auth.getUser();
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("name")
-            .eq("id", userData.user?.id || "")
-            .single();
-          
-          const userFullName = profile?.name || userData.user?.email?.split("@")[0] || "Sistema";
-          
-          await supabase.from("manifest_audit_logs").insert({
-            manifest_id: invoice.manifest_id,
-            invoice_id: dbId,
-            action_type: "occurrence_registered",
-            performed_by: userData.user?.id || null,
-            performed_by_name: userFullName,
-            user_full_name: userFullName,
-            notes: `${userFullName} registrou ocorrência na NF ${invoice.nfe_number} - Tipo: ${occurrenceLabel}${observation ? ` - Obs: ${observation}` : ''}`,
-            details: {
-              nfe_number: invoice.nfe_number,
-              occurrence_type: occurrenceType,
-              occurrence_label: occurrenceLabel,
-              observation: observation || null,
-            },
-          });
-        } catch (error) {
-          console.error("Error creating occurrence audit log:", error);
-        }
+    const dbId = delivery?.dbId;
+    if (!dbId) return false;
+
+    // Sem aviso do hook: a janela mostra um aviso so (antes saiam dois).
+    const updates: Record<string, unknown> = { status: "occurrence", occurrence_type: occurrenceType };
+    if (observation) updates.observation = observation;
+    const saved = await dbUpdateInvoice(dbId, updates, { silent: true });
+    if (!saved) return false;
+
+    // Create audit log for the occurrence if invoice is linked to a manifest
+    const invoice = dbInvoices.find(inv => inv.id === dbId);
+    if (invoice?.manifest_id) {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", userData.user?.id || "")
+          .single();
+
+        const userFullName = profile?.name || userData.user?.email?.split("@")[0] || "Sistema";
+
+        await supabase.from("manifest_audit_logs").insert({
+          manifest_id: invoice.manifest_id,
+          invoice_id: dbId,
+          action_type: "occurrence_registered",
+          performed_by: userData.user?.id || null,
+          performed_by_name: userFullName,
+          user_full_name: userFullName,
+          notes: `${userFullName} registrou ocorrência na NF ${invoice.nfe_number} - Tipo: ${occurrenceLabel}${observation ? ` - Obs: ${observation}` : ''}`,
+          details: {
+            nfe_number: invoice.nfe_number,
+            occurrence_type: occurrenceType,
+            occurrence_label: occurrenceLabel,
+            observation: observation || null,
+          },
+        });
+      } catch (error) {
+        console.error("Error creating occurrence audit log:", error);
       }
-      
-      // Refetch to update the UI
-      refetchInvoices();
     }
-    
+
+    void refetchInvoices();
     setDeliveryForOccurrence(null);
+    return true;
   };
 
   // Handler to open remove from manifest dialog
@@ -700,32 +706,26 @@ export default function DeliveriesPage() {
     setIsAddToManifestDialogOpen(true);
   };
 
-  const handleConfirmAddToManifest = async (manifestId: string, action: "print" | "resend" | "none") => {
-    if (!deliveryForAddToManifest) return;
-    
-    // Get the database UUID from the delivery
-    const dbId = (deliveryForAddToManifest as any)?.dbId;
+  const handleConfirmAddToManifest = async (manifestId: string, action: "print" | "resend" | "none"): Promise<boolean> => {
+    if (!deliveryForAddToManifest) return false;
+
+    const dbId = deliveryForAddToManifest.dbId;
     if (!dbId) {
       toast({
-        title: "Erro",
-        description: "ID da nota fiscal não encontrado.",
+        title: "Nota não encontrada",
+        description: "Recarregue a página e tente de novo.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     // Use the database function to add the invoice with audit logging (user name fetched inside)
     const success = await dbAddInvoiceToManifest(manifestId, dbId);
-    
-    if (!success) {
-      return; // Toast already shown by the hook
-    }
-    
-    // Find the updated manifest for actions
+    if (!success) return false; // o hook ja avisou o erro
+
     const manifest = dbManifests.find(m => m.id === manifestId);
-    
-    // Handle action
     if (action === "print" && manifest) {
+      setManifestForPreview(null);
       setDbManifestForPreview(manifest);
       setIsPrintPreviewOpen(true);
     } else if (action === "resend" && manifest) {
@@ -738,6 +738,7 @@ export default function DeliveriesPage() {
     await refetchInvoices();
     setIsAddToManifestDialogOpen(false);
     setDeliveryForAddToManifest(null);
+    return true;
   };
 
   // Handler to open delivery detail sheet
@@ -759,8 +760,8 @@ export default function DeliveriesPage() {
     const dbId = (deliveryForDelete as any)?.dbId;
     if (!dbId) {
       toast({
-        title: "Erro",
-        description: "ID da nota fiscal não encontrado.",
+        title: "Nota não encontrada",
+        description: "Recarregue a página e tente de novo.",
         variant: "destructive",
       });
       return;
@@ -797,8 +798,8 @@ export default function DeliveriesPage() {
     const dbId = (deliveryForConfirm as any)?.dbId;
     if (!dbId) {
       toast({
-        title: "Erro",
-        description: "ID da nota fiscal não encontrado.",
+        title: "Nota não encontrada",
+        description: "Recarregue a página e tente de novo.",
         variant: "destructive",
       });
       return;
@@ -854,8 +855,9 @@ export default function DeliveriesPage() {
       }
 
       toast({
-        title: "Entrega Confirmada",
-        description: `NF ${deliveryForConfirm.nfe} marcada como entregue.`,
+        title: "Entrega confirmada",
+        description: `A NF ${deliveryForConfirm.nfe} ficou como entregue.`,
+        variant: "success",
       });
 
       // Refetch to update UI
@@ -866,8 +868,8 @@ export default function DeliveriesPage() {
     } catch (error: any) {
       console.error("Error confirming delivery:", error);
       toast({
-        title: "Erro ao confirmar entrega",
-        description: error.message || "Ocorreu um erro ao salvar a baixa.",
+        title: "Não foi possível confirmar a entrega",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
       throw error;
@@ -985,7 +987,7 @@ export default function DeliveriesPage() {
     const delivery = deliveries.find((d) => d.id === id);
     if (!delivery?.dbId) return;
 
-    const success = await dbUpdateInvoiceStatus(delivery.dbId, "returned");
+    const success = await dbUpdateInvoice(delivery.dbId, { status: "returned" }, { silent: true });
     if (!success) return;
 
     if (delivery.manifestUuid) {
@@ -1011,8 +1013,9 @@ export default function DeliveriesPage() {
 
     await refetchInvoices();
     toast({
-      title: "Retorno Confirmado",
-      description: `NF ${delivery.nfe} marcada como devolvida ao galpão.`,
+      title: "Retorno confirmado",
+      description: `A NF ${delivery.nfe} ficou como devolvida ao galpão.`,
+      variant: "success",
     });
   };
 
@@ -1075,7 +1078,7 @@ export default function DeliveriesPage() {
   const resultLabel = filteredDeliveries.length === 1 ? "1 nota" : `${filteredDeliveries.length.toLocaleString("pt-BR")} notas`;
 
   const importButton = batchAccess.allowed ? (
-    <Button variant="outline" onClick={() => setIsXmlDialogOpen(true)}>
+    <Button ref={importButtonRef} variant="outline" onClick={() => setIsXmlDialogOpen(true)}>
       <FileUp aria-hidden="true" />
       Importar notas
     </Button>
@@ -1103,7 +1106,7 @@ export default function DeliveriesPage() {
           actions={
             <>
               {importButton}
-              <Button onClick={handleHeaderGenerate}>
+              <Button ref={generateButtonRef} onClick={handleHeaderGenerate}>
                 <Route aria-hidden="true" />
                 Gerar romaneio
                 {selectedCount > 0 && (
@@ -1280,6 +1283,7 @@ export default function DeliveriesPage() {
             : []
         }
         onConfirm={handleFreightConfirm}
+        focusFallback={() => generateButtonRef.current}
       />
 
       {/* Observation Dialog */}
@@ -1350,7 +1354,6 @@ export default function DeliveriesPage() {
         deliveryNfe={deliveryForOccurrence?.nfe || ""}
         deliveryId={deliveryForOccurrence?.id || 0}
         onSave={handleSaveOccurrence}
-        currentUser={currentUser}
       />
 
       {/* Remove from Manifest Dialog */}

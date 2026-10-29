@@ -4,10 +4,17 @@ import { NAV_ITEMS } from "@/config/navigation";
 
 export type ShellPanel = "palette" | "help" | "shortcuts" | "more" | null;
 
+interface ClosePanelOptions {
+  /** Foco vai para o conteudo da tela (escolheu uma tela), nao para quem abriu. */
+  focusMain?: boolean;
+}
+
 interface ShellContextValue {
   panel: ShellPanel;
   openPanel: (panel: Exclude<ShellPanel, null>) => void;
-  closePanel: () => void;
+  closePanel: (options?: ClosePanelOptions) => void;
+  /** onCloseAutoFocus dos paineis do shell: devolve o foco a quem abriu o primeiro painel. */
+  restoreFocus: (event: Event) => void;
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
 }
@@ -26,6 +33,11 @@ const readCollapsed = () => {
   return window.innerWidth < 1280;
 };
 
+const focusedElement = () => {
+  const element = document.activeElement;
+  return element instanceof HTMLElement && element !== document.body ? element : null;
+};
+
 /** O usuario esta digitando (atalhos de uma tecla nao podem disparar). */
 const isTyping = (target: EventTarget | null) => {
   const el = target as HTMLElement | null;
@@ -39,9 +51,45 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [panel, setPanel] = useState<ShellPanel>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const pendingGo = useRef<number | null>(null);
+  // Painel aberto agora (sem esperar o render) e quem abriu o primeiro painel.
+  // Trocar de painel (Ajuda > Abrir a busca) mantem quem abriu: ao fechar o
+  // ultimo, o foco volta para la (antes caia no <body>).
+  const panelRef = useRef<ShellPanel>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const focusMainRef = useRef(false);
 
-  const openPanel = useCallback((next: Exclude<ShellPanel, null>) => setPanel(next), []);
-  const closePanel = useCallback(() => setPanel(null), []);
+  const changePanel = useCallback((next: ShellPanel, options?: ClosePanelOptions) => {
+    if (panelRef.current === null && next !== null) {
+      openerRef.current = focusedElement();
+      focusMainRef.current = false;
+    }
+    if (next === null) focusMainRef.current = Boolean(options?.focusMain);
+    panelRef.current = next;
+    setPanel(next);
+  }, []);
+
+  const openPanel = useCallback((next: Exclude<ShellPanel, null>) => changePanel(next), [changePanel]);
+  const closePanel = useCallback((options?: ClosePanelOptions) => changePanel(null, options), [changePanel]);
+
+  const restoreFocus = useCallback((event: Event) => {
+    // Outro painel abriu no lugar: ele cuida do foco.
+    if (panelRef.current !== null) {
+      event.preventDefault();
+      return;
+    }
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (focusMainRef.current) {
+      focusMainRef.current = false;
+      event.preventDefault();
+      document.getElementById("conteudo")?.focus({ preventScroll: true });
+      return;
+    }
+    if (opener?.isConnected) {
+      event.preventDefault();
+      opener.focus({ preventScroll: true });
+    }
+  }, []);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((value) => {
@@ -61,7 +109,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setPanel((current) => (current === "palette" ? null : "palette"));
+        changePanel(panelRef.current === "palette" ? null : "palette");
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
@@ -80,10 +128,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
 
       if (event.key === "/") {
         event.preventDefault();
-        setPanel("palette");
+        changePanel("palette");
       } else if (event.key === "?") {
         event.preventDefault();
-        setPanel("shortcuts");
+        changePanel("shortcuts");
       } else if (event.key === "[") {
         event.preventDefault();
         toggleSidebar();
@@ -95,11 +143,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate, toggleSidebar]);
+  }, [navigate, toggleSidebar, changePanel]);
 
   const value = useMemo(
-    () => ({ panel, openPanel, closePanel, sidebarCollapsed, toggleSidebar }),
-    [panel, openPanel, closePanel, sidebarCollapsed, toggleSidebar],
+    () => ({ panel, openPanel, closePanel, restoreFocus, sidebarCollapsed, toggleSidebar }),
+    [panel, openPanel, closePanel, restoreFocus, sidebarCollapsed, toggleSidebar],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;

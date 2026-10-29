@@ -16,12 +16,15 @@ import { buttonVariants } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, Lock, Trash2, Truck, Loader2 } from "lucide-react";
 import { ManifestRecord } from "@/stores/manifestStore";
 import { supabase } from "@/integrations/supabase/client";
+import { plateText } from "./status";
 
 interface DeleteManifestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   manifest: ManifestRecord | null;
-  onConfirm: (manifestId: string) => void;
+  /** Numero que a pessoa ve na lista ("1/2026"); sem ele usa o codigo. */
+  displayNumber?: string;
+  onConfirm: (manifestId: string) => Promise<unknown> | void;
   canDelete: boolean;
   blockReason?: string;
   completedCount?: number;
@@ -33,6 +36,7 @@ export function DeleteManifestDialog({
   open,
   onOpenChange,
   manifest,
+  displayNumber,
   onConfirm,
   canDelete,
   blockReason,
@@ -43,6 +47,7 @@ export function DeleteManifestDialog({
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handlePasswordChange = (value: string) => {
     setSupervisorPassword(value);
@@ -95,20 +100,27 @@ export function DeleteManifestDialog({
   };
 
   const handleConfirm = async () => {
-    if (!manifest || hardBlocked) return;
-    
+    if (!manifest || hardBlocked || isDeleting) return;
+
     if (!canDelete) {
       const isValid = await validateSupervisorPassword();
       if (!isValid) return;
     }
-    
-    onConfirm(manifest.id);
+
+    // Fica "Excluindo…" ate o banco responder (antes dava para clicar duas vezes).
+    setIsDeleting(true);
+    try {
+      await onConfirm(manifest.id);
+    } finally {
+      setIsDeleting(false);
+    }
     setSupervisorPassword("");
     setIsPasswordValid(false);
     setPasswordError("");
   };
 
   const handleClose = (open: boolean) => {
+    if (!open && isDeleting) return;
     if (!open) {
       setSupervisorPassword("");
       setIsPasswordValid(false);
@@ -128,7 +140,7 @@ export function DeleteManifestDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             {!canDelete && <Lock className="h-5 w-5 text-warning" aria-hidden="true" />}
-            {canDelete ? `Excluir o romaneio ${manifest.id}?` : "Exclusão bloqueada"}
+            {canDelete ? `Excluir o romaneio ${displayNumber || manifest.id}?` : "Exclusão bloqueada"}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {canDelete
@@ -145,7 +157,7 @@ export function DeleteManifestDialog({
             <div className="min-w-0 text-sm">
               <p className="truncate font-medium text-foreground">{manifest.driverName}</p>
               <p className="text-muted-foreground">
-                <span className="font-data">{manifest.driverPlate || "sem placa"}</span> · {notes}
+                <span className="font-data">{plateText(manifest.driverPlate) || "sem placa"}</span> · {notes}
               </p>
             </div>
           </div>
@@ -153,7 +165,9 @@ export function DeleteManifestDialog({
           {!canDelete && completedCount ? (
             <Alert variant="warning">
               <AlertTriangle aria-hidden="true" />
-              <AlertDescription className="text-foreground">{completedCount} entrega(s) já têm baixa confirmada.</AlertDescription>
+              <AlertDescription className="text-foreground">
+                {completedCount === 1 ? "1 entrega já tem baixa confirmada." : `${completedCount} entregas já têm baixa confirmada.`}
+              </AlertDescription>
             </Alert>
           ) : null}
 
@@ -190,7 +204,7 @@ export function DeleteManifestDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isValidating}>{hardBlocked ? "Fechar" : "Cancelar"}</AlertDialogCancel>
+          <AlertDialogCancel disabled={isValidating || isDeleting}>{hardBlocked ? "Fechar" : "Cancelar"}</AlertDialogCancel>
           {!hardBlocked && (
             <AlertDialogAction
               onClick={(event) => {
@@ -198,11 +212,11 @@ export function DeleteManifestDialog({
                 event.preventDefault();
                 void handleConfirm();
               }}
-              disabled={isValidating || !canSubmit}
+              disabled={isValidating || isDeleting || !canSubmit}
               className={buttonVariants({ variant: "destructive" })}
             >
-              {isValidating ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
-              {isValidating ? "Conferindo…" : "Excluir romaneio"}
+              {isValidating || isDeleting ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
+              {isValidating ? "Conferindo…" : isDeleting ? "Excluindo…" : "Excluir romaneio"}
             </AlertDialogAction>
           )}
         </AlertDialogFooter>

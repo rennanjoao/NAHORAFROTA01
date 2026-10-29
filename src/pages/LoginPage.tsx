@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { Mail, ArrowRight, Loader2, Truck } from "lucide-react";
+import { Mail, ArrowRight, CircleAlert, Info, Loader2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,11 +50,14 @@ export default function LoginPage() {
   const { signIn, session, roles, loading: authLoading, isDriverUser } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => !!readRememberedEmail());
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [isSendingReset, setIsSendingReset] = useState(false);
+  // Avisos da janela "Recuperar senha" ficam dentro dela (antes eram toasts que somem).
+  const [resetFieldError, setResetFieldError] = useState<string | null>(null);
+  const [resetNotice, setResetNotice] = useState<{ tone: "info" | "destructive"; title: string; text: string } | null>(null);
+  const resetEmailRef = useRef<HTMLInputElement>(null);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState(readRememberedEmail);
@@ -93,20 +96,27 @@ export default function LoginPage() {
 
   const openResetDialog = () => {
     setResetEmail(loginEmail.trim().toLowerCase());
+    setResetFieldError(null);
+    setResetNotice(null);
     setIsResetOpen(true);
   };
 
   const handleSendReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSendingReset) return;
+    setResetFieldError(null);
+    setResetNotice(null);
     const email = resetEmail.trim().toLowerCase();
     if (!z.string().email().safeParse(email).success) {
-      toast({ title: "E-mail inválido", description: "Digite o e-mail que você usa para entrar.", variant: "destructive" });
+      setResetFieldError("Digite o e-mail que você usa para entrar, como nome@empresa.com.br.");
+      resetEmailRef.current?.focus();
       return;
     }
     if (email.endsWith(DRIVER_LOGIN_DOMAIN)) {
-      toast({
-        title: "Login de motorista",
-        description: "Peça ao gestor da sua transportadora para criar uma senha nova para você no painel.",
+      setResetNotice({
+        tone: "info",
+        title: "Este é um login de motorista",
+        text: "Peça ao gestor da sua transportadora para criar uma senha nova para você no painel.",
       });
       return;
     }
@@ -119,10 +129,12 @@ export default function LoginPage() {
 
     if (error) {
       const rateLimited = /rate limit|too many|seconds/i.test(error.message);
-      toast({
+      setResetNotice({
+        tone: "destructive",
         title: "Não foi possível enviar o link",
-        description: rateLimited ? "Muitas tentativas. Aguarde alguns minutos e tente de novo." : error.message,
-        variant: "destructive",
+        text: rateLimited
+          ? "Muitas tentativas. Aguarde alguns minutos e tente de novo."
+          : "Confira a internet e tente de novo. Se continuar, fale com o suporte.",
       });
       return;
     }
@@ -233,7 +245,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout pageTitle="Entrar">
       <div className="space-y-2">
         <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground">Entrar</h1>
         <p className="text-[0.9375rem] text-muted-foreground">
@@ -272,10 +284,11 @@ export default function LoginPage() {
           label="Senha"
           error={errors.password}
           labelAction={
+            // Area de toque de 44px sem empurrar o campo (margem negativa).
             <button
               type="button"
               onClick={openResetDialog}
-              className="min-h-6 rounded-sm text-sm font-medium text-primary underline-offset-4 hover:underline"
+              className="-my-2.5 -mr-1.5 inline-flex min-h-11 items-center rounded-md px-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Esqueci minha senha
             </button>
@@ -295,12 +308,11 @@ export default function LoginPage() {
           )}
         </AuthField>
 
-        <div className="flex min-h-11 items-center gap-3">
+        {/* A linha inteira marca a caixa (antes so o quadrado de 18px e o texto). */}
+        <Label htmlFor="remember" className="flex min-h-11 cursor-pointer items-center gap-3 font-normal text-muted-foreground">
           <Checkbox id="remember" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(!!checked)} />
-          <Label htmlFor="remember" className="cursor-pointer font-normal text-muted-foreground">
-            Lembrar meu e-mail neste aparelho
-          </Label>
-        </div>
+          Lembrar meu e-mail neste aparelho
+        </Label>
 
         <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
           {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
@@ -323,7 +335,8 @@ export default function LoginPage() {
 
       <Dialog open={isResetOpen} onOpenChange={(open) => !isSendingReset && setIsResetOpen(open)}>
         <DialogContent className="sm:max-w-md">
-          <form onSubmit={handleSendReset} className="space-y-5">
+          {/* noValidate: o aviso do navegador nao e lido igual em todo celular; o erro aparece no campo. */}
+          <form onSubmit={handleSendReset} noValidate className="space-y-5">
             <DialogHeader>
               <DialogTitle>Recuperar senha</DialogTitle>
               <DialogDescription>
@@ -333,26 +346,49 @@ export default function LoginPage() {
             <div className="space-y-2">
               <Label htmlFor="reset-email">E-mail da sua conta</Label>
               <Input
+                ref={resetEmailRef}
                 id="reset-email"
                 type="email"
                 inputMode="email"
                 autoComplete="email"
                 value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
+                onChange={(e) => {
+                  setResetEmail(e.target.value);
+                  setResetFieldError(null);
+                  setResetNotice(null);
+                }}
                 placeholder="nome@empresa.com.br"
-                disabled={isSendingReset}
+                readOnly={isSendingReset}
+                aria-invalid={resetFieldError ? true : undefined}
+                aria-describedby={resetFieldError ? "reset-email-erro" : undefined}
                 className="h-12 text-[0.9375rem]"
-                autoFocus
                 required
               />
+              {resetFieldError && (
+                <p id="reset-email-erro" className="flex items-start gap-1.5 text-sm font-medium text-destructive animate-fade-in">
+                  <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  {resetFieldError}
+                </p>
+              )}
             </div>
+            {resetNotice && (
+              <Alert
+                variant={resetNotice.tone}
+                role={resetNotice.tone === "info" ? "status" : "alert"}
+                className="animate-fade-in"
+              >
+                {resetNotice.tone === "info" ? <Info aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}
+                <p className="mb-1 font-semibold leading-snug text-foreground">{resetNotice.title}</p>
+                <AlertDescription>{resetNotice.text}</AlertDescription>
+              </Alert>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" size="lg" onClick={() => setIsResetOpen(false)} disabled={isSendingReset}>
                 Cancelar
               </Button>
-              <Button type="submit" size="lg" disabled={isSendingReset}>
+              <Button type="submit" size="lg" aria-disabled={isSendingReset || undefined}>
                 {isSendingReset && <Loader2 className="animate-spin" aria-hidden="true" />}
-                Enviar link
+                {isSendingReset ? "Enviando" : "Enviar link"}
               </Button>
             </DialogFooter>
           </form>

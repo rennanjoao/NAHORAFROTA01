@@ -1,15 +1,18 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useRef, type KeyboardEvent, type MouseEvent } from "react";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ThemePreference } from "@/lib/preferences";
 import { usePreferences } from "./PreferencesProvider";
 
-const clickOrigin = (event: MouseEvent<HTMLElement>) => {
-  const rect = event.currentTarget.getBoundingClientRect();
+const centerOf = (element: Element) => {
+  const rect = element.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 };
+
+const clickOrigin = (event: MouseEvent<HTMLElement>) => centerOf(event.currentTarget);
 
 /** Um clique alterna claro/escuro. Fica no topo da tela. */
 export function ThemeToggle({ className }: { className?: string }) {
@@ -104,5 +107,38 @@ export function ThemeSegmented({ className, size = "default" }: { className?: st
         );
       })}
     </div>
+  );
+}
+
+/**
+ * A mesma escolha dentro de um menu (menu da conta). Sao itens de radio do
+ * proprio menu: as setas chegam neles (um radiogroup solto dentro do menu
+ * ficava fora do teclado e o axe acusava aria-required-children).
+ */
+export function ThemeMenuRadio({ className }: { className?: string }) {
+  const { theme, setTheme } = usePreferences();
+
+  return (
+    <DropdownMenuPrimitive.RadioGroup value={theme} aria-label="Tema" className={cn("grid grid-cols-3 gap-1 rounded-lg bg-muted p-1", className)}>
+      {OPTIONS.map(({ value, label, icon: Icon }) => (
+        <DropdownMenuPrimitive.RadioItem
+          key={value}
+          value={value}
+          onSelect={(event) => {
+            // O menu fica aberto para a pessoa ver o tema novo.
+            event.preventDefault();
+            setTheme(value, event.target instanceof Element ? centerOf(event.target) : undefined);
+          }}
+          className={cn(
+            "flex min-h-12 cursor-pointer select-none flex-col items-center justify-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground outline-none transition-all duration ease-out",
+            "data-[highlighted]:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+            "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:shadow-sm",
+          )}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+          {label}
+        </DropdownMenuPrimitive.RadioItem>
+      ))}
+    </DropdownMenuPrimitive.RadioGroup>
   );
 }

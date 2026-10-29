@@ -14,17 +14,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Package } from "lucide-react";
+import { Package, Truck } from "lucide-react";
 import { EmptyState, StatusBadge, type Tone } from "@/components/patterns";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { getOccurrenceLabel } from "@/hooks/useSLADB";
 import type { DBInvoice } from "@/hooks/useInvoicesDB";
-import { hasOccurrence, isDeliveredStatus, isReturnedStatus } from "@/lib/reportFilters";
+import { getInvoiceEventDate, hasOccurrence, isDeliveredStatus, isReturnedStatus } from "@/lib/reportFilters";
 import { useEffect, useMemo, useState } from "react";
 
 export type DrilldownType = "sla" | "ontime" | "delayed" | "returns" | "cost" | "volume";
+
+/** Romaneio de agregado que entra no custo medio por entrega. */
+export interface CostManifestRow {
+  id: string;
+  code: string;
+  driver: string;
+  date: string;
+  freight: number;
+}
 
 interface KPIDrilldownSheetProps {
   open: boolean;
@@ -32,6 +40,8 @@ interface KPIDrilldownSheetProps {
   kpiType: DrilldownType | null;
   /** NFs ja filtradas pelos filtros da tela de Relatorios. */
   invoices: DBInvoice[];
+  /** Custo medio: romaneios de agregados do periodo e a conta do indicador. */
+  cost?: { manifests: CostManifestRow[]; totalFreight: number; delivered: number; avgCost: number };
 }
 
 const configs: Record<DrilldownType, { title: string; description: string }> = {
@@ -52,8 +62,8 @@ const configs: Record<DrilldownType, { title: string; description: string }> = {
     description: "Entregas que voltaram para a empresa.",
   },
   cost: {
-    title: "Valores das notas",
-    description: "Valor de cada nota fiscal no período.",
+    title: "Como sai o custo médio por entrega",
+    description: "Frete pago aos agregados no período dividido pelas entregas feitas.",
   },
   volume: {
     title: "Notas do período",
@@ -77,7 +87,56 @@ const STATUS_INFO: Record<string, { label: string; tone: Tone }> = {
 
 const statusInfo = (status: string) => STATUS_INFO[status] ?? { label: status, tone: "neutral" as Tone };
 
-export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPIDrilldownSheetProps) {
+const eventDay = (inv: DBInvoice) => new Date(getInvoiceEventDate(inv)).toLocaleDateString("pt-BR");
+const dayOf = (value: string) => new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString("pt-BR");
+
+/** Custo medio: a conta em cima e os romaneios de agregados que entram nela. */
+function CostBreakdown({ cost }: { cost: NonNullable<KPIDrilldownSheetProps["cost"]> }) {
+  return (
+    <div className="space-y-4 pb-4">
+      <dl className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/40 p-4 sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-muted-foreground">Frete de agregados</dt>
+          <dd className="font-data text-lg font-semibold text-foreground">{formatCurrency(cost.totalFreight)}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Entregas feitas</dt>
+          <dd className="font-data text-lg font-semibold text-foreground">{cost.delivered.toLocaleString("pt-BR")}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Custo médio por entrega</dt>
+          <dd className="font-data text-lg font-semibold text-foreground">{formatCurrency(cost.avgCost)}</dd>
+        </div>
+      </dl>
+      {cost.manifests.length === 0 ? (
+        <EmptyState
+          compact
+          icon={Truck}
+          title="Nenhum romaneio de agregado no período"
+          description="Com frota própria não há frete a pagar, então o custo médio fica em zero."
+        />
+      ) : (
+        <ul className="divide-y rounded-lg border">
+          {cost.manifests.map((m) => (
+            <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-foreground" title={m.driver}>
+                  {m.driver}
+                </p>
+                <p className="font-data text-xs text-muted-foreground">
+                  Romaneio {m.code} · {dayOf(m.date)}
+                </p>
+              </div>
+              <span className="shrink-0 font-data font-semibold text-foreground">{formatCurrency(m.freight)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices, cost }: KPIDrilldownSheetProps) {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
@@ -119,6 +178,7 @@ export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPI
   const config = configs[kpiType];
 
   const showReason = kpiType === "delayed" || kpiType === "returns";
+  const showCost = kpiType === "cost" && !!cost;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -126,28 +186,37 @@ export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPI
         <SheetHeader className="border-b pb-4">
           <SheetTitle>{config.title}</SheetTitle>
           <SheetDescription>{config.description}</SheetDescription>
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-            <Badge variant="secondary" className="w-fit font-data">
-              {filteredItems.length.toLocaleString("pt-BR")} nota{filteredItems.length === 1 ? "" : "s"}
-            </Badge>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[12rem]" aria-label="Filtrar por situação">
-                <SelectValue placeholder="Situação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as situações</SelectItem>
-                {statusOptions.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {statusInfo(status).label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!showCost && (
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <Badge variant="secondary" className="w-fit font-data">
+                {filteredItems.length.toLocaleString("pt-BR")} nota{filteredItems.length === 1 ? "" : "s"}
+              </Badge>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[12rem]" aria-label="Filtrar por situação">
+                  <SelectValue placeholder="Situação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as situações</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {statusInfo(status).label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </SheetHeader>
 
-        <ScrollArea className="-mx-6 flex-1 px-6">
-          {filteredItems.length === 0 ? (
+        {/* Rolavel pelo teclado (a lista nao tem itens focaveis). */}
+        <div
+          tabIndex={0}
+          aria-label={`Lista: ${config.title}`}
+          className="-mx-6 flex-1 overflow-y-auto overscroll-contain px-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          {showCost && cost ? (
+            <CostBreakdown cost={cost} />
+          ) : filteredItems.length === 0 ? (
             <EmptyState
               compact
               icon={Package}
@@ -174,16 +243,19 @@ export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPI
                     {filteredItems.map((inv) => (
                       <TableRow key={inv.id}>
                         <TableCell className="font-data text-xs">{inv.nfe_number || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(inv.imported_at).toLocaleDateString("pt-BR")}
+                        <TableCell className="text-sm text-muted-foreground">{eventDay(inv)}</TableCell>
+                        <TableCell className="max-w-[180px] truncate text-sm" title={inv.recipient_name}>
+                          {inv.recipient_name}
                         </TableCell>
-                        <TableCell className="max-w-[180px] truncate text-sm">{inv.recipient_name}</TableCell>
                         <TableCell className="text-right font-data font-medium">{formatCurrency(inv.total_value)}</TableCell>
                         <TableCell>
                           <StatusBadge tone={statusInfo(inv.status).tone}>{statusInfo(inv.status).label}</StatusBadge>
                         </TableCell>
                         {showReason && (
-                          <TableCell className="max-w-[140px] truncate text-sm text-muted-foreground">
+                          <TableCell
+                            className="max-w-[140px] truncate text-sm text-muted-foreground"
+                            title={inv.occurrence_type ? getOccurrenceLabel(inv.occurrence_type) : undefined}
+                          >
                             {inv.occurrence_type ? getOccurrenceLabel(inv.occurrence_type) : "—"}
                           </TableCell>
                         )}
@@ -199,9 +271,11 @@ export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPI
                   <li key={inv.id} className="space-y-2 rounded-lg border bg-card p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{inv.recipient_name}</p>
+                        <p className="truncate text-sm font-medium" title={inv.recipient_name}>
+                          {inv.recipient_name}
+                        </p>
                         <p className="font-data text-xs text-muted-foreground">
-                          NF {inv.nfe_number || "—"} · {new Date(inv.imported_at).toLocaleDateString("pt-BR")}
+                          NF {inv.nfe_number || "—"} · {eventDay(inv)}
                         </p>
                       </div>
                       <StatusBadge tone={statusInfo(inv.status).tone}>{statusInfo(inv.status).label}</StatusBadge>
@@ -217,7 +291,7 @@ export function KPIDrilldownSheet({ open, onOpenChange, kpiType, invoices }: KPI
               </ul>
             </>
           )}
-        </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
   );

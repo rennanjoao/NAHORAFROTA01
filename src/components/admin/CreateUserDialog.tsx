@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
 import { FormField } from "@/components/patterns/FormField";
 import { CredentialsCard } from "./CredentialsCard";
 import { INVITE_ROLES, looksLikeEmail } from "./roleOptions";
+import { friendlyServerMessage, isDuplicateEmail } from "./serverMessages";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
@@ -37,6 +38,8 @@ const isEdgeTransportError = (error: unknown) => {
   );
 };
 
+const FALLBACK_ERROR = "Não foi possível criar o usuário. Confira os dados e tente de novo.";
+
 export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
   const { canAddUser, limits, plan, planLabels } = usePlanLimits();
   const [open, setOpen] = useState(false);
@@ -44,6 +47,8 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [created, setCreated] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  // O campo fica desabilitado enquanto envia: o foco vai para o e-mail quando ele volta.
+  const [focusEmail, setFocusEmail] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -54,6 +59,13 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
     email: useRef<HTMLInputElement>(null),
     password: useRef<HTMLInputElement>(null),
   };
+
+  useEffect(() => {
+    if (focusEmail && !isLoading) {
+      refs.email.current?.focus();
+      setFocusEmail(false);
+    }
+  }, [focusEmail, isLoading, refs.email]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
@@ -85,7 +97,9 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
   const handleCreate = async (event?: FormEvent) => {
     event?.preventDefault();
     if (!canAddUser) {
-      toast.error(`Limite de ${limits.max_users} usuário(s) atingido no plano ${planLabels[plan] || plan}. Fale com a equipe para mudar de plano.`);
+      toast.error(
+        `O plano ${planLabels[plan] || plan} permite até ${limits.max_users} ${limits.max_users === 1 ? "usuário" : "usuários"}. Fale com a equipe para mudar de plano.`,
+      );
       return;
     }
 
@@ -126,25 +140,36 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       if (error) {
         console.error("Create user error:", error);
         if (isEdgeTransportError(error)) {
-          toast.error("Não foi possível conectar à função de criação de usuários. Verifique o deploy das Edge Functions e a liberação de domínio/CORS.");
-        } else {
-          const info = await readEdgeFunctionError(error, "Erro ao criar usuário");
-          toast.error(info.message);
+          toast.error("Não foi possível criar o usuário agora. Confira a internet e tente de novo.");
+          return;
         }
+        const info = await readEdgeFunctionError(error, FALLBACK_ERROR);
+        // E-mail repetido aparece embaixo do campo, com o foco nele.
+        if (isDuplicateEmail(info.message, info.code)) {
+          setErrors({ email: "Este e-mail já está cadastrado. Use outro e-mail." });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(info.message, FALLBACK_ERROR));
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || "Erro ao criar usuário");
+        if (isDuplicateEmail(data?.error, data?.code)) {
+          setErrors({ email: "Este e-mail já está cadastrado. Use outro e-mail." });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(data?.error, FALLBACK_ERROR));
         return;
       }
 
       setCreated(true);
       toast.success(`Usuário ${name.trim()} criado.`);
       onUserCreated?.();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error creating user:", err);
-      toast.error(err.message || "Erro ao criar usuário");
+      toast.error(friendlyServerMessage(err instanceof Error ? err.message : "", FALLBACK_ERROR));
     } finally {
       setIsLoading(false);
     }
@@ -176,9 +201,9 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
           <CredentialsCard
             title="Acesso pronto"
             rows={[
-              { label: "Nome", value: name },
+              { label: "Nome", value: name.trim() },
               { label: "E-mail", value: email.trim().toLowerCase(), mono: true },
-              { label: "Senha", value: password, mono: true },
+              { label: "Senha", value: password.trim(), mono: true },
               { label: "Nível", value: selectedRole?.label || role },
             ]}
             copyText={`Acesso ao Na Hora Frota:\nE-mail: ${email.trim().toLowerCase()}\nSenha: ${password.trim()}\n\nAcesse: ${window.location.origin}/login`}

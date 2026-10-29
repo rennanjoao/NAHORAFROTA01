@@ -44,6 +44,14 @@ interface LinkedDriver {
   photo: string | null;
 }
 
+// Titulo da aba do navegador por tela do app (o leitor de tela anuncia a troca).
+const TAB_TITLES: Record<DriverTab, string> = {
+  home: 'Entregas de hoje',
+  wallet: 'Carteira',
+  report: 'Reportar problema',
+  settings: 'Configurações',
+};
+
 const GPS_TRACKING_PREF_KEY = 'nahorafrota:gps-tracking-pref';
 const GPS_HEARTBEAT_INTERVAL_MS = 30000;
 // Intervalo minimo entre tentativas de registrar chegada na mesma entrega.
@@ -102,10 +110,21 @@ export default function TrackerPage() {
   const { 
     manifest, 
     deliveries, 
-    isLoading: manifestLoading, 
+    isLoading: manifestLoading,
+    error: manifestError,
     refetch: refetchManifest,
     markArrived,
   } = useDriverManifest();
+
+  // Falha ao atualizar com a lista antiga na tela: avisa (sem lista, a aba Inicio mostra o erro).
+  useEffect(() => {
+    if (!manifestError || !manifest) return;
+    toast.error('Não foi possível atualizar as entregas', {
+      description: 'Confira a internet. A lista na tela pode estar desatualizada.',
+      duration: 4000,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- so quando surge um erro novo
+  }, [manifestError]);
 
   // Fetch linked driver from database (driver with matching user_id)
   useEffect(() => {
@@ -153,7 +172,9 @@ export default function TrackerPage() {
     const updateBattery = async () => {
       if ('getBattery' in navigator) {
         try {
-          const battery = await (navigator as any).getBattery();
+          const battery = await (navigator as Navigator & {
+            getBattery: () => Promise<{ level: number; addEventListener: (type: string, listener: () => void) => void }>;
+          }).getBattery();
           setBatteryLevel(Math.round(battery.level * 100));
           
           battery.addEventListener('levelchange', () => {
@@ -194,7 +215,7 @@ export default function TrackerPage() {
       setLastUpdate(new Date());
       setGpsError(null);
       setGpsBlocked(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Erro ao enviar posição:', err);
     }
   }, [driverInfo, batteryLevel]);
@@ -520,6 +541,21 @@ export default function TrackerPage() {
     setShowOccurrenceModal(true);
   }, []);
 
+  useEffect(() => {
+    document.title = `${TAB_TITLES[activeTab]} · Na Hora Frota`;
+  }, [activeTab]);
+
+  // Depois de finalizar/reportar, o cartao usado sai da lista e o foco cairia no body:
+  // leva para "Proxima entrega" (ou "Todas as paradas foram feitas").
+  const afterDeliveryChange = useCallback(async () => {
+    setSelectedDelivery(null);
+    await refetchManifest();
+    window.setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      (document.getElementById('proxima-titulo') || document.getElementById('tudo-entregue-titulo'))?.focus();
+    }, 400);
+  }, [refetchManifest]);
+
   const changeTab = useCallback((tab: DriverTab) => {
     setActiveTab(tab);
     window.scrollTo({ top: 0 });
@@ -583,6 +619,7 @@ export default function TrackerPage() {
               manifest={manifest}
               deliveries={deliveries}
               loading={manifestLoading}
+              error={manifestError}
               onRefresh={refetchManifest}
               onNavigate={navigateToDelivery}
               onFinishDelivery={handleFinishDelivery}
@@ -644,10 +681,7 @@ export default function TrackerPage() {
               driverId={driverInfo.id}
               latitude={position?.latitude}
               longitude={position?.longitude}
-              onSuccess={() => {
-                setSelectedDelivery(null);
-                refetchManifest();
-              }}
+              onSuccess={afterDeliveryChange}
             />
           )}
 
@@ -665,10 +699,7 @@ export default function TrackerPage() {
               driverId={driverInfo.id}
               latitude={position?.latitude}
               longitude={position?.longitude}
-              onSuccess={() => {
-                setSelectedDelivery(null);
-                refetchManifest();
-              }}
+              onSuccess={afterDeliveryChange}
             />
           )}
 

@@ -96,7 +96,7 @@ export default function InstallPage() {
 
   if (isStandalone || isInstalled) {
     return (
-      <AuthLayout variant="centered">
+      <AuthLayout variant="centered" pageTitle="App instalado">
         <div className="space-y-4 text-center">
           <span aria-hidden="true" className="mx-auto flex h-16 w-16 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
             <CircleCheck className="h-8 w-8" />
@@ -117,7 +117,7 @@ export default function InstallPage() {
   }
 
   return (
-    <AuthLayout variant="centered" width="md">
+    <AuthLayout variant="centered" width="md" pageTitle="Instalar o app">
       <div className="space-y-8">
         <div className="space-y-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">

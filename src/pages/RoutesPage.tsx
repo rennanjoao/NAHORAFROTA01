@@ -28,7 +28,7 @@ export default function RoutesPage() {
 
         <Section title="O Brasil em números" description="Roubo de carga em 2024 e no primeiro semestre de 2025.">
           <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Roubos de carga em 2024" value={nationalStats.totalOccurrences2024} icon={AlertTriangle} tone="danger" hint="Casos registrados no país" />
+            <StatCard label="Roubos de carga" value={nationalStats.totalOccurrences2024} icon={AlertTriangle} tone="danger" hint="Casos registrados no país em 2024" />
             <StatCard label="Prejuízo estimado" value={nationalStats.estimatedLoss} icon={Wallet} tone="neutral" hint="Em 2024" />
             <StatCard label="Aumento em 2025" value={nationalStats.growth2025} icon={TrendingUp} tone="danger" hint="1º semestre, comparado a 2024" />
             <StatCard label="Prejuízo no Sudeste" value={nationalStats.sudeste} icon={MapPinned} tone="warning" hint="Do total do país" />

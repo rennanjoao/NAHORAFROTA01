@@ -258,6 +258,18 @@ export function SLAEvolutionChart({
     [chartData]
   );
 
+  // Eixo comeca perto dos dados (antes ia de 0 a 100 e a linha ficava espremida no topo).
+  const yAxis = useMemo(() => {
+    const values = chartData.flatMap((p) => [p.current, p.previous]).filter((v): v is number => v != null);
+    const min = values.length ? Math.min(...values) : 100;
+    const lower = Math.max(0, Math.min(70, Math.floor((min - 5) / 10) * 10));
+    const step = lower <= 40 ? 20 : 10;
+    const ticks: number[] = [];
+    for (let v = lower; v <= 100; v += step) ticks.push(v);
+    if (ticks[ticks.length - 1] !== 100) ticks.push(100);
+    return { domain: [lower, 100] as [number, number], ticks };
+  }, [chartData]);
+
   const refDate = selectedRefDate;
   const currentMonthLabel = format(refDate, "MMMM yyyy", { locale: ptBR });
   const prevMonthLabel = format(subMonths(refDate, 1), "MMMM yyyy", {
@@ -432,7 +444,9 @@ export function SLAEvolutionChart({
                 <CartesianGrid {...gridProps} vertical={false} />
                 <XAxis dataKey="day" interval="preserveStartEnd" tick={axisTick} axisLine={axisLine} tickLine={false} />
                 <YAxis
-                  domain={[0, 100]}
+                  domain={yAxis.domain}
+                  ticks={yAxis.ticks}
+                  allowDataOverflow
                   width={48}
                   tick={axisTick}
                   axisLine={false}
@@ -462,7 +476,7 @@ export function SLAEvolutionChart({
                   <Line
                     type="monotone"
                     dataKey="previous"
-                    name="Mês anterior"
+                    name={capitalize(prevMonthLabel)}
                     stroke={SERIES[1]}
                     strokeWidth={2}
                     strokeDasharray="5 4"
@@ -473,7 +487,7 @@ export function SLAEvolutionChart({
                 <Line
                   type="monotone"
                   dataKey="current"
-                  name="Mês escolhido"
+                  name={capitalize(currentMonthLabel)}
                   stroke={SERIES[0]}
                   strokeWidth={2.5}
                   dot={{ r: 3, fill: SERIES[0], stroke: "hsl(var(--card))", strokeWidth: 2 }}

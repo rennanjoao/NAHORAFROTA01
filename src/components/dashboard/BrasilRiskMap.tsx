@@ -10,10 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilterBar, Section, StatusBadge, toneDot, type Tone } from "@/components/patterns";
 import { STATUS_HEX } from "@/lib/brandSymbol";
-import { BRAZIL_ZONES, ALL_CITIES, getNeighborhoods } from "@/lib/driverUtils";
 import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
-import { BRAZIL_CENTER, CITY_COORDINATES, ZONE_COORDINATES, riskZones, type DangerousZone, type RiskZone } from "./riskZones";
+import { BRAZIL_CENTER, BRAZIL_REGIONS, CITY_COORDINATES, riskZones, type DangerousZone, type RiskZone } from "./riskZones";
 
 type RiskLevel = RiskZone["riskLevel"];
 
@@ -82,7 +81,7 @@ function RiskZoneDetail({ zone }: { zone: RiskZone }) {
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">Por mês</dt>
+            <dt className="text-xs text-muted-foreground">Roubos por mês</dt>
             <dd className="font-data text-xl font-semibold text-foreground">
               {zone.statistics.monthlyOccurrences.toLocaleString("pt-BR")}
             </dd>
@@ -157,59 +156,51 @@ export function BrasilRiskMap() {
   const bubblesRef = useRef<Map<string, L.CircleMarker>>(new Map());
   const [selectedZone, setSelectedZone] = useState<RiskZone>(riskZones[0]);
 
-  // Filtros
-  const [selectedZonaFilter, setSelectedZonaFilter] = useState<string>("all");
-  const [selectedCidadeFilter, setSelectedCidadeFilter] = useState<string>("all");
-  const [selectedBairroFilter, setSelectedBairroFilter] = useState<string>("all");
+  // Filtros: regiao do pais (filtra a lista e aproxima o mapa) e cidade (aproxima
+  // e abre a area mapeada da cidade, quando existe). O filtro "Bairro" saiu: o
+  // mapa nao passa do zoom 10 e os bairros eram genericos, entao nao fazia nada.
+  const [regionFilter, setRegionFilter] = useState<string>("all");
+  const [cityFilter, setCityFilter] = useState<string>("all");
 
-  // Cidades da zona escolhida
-  const availableCities = selectedZonaFilter === "all" ? ALL_CITIES : BRAZIL_ZONES[selectedZonaFilter as keyof typeof BRAZIL_ZONES] || [];
+  const region = regionFilter === "all" ? null : BRAZIL_REGIONS[regionFilter];
+  // So cidades que o mapa sabe localizar (antes algumas nao moviam o mapa).
+  const availableCities = (region ? region.cities : Object.keys(CITY_COORDINATES)).slice().sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const visibleZones = region ? riskZones.filter((zone) => region.states.includes(zone.state)) : riskZones;
 
-  // Bairros da cidade escolhida
-  const availableNeighborhoods = selectedCidadeFilter === "all" ? [] : getNeighborhoods(selectedCidadeFilter);
+  const zoneOfCity = (city: string) =>
+    riskZones.find((zone) => zone.cities.some((name) => name === city || name.startsWith(`${city} (`)));
 
-  const handleZonaChange = (value: string) => {
-    setSelectedZonaFilter(value);
-    setSelectedCidadeFilter("all");
-    setSelectedBairroFilter("all");
-
-    if (value !== "all" && mapRef.current && ZONE_COORDINATES[value]) {
-      const { center, zoom } = ZONE_COORDINATES[value];
-      mapRef.current.flyTo(center, zoom, flyOptions());
-    } else if (value === "all" && mapRef.current) {
-      mapRef.current.flyTo(BRAZIL_CENTER, 4, flyOptions());
+  const handleRegionChange = (value: string) => {
+    setRegionFilter(value);
+    setCityFilter("all");
+    const next = value === "all" ? null : BRAZIL_REGIONS[value];
+    if (next) {
+      mapRef.current?.flyTo(next.center, next.zoom, flyOptions());
+      // O detalhe acompanha a lista: abre a primeira area da regiao.
+      const first = riskZones.find((zone) => next.states.includes(zone.state));
+      if (first && !next.states.includes(selectedZone.state)) setSelectedZone(first);
+    } else {
+      mapRef.current?.flyTo(BRAZIL_CENTER, 4, flyOptions());
     }
   };
 
-  const handleCidadeChange = (value: string) => {
-    setSelectedCidadeFilter(value);
-    setSelectedBairroFilter("all");
-
-    if (value !== "all" && mapRef.current && CITY_COORDINATES[value]) {
+  const handleCityChange = (value: string) => {
+    setCityFilter(value);
+    if (value !== "all" && CITY_COORDINATES[value]) {
       const { center, zoom } = CITY_COORDINATES[value];
-      mapRef.current.flyTo(center, zoom, flyOptions());
-    } else if (value === "all" && selectedZonaFilter !== "all" && mapRef.current) {
-      const { center, zoom } = ZONE_COORDINATES[selectedZonaFilter];
-      mapRef.current.flyTo(center, zoom, flyOptions());
-    }
-  };
-
-  const handleBairroChange = (value: string) => {
-    setSelectedBairroFilter(value);
-
-    // Bairro: aproxima mais a cidade
-    if (value !== "all" && mapRef.current && selectedCidadeFilter !== "all") {
-      const cityCoords = CITY_COORDINATES[selectedCidadeFilter];
-      if (cityCoords) {
-        mapRef.current.flyTo(cityCoords.center, 12, flyOptions());
-      }
+      mapRef.current?.flyTo(center, zoom, flyOptions());
+      const zone = zoneOfCity(value);
+      if (zone) setSelectedZone(zone);
+    } else if (value === "all" && region) {
+      mapRef.current?.flyTo(region.center, region.zoom, flyOptions());
+    } else if (value === "all") {
+      mapRef.current?.flyTo(BRAZIL_CENTER, 4, flyOptions());
     }
   };
 
   const clearFilters = () => {
-    setSelectedZonaFilter("all");
-    setSelectedCidadeFilter("all");
-    setSelectedBairroFilter("all");
+    setRegionFilter("all");
+    setCityFilter("all");
     mapRef.current?.flyTo(BRAZIL_CENTER, 4, flyOptions());
   };
 
@@ -303,15 +294,15 @@ export function BrasilRiskMap() {
     count: riskZones.filter((zone) => zone.riskLevel === level).length,
   }));
 
-  const hasFilters = selectedZonaFilter !== "all" || selectedCidadeFilter !== "all";
+  const hasFilters = regionFilter !== "all" || cityFilter !== "all";
 
   return (
     <Section
       id="mapa-risco"
       title="Mapa de risco"
-      description="Toque em uma região no mapa ou na lista para ver os trechos mais perigosos e o que fazer."
+      description="Toque em uma área no mapa ou na lista para ver os trechos mais perigosos e o que fazer."
       actions={
-        <ul className="flex flex-wrap gap-1.5" aria-label="Regiões por nível de risco">
+        <ul className="flex flex-wrap gap-1.5" aria-label="Áreas por nível de risco">
           {counts.map(({ level, count }) => (
             <li key={level}>
               <StatusBadge tone={RISK[level].tone}>
@@ -332,49 +323,33 @@ export function BrasilRiskMap() {
           )
         }
       >
-        <div className="grid gap-1.5 sm:w-44">
+        <div className="grid gap-1.5 sm:w-48">
           <Label htmlFor="risco-regiao">Região do país</Label>
-          <Select value={selectedZonaFilter} onValueChange={handleZonaChange}>
+          <Select value={regionFilter} onValueChange={handleRegionChange}>
             <SelectTrigger id="risco-regiao">
               <SelectValue placeholder="Região" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todo o Brasil</SelectItem>
-              {Object.keys(BRAZIL_ZONES).map((zona) => (
-                <SelectItem key={zona} value={zona}>
-                  {zona}
+              {Object.keys(BRAZIL_REGIONS).map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-1.5 sm:w-48">
+        <div className="grid gap-1.5 sm:w-52">
           <Label htmlFor="risco-cidade">Cidade</Label>
-          <Select value={selectedCidadeFilter} onValueChange={handleCidadeChange}>
+          <Select value={cityFilter} onValueChange={handleCityChange}>
             <SelectTrigger id="risco-cidade">
               <SelectValue placeholder="Cidade" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as cidades</SelectItem>
-              {availableCities.map((cidade) => (
-                <SelectItem key={cidade} value={cidade}>
-                  {cidade}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-1.5 sm:w-48">
-          <Label htmlFor="risco-bairro">Bairro</Label>
-          <Select value={selectedBairroFilter} onValueChange={handleBairroChange} disabled={selectedCidadeFilter === "all"}>
-            <SelectTrigger id="risco-bairro">
-              <SelectValue placeholder={selectedCidadeFilter === "all" ? "Escolha a cidade antes" : "Bairro"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{selectedCidadeFilter === "all" ? "Escolha a cidade antes" : "Todos os bairros"}</SelectItem>
-              {availableNeighborhoods.map((bairro) => (
-                <SelectItem key={bairro} value={bairro}>
-                  {bairro}
+              <SelectItem value="all">{region ? "Todas as cidades da região" : "Todas as cidades"}</SelectItem>
+              {availableCities.map((city) => (
+                <SelectItem key={city} value={city}>
+                  {city}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -388,7 +363,7 @@ export function BrasilRiskMap() {
             <div
               ref={mapContainerRef}
               role="region"
-              aria-label="Mapa do Brasil com as regiões de risco"
+              aria-label="Mapa do Brasil com as áreas de risco"
               className="h-[22rem] w-full sm:h-[28rem] lg:h-auto lg:min-h-0 lg:flex-1"
             />
             {/* Legenda */}
@@ -406,11 +381,18 @@ export function BrasilRiskMap() {
             </div>
           </div>
 
-          {/* Lista de regioes: mesma acao do clique no mapa, pelo teclado */}
+          {/* Lista de areas: mesma acao do clique no mapa, pelo teclado */}
           <div className="flex min-h-0 flex-col border-t lg:h-[34rem] lg:border-l lg:border-t-0">
-            <h3 className="border-b px-4 py-3 text-sm font-semibold text-foreground">Regiões mapeadas ({riskZones.length})</h3>
+            <h3 className="border-b px-4 py-3 text-sm font-semibold text-foreground">
+              {region ? `Áreas mapeadas no ${regionFilter}` : "Áreas mapeadas"} ({visibleZones.length})
+            </h3>
+            {visibleZones.length === 0 && (
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                Nenhuma área mapeada nesta região. Os dados cobrem as regiões com mais roubos de carga do país.
+              </p>
+            )}
             <ul className="min-h-0 flex-1 divide-y overflow-y-auto">
-              {riskZones.map((zone) => {
+              {visibleZones.map((zone) => {
                 const selected = zone.id === selectedZone.id;
                 return (
                   <li key={zone.id}>

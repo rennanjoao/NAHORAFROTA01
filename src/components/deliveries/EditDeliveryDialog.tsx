@@ -22,6 +22,8 @@ import { Switch } from "@/components/ui/switch";
 import { Save, Loader2, CheckCircle, User, Warehouse } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { parseDecimalInput } from "@/lib/formatCurrency";
+import { FormField } from "@/components/patterns";
 import type { DeliveryStatus } from "./types";
 
 interface Delivery {
@@ -77,6 +79,8 @@ export function EditDeliveryDialog({
   const [receiverName, setReceiverName] = useState("");
   const [receiverDocument, setReceiverDocument] = useState("");
   const [errors, setErrors] = useState<{ time?: string; name?: string; document?: string }>({});
+  // Erros dos dados da nota (campo obrigatorio vazio, CEP, numeros).
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Delivery, string>>>({});
 
   const formatCpf = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -112,11 +116,32 @@ export function EditDeliveryDialog({
       setReceiverName("");
       setReceiverDocument("");
       setErrors({});
+      setFieldErrors({});
     }
   }, [delivery]);
 
+  // Confere os dados da nota; foca o primeiro campo com problema.
+  const validateFields = () => {
+    const next: Partial<Record<keyof Delivery, string>> = {};
+    const text = (key: keyof Delivery) => String(formData[key] ?? "").trim();
+    if (!text("nfe")) next.nfe = "Informe o número da nota.";
+    if (!text("recipient")) next.recipient = "Informe o nome do cliente.";
+    if (!text("address")) next.address = "Informe a rua e o número.";
+    if (!text("city")) next.city = "Informe a cidade.";
+    const zip = text("zipCode").replace(/\D/g, "");
+    if (text("zipCode") && zip.length !== 8) next.zipCode = "O CEP tem 8 números.";
+    if (text("weight") && text("weight") !== "-" && parseDecimalInput(text("weight")) === null) next.weight = "Use só números, como 5,2.";
+    if (text("value") && parseDecimalInput(text("value")) === null) next.value = "Use só números, como 150,00.";
+    setFieldErrors(next);
+    const order: (keyof Delivery)[] = ["nfe", "recipient", "address", "city", "zipCode", "weight", "value"];
+    const first = order.find((key) => next[key]);
+    if (first) document.getElementById(String(first))?.focus();
+    return !first;
+  };
+
   const handleMarkAsReturned = async () => {
     if (!delivery || isSaving) return;
+    if (!validateFields()) return;
 
     setIsSaving(true);
 
@@ -150,7 +175,8 @@ export function EditDeliveryDialog({
   };
 
   const handleSave = async () => {
-    if (!delivery) return;
+    if (!delivery || isSaving) return;
+    if (!validateFields()) return;
 
     setIsSaving(true);
 
@@ -161,12 +187,15 @@ export function EditDeliveryDialog({
       // Mesmas regras de antes, agora com a mensagem embaixo de cada campo.
       const nextErrors: { time?: string; name?: string; document?: string } = {};
       if (!deliveryTime) nextErrors.time = "Informe o horário da entrega.";
-      if (!receiverName) nextErrors.name = "Informe quem recebeu.";
+      if (!receiverName.trim()) nextErrors.name = "Informe quem recebeu.";
+      else if (receiverName.trim().length < 3) nextErrors.name = "Escreva o nome com pelo menos 3 letras.";
       if (!receiverDocument.trim()) nextErrors.document = "Informe o CPF de quem recebeu.";
       else if (!isValidCpf(receiverDocument)) nextErrors.document = "CPF inválido. Confira os números.";
       if (Object.keys(nextErrors).length > 0) {
         setErrors(nextErrors);
         setIsSaving(false);
+        const first = nextErrors.time ? "deliveryTime" : nextErrors.document ? "receiverDocument" : "receiverName";
+        document.getElementById(first)?.focus();
         return;
       }
 
@@ -178,7 +207,7 @@ export function EditDeliveryDialog({
         ...updatedDelivery,
         status: "delivered",
         deliveredAt,
-        receiverName,
+        receiverName: receiverName.trim(),
         receiverDocument: formatCpf(receiverDocument),
         lastUpdatedBy: currentUser,
         lastUpdatedAt: new Date(),
@@ -217,26 +246,28 @@ export function EditDeliveryDialog({
 
   if (!delivery) return null;
 
-  const field = (id: keyof Delivery, label: string, props: { placeholder?: string; inputMode?: "numeric" | "decimal" | "tel"; className?: string; autoComplete?: string } = {}) => (
-    <div className={cn("space-y-1.5", props.className)}>
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        value={(formData[id] as string) || ""}
-        onChange={(e) => setFormData({ ...formData, [id]: e.target.value })}
-        placeholder={props.placeholder}
-        inputMode={props.inputMode}
-        autoComplete={props.autoComplete ?? "off"}
-      />
-    </div>
+  const field = (
+    id: keyof Delivery,
+    label: string,
+    props: { placeholder?: string; inputMode?: "numeric" | "decimal" | "tel"; className?: string; autoComplete?: string; required?: boolean; maxLength?: number } = {},
+  ) => (
+    <FormField id={String(id)} label={label} required={props.required} error={fieldErrors[id]} className={props.className}>
+      {(control) => (
+        <Input
+          {...control}
+          value={(formData[id] as string) || ""}
+          onChange={(e) => {
+            setFormData({ ...formData, [id]: e.target.value });
+            if (fieldErrors[id]) setFieldErrors((prev) => ({ ...prev, [id]: undefined }));
+          }}
+          placeholder={props.placeholder}
+          inputMode={props.inputMode}
+          maxLength={props.maxLength}
+          autoComplete={props.autoComplete ?? "off"}
+        />
+      )}
+    </FormField>
   );
-
-  const errorText = (id: string, message?: string) =>
-    message ? (
-      <p id={id} className="text-sm font-medium text-destructive">
-        {message}
-      </p>
-    ) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,57 +308,50 @@ export function EditDeliveryDialog({
 
             {isManualConfirm && (
               <div className="grid gap-4 border-t border-success/20 pt-4 animate-fade-in sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="deliveryTime">Horário da entrega</Label>
-                  <Input
-                    id="deliveryTime"
-                    type="time"
-                    value={deliveryTime}
-                    onChange={(e) => {
-                      setDeliveryTime(e.target.value);
-                      if (errors.time) setErrors((prev) => ({ ...prev, time: undefined }));
-                    }}
-                    aria-invalid={!!errors.time || undefined}
-                    aria-describedby={errors.time ? "deliveryTime-error" : undefined}
-                    required
-                  />
-                  {errorText("deliveryTime-error", errors.time)}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="receiverDocument">CPF de quem recebeu</Label>
-                  <Input
-                    id="receiverDocument"
-                    value={receiverDocument}
-                    onChange={(e) => {
-                      setReceiverDocument(formatCpf(e.target.value));
-                      if (errors.document) setErrors((prev) => ({ ...prev, document: undefined }));
-                    }}
-                    placeholder="000.000.000-00"
-                    inputMode="numeric"
-                    maxLength={14}
-                    className="font-data"
-                    aria-invalid={!!errors.document || undefined}
-                    aria-describedby={errors.document ? "receiverDocument-error" : undefined}
-                  />
-                  {errorText("receiverDocument-error", errors.document)}
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="receiverName">Nome de quem recebeu</Label>
-                  <Input
-                    id="receiverName"
-                    value={receiverName}
-                    onChange={(e) => {
-                      setReceiverName(e.target.value);
-                      if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
-                    }}
-                    placeholder="Nome completo"
-                    autoComplete="off"
-                    aria-invalid={!!errors.name || undefined}
-                    aria-describedby={errors.name ? "receiverName-error" : undefined}
-                    required
-                  />
-                  {errorText("receiverName-error", errors.name)}
-                </div>
+                <FormField id="deliveryTime" label="Horário da entrega" required error={errors.time}>
+                  {(control) => (
+                    <Input
+                      {...control}
+                      type="time"
+                      value={deliveryTime}
+                      onChange={(e) => {
+                        setDeliveryTime(e.target.value);
+                        if (errors.time) setErrors((prev) => ({ ...prev, time: undefined }));
+                      }}
+                    />
+                  )}
+                </FormField>
+                <FormField id="receiverDocument" label="CPF de quem recebeu" required error={errors.document}>
+                  {(control) => (
+                    <Input
+                      {...control}
+                      value={receiverDocument}
+                      onChange={(e) => {
+                        setReceiverDocument(formatCpf(e.target.value));
+                        if (errors.document) setErrors((prev) => ({ ...prev, document: undefined }));
+                      }}
+                      placeholder="000.000.000-00"
+                      inputMode="numeric"
+                      maxLength={14}
+                      autoComplete="off"
+                      className="font-data"
+                    />
+                  )}
+                </FormField>
+                <FormField id="receiverName" label="Nome de quem recebeu" required error={errors.name} className="sm:col-span-2">
+                  {(control) => (
+                    <Input
+                      {...control}
+                      value={receiverName}
+                      onChange={(e) => {
+                        setReceiverName(e.target.value);
+                        if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+                      }}
+                      placeholder="Nome completo"
+                      autoComplete="off"
+                    />
+                  )}
+                </FormField>
               </div>
             )}
           </div>
@@ -335,17 +359,17 @@ export function EditDeliveryDialog({
           <fieldset className="space-y-4">
             <legend className="mb-3 text-sm font-semibold text-foreground">Nota e cliente</legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              {field("nfe", "Número da NF-e", { inputMode: "numeric" })}
+              {field("nfe", "Número da nota", { inputMode: "numeric", required: true })}
               {field("phone", "Telefone do cliente", { placeholder: "(00) 00000-0000", inputMode: "tel" })}
-              {field("recipient", "Cliente (destinatário)", { className: "sm:col-span-2" })}
+              {field("recipient", "Cliente (destinatário)", { className: "sm:col-span-2", required: true })}
             </div>
           </fieldset>
 
           <fieldset className="space-y-4">
             <legend className="mb-3 text-sm font-semibold text-foreground">Endereço de entrega</legend>
             <div className="grid grid-cols-6 gap-4">
-              {field("address", "Rua e número", { className: "col-span-6", placeholder: "Ex.: Rua das Flores, 120" })}
-              {field("city", "Cidade", { className: "col-span-6 sm:col-span-3" })}
+              {field("address", "Rua e número", { className: "col-span-6", placeholder: "Ex.: Rua das Flores, 120", required: true })}
+              {field("city", "Cidade", { className: "col-span-6 sm:col-span-3", required: true })}
               <div className="col-span-2 space-y-1.5 sm:col-span-1">
                 <Label htmlFor="state">UF</Label>
                 <Select
@@ -362,7 +386,7 @@ export function EditDeliveryDialog({
                   </SelectContent>
                 </Select>
               </div>
-              {field("zipCode", "CEP", { className: "col-span-4 sm:col-span-2", placeholder: "00000-000", inputMode: "numeric" })}
+              {field("zipCode", "CEP", { className: "col-span-4 sm:col-span-2", placeholder: "00000-000", inputMode: "numeric", maxLength: 9 })}
             </div>
             <p className="text-sm text-muted-foreground">Mudou o endereço? A localização no mapa é refeita na próxima rota.</p>
           </fieldset>
@@ -375,16 +399,18 @@ export function EditDeliveryDialog({
             </div>
           </fieldset>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="observation">Observação para o motorista</Label>
-            <Textarea
-              id="observation"
-              value={formData.observation || ""}
-              onChange={(e) => setFormData({ ...formData, observation: e.target.value })}
-              placeholder="Ex.: Entregar na portaria lateral."
-              rows={3}
-            />
-          </div>
+          <FormField id="observation" label="Observação para o motorista" optional>
+            {(control) => (
+              <Textarea
+                {...control}
+                value={formData.observation || ""}
+                onChange={(e) => setFormData({ ...formData, observation: e.target.value })}
+                placeholder="Ex.: Entregar na portaria lateral."
+                rows={3}
+                className="resize-none"
+              />
+            )}
+          </FormField>
 
           {delivery.lastUpdatedBy && (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -395,7 +421,8 @@ export function EditDeliveryDialog({
           )}
         </div>
 
-        <DialogFooter className="sm:justify-between">
+        {/* Rodape preso embaixo: salvar sempre a vista no formulario longo. */}
+        <DialogFooter className="sticky bottom-0 z-10 -mx-6 -mb-6 border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:justify-between">
           <Button
             type="button"
             variant="ghost"

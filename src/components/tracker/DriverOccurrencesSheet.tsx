@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,13 +34,7 @@ export function DriverOccurrencesSheet({ open, onOpenChange, driverId, driverNam
   const [isLoading, setIsLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open && driverId) {
-      fetchOccurrences();
-    }
-  }, [open, driverId]);
-
-  const fetchOccurrences = async () => {
+  const fetchOccurrences = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -56,7 +50,11 @@ export function DriverOccurrencesSheet({ open, onOpenChange, driverId, driverNam
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [driverId]);
+
+  useEffect(() => {
+    if (open && driverId) fetchOccurrences();
+  }, [open, driverId, fetchOccurrences]);
 
   return (
     <>

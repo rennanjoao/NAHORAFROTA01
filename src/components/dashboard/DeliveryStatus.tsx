@@ -197,7 +197,8 @@ export function DeliveryStatus() {
                   >
                     <item.icon className="h-4 w-4" />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.label}</span>
+                  {/* Quebra em vez de cortar ("Ocorrência ou devolução" no cartão estreito). */}
+                  <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">{item.label}</span>
                   <span className="font-data text-base font-semibold text-foreground">{item.count}</span>
                   <span className="w-10 text-right font-data text-xs text-muted-foreground">{item.percentage}%</span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />

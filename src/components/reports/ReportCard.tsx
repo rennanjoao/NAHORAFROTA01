@@ -58,6 +58,53 @@ export function ReportCard({
   );
 }
 
+/** Quebra um rotulo em ate 2 linhas de `maxChars` (o resto vira reticencias). */
+function wrapLabel(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxChars || !current) current = next;
+    else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  if (lines.length <= 2) return lines.map((line) => (line.length > maxChars ? `${line.slice(0, maxChars - 1)}…` : line));
+  const second = lines.slice(1).join(" ");
+  return [lines[0], `${second.slice(0, maxChars - 1).trimEnd()}…`];
+}
+
+/**
+ * Rotulo do eixo de categorias que quebra em 2 linhas (antes nomes longos eram
+ * cortados na borda do grafico). O nome inteiro aparece no tooltip.
+ */
+export function WrappedTick({
+  x,
+  y,
+  payload,
+  maxChars = 16,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  maxChars?: number;
+}) {
+  const lines = wrapLabel(String(payload?.value ?? ""), maxChars);
+  const offset = lines.length > 1 ? -7 : 0;
+  return (
+    <text x={x} y={y} dy={4 + offset} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={12}>
+      {lines.map((line, index) => (
+        <tspan key={index} x={x} dx={-4} dy={index === 0 ? 0 : 14}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 /**
  * Moldura de grafico com texto alternativo: leitor de tela ouve o resumo
  * (o desenho em si fica escondido dele).

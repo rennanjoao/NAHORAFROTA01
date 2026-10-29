@@ -6,31 +6,36 @@ import { getSLAColorScheme } from "@/lib/slaThresholds";
 import { cn } from "@/lib/utils";
 import { DrilldownType } from "./KPIDrilldownSheet";
 
+/** Tendencias: null quando o periodo anterior nao tem dados para comparar. */
 interface KPIData {
   sla: number;
-  slaTrend: number;
+  slaTrend: number | null;
   onTime: number;
-  onTimeTrend: number;
+  onTimeTrend: number | null;
   delayed: number;
-  delayedTrend: number;
+  delayedTrend: number | null;
   returns: number;
-  returnsTrend: number;
+  returnsTrend: number | null;
   avgCost: number;
-  avgCostTrend: number;
+  avgCostTrend: number | null;
   totalVolume: number;
-  volumeTrend: number;
+  volumeTrend: number | null;
 }
 
 interface InteractiveKPIsProps {
   data: KPIData;
   viewMode: "operational" | "executive";
   onKPIClick: (type: DrilldownType) => void;
+  loading?: boolean;
 }
 
 const slaTone: Record<string, Tone> = { excellent: "success", good: "warning", attention: "warning", critical: "danger" };
 
 /** Variacao do SLA em pontos percentuais (p.p.), no mesmo estilo do StatCard. */
-function PointsTrend({ value }: { value: number }) {
+const NO_PREVIOUS = "Sem dados do período anterior";
+
+function PointsTrend({ value }: { value: number | null }) {
+  if (value === null) return <>{NO_PREVIOUS}</>;
   if (Math.abs(value) < 0.05) return <>Igual ao período anterior</>;
   const good = value >= 0;
   const Icon = value < 0 ? ArrowDownRight : ArrowUpRight;
@@ -51,14 +56,16 @@ function PointsTrend({ value }: { value: number }) {
   );
 }
 
-// Sem variacao, nada de seta vermelha/verde: so o texto.
-const trendProps = (value: number, upIsGood: boolean) =>
-  Math.abs(value) < 0.05
+// Sem variacao (ou sem periodo anterior), nada de seta vermelha/verde: so o texto.
+const trendProps = (value: number | null, upIsGood: boolean) =>
+  value === null
+    ? { hint: NO_PREVIOUS }
+    : Math.abs(value) < 0.05
     ? { hint: "Igual ao período anterior" }
     : { trend: { value, label: "vs. período anterior", upIsGood } };
 
 /** Indicadores do periodo. Clique abre a lista de notas que formam o numero. */
-export function InteractiveKPIs({ data, onKPIClick }: InteractiveKPIsProps) {
+export function InteractiveKPIs({ data, onKPIClick, loading }: InteractiveKPIsProps) {
   const scheme = getSLAColorScheme(data.sla);
 
   return (
@@ -69,7 +76,8 @@ export function InteractiveKPIs({ data, onKPIClick }: InteractiveKPIsProps) {
         format={(v) => `${formatSLA(v)}%`}
         icon={Target}
         tone={slaTone[scheme.level] ?? "brand"}
-        hint={<PointsTrend value={data.slaTrend} />}
+        hint={loading ? undefined : <PointsTrend value={data.slaTrend} />}
+        loading={loading}
         onClick={() => onKPIClick("sla")}
       >
         <span className="sr-only">Situação: {scheme.labelPt}. Abrir detalhes.</span>
@@ -80,7 +88,8 @@ export function InteractiveKPIs({ data, onKPIClick }: InteractiveKPIsProps) {
         format={formatCurrency}
         icon={Wallet}
         tone="brand"
-        {...trendProps(data.avgCostTrend, false)}
+        {...(loading ? {} : trendProps(data.avgCostTrend, false))}
+        loading={loading}
         onClick={() => onKPIClick("cost")}
       >
         <span className="sr-only">Abrir detalhes.</span>
@@ -90,7 +99,8 @@ export function InteractiveKPIs({ data, onKPIClick }: InteractiveKPIsProps) {
         value={data.totalVolume}
         icon={Package}
         tone="info"
-        {...trendProps(data.volumeTrend, true)}
+        {...(loading ? {} : trendProps(data.volumeTrend, true))}
+        loading={loading}
         onClick={() => onKPIClick("volume")}
       >
         <span className="sr-only">Abrir detalhes.</span>

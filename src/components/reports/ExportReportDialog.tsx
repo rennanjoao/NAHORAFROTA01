@@ -11,347 +11,175 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Download,
-  Loader2,
-  Target,
-  Wallet,
-  Settings2,
-  Building2,
-  ChevronDown,
-} from "lucide-react";
+import { AlertTriangle, Building2, Download, Loader2, Target, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Export options structure
+/** Secoes que entram no PDF. */
 export interface ExportOptions {
-  mode: "current" | "all" | "custom";
   tabs: {
     desempenho: boolean;
     financeiro: boolean;
     operacional: boolean;
     clientes: boolean;
   };
-  details: {
-    // Desempenho
-    slaEvolution: boolean;
-    slaMetrics: boolean;
-    deliveryStatus: boolean;
-    // Financeiro
-    freightCosts: boolean;
-    volumeData: boolean;
-    costPerDelivery: boolean;
-    // Operacional
-    totalOccurrences: boolean;
-    returnReasons: boolean;
-    returnRate: boolean;
-    // Clientes
-    topBuyers: boolean;
-    abcCurve: boolean;
-    clientTrends: boolean;
-  };
-  includeCharts: boolean;
-  includeTables: boolean;
-  includeSummary: boolean;
 }
+
+type SectionId = keyof ExportOptions["tabs"];
 
 interface ExportReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentTab: string;
   onExport: (options: ExportOptions) => Promise<void>;
   isExporting: boolean;
   dateRange: { from: Date | undefined; to: Date | undefined };
+  /** Filtros da tela em texto ("Cliente: X · Motorista: Y"), ou vazio. */
+  filtersLabel?: string;
 }
 
-const tabConfig = [
-  { 
-    id: "desempenho", 
-    label: "Desempenho", 
+// Cada secao diz o que vai no arquivo (antes havia opcoes de "graficos",
+// "curva ABC" e outras que nao mudavam nada no PDF).
+const SECTIONS: { id: SectionId; label: string; description: string; icon: typeof Target }[] = [
+  {
+    id: "desempenho",
+    label: "Desempenho",
+    description: "SLA, notas entregues, atrasadas e devolvidas, e o custo médio por entrega.",
     icon: Target,
-    details: [
-      { id: "slaEvolution", label: "Evolução do SLA (gráfico)" },
-      { id: "slaMetrics", label: "Números do SLA (resumo)" },
-      { id: "deliveryStatus", label: "Situação das entregas (gráfico)" },
-    ]
   },
-  { 
-    id: "financeiro", 
-    label: "Financeiro", 
+  {
+    id: "operacional",
+    label: "Ocorrências",
+    description: "Regiões com mais atrasos e os motivos de ocorrência.",
+    icon: AlertTriangle,
+  },
+  {
+    id: "financeiro",
+    label: "Financeiro",
+    description: "Romaneios, frete pago aos agregados e valor das mercadorias.",
     icon: Wallet,
-    details: [
-      { id: "freightCosts", label: "Custo de frete por mês" },
-      { id: "volumeData", label: "Entregas por mês" },
-      { id: "costPerDelivery", label: "Custo médio por entrega" },
-    ]
   },
-  { 
-    id: "operacional", 
-    label: "Operacional", 
-    icon: Settings2,
-    details: [
-      { id: "totalOccurrences", label: "Total de ocorrências" },
-      { id: "returnReasons", label: "5 principais motivos de devolução" },
-      { id: "returnRate", label: "Taxa de devolução" },
-    ]
-  },
-  { 
-    id: "clientes", 
-    label: "Clientes", 
+  {
+    id: "clientes",
+    label: "Clientes",
+    description: "Clientes com maior valor em notas e os que mais devolveram.",
     icon: Building2,
-    details: [
-      { id: "topBuyers", label: "Principais clientes" },
-      { id: "abcCurve", label: "Curva ABC de clientes" },
-      { id: "clientTrends", label: "Tendência por cliente" },
-    ]
   },
 ];
+
+const ALL_ON: ExportOptions["tabs"] = { desempenho: true, financeiro: true, operacional: true, clientes: true };
 
 export function ExportReportDialog({
   open,
   onOpenChange,
-  currentTab,
   onExport,
   isExporting,
   dateRange,
+  filtersLabel,
 }: ExportReportDialogProps) {
-  const [expandedTabs, setExpandedTabs] = useState<string[]>([currentTab]);
-  
-  const [options, setOptions] = useState<ExportOptions>({
-    mode: "current",
-    tabs: {
-      desempenho: currentTab === "desempenho",
-      financeiro: currentTab === "financeiro",
-      operacional: currentTab === "operacional",
-      clientes: currentTab === "clientes",
-    },
-    details: {
-      slaEvolution: true,
-      slaMetrics: true,
-      deliveryStatus: true,
-      freightCosts: true,
-      volumeData: true,
-      costPerDelivery: true,
-      totalOccurrences: true,
-      returnReasons: true,
-      returnRate: true,
-      topBuyers: true,
-      abcCurve: true,
-      clientTrends: true,
-    },
-    includeCharts: true,
-    includeTables: true,
-    includeSummary: true,
-  });
+  const [tabs, setTabs] = useState<ExportOptions["tabs"]>(ALL_ON);
 
-  const handleModeChange = (mode: "current" | "all" | "custom") => {
-    setOptions(prev => ({
-      ...prev,
-      mode,
-      tabs: {
-        desempenho: mode === "all" || (mode === "current" && currentTab === "desempenho"),
-        financeiro: mode === "all" || (mode === "current" && currentTab === "financeiro"),
-        operacional: mode === "all" || (mode === "current" && currentTab === "operacional"),
-        clientes: mode === "all" || (mode === "current" && currentTab === "clientes"),
-      },
-    }));
-  };
-
-  const toggleTab = (tabId: string) => {
-    if (options.mode !== "custom") return;
-    setOptions(prev => ({
-      ...prev,
-      tabs: {
-        ...prev.tabs,
-        [tabId]: !prev.tabs[tabId as keyof typeof prev.tabs],
-      },
-    }));
-  };
-
-  const toggleDetail = (detailId: string) => {
-    setOptions(prev => ({
-      ...prev,
-      details: {
-        ...prev.details,
-        [detailId]: !prev.details[detailId as keyof typeof prev.details],
-      },
-    }));
-  };
-
-  const toggleExpandTab = (tabId: string) => {
-    setExpandedTabs(prev => 
-      prev.includes(tabId) 
-        ? prev.filter(t => t !== tabId)
-        : [...prev, tabId]
-    );
-  };
-
-  const selectedTabsCount = Object.values(options.tabs).filter(Boolean).length;
-  const selectedDetailsCount = Object.values(options.details).filter(Boolean).length;
+  const selectedCount = Object.values(tabs).filter(Boolean).length;
+  const allSelected = selectedCount === SECTIONS.length;
 
   const handleExport = async () => {
-    await onExport(options);
+    await onExport({ tabs });
     onOpenChange(false);
   };
 
-  const modes = [
-    { value: "current", label: "Só esta aba", hint: tabConfig.find((t) => t.id === currentTab)?.label ?? "" },
-    { value: "all", label: "Completo", hint: "As 4 seções" },
-    { value: "custom", label: "Escolher", hint: "Você marca as seções" },
-  ] as const;
-
-  const extras = [
-    { id: "includeCharts", label: "Gráficos" },
-    { id: "includeTables", label: "Tabelas" },
-    { id: "includeSummary", label: "Resumo executivo" },
-  ] as const;
+  const periodText =
+    dateRange.from || dateRange.to
+      ? `${dateRange.from ? dateRange.from.toLocaleDateString("pt-BR") : "início"} a ${
+          dateRange.to ? dateRange.to.toLocaleDateString("pt-BR") : "hoje"
+        }`
+      : "todo o histórico";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Exportar relatório em PDF</DialogTitle>
           <DialogDescription>
-            Escolha o que entra no arquivo. Ele sai com os filtros que estão na tela.
-            {dateRange.from && dateRange.to && (
-              <span className="mt-1 block font-data text-xs">
-                Período: {dateRange.from.toLocaleDateString("pt-BR")} a {dateRange.to.toLocaleDateString("pt-BR")}
-              </span>
-            )}
+            Escolha o que entra no arquivo. Ele sai com o período e os filtros que estão na tela.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* O que exportar */}
-          <fieldset className="space-y-3">
-            <legend className="mb-3 text-sm font-semibold">O que exportar</legend>
-            <RadioGroup
-              value={options.mode}
-              onValueChange={(v) => handleModeChange(v as "current" | "all" | "custom")}
-              className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3"
-            >
-              {modes.map((mode) => (
-                <Label
-                  key={mode.value}
-                  htmlFor={`export-${mode.value}`}
+        <dl className="grid gap-1 rounded-lg border bg-muted/40 px-4 py-3 text-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-4">
+          <dt className="text-muted-foreground">Período</dt>
+          <dd className="font-data text-foreground">{periodText}</dd>
+          <dt className="text-muted-foreground">Filtros</dt>
+          <dd className="text-foreground">{filtersLabel || "Nenhum"}</dd>
+        </dl>
+
+        <fieldset className="space-y-3">
+          <legend className="mb-3 flex w-full flex-wrap items-center justify-between gap-2 text-sm font-semibold">
+            O que entra no arquivo
+            <span className="flex items-center gap-2">
+              <Badge variant="secondary" className="font-data">
+                {selectedCount} de {SECTIONS.length}
+              </Badge>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="-mr-2 px-2"
+                onClick={() =>
+                  setTabs(allSelected ? { desempenho: false, financeiro: false, operacional: false, clientes: false } : ALL_ON)
+                }
+              >
+                {allSelected ? "Desmarcar todas" : "Marcar todas"}
+              </Button>
+            </span>
+          </legend>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SECTIONS.map((section) => {
+              const Icon = section.icon;
+              const checked = tabs[section.id];
+              const id = `export-${section.id}`;
+              return (
+                <div
+                  key={section.id}
                   className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors duration-fast hover:bg-accent",
-                    options.mode === mode.value && "border-primary/50 bg-primary/5",
+                    "relative flex items-start gap-3 rounded-lg border p-3 transition-colors duration-fast hover:bg-accent",
+                    "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
+                    checked && "border-primary/50 bg-primary/5",
                   )}
                 >
-                  <RadioGroupItem value={mode.value} id={`export-${mode.value}`} className="mt-0.5" />
-                  <span>
-                    <span className="block font-medium">{mode.label}</span>
-                    <span className="block text-xs font-normal text-muted-foreground">{mode.hint}</span>
-                  </span>
-                </Label>
-              ))}
-            </RadioGroup>
-          </fieldset>
-
-          {/* Secoes */}
-          <fieldset className="space-y-3">
-            <legend className="flex w-full items-center justify-between gap-3 text-sm font-semibold">
-              Seções do relatório
-              <Badge variant="secondary" className="font-data">
-                {selectedTabsCount} seç{selectedTabsCount === 1 ? "ão" : "ões"} · {selectedDetailsCount} itens
-              </Badge>
-            </legend>
-
-            <div className="space-y-2">
-              {tabConfig.map((tab) => {
-                const TabIcon = tab.icon;
-                const isTabSelected = options.tabs[tab.id as keyof typeof options.tabs];
-                const isExpanded = expandedTabs.includes(tab.id);
-                const detailsId = `export-details-${tab.id}`;
-
-                return (
-                  <div
-                    key={tab.id}
-                    className={cn(
-                      "overflow-hidden rounded-lg border transition-colors duration-fast",
-                      isTabSelected ? "border-primary/40 bg-primary/5" : "border-border",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2 py-1 pl-3 pr-1">
-                      <div className="flex min-h-[2.5rem] items-center gap-3">
-                        <Checkbox
-                          id={`tab-${tab.id}`}
-                          checked={isTabSelected}
-                          onCheckedChange={() => toggleTab(tab.id)}
-                          disabled={options.mode !== "custom"}
-                        />
-                        <Label
-                          htmlFor={`tab-${tab.id}`}
-                          className={cn("flex cursor-pointer items-center gap-2", !isTabSelected && "text-muted-foreground")}
-                        >
-                          <TabIcon className="h-4 w-4" aria-hidden="true" />
-                          {tab.label}
-                        </Label>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleExpandTab(tab.id)}
-                        disabled={!isTabSelected}
-                        aria-expanded={isExpanded && isTabSelected}
-                        aria-controls={detailsId}
-                        aria-label={`${isExpanded ? "Esconder" : "Mostrar"} itens de ${tab.label}`}
-                      >
-                        <ChevronDown
-                          className={cn("transition-transform duration ease-out", isExpanded && isTabSelected && "rotate-180")}
-                          aria-hidden="true"
-                        />
-                      </Button>
-                    </div>
-
-                    {isExpanded && isTabSelected && (
-                      <div id={detailsId} className="space-y-2 border-t bg-card/60 px-3 py-3 pl-10 animate-fade-in">
-                        {tab.details.map((detail) => (
-                          <div key={detail.id} className="flex min-h-[2rem] items-center gap-2">
-                            <Checkbox
-                              id={`detail-${detail.id}`}
-                              checked={options.details[detail.id as keyof typeof options.details]}
-                              onCheckedChange={() => toggleDetail(detail.id)}
-                            />
-                            <Label htmlFor={`detail-${detail.id}`} className="cursor-pointer text-sm font-normal">
-                              {detail.label}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </fieldset>
-
-          {/* Extras */}
-          <fieldset>
-            <legend className="mb-3 text-sm font-semibold">Incluir também</legend>
-            <div className="flex flex-wrap gap-x-6 gap-y-3">
-              {extras.map((extra) => (
-                <div key={extra.id} className="flex min-h-[2rem] items-center gap-2">
                   <Checkbox
-                    id={extra.id}
-                    checked={options[extra.id]}
-                    onCheckedChange={(checked) => setOptions((prev) => ({ ...prev, [extra.id]: !!checked }))}
+                    id={id}
+                    checked={checked}
+                    onCheckedChange={(value) => setTabs((prev) => ({ ...prev, [section.id]: value === true }))}
+                    aria-describedby={`${id}-dica`}
+                    className="relative z-[1] mt-0.5 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
-                  <Label htmlFor={extra.id} className="cursor-pointer text-sm font-normal">
-                    {extra.label}
-                  </Label>
+                  <div className="min-w-0">
+                    {/* O rotulo cobre o cartao inteiro: clicar em qualquer ponto marca a secao. */}
+                    <Label
+                      htmlFor={id}
+                      className="flex cursor-pointer items-center gap-2 font-medium after:absolute after:inset-0 after:rounded-lg"
+                    >
+                      <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                      {section.label}
+                    </Label>
+                    <p id={`${id}-dica`} className="mt-1 text-xs text-muted-foreground">
+                      {section.description}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </fieldset>
-        </div>
+              );
+            })}
+          </div>
+          {selectedCount === 0 && (
+            <p className="text-xs font-medium text-destructive" role="status">
+              Marque ao menos uma seção para exportar.
+            </p>
+          )}
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isExporting}>
             Cancelar
           </Button>
-          <Button onClick={handleExport} disabled={isExporting || selectedTabsCount === 0}>
+          <Button onClick={handleExport} disabled={isExporting || selectedCount === 0}>
             {isExporting ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
             {isExporting ? "Gerando PDF" : "Exportar PDF"}
           </Button>

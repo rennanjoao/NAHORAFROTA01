@@ -39,7 +39,7 @@ export function NextDeliveryCard({
       variant={primary ? "default" : "outline"}
       onClick={() => onNavigate(delivery)}
       aria-describedby={primary ? `${nameId}-rota` : undefined}
-      className={cn("w-full", primary ? "h-14 text-base [&_svg]:size-5" : "h-14")}
+      className={cn("w-full", primary ? "h-14 text-base [&_svg]:size-5" : "h-14 whitespace-normal px-3 leading-tight")}
     >
       <Navigation aria-hidden="true" />
       Iniciar rota
@@ -54,7 +54,10 @@ export function NextDeliveryCard({
         onClick={() => onFinishDelivery(delivery)}
         className={cn(
           "w-full",
-          primary ? "h-14 bg-success text-base text-success-foreground hover:bg-success/90 [&_svg]:size-5" : "h-14",
+          // Secundario divide a linha com "Reportar problema": quebra em 2 linhas no celular estreito.
+          primary
+            ? "h-14 bg-success text-base text-success-foreground hover:bg-success/90 [&_svg]:size-5"
+            : "h-14 whitespace-normal px-3 leading-tight",
         )}
       >
         <CircleCheck aria-hidden="true" />
@@ -109,7 +112,7 @@ export function NextDeliveryCard({
                 size="lg"
                 variant="outline"
                 onClick={() => onRegisterOccurrence(delivery)}
-                className="h-14 w-full whitespace-normal leading-tight [&_svg]:text-warning"
+                className="h-14 w-full whitespace-normal px-3 leading-tight [&_svg]:text-warning"
               >
                 <TriangleAlert aria-hidden="true" />
                 Reportar problema
@@ -138,13 +141,14 @@ function TileButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-lg border bg-card px-1.5 py-2 text-center text-[0.8125rem] font-semibold leading-tight text-foreground shadow-xs",
+        // Icone no alto: alinhado entre os 3 blocos mesmo quando um rotulo quebra em 2 linhas.
+        "flex min-h-[4.25rem] flex-col items-center justify-start gap-1 rounded-lg border bg-card px-1.5 pb-2 pt-3 text-center text-[0.8125rem] font-semibold leading-tight text-foreground shadow-xs",
         "transition-[background-color,border-color,transform] duration-fast ease-out hover:bg-accent active:scale-[0.97]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
     >
-      <Icon className="h-5 w-5" aria-hidden="true" />
+      <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
       {label}
     </button>
   );

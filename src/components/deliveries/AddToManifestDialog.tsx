@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,13 +10,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ChevronRight, ClipboardList, Plus, Printer, Send, Truck } from "lucide-react";
+import { ChevronRight, ClipboardList, Loader2, Plus, Printer, Send, Truck } from "lucide-react";
 import { EmptyState, SearchInput } from "@/components/patterns";
 import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { cn } from "@/lib/utils";
 import { formatDateOnly } from "@/lib/timezone";
-import { ManifestStatusBadge } from "./status";
+import { ManifestStatusBadge, plateText } from "./status";
 
 interface AddToManifestDialogProps {
   open: boolean;
@@ -24,7 +24,8 @@ interface AddToManifestDialogProps {
   deliveryNfe: string;
   invoiceId: string; // Database UUID
   manifests: DBManifest[]; // DB manifests from parent
-  onConfirm: (manifestId: string, action: "print" | "resend" | "none") => void;
+  /** Devolve false quando a nota nao entrou no romaneio (a janela fica aberta). */
+  onConfirm: (manifestId: string, action: "print" | "resend" | "none") => Promise<boolean | void> | boolean | void;
 }
 
 export function AddToManifestDialog({
@@ -38,6 +39,17 @@ export function AddToManifestDialog({
   const [search, setSearch] = useState("");
   const [selectedManifest, setSelectedManifest] = useState<DBManifest | null>(null);
   const [step, setStep] = useState<"select" | "action">("select");
+  const [pendingAction, setPendingAction] = useState<"print" | "resend" | "none" | null>(null);
+  const firstActionRef = useRef<HTMLButtonElement>(null);
+
+  // "Continuar" some na segunda etapa: o foco vai para a primeira opcao.
+  // Ao voltar, o foco fica no romaneio que estava marcado.
+  useEffect(() => {
+    if (!open) return;
+    if (step === "action") firstActionRef.current?.focus({ preventScroll: true });
+    else if (selectedManifest) document.getElementById(`add-manifest-${selectedManifest.id}`)?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, step]);
 
   // Filter manifests - only show ACTIVE ones (pending or in_progress)
   // Sorted by most recent first (created_at descending)
@@ -77,14 +89,24 @@ export function AddToManifestDialog({
     }
   };
 
-  const handleAction = (action: "print" | "resend" | "none") => {
-    if (selectedManifest) {
-      onConfirm(selectedManifest.id, action);
-      handleClose();
+  // Espera o banco confirmar: se der erro, a janela fica aberta para tentar de novo.
+  const handleAction = async (action: "print" | "resend" | "none") => {
+    if (!selectedManifest || pendingAction) return;
+    setPendingAction(action);
+    try {
+      const result = await onConfirm(selectedManifest.id, action);
+      if (result !== false) resetAndClose();
+    } finally {
+      setPendingAction(null);
     }
   };
 
   const handleClose = () => {
+    if (pendingAction) return;
+    resetAndClose();
+  };
+
+  const resetAndClose = () => {
     setSearch("");
     setSelectedManifest(null);
     setStep("select");
@@ -167,8 +189,8 @@ export function AddToManifestDialog({
                           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
                             <Truck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                             <span className="truncate">{manifest.driver_name}</span>
-                            {manifest.vehicle_plate && (
-                              <span className="shrink-0 font-data text-xs text-muted-foreground">{manifest.vehicle_plate}</span>
+                            {plateText(manifest.vehicle_plate) && (
+                              <span className="shrink-0 font-data text-xs text-muted-foreground">{plateText(manifest.vehicle_plate)}</span>
                             )}
                           </span>
                           <span className="block text-xs text-muted-foreground">
@@ -176,7 +198,9 @@ export function AddToManifestDialog({
                           </span>
                         </span>
                         <span className="shrink-0 text-right text-sm">
-                          <span className="block text-muted-foreground">{manifest.deliveries_count} notas</span>
+                          <span className="block text-muted-foreground">
+                            {manifest.deliveries_count === 1 ? "1 nota" : `${manifest.deliveries_count} notas`}
+                          </span>
                           <span className="block font-data font-semibold text-foreground">{formatCurrency(manifest.total_value || 0)}</span>
                         </span>
                       </Label>
@@ -200,12 +224,17 @@ export function AddToManifestDialog({
             <div className="space-y-2">
               {actionOptions.map((option) => {
                 const Icon = option.icon;
+                const busy = pendingAction === option.action;
                 return (
                   <button
                     key={option.action}
+                    ref={option.action === "print" ? firstActionRef : undefined}
                     type="button"
                     onClick={() => handleAction(option.action)}
+                    disabled={!!pendingAction}
+                    aria-busy={busy || undefined}
                     className={cn(
+                      "disabled:cursor-wait disabled:opacity-70",
                       "card-interactive flex w-full items-center gap-3 rounded-lg border bg-card p-4 text-left",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
                     )}
@@ -217,14 +246,18 @@ export function AddToManifestDialog({
                       <span className="block font-semibold text-foreground">{option.title}</span>
                       <span className="block text-sm text-muted-foreground">{option.description}</span>
                     </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    {busy ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    )}
                   </button>
                 );
               })}
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("select")}>
+              <Button variant="outline" onClick={() => setStep("select")} disabled={!!pendingAction}>
                 Voltar
               </Button>
             </DialogFooter>

@@ -16,6 +16,7 @@ interface State {
 
 export class ErrorBoundary extends Component<Props, State> {
   private fallbackRef = createRef<HTMLDivElement>();
+  private headingRef = createRef<HTMLHeadingElement>();
 
   constructor(props: Props) {
     super(props);
@@ -43,6 +44,11 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError || !this.fallbackRef.current) return;
     const standalone = !this.fallbackRef.current.parentElement?.closest("main, [role=main]");
     if (standalone !== this.state.standalone) this.setState({ standalone });
+    // O que tinha foco sumiu com a tela que quebrou: leva o foco para o aviso.
+    const active = document.activeElement;
+    if (!active || active === document.body || !this.fallbackRef.current.contains(active)) {
+      this.headingRef.current?.focus({ preventScroll: true });
+    }
   }
 
   handleRetry = () => {
@@ -65,7 +71,9 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               <TriangleAlert className="h-7 w-7" />
             </span>
-            <h1 className="text-xl font-semibold text-foreground">{this.props.fallbackMessage || "Algo deu errado"}</h1>
+            <h1 ref={this.headingRef} tabIndex={-1} className="text-xl font-semibold text-foreground outline-none">
+              {this.props.fallbackMessage || "Algo deu errado"}
+            </h1>
             <p className="mt-2 text-[0.9375rem] text-muted-foreground">
               Esta tela teve um problema para abrir. Tente de novo. Se continuar, recarregue a página ou fale com o suporte.
             </p>

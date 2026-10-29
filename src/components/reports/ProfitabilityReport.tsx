@@ -1,12 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDownRight, ArrowUpRight, CalendarDays, Crown, FileText, LineChart as LineChartIcon, Lock, Minus, Package, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Crown, FileText, LineChart as LineChartIcon, Lock, Minus, Package, Wallet } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { CardsSkeleton, EmptyState, StatCard, StatusBadge, type Tone } from "@/components/patterns";
 import {
@@ -21,13 +17,13 @@ import {
   tooltipStyle,
 } from "./chartTheme";
 import { ChartFrame, ReportCard } from "./ReportCard";
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfDay, endOfDay, isWithinInterval, subMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, isWithinInterval, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
+import { isDayInRange, previousRange } from "@/lib/reportFilters";
+import { toDateStringBrazil } from "@/lib/timezone";
 import { useEffect } from "react";
-
-type PeriodType = "day" | "month" | "year";
 
 interface ManifestRow {
   id: string;
@@ -44,7 +40,8 @@ interface MonthlyPoint {
   date: Date;
   thirdPartyFreight: number;
   totalCargo: number;
-  percentage: number;
+  /** null: mes sem romaneio (nao e 0%). */
+  percentage: number | null;
 }
 
 // ========== LOCKED STATE ==========
@@ -108,13 +105,22 @@ function EfficiencyGauge({ percentage }: { percentage: number }) {
 interface ProfitabilityReportProps {
   allowed: boolean;
   upgradePlanLabel: string;
+  /** Periodo escolhido no topo da tela (antes esta aba tinha um periodo proprio). */
+  dateRange: { from?: Date; to?: Date };
 }
 
-export function ProfitabilityReport({ allowed, upgradePlanLabel }: ProfitabilityReportProps) {
-  const [periodType, setPeriodType] = useState<PeriodType>("month");
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), "yyyy-MM"));
-  const [selectedYear, setSelectedYear] = useState(() => format(new Date(), "yyyy"));
+const inRange = (createdAt: string, range: { from?: Date; to?: Date }) =>
+  isDayInRange(toDateStringBrazil(createdAt), { from: range.from, to: range.to });
+
+/** Frete de agregados, valor das cargas e a relacao entre eles num conjunto de romaneios. */
+function summarize(list: ManifestRow[]) {
+  const third = list.filter((m) => m.is_own_fleet === false);
+  const freight = third.reduce((s, m) => s + (m.freight_value || 0), 0);
+  const cargo = list.reduce((s, m) => s + (m.total_value || 0), 0);
+  return { third, freight, cargo, percentage: cargo > 0 ? (freight / cargo) * 100 : 0 };
+}
+
+export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: ProfitabilityReportProps) {
   const [manifests, setManifests] = useState<ManifestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -139,33 +145,21 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
     if (allowed) fetchData();
   }, [allowed, fetchData]);
 
-  // Date range based on period type
-  const dateRange = useMemo(() => {
-    if (periodType === "day") {
-      return { from: startOfDay(selectedDate), to: endOfDay(selectedDate) };
-    }
-    if (periodType === "month") {
-      const [y, m] = selectedMonth.split("-").map(Number);
-      const d = new Date(y, m - 1, 1);
-      return { from: startOfMonth(d), to: endOfMonth(d) };
-    }
-    const d = new Date(Number(selectedYear), 0, 1);
-    return { from: startOfYear(d), to: endOfYear(d) };
-  }, [periodType, selectedDate, selectedMonth, selectedYear]);
-
-  // Filtered manifests for current period
-  const filtered = useMemo(() => {
-    return manifests.filter((m) => {
-      const d = new Date(m.created_at);
-      return isWithinInterval(d, { start: dateRange.from, end: dateRange.to });
-    });
+  // Romaneios do periodo (dia do cadastro, em Brasilia) e do periodo anterior de mesmo tamanho
+  const filtered = useMemo(() => manifests.filter((m) => inRange(m.created_at, dateRange)), [manifests, dateRange]);
+  const current = useMemo(() => summarize(filtered), [filtered]);
+  const previous = useMemo(() => {
+    const range = previousRange({ from: dateRange.from, to: dateRange.to });
+    return range ? summarize(manifests.filter((m) => inRange(m.created_at, range))) : null;
   }, [manifests, dateRange]);
 
-  // Calculations
-  const thirdPartyManifests = useMemo(() => filtered.filter((m) => m.is_own_fleet === false), [filtered]);
-  const thirdPartyFreight = useMemo(() => thirdPartyManifests.reduce((s, m) => s + (m.freight_value || 0), 0), [thirdPartyManifests]);
-  const totalCargo = useMemo(() => filtered.reduce((s, m) => s + (m.total_value || 0), 0), [filtered]);
-  const percentage = totalCargo > 0 ? (thirdPartyFreight / totalCargo) * 100 : 0;
+  const thirdPartyManifests = current.third;
+  const thirdPartyFreight = current.freight;
+  const totalCargo = current.cargo;
+  const percentage = current.percentage;
+  // Carga so dos romaneios de agregados (o total da tabela soma as linhas que ela mostra).
+  const thirdPartyCargo = thirdPartyManifests.reduce((s, m) => s + (m.total_value || 0), 0);
+  const thirdPartyShare = thirdPartyCargo > 0 ? (thirdPartyFreight / thirdPartyCargo) * 100 : 0;
 
   // Monthly evolution data (last 12 months)
   const evolutionData = useMemo((): MonthlyPoint[] => {
@@ -185,110 +179,46 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
         date: mStart,
         thirdPartyFreight: tp,
         totalCargo: tc,
-        percentage: tc > 0 ? (tp / tc) * 100 : 0,
+        percentage: tc > 0 ? (tp / tc) * 100 : null,
       });
     }
     return points;
   }, [manifests]);
 
-  // Trend
-  const lastTwo = evolutionData.slice(-2);
-  const trend = lastTwo.length === 2 ? lastTwo[1].percentage - lastTwo[0].percentage : 0;
+  // Variacao contra o periodo anterior (null: sem cargas antes para comparar)
+  const trend = previous && previous.cargo > 0 && totalCargo > 0 ? percentage - previous.percentage : null;
 
   if (!allowed) return <LockedState planLabel={upgradePlanLabel} />;
 
   if (isLoading) {
     return (
       <div role="status" aria-label="Carregando" className="space-y-6">
-        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-5 w-96 max-w-full" />
         <CardsSkeleton count={3} className="xl:grid-cols-3" />
         <Skeleton className="h-[320px] rounded-lg" />
       </div>
     );
   }
 
-  // Generate month options
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const d = subMonths(new Date(), i);
-    return { value: format(d, "yyyy-MM"), label: format(d, "MMMM yyyy", { locale: ptBR }) };
-  });
-
-  const yearOptions = Array.from({ length: 3 }, (_, i) => {
-    const y = new Date().getFullYear() - i;
-    return { value: String(y), label: String(y) };
-  });
-
-  const TrendIcon = trend > 0.5 ? ArrowUpRight : trend < -0.5 ? ArrowDownRight : Minus;
-  const trendClass = trend > 0.5 ? "bg-destructive/10 text-destructive" : trend < -0.5 ? "bg-success/10 text-success" : "bg-muted text-muted-foreground";
+  const trendValue = trend ?? 0;
+  const TrendIcon = trendValue > 0.5 ? ArrowUpRight : trendValue < -0.5 ? ArrowDownRight : Minus;
+  const trendClass =
+    trendValue > 0.5 ? "bg-destructive/10 text-destructive" : trendValue < -0.5 ? "bg-success/10 text-success" : "bg-muted text-muted-foreground";
   const last = evolutionData[evolutionData.length - 1];
-  const evolutionSummary = `Gráfico de linha do custo com agregados sobre o valor das cargas nos últimos 12 meses. ${evolutionData
-    .map((p) => `${p.label}: ${fmtPercent(p.percentage)}`)
-    .join("; ")}. Meta de até 20%.${last ? ` Mês atual: ${fmtPercent(last.percentage)}.` : ""}`;
+  const monthsWithData = evolutionData.filter((p) => p.percentage !== null);
+  const evolutionSummary = `Gráfico de linha do custo com agregados sobre o valor das cargas nos últimos 12 meses. ${
+    monthsWithData.length
+      ? monthsWithData.map((p) => `${p.label}: ${fmtPercent(p.percentage as number)}`).join("; ")
+      : "Nenhum mês com romaneio"
+  }. Os outros meses não tiveram romaneio. Meta de até 20%.${
+    last?.percentage != null ? ` Mês atual: ${fmtPercent(last.percentage)}.` : ""
+  }`;
 
   return (
     <div className="space-y-6">
-      {/* Periodo desta aba */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          Quanto do valor das cargas foi gasto com frete de agregados. Quanto menor, melhor. Meta: até 20%.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-            <SelectTrigger className="w-full sm:w-[10rem]" aria-label="Tipo de período">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="day">Um dia</SelectItem>
-              <SelectItem value="month">Um mês</SelectItem>
-              <SelectItem value="year">Um ano</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {periodType === "day" && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="justify-start font-normal" aria-label={`Dia: ${format(selectedDate, "dd/MM/yyyy")}. Alterar`}>
-                  <CalendarDays className="text-muted-foreground" aria-hidden="true" />
-                  <span className="font-data">{format(selectedDate, "dd/MM/yyyy")}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar mode="single" selected={selectedDate} onSelect={(d) => d && setSelectedDate(d)} locale={ptBR} />
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {periodType === "month" && (
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-full capitalize sm:w-[12rem]" aria-label="Mês">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {monthOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="capitalize">
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          {periodType === "year" && (
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-full sm:w-[8rem]" aria-label="Ano">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {yearOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Quanto do valor das cargas foi gasto com frete de agregados no período. Quanto menor, melhor. Meta: até 20%.
+      </p>
 
       {/* Indicadores */}
       <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -298,17 +228,26 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
             <EfficiencyGauge percentage={percentage} />
             <div className="space-y-1.5">
               <p className="font-data text-[2rem] font-semibold leading-none tracking-tight text-foreground">{fmtPercent(percentage)}</p>
-              <StatusBadge tone={shareTone(percentage)}>
-                {percentage <= 20 ? "Dentro da meta" : percentage <= 40 ? "Atenção" : "Acima do ideal"}
-              </StatusBadge>
-              <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold ${trendClass}`}>
-                  <TrendIcon className="h-3 w-3" aria-hidden="true" />
-                  {trend > 0 ? "+" : ""}
-                  {trend.toFixed(1).replace(".", ",")} p.p.
-                </span>
-                vs. mês anterior
-              </p>
+              {totalCargo > 0 ? (
+                <StatusBadge tone={shareTone(percentage)}>
+                  {percentage <= 20 ? "Dentro da meta" : percentage <= 40 ? "Atenção" : "Acima do ideal"}
+                </StatusBadge>
+              ) : (
+                <StatusBadge tone="neutral">Sem cargas no período</StatusBadge>
+              )}
+              {trend === null ? (
+                <p className="text-xs text-muted-foreground">Sem dados do período anterior</p>
+              ) : (
+                <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold ${trendClass}`}>
+                    <TrendIcon className="h-3 w-3" aria-hidden="true" />
+                    {trend > 0 ? "+" : ""}
+                    {trend.toFixed(1).replace(".", ",")} p.p.
+                    <span className="sr-only">{trend > 0.5 ? " a mais, pior" : trend < -0.5 ? " a menos, melhor" : " sem variação"}</span>
+                  </span>
+                  vs. período anterior
+                </p>
+              )}
             </div>
           </div>
         </Card>
@@ -347,7 +286,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                 labelStyle={tooltipLabelStyle}
                 itemStyle={tooltipItemStyle}
                 cursor={{ stroke: "hsl(var(--border))" }}
-                formatter={(value: number) => [fmtPercent(value), "Agregados / cargas"]}
+                formatter={(value: number | null) => [value == null ? "Sem romaneio" : fmtPercent(value), "Agregados / cargas"]}
               />
               <ReferenceLine
                 y={20}
@@ -379,7 +318,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
             compact
             icon={FileText}
             title="Nenhum romaneio de agregado no período"
-            description="Escolha outro dia, mês ou ano acima."
+            description="Escolha outro período no topo da tela."
           />
         ) : (
           <>
@@ -401,7 +340,9 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                     return (
                       <TableRow key={m.id}>
                         <TableCell className="pl-5 font-data text-xs sm:pl-6">{m.manifest_code}</TableCell>
-                        <TableCell className="max-w-[180px] truncate">{m.driver_name}</TableCell>
+                        <TableCell className="max-w-[180px] truncate" title={m.driver_name}>
+                          {m.driver_name}
+                        </TableCell>
                         <TableCell className="font-data text-xs text-muted-foreground">{format(new Date(m.created_at), "dd/MM/yyyy")}</TableCell>
                         <TableCell className="text-right font-data">{formatCurrency(m.total_value || 0)}</TableCell>
                         <TableCell className="text-right font-data">{formatCurrency(m.freight_value || 0)}</TableCell>
@@ -416,12 +357,12 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                 </TableBody>
                 <TableFooter>
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={3} className="pl-5 font-semibold sm:pl-6">Total</TableCell>
-                    <TableCell className="text-right font-data font-semibold">{formatCurrency(totalCargo)}</TableCell>
+                    <TableCell colSpan={3} className="pl-5 font-semibold sm:pl-6">Total dos agregados</TableCell>
+                    <TableCell className="text-right font-data font-semibold">{formatCurrency(thirdPartyCargo)}</TableCell>
                     <TableCell className="text-right font-data font-semibold">{formatCurrency(thirdPartyFreight)}</TableCell>
                     <TableCell className="pr-5 text-right sm:pr-6">
-                      <StatusBadge tone={shareTone(percentage)} className="font-data">
-                        {fmtPercent(percentage)}
+                      <StatusBadge tone={shareTone(thirdPartyShare)} className="font-data">
+                        {fmtPercent(thirdPartyShare)}
                       </StatusBadge>
                     </TableCell>
                   </TableRow>
@@ -437,7 +378,9 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                     <Card className="space-y-3 p-4 shadow-none">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{m.driver_name}</p>
+                          <p className="truncate font-medium" title={m.driver_name}>
+                            {m.driver_name}
+                          </p>
                           <p className="font-data text-xs text-muted-foreground">
                             {m.manifest_code} · {format(new Date(m.created_at), "dd/MM/yyyy")}
                           </p>
@@ -461,9 +404,9 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                 );
               })}
               <li className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-                <span className="font-semibold">Total</span>
+                <span className="font-semibold">Total dos agregados</span>
                 <span className="font-data font-semibold">
-                  {formatCurrency(thirdPartyFreight)} de {formatCurrency(totalCargo)}
+                  {formatCurrency(thirdPartyFreight)} de {formatCurrency(thirdPartyCargo)}
                 </span>
               </li>
             </ul>

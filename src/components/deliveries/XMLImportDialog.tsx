@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -70,9 +70,29 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
   const [errorCount, setErrorCount] = useState(0);
   const [importErrorDetails, setImportErrorDetails] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
+  const doneRef = useRef<HTMLButtonElement>(null);
+
+  // A cada etapa o botao clicado some: leva o foco para o novo conteudo
+  // (antes caia na janela inteira, com contorno verde em volta de tudo).
+  useEffect(() => {
+    if (!open) return;
+    const target =
+      step === "processing" || step === "importing"
+        ? statusRef.current
+        : step === "review"
+          ? reviewRef.current
+          : step === "complete"
+            ? doneRef.current
+            : null;
+    target?.focus({ preventScroll: true });
+  }, [step, open]);
 
   // Reset state when dialog closes
   const handleOpenChange = (open: boolean) => {
+    // Enquanto salva, nao fecha (as notas seguiriam sendo gravadas sem aviso).
+    if (!open && step === "importing") return;
     if (!open) {
       setStep("upload");
       setFiles([]);
@@ -127,6 +147,8 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
     const selectedFiles = Array.from(e.target.files || []).filter(
       (file) => file.name.toLowerCase().endsWith(".xml")
     );
+    // Libera o campo para escolher os mesmos arquivos de novo (sem isso nada acontecia).
+    e.target.value = "";
 
     if (selectedFiles.length === 0) {
       toast({
@@ -145,7 +167,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
   const processFiles = async (filesToProcess: File[]) => {
     setStep("processing");
     setProgress(0);
-    setProgressMessage("Lendo arquivos XML...");
+    setProgressMessage("Lendo os arquivos XML…");
 
     try {
       // Parse XML files
@@ -166,9 +188,12 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
       }
 
       if (successfulResults.length === 0) {
-        const errorDetails = failedResults.length > 0 
-          ? `Erros: ${failedResults.map(f => f.error).join("; ")}`
-          : "Não foi possível processar nenhum arquivo XML.";
+        const errorDetails =
+          failedResults.length === 1
+            ? `${failedResults[0].fileName}: ${failedResults[0].error || "não é um XML de nota fiscal."}`
+            : failedResults.length > 1
+              ? `Nenhum dos ${failedResults.length} arquivos é um XML de nota fiscal (NF-e) válido.`
+              : "Não foi possível ler nenhum arquivo XML.";
         toast({
           title: "Nenhuma nota válida",
           description: errorDetails,
@@ -178,7 +203,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
         return;
       }
 
-      setProgressMessage("Verificando duplicidades...");
+      setProgressMessage("Conferindo se as notas já foram importadas…");
       const tenantId = await requireCurrentTenantId();
 
       // Check for duplicates in database
@@ -198,7 +223,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
       const seenBatchKeys = new Set<string>();
       setProgress(50);
 
-      setProgressMessage("Localizando os endereços no mapa...");
+      setProgressMessage("Localizando os endereços no mapa…");
 
       // Process and geocode each invoice - with concurrency limit to avoid rate limiting
       const processed: ProcessedInvoice[] = [];
@@ -312,7 +337,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
 
     setStep("importing");
     setProgress(0);
-    setProgressMessage("Salvando notas fiscais...");
+    setProgressMessage("Salvando as notas fiscais…");
 
     try {
       const tenantId = await requireCurrentTenantId();
@@ -362,7 +387,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
         title: "Notas importadas",
         description:
           skippedNow > 0
-            ? `${importedNow} importada(s); ${skippedNow} já existia(m) no sistema.`
+            ? `${importedNow === 1 ? "1 importada" : `${importedNow} importadas`}; ${skippedNow === 1 ? "1 já existia" : `${skippedNow} já existiam`} no sistema.`
             : importedNow === 1
               ? "1 nota fiscal importada."
               : `${importedNow} notas fiscais importadas.`,
@@ -385,7 +410,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
 
       toast({
         title: "Não foi possível importar as notas",
-        description: `${anyErr?.message || "Tente de novo em instantes."}${anyErr?.code ? ` (código: ${anyErr.code})` : ""}`,
+        description: "Confira a internet e tente de novo. Os detalhes técnicos ficam na janela.",
         variant: "destructive",
       });
       setStep("review");
@@ -419,6 +444,19 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
 
         <WizardSteps steps={["Escolher arquivos", "Conferir notas", "Pronto"]} current={stepIndex} />
 
+        {/* Campo de arquivo escondido: aberto pelos botoes "Escolher arquivos". */}
+        <input
+          ref={fileInputRef}
+          id="xml-file-input"
+          type="file"
+          accept=".xml,text/xml,application/xml"
+          multiple
+          className="hidden"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={handleFileSelect}
+        />
+
         {/* Etapa 1: escolher arquivos */}
         {step === "upload" && (
           <div
@@ -430,15 +468,6 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <input
-              ref={fileInputRef}
-              id="xml-file-input"
-              type="file"
-              accept=".xml"
-              multiple
-              className="hidden"
-              onChange={handleFileSelect}
-            />
             <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <FileUp className="h-6 w-6" />
             </span>
@@ -456,7 +485,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
 
         {/* Lendo / salvando */}
         {(step === "processing" || step === "importing") && (
-          <div className="flex flex-col items-center gap-4 py-10 text-center" role="status" aria-live="polite">
+          <div ref={statusRef} tabIndex={-1} className="flex flex-col items-center gap-4 py-10 text-center outline-none" role="status" aria-live="polite">
             <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden="true" />
             <p className="font-heading text-base font-semibold text-foreground">{progressMessage}</p>
             <div className="w-full max-w-sm space-y-2">
@@ -501,6 +530,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
             )}
 
             <div
+              ref={reviewRef}
               role="region"
               aria-label="Notas encontradas nos arquivos"
               tabIndex={0}
@@ -515,7 +545,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
                         disabled={nonDuplicateCount === 0}
                         onCheckedChange={(checked) => toggleSelectAll(checked === true)}
                         aria-label="Marcar todas as notas novas"
-                        className="h-5 w-5 rounded-[0.375rem]"
+                        className="h-6 w-6 rounded-[0.375rem] [&_svg]:h-4 [&_svg]:w-4"
                       />
                     </TableHead>
                     <TableHead className="px-2 sm:px-4">Nota</TableHead>
@@ -532,13 +562,15 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
                           checked={invoice.selected}
                           disabled={invoice.isDuplicate}
                           onCheckedChange={() => toggleSelection(invoice.id)}
-                          aria-label={`Importar NF ${invoice.nfeNumber}`}
-                          className="h-5 w-5 rounded-[0.375rem]"
+                          aria-label={invoice.isDuplicate ? `NF ${invoice.nfeNumber} já importada` : `Importar NF ${invoice.nfeNumber}`}
+                          className="h-6 w-6 rounded-[0.375rem] [&_svg]:h-4 [&_svg]:w-4"
                         />
                       </TableCell>
                       <TableCell className="whitespace-nowrap px-2 font-data font-medium sm:px-4">{invoice.nfeNumber}</TableCell>
                       <TableCell className="w-full max-w-0 px-2 sm:px-4">
-                        <p className="truncate text-foreground">{invoice.recipientName}</p>
+                        <p className="truncate text-foreground" title={invoice.recipientName}>
+                          {invoice.recipientName}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {invoice.addressCity}/{invoice.addressState}
                           <span className="font-data sm:hidden"> · {formatCurrency(invoice.totalValue)}</span>
@@ -575,7 +607,9 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
                       <TableCell>
                         <span className="sr-only">Não pode ser importada</span>
                       </TableCell>
-                      <TableCell className="max-w-[8rem] truncate px-2 font-data text-xs sm:px-4">{result.fileName}</TableCell>
+                      <TableCell className="max-w-[8rem] truncate px-2 font-data text-xs sm:px-4" title={result.fileName}>
+                        {result.fileName}
+                      </TableCell>
                       <TableCell colSpan={2} className="px-2 text-sm text-muted-foreground sm:px-4">
                         {result.error || "Não foi possível ler este XML."}
                       </TableCell>
@@ -588,7 +622,11 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
               </Table>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="sm:items-center">
+              <Button variant="ghost" onClick={() => fileInputRef.current?.click()} className="sm:mr-auto">
+                <Upload aria-hidden="true" />
+                Escolher outros arquivos
+              </Button>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancelar
               </Button>
@@ -618,7 +656,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
             <p className="max-w-sm text-sm text-muted-foreground">
               Próximo passo: marque as notas na lista e toque em Gerar romaneio.
             </p>
-            <Button className="mt-2" onClick={() => handleOpenChange(false)}>
+            <Button ref={doneRef} className="mt-2" onClick={() => handleOpenChange(false)}>
               Ver notas
             </Button>
           </div>

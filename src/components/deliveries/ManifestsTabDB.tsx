@@ -35,7 +35,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { SegmentedControl } from "@/components/patterns/SegmentedControl";
-import { ManifestStatusBadge, vehicleTypeLabel } from "./status";
+import { ManifestStatusBadge, plateText, vehicleTypeLabel } from "./status";
 
 type TimeFilter = "daily" | "weekly" | "all";
 
@@ -77,31 +77,30 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
   const [isPrintOpen, setIsPrintOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
+  // "7 dias" = hoje e os 6 dias antes (igual a lista de notas; antes contava 8 dias).
+  const { todayStr, weekStartStr } = useMemo(() => {
+    const today = getTodayBrazil();
+    const start = parseDateOnly(today)!;
+    start.setDate(start.getDate() - 6);
+    const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+    return { todayStr: today, weekStartStr: startStr };
+  }, [manifests]);
+
   // Filter manifests by time period and search
   const filteredManifests = useMemo(() => {
-    // Get today's date in Brazil timezone
-    const todayStr = getTodayBrazil();
-    const today = new Date(todayStr + "T00:00:00-03:00");
-
-    // Calculate date 7 days ago
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoStr = weekAgo.toISOString().slice(0, 10);
-
     return manifests.filter((m) => {
       // Compare date strings directly (YYYY-MM-DD format)
       const manifestDateStr = m.scheduled_date.slice(0, 10);
 
-      // Com busca digitada procura em todos os periodos.
+      // Com busca digitada procura em todos os periodos. Romaneio ainda em aberto
+      // (aguardando saida ou em rota) aparece em qualquer periodo, como as notas.
       let timeMatch = true;
-      if (search.trim()) {
+      if (search.trim() || m.status === "pending" || m.status === "in_progress") {
         timeMatch = true;
       } else if (timeFilter === "daily") {
-        // Exact match for today
         timeMatch = manifestDateStr === todayStr;
       } else if (timeFilter === "weekly") {
-        // Within last 7 days
-        timeMatch = manifestDateStr >= weekAgoStr && manifestDateStr <= todayStr;
+        timeMatch = manifestDateStr >= weekStartStr && manifestDateStr <= todayStr;
       }
       // timeFilter === "all" keeps timeMatch = true
 
@@ -112,20 +111,16 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
       const searchLower = search.toLowerCase();
       return (
         m.manifest_code.toLowerCase().includes(searchLower) ||
+        formatManifestNumber(m).includes(search.trim()) ||
         m.driver_name.toLowerCase().includes(searchLower) ||
         (m.driver_cpf && m.driver_cpf.includes(search)) ||
         (m.vehicle_plate && m.vehicle_plate.toLowerCase().includes(searchLower))
       );
     });
-  }, [manifests, timeFilter, search]);
+  }, [manifests, timeFilter, search, todayStr, weekStartStr]);
 
   // Stats
   const stats = useMemo(() => {
-    const todayStr = getTodayBrazil();
-    const weekStart = parseDateOnly(todayStr)!;
-    weekStart.setDate(weekStart.getDate() - 7);
-    const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
-
     const todayManifests = manifests.filter((m) => m.scheduled_date?.slice(0, 10) === todayStr);
     const weekManifests = manifests.filter((m) => {
       const day = m.scheduled_date?.slice(0, 10) || "";
@@ -138,9 +133,10 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
       week: weekManifests.length,
       weekValue: weekManifests.reduce((sum, m) => sum + (m.total_value || 0), 0),
       completed: filteredManifests.filter((m) => m.status === "completed").length,
-      pending: filteredManifests.filter((m) => m.status === "pending" || m.status === "in_progress").length,
+      // Em aberto conta todos (nao depende do periodo).
+      pending: manifests.filter((m) => m.status === "pending" || m.status === "in_progress").length,
     };
-  }, [manifests, filteredManifests]);
+  }, [manifests, filteredManifests, todayStr, weekStartStr]);
 
   const handleOpenDetail = (manifest: DBManifest) => {
     setSelectedManifest(manifest);
@@ -167,12 +163,12 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
 
       const reopened = result.reopened_count ?? 0;
       const kept = result.kept_count ?? 0;
+      const reopenedText = reopened === 1 ? "1 nota voltou para pendente" : `${reopened} notas voltaram para pendente`;
+      const keptText = kept === 1 ? "1 nota já finalizada ficou como estava" : `${kept} notas já finalizadas ficaram como estavam`;
       toast({
         title: "Romaneio excluído",
-        description:
-          kept > 0
-            ? `${reopened} nota(s) voltaram para pendente; ${kept} já finalizada(s) mantiveram o status.`
-            : `${reopened} nota(s) voltaram para pendente.`,
+        description: kept > 0 ? `${reopenedText}; ${keptText}.` : `${reopenedText}.`,
+        variant: "success",
       });
 
       setIsDeleteOpen(false);
@@ -271,7 +267,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
       <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard label="Hoje" value={stats.today} icon={CalendarDays} tone="brand" hint={formatCurrency(stats.todayValue)} />
         <StatCard label="Últimos 7 dias" value={stats.week} icon={CalendarRange} tone="brand" hint={formatCurrency(stats.weekValue)} />
-        <StatCard label="Em aberto" value={stats.pending} icon={Clock} tone="info" hint="Aguardando baixa" />
+        <StatCard label="Em aberto" value={stats.pending} icon={Clock} tone="info" hint="Aguardando saída ou em rota" />
         <StatCard label="Concluídos" value={stats.completed} icon={CheckCircle2} tone="success" hint="No período escolhido" />
       </div>
 
@@ -287,10 +283,15 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
       </FilterBar>
 
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          <span className="font-semibold text-foreground">{resultLabel}</span>
-          {search.trim() && " · buscando em todos os períodos"}
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            <span className="font-semibold text-foreground">{resultLabel}</span>
+            {search.trim() && " · buscando em todos os períodos"}
+          </p>
+          {!search.trim() && timeFilter !== "all" && (
+            <p className="text-xs text-muted-foreground">Romaneios em aberto aparecem em qualquer período.</p>
+          )}
+        </div>
 
         {filteredManifests.length === 0 ? (
           <Card>
@@ -328,7 +329,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
                     <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <Truck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       <span className="truncate">
-                        {vehicleTypeLabel(manifest.vehicle_type)} · {manifest.vehicle_plate || "sem placa"}
+                        {vehicleTypeLabel(manifest.vehicle_type)} · {plateText(manifest.vehicle_plate) || "sem placa"}
                       </span>
                     </p>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -377,7 +378,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
                     </TableCell>
                     <TableCell className="hidden whitespace-nowrap xl:table-cell">
                       <p>{vehicleTypeLabel(manifest.vehicle_type)}</p>
-                      <p className="font-data text-xs text-muted-foreground">{manifest.vehicle_plate || "Sem placa"}</p>
+                      <p className="font-data text-xs text-muted-foreground">{plateText(manifest.vehicle_plate) || "Sem placa"}</p>
                     </TableCell>
                     <TableCell className="text-right font-data">{manifest.deliveries_count}</TableCell>
                     <TableCell className="hidden whitespace-nowrap text-right font-data font-medium lg:table-cell">
@@ -442,7 +443,8 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
               }
             : null
         }
-        onConfirm={() => selectedManifest && handleDelete(selectedManifest.id)}
+        displayNumber={selectedManifest ? formatManifestNumber(selectedManifest) : undefined}
+        onConfirm={() => (selectedManifest ? handleDelete(selectedManifest.id) : undefined)}
         canDelete={
           selectedManifest?.status !== "completed" &&
           selectedManifest?.status !== "paid"

@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -13,6 +13,10 @@ import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
 import { FormField } from "@/components/patterns/FormField";
 import { CredentialsCard } from "./CredentialsCard";
 import { INVITE_ROLES, looksLikeEmail } from "./roleOptions";
+import { friendlyServerMessage, isDuplicateEmail } from "./serverMessages";
+
+const FALLBACK_ERROR = "Não foi possível gerar o acesso. Confira os dados e tente de novo.";
+const DUPLICATE = "Este e-mail já está cadastrado. Use outro e-mail.";
 
 interface InviteUserDialogProps {
   onUserInvited?: () => void;
@@ -26,12 +30,21 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(null);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  // O campo fica desabilitado enquanto envia: o foco vai para o e-mail quando ele volta.
+  const [focusEmail, setFocusEmail] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("dispatcher");
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (focusEmail && !isLoading) {
+      emailRef.current?.focus();
+      setFocusEmail(false);
+    }
+  }, [focusEmail, isLoading]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
@@ -47,7 +60,9 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
   const handleInvite = async (event?: FormEvent) => {
     event?.preventDefault();
     if (!canAddUser) {
-      toast.error(`Limite de ${limits.max_users} usuário(s) de sistema atingido no plano ${planLabels[plan] || plan}. Fale com a equipe para mudar de plano.`);
+      toast.error(
+        `O plano ${planLabels[plan] || plan} permite até ${limits.max_users} ${limits.max_users === 1 ? "usuário" : "usuários"}. Fale com a equipe para mudar de plano.`,
+      );
       return;
     }
 
@@ -74,22 +89,32 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
 
       if (error) {
         console.error("Invite error:", error);
-        const info = await readEdgeFunctionError(error, "Erro ao convidar usuário");
-        toast.error(info.message);
+        const info = await readEdgeFunctionError(error, FALLBACK_ERROR);
+        if (isDuplicateEmail(info.message, info.code)) {
+          setErrors({ email: DUPLICATE });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(info.message, FALLBACK_ERROR));
         return;
       }
 
       if (!data?.success) {
-        toast.error(data?.error || "Erro ao convidar usuário");
+        if (isDuplicateEmail(data?.error, data?.code)) {
+          setErrors({ email: DUPLICATE });
+          setFocusEmail(true);
+          return;
+        }
+        toast.error(friendlyServerMessage(data?.error, FALLBACK_ERROR));
         return;
       }
 
       setInviteResult({ email: data.user.email, tempPassword: data.tempPassword });
       toast.success(`Acesso criado para ${data.user.email}.`);
       onUserInvited?.();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error inviting:", err);
-      toast.error(err.message || "Erro ao convidar");
+      toast.error(friendlyServerMessage(err instanceof Error ? err.message : "", FALLBACK_ERROR));
     } finally {
       setIsLoading(false);
     }

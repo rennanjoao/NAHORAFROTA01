@@ -1,10 +1,19 @@
-import { useState } from "react";
-import { LogOut, Mail } from "lucide-react";
-import { ConfirmDialog } from "@/components/patterns";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { Loader2, LogOut, Mail } from "lucide-react";
 import { ThemeSegmented } from "@/components/theme/ThemeToggle";
 import { usePreferences } from "@/components/theme/PreferencesProvider";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
 import { brandAvatar } from "@/lib/avatar";
@@ -35,16 +44,63 @@ function SettingsGroup({ id, title, children }: { id: string; title: string; chi
   );
 }
 
+/** Linha inteira clicavel (bom com luva) com nome e explicacao ligados ao switch. */
+function SwitchRow({
+  id,
+  title,
+  hint,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  title: string;
+  hint: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <label htmlFor={id} className="flex min-h-16 cursor-pointer items-center gap-4 p-4">
+      <span className="min-w-0 flex-1">
+        <span id={`${id}-nome`} className="block text-[0.9375rem] font-medium text-foreground">
+          {title}
+        </span>
+        <span id={`${id}-dica`} className="block text-sm text-muted-foreground">
+          {hint}
+        </span>
+      </span>
+      <Switch
+        id={id}
+        aria-labelledby={`${id}-nome`}
+        aria-describedby={`${id}-dica`}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+      />
+    </label>
+  );
+}
+
 export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
   const { user, profile, signOut } = useAuth();
-  const { textSize, contrast, setPreference } = usePreferences();
+  const { textSize, contrast, motion, setPreference } = usePreferences();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const sizesRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
     setLeaving(true);
     await signOut();
     window.location.href = "/login";
+  };
+
+  // Radiogroup: um so ponto de Tab; as setas trocam o tamanho (igual ao seletor de tema).
+  const onSizeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const index = TEXT_SIZES.findIndex((option) => option.value === textSize);
+    const next = (Math.max(index, 0) + step + TEXT_SIZES.length) % TEXT_SIZES.length;
+    setPreference("textSize", TEXT_SIZES[next].value);
+    sizesRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
   };
 
   return (
@@ -58,7 +114,7 @@ export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
             <AvatarFallback className="bg-primary/10 text-lg text-primary">{initialsOf(driverName)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate font-heading text-lg font-semibold text-foreground">{driverName}</p>
+            <p className="break-words font-heading text-lg font-semibold leading-snug text-foreground">{driverName}</p>
             <p className="text-sm text-muted-foreground">Motorista{vehicle ? ` · ${vehicle}` : ""}</p>
             {user?.email && (
               <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
@@ -82,7 +138,13 @@ export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
             <p id="tamanho-rotulo" className="text-[0.9375rem] font-medium text-foreground">
               Tamanho do texto
             </p>
-            <div role="radiogroup" aria-labelledby="tamanho-rotulo" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+            <div
+              ref={sizesRef}
+              role="radiogroup"
+              aria-labelledby="tamanho-rotulo"
+              onKeyDown={onSizeKeyDown}
+              className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+            >
               {TEXT_SIZES.map((option) => {
                 const selected = textSize === option.value;
                 return (
@@ -91,6 +153,7 @@ export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
                     type="button"
                     role="radio"
                     aria-checked={selected}
+                    tabIndex={selected ? 0 : -1}
                     onClick={() => setPreference("textSize", option.value)}
                     className={cn(
                       "flex min-h-14 flex-col items-center justify-center rounded-md px-2 font-medium transition-all duration ease-out",
@@ -108,21 +171,24 @@ export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
             </div>
           </div>
 
-          <label htmlFor="contraste" className="flex min-h-16 cursor-pointer items-center gap-4 p-4">
-            <span className="min-w-0 flex-1">
-              <span className="block text-[0.9375rem] font-medium text-foreground">Mais contraste</span>
-              <span className="block text-sm text-muted-foreground">Letras e bordas mais fortes para ler no sol.</span>
-            </span>
-            <Switch
-              id="contraste"
-              checked={contrast === "more"}
-              onCheckedChange={(checked) => setPreference("contrast", checked ? "more" : "normal")}
-            />
-          </label>
+          <SwitchRow
+            id="contraste"
+            title="Mais contraste"
+            hint="Letras e bordas mais fortes para ler no sol."
+            checked={contrast === "more"}
+            onCheckedChange={(checked) => setPreference("contrast", checked ? "more" : "normal")}
+          />
+          <SwitchRow
+            id="animacoes"
+            title="Reduzir animações"
+            hint="A tela troca direto, sem movimento."
+            checked={motion === "reduce"}
+            onCheckedChange={(checked) => setPreference("motion", checked ? "reduce" : "system")}
+          />
         </SettingsGroup>
 
         <SettingsGroup id="sobre-titulo" title="Sobre o app">
-          <dl className="grid grid-cols-2 gap-y-2 p-4 text-sm">
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 p-4 text-sm">
             <dt className="text-muted-foreground">Versão</dt>
             <dd className="text-right font-data text-foreground">1.0.0</dd>
             <dt className="text-muted-foreground">Empresa</dt>
@@ -141,16 +207,33 @@ export function SettingsTab({ driverName, vehicle }: SettingsTabProps) {
         </Button>
       </div>
 
-      <ConfirmDialog
-        open={confirmLogout}
-        onOpenChange={setConfirmLogout}
-        title="Sair da conta?"
-        description="O GPS para de enviar sua localização. Para voltar, entre de novo com seu e-mail e senha."
-        confirmLabel="Sair da conta"
-        tone="danger"
-        loading={leaving}
-        onConfirm={handleLogout}
-      />
+      {/* Mesma confirmacao do ConfirmDialog, com botoes de 48px (toque com luva). */}
+      <AlertDialog open={confirmLogout} onOpenChange={(next) => !leaving && setConfirmLogout(next)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sair da conta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O GPS para de enviar sua localização. Para voltar, entre de novo com seu e-mail e senha.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={leaving} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-0")}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              aria-disabled={leaving || undefined}
+              onClick={(event) => {
+                event.preventDefault();
+                if (!leaving) handleLogout();
+              }}
+              className={buttonVariants({ variant: "destructive", size: "lg" })}
+            >
+              {leaving && <Loader2 className="animate-spin" aria-hidden="true" />}
+              {leaving ? "Saindo" : "Sair da conta"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

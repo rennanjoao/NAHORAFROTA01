@@ -103,6 +103,13 @@ export default function AdminPage() {
 
     await deleteUser(userId);
     setUserToDelete(null);
+    // A linha some: o foco vai para o titulo da lista (e nao para o topo da pagina).
+    window.setTimeout(() => {
+      const heading = document.getElementById("usuarios-titulo");
+      if (!heading) return;
+      heading.setAttribute("tabindex", "-1");
+      heading.focus();
+    }, 0);
   };
 
   const handleRoleChange = async (userId: string, newRole: SystemUser['role']) => {
@@ -183,7 +190,7 @@ export default function AdminPage() {
               className="scroll-mt-24"
               title="Usuários do painel"
               description={
-                isLoading
+                isLoading && users.length === 0
                   ? "Carregando..."
                   : `${plural(users.length, "pessoa com acesso", "pessoas com acesso")} ao painel${
                       limits.max_users !== -1 ? ` · limite do plano: ${limits.max_users}` : ""
@@ -215,7 +222,7 @@ export default function AdminPage() {
               {!planLimitsLoading && (
                 <PlanLimitBanner
                   plan={plan}
-                  resourceLabel="usuários de sistema"
+                  resourceLabel="usuários do painel"
                   currentCount={systemUsersCount}
                   maxCount={limits.max_users}
                   planLabels={pLabels}
@@ -248,7 +255,7 @@ export default function AdminPage() {
               className="scroll-mt-24"
               title="Motoristas do app"
               description={
-                isLoadingDrivers
+                isLoadingDrivers && drivers.length === 0
                   ? "Carregando..."
                   : `${plural(drivers.length, "motorista cadastrado", "motoristas cadastrados")}${
                       limits.max_drivers !== -1 ? ` · limite do plano: ${limits.max_drivers}` : ""
@@ -304,6 +311,7 @@ export default function AdminPage() {
 
       <EditAccessDialog
         target={editTarget}
+        takenEmails={[...users.map((u) => u.email), ...drivers.map((d) => d.email || "")]}
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
         onSaved={refreshAdminLists}

@@ -37,7 +37,8 @@ export function DeliveryList({ deliveries, onNavigate, onFinishDelivery, onRegis
     <div className="space-y-8">
       {next ? (
         <section aria-labelledby="proxima-titulo" className="space-y-3">
-          <h2 id="proxima-titulo" className="text-lg font-semibold text-foreground">
+          {/* tabIndex -1: recebe o foco depois de finalizar ou reportar (o botao usado some). */}
+          <h2 id="proxima-titulo" tabIndex={-1} className="text-lg font-semibold text-foreground outline-none">
             Próxima entrega
           </h2>
           <NextDeliveryCard key={next.id} delivery={next} stop={1} totalOpen={open.length} {...actions} />
@@ -50,7 +51,7 @@ export function DeliveryList({ deliveries, onNavigate, onFinishDelivery, onRegis
           <span aria-hidden="true" className="flex h-14 w-14 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
             <CircleCheck className="h-7 w-7" />
           </span>
-          <h2 id="tudo-entregue-titulo" className="text-xl font-semibold text-foreground">
+          <h2 id="tudo-entregue-titulo" tabIndex={-1} className="text-xl font-semibold text-foreground outline-none">
             Todas as paradas foram feitas
           </h2>
           <p className="max-w-xs text-[0.9375rem] text-muted-foreground">

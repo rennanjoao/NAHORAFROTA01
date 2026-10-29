@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/patterns";
+import { slaTone } from "@/components/drivers/driverConfig";
 import type { DBDriver } from "@/hooks/useDBDrivers";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
@@ -14,6 +15,8 @@ import { PixCopyButton } from "./PixCopyButton";
 interface DriverSummaryCardProps {
   driver: DBDriver;
   stats: { paid: number; pending: number; balance: number };
+  /** Entregas no prazo nos ultimos 6 meses (mesmo numero da tela de Motoristas); null = sem entregas. */
+  sla: number | null;
   periodLabel: string;
   onOpenBankDetails: () => void;
   onAddAdjustment: () => void;
@@ -30,9 +33,7 @@ function Amount({ label, value, hint, highlight }: { label: string; value: numbe
 }
 
 /** Cabecalho do motorista escolhido: dados, PIX, atalhos e quanto falta pagar. */
-export function DriverSummaryCard({ driver, stats, periodLabel, onOpenBankDetails, onAddAdjustment }: DriverSummaryCardProps) {
-  const sla = driver.individual_sla || 100;
-
+export function DriverSummaryCard({ driver, stats, sla, periodLabel, onOpenBankDetails, onAddAdjustment }: DriverSummaryCardProps) {
   return (
     <Card className="space-y-5 p-5 animate-fade-in">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -40,11 +41,19 @@ export function DriverSummaryCard({ driver, stats, periodLabel, onOpenBankDetail
           <DriverAvatar name={driver.name} src={driver.photo || driver.avatar} className="h-12 w-12 ring-2 ring-primary/40" />
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-lg font-semibold tracking-tight text-foreground">{driver.name}</h2>
+              {/* Recebe o foco ao escolher o motorista na lista de pendencias. */}
+              <h2
+                id="acerto-motorista"
+                tabIndex={-1}
+                title={driver.name}
+                className="min-w-0 truncate rounded-sm text-lg font-semibold tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {driver.name}
+              </h2>
               {driver.is_own_fleet && (
                 <Badge variant="default">
                   <Truck aria-hidden="true" />
-                  Frota própria
+                  CLT (da casa)
                 </Badge>
               )}
             </div>
@@ -58,9 +67,13 @@ export function DriverSummaryCard({ driver, stats, periodLabel, onOpenBankDetail
                 <dd className="font-data text-foreground">{driver.vehicle_plate || "—"}</dd>
               </div>
               <div className="flex items-center gap-1.5">
-                <dt>SLA</dt>
+                <dt title="Entregas no prazo nos últimos 6 meses">No prazo (6 meses)</dt>
                 <dd>
-                  <StatusBadge tone={sla >= 95 ? "success" : "warning"}>{formatSLA(sla)}%</StatusBadge>
+                  {sla === null ? (
+                    <span className="text-foreground">Sem entregas</span>
+                  ) : (
+                    <StatusBadge tone={slaTone(sla)}>{formatSLA(sla)}%</StatusBadge>
+                  )}
                 </dd>
               </div>
             </dl>
@@ -85,7 +98,7 @@ export function DriverSummaryCard({ driver, stats, periodLabel, onOpenBankDetail
       {driver.is_own_fleet ? (
         <Alert variant="info">
           <Truck aria-hidden="true" />
-          <AlertTitle>Motorista da frota própria</AlertTitle>
+          <AlertTitle>Motorista da casa (CLT)</AlertTitle>
           <AlertDescription>
             Este motorista é da empresa e não tem frete a receber no acerto. Aqui aparecem só os custos da operação,
             como combustível e pedágio.

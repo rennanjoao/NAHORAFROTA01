@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { CheckCircle2, FileSpreadsheet, MoreHorizontal, Plus, Route, SearchX, Truck, UserX, Users, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -57,6 +57,9 @@ const normalizeVehicleTypeForDb = (value?: string | null): string => {
   return vehicleTypeToDbMap[normalized] || normalized || "van";
 };
 
+// Busca sem acento e sem caixa ("joao" acha "João").
+const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 const normalizeVehicleTypeForDisplay = (value?: string | null): VehicleType => {
   const normalized = (value || "").trim().toLowerCase();
   return vehicleTypeToDisplayMap[normalized] || "Van";
@@ -103,8 +106,13 @@ export default function DriversPage() {
     setIsNewDriverDialogOpen(true);
   }, [canAddDriver, limits.max_drivers]);
 
-  // Ctrl K > "Cadastrar motorista" abre /drivers?action=new.
-  useQueryAction("new", openNewDriver);
+  // Ctrl K > "Cadastrar motorista" abre /drivers?action=new. O foco passa antes
+  // pelo botao da tela: ao fechar a janela, ele volta para la (e nao para o topo).
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+  useQueryAction("new", () => {
+    newButtonRef.current?.focus();
+    openNewDriver();
+  });
 
   // Romaneios ainda nao pagos: definem quem esta em rota e o saldo a receber
   // (mesma regra do Acerto: pendente, em andamento ou concluido).
@@ -193,6 +201,10 @@ export default function DriversPage() {
   }, [dbDrivers, openManifestDriverIds, driverBalances, performanceByDriver]);
 
   const filteredDrivers = useMemo(() => {
+    const term = fold(searchQuery.trim());
+    // CPF so quando a busca parece CPF (numeros e pontuacao): antes, "ABC1D23"
+    // ou qualquer texto com um numero achava todo CPF com aquele digito.
+    const cpfDigits = /^[\d.\-\s]+$/.test(term) ? term.replace(/\D/g, "") : "";
     return drivers.filter((driver) => {
       const matchesStatus = filterStatus === "all" || driver.status === filterStatus;
       const matchesVehicle = filterVehicleType === "all" || driver.vehicleType === filterVehicleType;
@@ -201,11 +213,12 @@ export default function DriversPage() {
         (filterDriverType === "own_fleet" && driver.isOwnFleet) ||
         (filterDriverType === "third_party" && !driver.isOwnFleet);
       const matchesSearch =
-        searchQuery === "" ||
-        driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        term === "" ||
+        fold(driver.name).includes(term) ||
         // CPF pode estar gravado com ou sem pontuacao.
-        (/\d/.test(searchQuery) && driver.cpf.replace(/\D/g, "").includes(searchQuery.replace(/\D/g, ""))) ||
-        driver.vehiclePlate.toLowerCase().includes(searchQuery.toLowerCase());
+        (cpfDigits !== "" && (driver.cpf || "").replace(/\D/g, "").includes(cpfDigits)) ||
+        // Placa: ignora traco e espaco ("abc-1d23" acha ABC1D23).
+        (driver.vehiclePlate || "").toLowerCase().replace(/[^a-z0-9]/g, "").includes(term.replace(/[^a-z0-9]/g, "") || term);
 
       return matchesStatus && matchesVehicle && matchesDriverType && matchesSearch;
     });
@@ -329,7 +342,7 @@ export default function DriversPage() {
                 { label: "Pedir carro extra", icon: Truck, onSelect: () => setIsRequestVehicleOpen(true) },
               ]}
             />
-            <Button onClick={openNewDriver} disabled={!canAddDriver}>
+            <Button ref={newButtonRef} onClick={openNewDriver} disabled={!canAddDriver}>
               <Plus aria-hidden="true" />
               {canAddDriver ? "Cadastrar motorista" : "Limite de motoristas atingido"}
             </Button>
@@ -394,45 +407,48 @@ export default function DriversPage() {
           <h2 id="lista-motoristas" className="sr-only">
             Lista de motoristas
           </h2>
-          <FilterBar
-            actions={
-              <>
-                <p className="text-sm text-muted-foreground" aria-live="polite">
-                  {isFirstLoad ? "Carregando..." : countLabel}
-                </p>
-                {hasFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters}>
-                    Limpar filtros
-                  </Button>
-                )}
-              </>
-            }
-          >
-            <SearchInput label="Buscar motorista" placeholder="Nome, CPF ou placa" value={searchQuery} onChange={changeSearch} className="sm:max-w-xs" />
-            <SegmentedControl
-              label="Tipo de motorista"
-              value={filterDriverType}
-              onChange={changeDriverType}
-              options={[
-                { value: "all", label: "Todos", count: driverTypeStats.total, icon: Users },
-                { value: "own_fleet", label: "CLT", count: driverTypeStats.ownFleet, icon: Building2 },
-                { value: "third_party", label: "Agregados", count: driverTypeStats.thirdParty, icon: Truck },
-              ]}
-            />
-            <Select value={filterVehicleType} onValueChange={changeVehicleType}>
-              <SelectTrigger className="w-full sm:w-44" aria-label="Tipo de veículo">
-                <SelectValue placeholder="Tipo de veículo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os veículos</SelectItem>
-                {DRIVER_VEHICLE_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterBar>
+          {/* Sem motoristas nao ha o que filtrar: a lista vazia mostra o proximo passo. */}
+          {(isFirstLoad || drivers.length > 0) && (
+            <FilterBar
+              actions={
+                <>
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {isFirstLoad ? "Carregando..." : countLabel}
+                  </p>
+                  {hasFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                </>
+              }
+            >
+              <SearchInput label="Buscar motorista" placeholder="Nome, CPF ou placa" value={searchQuery} onChange={changeSearch} className="sm:max-w-xs" />
+              <SegmentedControl
+                label="Tipo de motorista"
+                value={filterDriverType}
+                onChange={changeDriverType}
+                options={[
+                  { value: "all", label: "Todos", count: driverTypeStats.total, icon: Users },
+                  { value: "own_fleet", label: "CLT", count: driverTypeStats.ownFleet, icon: Building2 },
+                  { value: "third_party", label: "Agregados", count: driverTypeStats.thirdParty, icon: Truck },
+                ]}
+              />
+              <Select value={filterVehicleType} onValueChange={changeVehicleType}>
+                <SelectTrigger className="w-full sm:w-44" aria-label="Tipo de veículo">
+                  <SelectValue placeholder="Tipo de veículo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os veículos</SelectItem>
+                  {DRIVER_VEHICLE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FilterBar>
+          )}
 
           {isFirstLoad ? (
             <ListSkeleton rows={6} />
@@ -507,9 +523,19 @@ export default function DriversPage() {
         onOpenChange={(open) => !open && setSelectedDriver(null)}
         onEditDriver={(driver) => openEdit(driver as DriverRecord)}
         onDeleteDriver={() => {
+          // A linha some com o motorista: o foco vai para a linha vizinha (ou para o cadastro).
+          const deletedId = selectedDriver?._dbId;
+          const index = Math.max(0, paginatedDrivers.findIndex((driver) => driver._dbId === deletedId));
           setSelectedDriver(null);
-          void fetchDrivers();
           void refreshPlan();
+          void Promise.resolve(fetchDrivers()).then(() =>
+            window.setTimeout(() => {
+              const rows = [...document.querySelectorAll<HTMLElement>("[data-driver-open]")].filter(
+                (el) => el.dataset.driverOpen !== deletedId && el.getClientRects().length > 0,
+              );
+              (rows[Math.min(index, rows.length - 1)] ?? newButtonRef.current)?.focus();
+            }, 350),
+          );
         }}
         onStatusChanged={() => {
           void fetchDrivers();

@@ -1,5 +1,8 @@
 import type { Tone } from "@/components/patterns";
+import { PLATE_REGEX } from "@/components/vehicles/vehicleConfig";
 import type { VehicleType } from "@/contexts/LogisticsContext";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDocument, onlyDigits } from "@/lib/documentValidation";
 
 // Situacao do motorista (valores do banco): active = disponivel, in_route = em rota.
 export const DRIVER_STATUS: Record<string, { label: string; tone: Tone }> = {
@@ -45,6 +48,51 @@ export const DOCUMENT_ACCEPT = ".pdf,.jpg,.jpeg,.png";
 
 /** Placa gravada quando o motorista ainda nao tem veiculo (CLT usa o da empresa). */
 export const PENDING_PLATE = "PENDENTE";
+
+/* Telefone e placa: mesma regra da importacao por planilha (src/lib/driverImport.ts). */
+
+/** So os digitos do telefone com DDD (tira o 55 do pais, se vier). */
+function phoneDigits(value: string): string {
+  const digits = onlyDigits(value);
+  return digits.length > 11 && digits.startsWith("55") ? digits.slice(2) : digits;
+}
+
+/** DDD + numero: 10 digitos (fixo) ou 11 (celular). */
+export const isValidPhone = (value: string) => [10, 11].includes(phoneDigits(value).length);
+
+/** Telefone no formato (11) 98888-7777 ou (11) 3888-7777. */
+export function formatPhone(value: string): string {
+  const digits = phoneDigits(value);
+  if (digits.length === 11) return digits.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+  if (digits.length === 10) return digits.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
+  return value.trim();
+}
+
+/** Placa so com letras e numeros, em maiusculas ("abc-1d23" vira "ABC1D23"). */
+export const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
+
+/** Placa antiga (ABC1234) ou Mercosul (ABC1D23). */
+export const isValidPlate = (value: string) => PLATE_REGEX.test(normalizePlate(value));
+
+export const PHONE_ERROR = "Telefone inválido. Informe DDD e número, como (11) 99999-0000.";
+export const PLATE_ERROR = "Placa inválida. Use ABC1234 ou ABC1D23.";
+
+/**
+ * O banco nao impede CPF repetido: confere antes de gravar. O CPF pode estar
+ * salvo com ou sem pontuacao. `exceptId` ignora o proprio motorista (edicao).
+ */
+export async function isCpfTaken(cpf: string, exceptId?: string | null): Promise<boolean> {
+  const digits = onlyDigits(cpf);
+  if (!digits) return false;
+  let query = supabase.from("drivers").select("id").in("cpf", [formatDocument(digits), digits]).limit(1);
+  if (exceptId) query = query.neq("id", exceptId);
+  const { data, error } = await query;
+  if (error) {
+    console.warn("Error checking driver CPF:", error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
+}
 
 /** Campos extras que a tela de motoristas junta ao Driver do contexto. */
 export interface DriverExtras {

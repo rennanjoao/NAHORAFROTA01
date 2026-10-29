@@ -39,7 +39,7 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
               {ORDER.map((key) => (
                 <li key={key}>
                   <StatusBadge tone={VEHICLE_STATUS[key].tone}>
-                    {counts[key]} {VEHICLE_STATUS[key].label.toLowerCase()}
+                    {counts[key]} {(counts[key] === 1 ? VEHICLE_STATUS[key].label : VEHICLE_STATUS[key].plural).toLowerCase()}
                   </StatusBadge>
                 </li>
               ))}

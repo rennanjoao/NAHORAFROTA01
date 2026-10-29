@@ -26,7 +26,6 @@ import { SUPPORT_EMAIL } from "@/config/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigation } from "@/hooks/useNavigation";
 import { KIND_META, searchAll, toFilterTerm, type ResultKind, type SearchResult } from "@/lib/globalSearch";
-import { cn } from "@/lib/utils";
 import { useShell } from "./ShellContext";
 
 interface PaletteAction {
@@ -37,7 +36,11 @@ interface PaletteAction {
   keywords: string[];
   /** So aparece se a pessoa pode abrir esta tela. */
   requires?: string;
-  run: () => void;
+  /** Leva para esta tela (o foco vai para o conteudo dela). */
+  to?: string;
+  /** Troca a busca por outro painel (ajuda, atalhos). */
+  panel?: "help" | "shortcuts";
+  run?: () => void;
 }
 
 /** Sem acento e minusculo: "veículo" acha "veiculo". */
@@ -104,7 +107,7 @@ const groupClass =
 
 /** Busca universal: telas, acoes rapidas, preferencias e dados (Ctrl K ou "/"). */
 export function CommandPalette() {
-  const { panel, closePanel, openPanel } = useShell();
+  const { panel, closePanel, openPanel, restoreFocus } = useShell();
   const open = panel === "palette";
   const navigate = useNavigate();
   const { items } = useNavigation();
@@ -145,8 +148,14 @@ export function CommandPalette() {
 
   const run = (fn: () => void) => {
     closePanel();
-    // Deixa a janela fechar antes de abrir outra tela ou outro painel.
+    // Deixa a janela fechar antes de agir (tema, recarregar, sair).
     window.setTimeout(fn, 0);
+  };
+
+  // Ir para uma tela: o foco vai para o conteudo da tela nova.
+  const go = (path: string) => {
+    closePanel({ focusMain: true });
+    window.setTimeout(() => navigate(path), 0);
   };
 
   const nextTextSize = textSize === "normal" ? "large" : textSize === "large" ? "larger" : "normal";
@@ -160,7 +169,7 @@ export function CommandPalette() {
         icon: FileUp,
         keywords: ["xml", "nota", "nf", "importar", "carregar"],
         requires: "/deliveries",
-        run: () => navigate("/deliveries?action=import"),
+        to: "/deliveries?action=import",
       },
       {
         id: "new-driver",
@@ -169,7 +178,7 @@ export function CommandPalette() {
         icon: UserPlus,
         keywords: ["novo", "motorista", "entregador", "adicionar"],
         requires: "/drivers",
-        run: () => navigate("/drivers?action=new"),
+        to: "/drivers?action=new",
       },
       {
         id: "new-vehicle",
@@ -178,7 +187,7 @@ export function CommandPalette() {
         icon: Truck,
         keywords: ["novo", "veiculo", "placa", "adicionar", "caminhao"],
         requires: "/vehicles",
-        run: () => navigate("/vehicles?action=new"),
+        to: "/vehicles?action=new",
       },
       {
         id: "help",
@@ -186,14 +195,14 @@ export function CommandPalette() {
         hint: "Passo a passo do que fazer aqui",
         icon: CircleHelp,
         keywords: ["ajuda", "como", "duvida", "tutorial"],
-        run: () => openPanel("help"),
+        panel: "help",
       },
       {
         id: "shortcuts",
         label: "Atalhos do teclado",
         icon: Keyboard,
         keywords: ["atalho", "teclado", "tecla"],
-        run: () => openPanel("shortcuts"),
+        panel: "shortcuts",
       },
       {
         id: "support",
@@ -223,7 +232,7 @@ export function CommandPalette() {
         },
       },
     ],
-    [navigate, openPanel, signOut],
+    [navigate, signOut],
   );
 
   const appearance: PaletteAction[] = [
@@ -250,7 +259,7 @@ export function CommandPalette() {
       hint: "Contraste, animações e tamanho do texto",
       icon: Accessibility,
       keywords: ["acessibilidade", "contraste", "animacao", "aparencia", "configuracao"],
-      run: () => navigate("/settings?tab=appearance"),
+      to: "/settings?tab=appearance",
     },
   ];
 
@@ -265,11 +274,17 @@ export function CommandPalette() {
     .map((kind) => ({ kind, items: results.filter((r) => r.kind === kind) }))
     .filter((group) => group.items.length > 0);
 
+  const select = (action: PaletteAction) => {
+    if (action.to) go(action.to);
+    else if (action.panel) openPanel(action.panel);
+    else if (action.run) run(action.run);
+  };
+
   const nothing = q && !searching && screens.length + quick.length + prefs.length + results.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={(value) => !value && closePanel()}>
-      <DialogContent hideClose position="top" className="gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <DialogContent hideClose position="top" onCloseAutoFocus={restoreFocus} className="gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogTitle className="sr-only">Buscar ou ir para</DialogTitle>
         <DialogDescription className="sr-only">
           Digite o nome de uma tela, de um motorista, uma placa ou o número de uma nota fiscal.
@@ -309,7 +324,7 @@ export function CommandPalette() {
                     label={item.label}
                     hint={item.description}
                     shortcut={item.shortcut}
-                    onSelect={() => run(() => navigate(item.path))}
+                    onSelect={() => go(item.path)}
                   />
                 ))}
               </CommandPrimitive.Group>
@@ -324,7 +339,7 @@ export function CommandPalette() {
                     icon={KIND_META[kind].icon}
                     label={result.title}
                     hint={result.subtitle}
-                    onSelect={() => run(() => navigate(result.href))}
+                    onSelect={() => go(result.href)}
                   />
                 ))}
               </CommandPrimitive.Group>
@@ -339,7 +354,7 @@ export function CommandPalette() {
                     icon={action.icon}
                     label={action.label}
                     hint={action.hint}
-                    onSelect={() => run(action.run)}
+                    onSelect={() => select(action)}
                   />
                 ))}
               </CommandPrimitive.Group>
@@ -354,7 +369,7 @@ export function CommandPalette() {
                     icon={action.icon}
                     label={action.label}
                     hint={action.hint}
-                    onSelect={() => run(action.run)}
+                    onSelect={() => select(action)}
                   />
                 ))}
               </CommandPrimitive.Group>
@@ -371,10 +386,14 @@ export function CommandPalette() {
               <span className="kbd">Enter</span>
               abrir
             </span>
-            <span className={cn("ml-auto flex items-center gap-1.5")}>
-              <span className="kbd">?</span>
-              todos os atalhos
-            </span>
+            {/* "?" digitaria no campo: aqui vira um botao. */}
+            <button
+              type="button"
+              onClick={() => openPanel("shortcuts")}
+              className="-my-1 ml-auto rounded-md px-1.5 py-1 font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Todos os atalhos
+            </button>
           </div>
         </CommandPrimitive>
       </DialogContent>

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { ChevronRight, CircleHelp, Search } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
@@ -9,21 +8,8 @@ import { useNavigation } from "@/hooks/useNavigation";
 import { isMac } from "@/lib/platform";
 import { NotificationDropdown } from "./NotificationDropdown";
 import { useShell } from "./ShellContext";
+import { useOnline } from "./useOnline";
 import { UserMenu } from "./UserMenu";
-
-function useOnline() {
-  const [online, setOnline] = useState(() => navigator.onLine);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  return online;
-}
 
 export function TopBar() {
   const { current, currentGroup } = useNavigation();
@@ -84,9 +70,12 @@ export function TopBar() {
         </Button>
 
         {online ? (
-          <span className="nhf-live mx-1 hidden xl:inline-flex" title="Os dados chegam em tempo real">
-            Ao vivo
-          </span>
+          // No Inicio o selo "Ao vivo" com a hora ja fica no topo da tela.
+          current?.path !== "/" && (
+            <span className="nhf-live mx-1 hidden xl:inline-flex" title="Os dados chegam em tempo real">
+              Ao vivo
+            </span>
+          )
         ) : (
           <span className="nhf-live nhf-live--off mx-1" role="status">
             Sem internet

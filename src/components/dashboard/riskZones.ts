@@ -73,8 +73,8 @@ export const riskZones: RiskZone[] = [
     ],
     dangerousZones: [
       { name: "Rodoanel Trecho Sul (SP-021)", type: "Rodovia", risk: "extreme" },
-      { name: "Marginal Tietê (Ponte das Bandeiras)", type: "Via Urbana", risk: "extreme" },
-      { name: "Marginal Pinheiros (Ceagesp)", type: "Via Urbana", risk: "extreme" },
+      { name: "Marginal Tietê (Ponte das Bandeiras)", type: "Via urbana", risk: "extreme" },
+      { name: "Marginal Pinheiros (Ceagesp)", type: "Via urbana", risk: "extreme" },
       { name: "Anhanguera Km 15-30", type: "Rodovia", risk: "high" },
       { name: "Raposo Tavares (Cotia)", type: "Rodovia", risk: "high" },
       { name: "Fernão Dias Km 60-85", type: "Rodovia", risk: "high" },
@@ -88,7 +88,7 @@ export const riskZones: RiskZone[] = [
       mainTargets: ["Eletrônicos", "Medicamentos", "Cigarros", "Cosméticos"],
     },
     description: "Maior concentração de roubos do país. 45,8% de todas as ocorrências nacionais.",
-    recommendation: "Escolta armada obrigatória para cargas acima de R$100mil. Evitar Rodoanel Sul entre 22h-05h.",
+    recommendation: "Escolta armada obrigatória para cargas acima de R$ 100 mil. Evitar o Rodoanel Sul entre 22h e 5h.",
     route: "Rodoanel (SP-021), Marginais, Anhanguera",
     source: "nstech Report Anual 2024",
   },
@@ -113,19 +113,19 @@ export const riskZones: RiskZone[] = [
       "Magé",
     ],
     dangerousZones: [
-      { name: "Av. Brasil (Penha - Deodoro)", type: "Via Urbana", risk: "extreme" },
+      { name: "Av. Brasil (Penha - Deodoro)", type: "Via urbana", risk: "extreme" },
       { name: "Rodovia Presidente Dutra Km 165-190", type: "Rodovia", risk: "extreme" },
-      { name: "Linha Vermelha (Caju - Vigário Geral)", type: "Via Urbana", risk: "extreme" },
+      { name: "Linha Vermelha (Caju - Vigário Geral)", type: "Via urbana", risk: "extreme" },
       { name: "Arco Metropolitano (Duque de Caxias)", type: "Rodovia", risk: "high" },
       { name: "BR-040 (Saracuruna)", type: "Rodovia", risk: "high" },
-      { name: "Washington Luís (São Cristóvão)", type: "Via Urbana", risk: "high" },
-      { name: "Grajaú-Jacarepaguá", type: "Via Urbana", risk: "moderate" },
+      { name: "Washington Luís (São Cristóvão)", type: "Via urbana", risk: "high" },
+      { name: "Grajaú-Jacarepaguá", type: "Via urbana", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 25.0,
       yearlyTrend: 32,
       monthlyOccurrences: 219,
-      mainTargets: ["Eletrônicos", "Carga Fracionada", "Combustíveis"],
+      mainTargets: ["Eletrônicos", "Carga fracionada", "Combustíveis"],
     },
     description: "Crescimento alarmante: +32% em 2024. Quadrilhas especializadas na Baixada Fluminense.",
     recommendation: "Evitar Av. Brasil e Dutra (Km 165-190) após 18h. Comboio mínimo de 3 veículos.",
@@ -154,8 +154,8 @@ export const riskZones: RiskZone[] = [
       { name: "BR-101 Km 65-90 (Prazeres)", type: "Rodovia", risk: "extreme" },
       { name: "BR-232 (Entrada Recife)", type: "Rodovia", risk: "high" },
       { name: "PE-015 (Olinda - Paulista)", type: "Rodovia", risk: "high" },
-      { name: "Complexo de Suape", type: "Área Portuária", risk: "moderate" },
-      { name: "Av. Recife (Imbiribeira)", type: "Via Urbana", risk: "moderate" },
+      { name: "Complexo de Suape", type: "Área portuária", risk: "moderate" },
+      { name: "Av. Recife (Imbiribeira)", type: "Via urbana", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 14.7,
@@ -163,8 +163,8 @@ export const riskZones: RiskZone[] = [
       monthlyOccurrences: 129,
       mainTargets: ["Alimentos", "Bebidas", "Eletrônicos"],
     },
-    description: "BR-101 lidera prejuízos no 1º semestre 2025 (14,7%). Nordeste cresceu 5,5%.",
-    recommendation: "Rastreamento ativo 24h. Check-in obrigatório a cada 30min. Não estacionar fora de postos homologados.",
+    description: "A BR-101 lidera os prejuízos no 1º semestre de 2025 (14,7%). O Nordeste cresceu 5,5%.",
+    recommendation: "Rastreamento ativo 24 horas. Avisar a central a cada 30 minutos. Não estacionar fora de postos homologados.",
     route: "BR-101 (PE/AL/SE/BA)",
     source: "AAAPV / nstech 2025",
   },
@@ -192,7 +192,7 @@ export const riskZones: RiskZone[] = [
       { name: "Anel Rodoviário (Barreiro)", type: "Rodovia", risk: "high" },
       { name: "BR-040 (Contagem)", type: "Rodovia", risk: "high" },
       { name: "MG-030 (Nova Lima)", type: "Rodovia", risk: "moderate" },
-      { name: "Via Expressa (Venda Nova)", type: "Via Urbana", risk: "moderate" },
+      { name: "Via Expressa (Venda Nova)", type: "Via urbana", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 8.2,
@@ -200,7 +200,7 @@ export const riskZones: RiskZone[] = [
       monthlyOccurrences: 72,
       mainTargets: ["Siderúrgicos", "Autopeças", "Eletrônicos"],
     },
-    description: "Terceiro estado em ocorrências. Quadrilhas especializadas em BR-381 (Fernão Dias).",
+    description: "Terceiro estado em ocorrências. Quadrilhas especializadas na BR-381 (Fernão Dias).",
     recommendation: "Evitar paradas não programadas na BR-381. Utilizar apenas postos de rede.",
     route: "BR-381 (Fernão Dias), BR-040, MG-030",
     source: "nstech Report 2024",
@@ -226,7 +226,7 @@ export const riskZones: RiskZone[] = [
       { name: "BR-116 Km 100-130 (Contorno Sul)", type: "Rodovia", risk: "high" },
       { name: "BR-376 (São José dos Pinhais)", type: "Rodovia", risk: "high" },
       { name: "Contorno Leste (Pinhais)", type: "Rodovia", risk: "moderate" },
-      { name: "Linha Verde (CIC)", type: "Via Urbana", risk: "moderate" },
+      { name: "Linha Verde (CIC)", type: "Via urbana", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 4.1,
@@ -261,7 +261,7 @@ export const riskZones: RiskZone[] = [
       { name: "BR-290 Freeway (Canoas - Osório)", type: "Rodovia", risk: "high" },
       { name: "BR-116 (Sapucaia - Esteio)", type: "Rodovia", risk: "high" },
       { name: "RS-118 (Gravataí)", type: "Rodovia", risk: "moderate" },
-      { name: "Av. Assis Brasil (Sarandi)", type: "Via Urbana", risk: "moderate" },
+      { name: "Av. Assis Brasil (Sarandi)", type: "Via urbana", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 3.8,
@@ -270,7 +270,7 @@ export const riskZones: RiskZone[] = [
       mainTargets: ["Eletrônicos", "Medicamentos", "Calçados"],
     },
     description: "Roubos em congestionamentos na Freeway (BR-290). Aumento de 15% em 2024.",
-    recommendation: "Evitar horários de pico (7h-9h e 17h-19h). Rastreamento por satélite obrigatório.",
+    recommendation: "Evitar os horários de pico (7h às 9h e 17h às 19h). Rastreamento por satélite obrigatório.",
     route: "BR-290 (Freeway), BR-116, RS-118",
     source: "nstech Report 2024",
   },
@@ -294,7 +294,7 @@ export const riskZones: RiskZone[] = [
     dangerousZones: [
       { name: "BR-324 Km 580-620", type: "Rodovia", risk: "high" },
       { name: "BR-116 Norte (Feira)", type: "Rodovia", risk: "moderate" },
-      { name: "CIA Aeroporto (Camaçari)", type: "Área Industrial", risk: "moderate" },
+      { name: "CIA Aeroporto (Camaçari)", type: "Área industrial", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 2.9,
@@ -302,7 +302,7 @@ export const riskZones: RiskZone[] = [
       monthlyOccurrences: 25,
       mainTargets: ["Alimentos", "Bebidas", "Combustíveis"],
     },
-    description: "Ponto de intersecção de rotas Norte/Nordeste. Queda de 8% em 2024.",
+    description: "Cruzamento das rotas para o Norte e o Nordeste. Queda de 8% em 2024.",
     recommendation: "Manter rastreamento ativo. Comunicar desvios à central.",
     route: "BR-324, BR-116, BA-502",
     source: "nstech Report 2024",
@@ -327,13 +327,13 @@ export const riskZones: RiskZone[] = [
       { name: "BR-153 (Goiânia - Anápolis)", type: "Rodovia", risk: "high" },
       { name: "BR-060 (Anápolis - Alexânia)", type: "Rodovia", risk: "moderate" },
       { name: "GO-070 (Goianira)", type: "Rodovia", risk: "moderate" },
-      { name: "DAIA (Distrito Industrial)", type: "Área Industrial", risk: "moderate" },
+      { name: "DAIA (Distrito Industrial)", type: "Área industrial", risk: "moderate" },
     ],
     statistics: {
       percentOfTotal: 2.1,
       yearlyTrend: 22,
       monthlyOccurrences: 18,
-      mainTargets: ["Grãos", "Fertilizantes", "Máquinas Agrícolas"],
+      mainTargets: ["Grãos", "Fertilizantes", "Máquinas agrícolas"],
     },
     description: "Hub logístico do Centro-Oeste. Crescimento preocupante de 22% em 2024.",
     recommendation: "Atenção redobrada em trechos rurais. Escolta para máquinas agrícolas.",
@@ -353,13 +353,22 @@ export const nationalStats = {
   topTargets: ["Eletrônicos (32%)", "Medicamentos (18%)", "Alimentos (14%)", "Cigarros (12%)"],
 };
 
-// Centro e zoom de cada zona (filtro "Regiao")
-export const ZONE_COORDINATES: Record<string, { center: [number, number]; zoom: number }> = {
-  Norte: { center: [-3.1190, -60.0217], zoom: 5 },
-  Sul: { center: [-27.5954, -48.5480], zoom: 6 },
-  Leste: { center: [-15.7801, -39.0000], zoom: 5 },
-  Oeste: { center: [-15.5989, -56.0949], zoom: 5 },
-  Centro: { center: [-15.7801, -47.9292], zoom: 6 },
+/**
+ * Regioes do Brasil (IBGE) do filtro do mapa: centro, zoom, estados (filtram a
+ * lista de areas mapeadas) e cidades que o mapa sabe localizar. Antes eram
+ * "Norte, Sul, Leste, Oeste, Centro", que nao existem como regioes do pais.
+ */
+export const BRAZIL_REGIONS: Record<string, { center: [number, number]; zoom: number; states: string[]; cities: string[] }> = {
+  Norte: { center: [-3.5, -60.0], zoom: 5, states: ["AC", "AM", "AP", "PA", "RO", "RR", "TO"], cities: ["Belém", "Manaus"] },
+  Nordeste: {
+    center: [-8.5, -39.5],
+    zoom: 5,
+    states: ["AL", "BA", "CE", "MA", "PB", "PE", "PI", "RN", "SE"],
+    cities: ["Fortaleza", "Recife", "Salvador"],
+  },
+  "Centro-Oeste": { center: [-15.8, -52.5], zoom: 5, states: ["DF", "GO", "MS", "MT"], cities: ["Brasília", "Goiânia"] },
+  Sudeste: { center: [-20.8, -45.5], zoom: 6, states: ["ES", "MG", "RJ", "SP"], cities: ["Belo Horizonte", "Rio de Janeiro", "São Paulo"] },
+  Sul: { center: [-27.3, -51.0], zoom: 6, states: ["PR", "RS", "SC"], cities: ["Curitiba", "Florianópolis", "Porto Alegre"] },
 };
 
 export const CITY_COORDINATES: Record<string, { center: [number, number]; zoom: number }> = {

@@ -27,6 +27,7 @@ export function VehicleCard({ vehicle, onEdit, onToggleMaintenance, onRemove }: 
           <h3 className="leading-tight">
             <button
               type="button"
+              data-vehicle-open=""
               onClick={() => onEdit(vehicle)}
               className="font-data text-lg font-semibold tracking-wider text-foreground after:absolute after:inset-0 after:rounded-lg after:content-[''] hover:text-primary focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
             >

@@ -35,6 +35,7 @@ export function DeliveryOccurrenceModal({
   onSuccess,
 }: DeliveryOccurrenceModalProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [typeError, setTypeError] = useState<string | undefined>();
   const [occurrenceType, setOccurrenceType] = useState("");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -65,6 +66,8 @@ export function DeliveryOccurrenceModal({
   const handlePhotoCapture = async (event: React.ChangeEvent<HTMLInputElement>) => {
     filePickerOpenRef.current = false;
     const file = event.target.files?.[0];
+    // Limpa o campo: escolher a mesma foto de novo (depois de remover) volta a funcionar.
+    event.target.value = "";
     if (!file) return;
 
     try {
@@ -79,8 +82,11 @@ export function DeliveryOccurrenceModal({
   };
 
   const handleSubmit = async () => {
+    if (isLoading) return;
+    // Antes o botao ficava apagado; agora diz o que falta e leva o foco para as opcoes.
     if (!occurrenceType) {
-      toast.error("Escolha o que aconteceu");
+      setTypeError("Escolha o que aconteceu para enviar.");
+      document.querySelector<HTMLInputElement>('input[name="tipo-problema-entrega"]')?.focus();
       return;
     }
 
@@ -173,7 +179,7 @@ export function DeliveryOccurrenceModal({
 
       if (occurrenceError) {
         console.warn("Occurrence record failed after invoice status update:", occurrenceError);
-        toast.warning("Problema registrado, mas a foto não foi salva. Avise a base.");
+        toast.warning("A entrega ficou com problema, mas o detalhe não foi salvo. Avise a base.");
       }
 
       const typeLabel = DELIVERY_OCCURRENCE_TYPES.find((item) => item.value === occurrenceType)?.label || occurrenceType;
@@ -181,9 +187,9 @@ export function DeliveryOccurrenceModal({
 
       resetAndClose();
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Submit error:", error);
-      toast.error(error.message || "Não foi possível registrar. Confira a internet e tente de novo.");
+      toast.error("Não foi possível registrar o problema", { description: "Confira a internet e tente de novo." });
     } finally {
       setIsLoading(false);
     }
@@ -193,6 +199,7 @@ export function DeliveryOccurrenceModal({
     filePickerOpenRef.current = false;
     setOccurrenceType("");
     setDescription("");
+    setTypeError(undefined);
     setPhotoFile(null);
     revokeObjectUrl(photoPreview);
     setPhotoPreview(null);
@@ -228,8 +235,12 @@ export function DeliveryOccurrenceModal({
             legend="Por que não deu para entregar?"
             options={DELIVERY_OCCURRENCE_TYPES}
             value={occurrenceType}
-            onChange={setOccurrenceType}
+            onChange={(value) => {
+              setOccurrenceType(value);
+              setTypeError(undefined);
+            }}
             disabled={isLoading}
+            error={typeError}
           />
 
           <div className="space-y-2">
@@ -264,7 +275,7 @@ export function DeliveryOccurrenceModal({
           <Button variant="outline" size="lg" onClick={resetAndClose} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button size="lg" onClick={handleSubmit} disabled={isLoading || !occurrenceType}>
+          <Button size="lg" onClick={handleSubmit} aria-disabled={isLoading || undefined}>
             {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
             {isLoading ? "Registrando" : "Registrar problema"}
           </Button>

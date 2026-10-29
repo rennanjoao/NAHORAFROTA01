@@ -4,8 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CardsSkeleton, EmptyState, StatCard, StatusBadge, type Tone } from "@/components/patterns";
-import { cn } from "@/lib/utils";
-import { calculateRegiaoLogistica, getRegionColor } from "@/lib/cepRegionMapping";
+import { calculateRegiaoLogistica } from "@/lib/cepRegionMapping";
 import { formatCurrency } from "@/lib/formatCurrency";
 import {
   BarChart,
@@ -35,7 +34,7 @@ import {
   tooltipLabelStyle,
   tooltipStyle,
 } from "./chartTheme";
-import { ChartFrame, ReportCard } from "./ReportCard";
+import { ChartFrame, ReportCard, WrappedTick } from "./ReportCard";
 
 interface Invoice {
   id: string;
@@ -71,6 +70,28 @@ const AREA_COLORS: Record<string, string> = {
   Litoral: SERIES[3],
   Outras: MUTED,
 };
+
+/** Area da regiao (a mesma do grafico de rosca). */
+function areaOf(region: string): string {
+  if (region.startsWith("SP -")) return "Capital SP";
+  if (region.startsWith("GSP")) return "Grande SP";
+  if (region.startsWith("Interior")) return "Interior";
+  if (region.startsWith("Litoral")) return "Litoral";
+  return "Outras";
+}
+
+/** Ponto com a cor da area (antes usava verde/amarelo de status, que confundia com a taxa). */
+function AreaDot({ region }: { region: string }) {
+  const area = areaOf(region);
+  return (
+    <span
+      aria-hidden="true"
+      title={area}
+      className="h-2.5 w-2.5 shrink-0 rounded-full"
+      style={{ background: AREA_COLORS[area] ?? MUTED }}
+    />
+  );
+}
 
 const rateTone = (rate: number): Tone => (rate >= 90 ? "success" : rate >= 70 ? "warning" : "danger");
 
@@ -160,11 +181,7 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
     };
     
     regionStats.forEach(s => {
-      if (s.region.startsWith('SP -')) categories['Capital SP'] += s.total;
-      else if (s.region.startsWith('GSP')) categories['Grande SP'] += s.total;
-      else if (s.region.startsWith('Interior')) categories['Interior'] += s.total;
-      else if (s.region.startsWith('Litoral')) categories['Litoral'] += s.total;
-      else categories['Outras'] += s.total;
+      categories[areaOf(s.region)] += s.total;
     });
     
     return Object.entries(categories)
@@ -242,7 +259,7 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
                   <BarChart data={barChartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barGap={2}>
                     <CartesianGrid {...gridProps} horizontal={false} />
                     <XAxis type="number" allowDecimals={false} tick={axisTick} axisLine={axisLine} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={112} tick={axisTick} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={112} tick={<WrappedTick maxChars={15} />} interval={0} axisLine={false} tickLine={false} />
                     <Tooltip
                       cursor={tooltipCursor}
                       contentStyle={tooltipStyle}
@@ -274,7 +291,8 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
                           dataKey="value"
                           rootTabIndex={-1}
                           stroke="hsl(var(--card))"
-                          strokeWidth={2}
+                          // Com uma area so, a borda abria um corte no anel.
+                          strokeWidth={pieChartData.length > 1 ? 2 : 0}
                         >
                           {pieChartData.map((entry) => (
                             <Cell key={entry.name} fill={AREA_COLORS[entry.name] ?? MUTED} />
@@ -331,7 +349,7 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
                     <TableRow key={stat.region}>
                       <TableCell className="pl-5 sm:pl-6">
                         <span className="flex items-center gap-2">
-                          <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", getRegionColor(stat.region))} />
+                          <AreaDot region={stat.region} />
                           <span className="font-medium">{stat.region}</span>
                         </span>
                       </TableCell>
@@ -354,8 +372,8 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
                   <Card className="space-y-3 p-4 shadow-none">
                     <div className="flex items-center justify-between gap-3">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", getRegionColor(stat.region))} />
-                        <span className="truncate font-medium">{stat.region}</span>
+                        <AreaDot region={stat.region} />
+                        <span className="truncate font-medium" title={stat.region}>{stat.region}</span>
                       </span>
                       <SuccessRate stat={stat} />
                     </div>

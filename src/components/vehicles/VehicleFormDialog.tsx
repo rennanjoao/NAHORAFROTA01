@@ -102,10 +102,10 @@ export function VehicleFormDialog({ open, onOpenChange, mode, initialValues, sav
                 {...control}
                 placeholder="ABC1D23"
                 autoComplete="off"
-                maxLength={7}
                 className="font-data uppercase tracking-wider"
                 value={values.plate}
-                onChange={(e) => update({ plate: e.target.value.toUpperCase() })}
+                // So letras e numeros: "abc-1d23" (colado ou digitado) vira ABC1D23.
+                onChange={(e) => update({ plate: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7) })}
               />
             )}
           </FormField>
@@ -162,7 +162,7 @@ export function VehicleFormDialog({ open, onOpenChange, mode, initialValues, sav
                 placeholder="Número do RENAVAM"
                 className="font-data"
                 value={values.renavam}
-                onChange={(e) => update({ renavam: e.target.value })}
+                onChange={(e) => update({ renavam: e.target.value.replace(/\D/g, "").slice(0, 11) })}
               />
             )}
           </FormField>

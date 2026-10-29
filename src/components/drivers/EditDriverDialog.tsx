@@ -16,9 +16,23 @@ import { toast } from "@/hooks/use-toast";
 import { Driver, VehicleType } from "@/contexts/LogisticsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
-import { formatDocument, isValidCPF } from "@/lib/documentValidation";
+import { formatDocument, isValidCPF, onlyDigits } from "@/lib/documentValidation";
 import { isValidContactEmail } from "@/lib/driverCredentials";
-import { DRIVER_DOCUMENT_KEYS, DRIVER_DOCUMENT_LABELS, DRIVER_STATUS, DRIVER_VEHICLE_TYPES, type DriverDocumentKey } from "./driverConfig";
+import {
+  DRIVER_DOCUMENT_KEYS,
+  DRIVER_DOCUMENT_LABELS,
+  DRIVER_STATUS,
+  DRIVER_VEHICLE_TYPES,
+  formatPhone,
+  isCpfTaken,
+  isValidPhone,
+  isValidPlate,
+  normalizePlate,
+  PENDING_PLATE,
+  PHONE_ERROR,
+  PLATE_ERROR,
+  type DriverDocumentKey,
+} from "./driverConfig";
 import {
   BankFields,
   DocumentSlot,
@@ -43,7 +57,20 @@ interface EditDriverDialogProps {
 const DRIVER_DOCUMENTS_BUCKET = "driver-documents";
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
 
-type FieldErrors = Partial<Record<"cpf" | "email", string>>;
+type FieldKey = "cpf" | "phone" | "email" | "vehiclePlate";
+type FieldErrors = Partial<Record<FieldKey, string>>;
+
+// Ordem de foco quando ha erro, e em que aba cada campo esta.
+const FIELD_ORDER: { key: FieldKey; id: string; tab: "personal" | "vehicle" }[] = [
+  { key: "cpf", id: "edit-cpf", tab: "personal" },
+  { key: "phone", id: "phone", tab: "personal" },
+  { key: "email", id: "contact-email", tab: "personal" },
+  { key: "vehiclePlate", id: "edit-vehicle-plate", tab: "vehicle" },
+];
+
+// Avatar de iniciais gerado pelo sistema: nao e uma foto escolhida pela empresa.
+const isGeneratedAvatar = (url?: string | null) => !url || url.includes("api.dicebear.com");
+const initialsAvatar = (name: string) => `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || "Motorista")}`;
 
 export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDriverDialogProps) {
   const [formData, setFormData] = useState<Partial<Driver>>({});
@@ -68,7 +95,12 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
 
   useEffect(() => {
     if (driver) {
-      setFormData({ ...driver });
+      // Campo de foto e placa vazios quando nao ha foto propria / placa ainda.
+      setFormData({
+        ...driver,
+        photo: isGeneratedAvatar(driver.photo) ? "" : driver.photo,
+        vehiclePlate: driver.vehiclePlate === PENDING_PLATE ? "" : driver.vehiclePlate,
+      });
       setErrors({});
       const driverAny = driver as any;
       setBankingInfo({
@@ -267,26 +299,51 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     window.document.body.removeChild(link);
   };
 
+  const showErrors = (found: FieldErrors) => {
+    setErrors(found);
+    const first = FIELD_ORDER.find((field) => found[field.key]);
+    if (!first) return;
+    setActiveTab(first.tab);
+    // Espera a aba aparecer para levar o foco ao primeiro campo com erro.
+    window.setTimeout(() => document.getElementById(first.id)?.focus(), 60);
+  };
+
   const handleSave = async () => {
     if (!driver) return;
 
     const found: FieldErrors = {};
     if (formData.cpf && !isValidCPF(formData.cpf)) found.cpf = "CPF inválido. Confira os números.";
+    if (formData.phone?.trim() && !isValidPhone(formData.phone)) found.phone = PHONE_ERROR;
     if (formData.email?.trim() && !isValidContactEmail(formData.email)) found.email = "E-mail inválido. Confira o endereço.";
-    if (found.cpf || found.email) {
-      setErrors(found);
-      setActiveTab("personal");
-      window.setTimeout(() => document.getElementById(found.cpf ? "edit-cpf" : "contact-email")?.focus(), 60);
+    if (formData.vehiclePlate?.trim() && !isValidPlate(formData.vehiclePlate)) found.vehiclePlate = PLATE_ERROR;
+    if (Object.keys(found).length > 0) {
+      showErrors(found);
       return;
     }
 
     setIsSaving(true);
 
+    // CPF trocado: confere se ja nao e de outro motorista (o banco aceita repetido).
+    const cpfChanged = formData.cpf && onlyDigits(formData.cpf) !== onlyDigits(driver.cpf || "");
+    if (cpfChanged && (await isCpfTaken(formData.cpf as string, getDriverDbId()))) {
+      setIsSaving(false);
+      showErrors({ cpf: "Este CPF já está cadastrado em outro motorista." });
+      return;
+    }
+
+    const name = formData.name?.trim() || driver.name;
+    const plate = normalizePlate(formData.vehiclePlate || "");
+
     // Dados bancarios vao junto no salvar.
     const saveSucceeded = await onSave({
       ...driver,
       ...formData,
+      name,
       cpf: formData.cpf ? formatDocument(formData.cpf) : driver.cpf,
+      phone: formData.phone?.trim() ? formatPhone(formData.phone) : "",
+      vehiclePlate: plate || PENDING_PLATE,
+      // Sem foto propria (ou campo apagado): avatar de iniciais com o nome atual.
+      photo: formData.photo?.trim() || initialsAvatar(name),
       banco: bankingInfo.banco,
       agencia: bankingInfo.agencia,
       conta: bankingInfo.conta,
@@ -302,10 +359,21 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
 
   const updateField = (patch: Partial<Driver>) => {
     setFormData((current) => ({ ...current, ...patch }));
-    if (("cpf" in patch && errors.cpf) || ("email" in patch && errors.email)) {
-      setErrors((current) => ({ ...current, ...("cpf" in patch && { cpf: undefined }), ...("email" in patch && { email: undefined }) }));
+    const touched = (Object.keys(patch) as FieldKey[]).filter((key) => errors[key]);
+    if (touched.length > 0) {
+      setErrors((current) => {
+        const next = { ...current };
+        touched.forEach((key) => delete next[key]);
+        return next;
+      });
     }
   };
+
+  // Em rota a situacao muda sozinha ao fim do romaneio; "Em rota" nao e escolha manual.
+  const isInRoute = driver.status === "in_route";
+  const statusOptions = Object.entries(DRIVER_STATUS).filter(
+    ([value]) => value === "active" || value === "inactive" || value === driver.status,
+  );
 
   const tabTriggerClass = "h-8 gap-1.5 px-1.5 text-xs sm:text-sm";
 
@@ -336,11 +404,12 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
               <TabsTrigger value="personal" className={tabTriggerClass}>
                 <User className="hidden sm:block" aria-hidden="true" />
                 Pessoal
-                <TabErrorDot show={Boolean(errors.cpf || errors.email)} />
+                <TabErrorDot show={Boolean(errors.cpf || errors.phone || errors.email)} />
               </TabsTrigger>
               <TabsTrigger value="vehicle" className={tabTriggerClass}>
                 <Car className="hidden sm:block" aria-hidden="true" />
                 Veículo
+                <TabErrorDot show={Boolean(errors.vehiclePlate)} />
               </TabsTrigger>
               <TabsTrigger value="documents" className={tabTriggerClass}>
                 <FileText className="hidden sm:block" aria-hidden="true" />
@@ -363,7 +432,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                     <Input {...control} inputMode="numeric" placeholder="000.000.000-00" value={formData.cpf || ""} onChange={(e) => updateField({ cpf: e.target.value })} />
                   )}
                 </FormField>
-                <FormField id="phone" label="Telefone (WhatsApp)">
+                <FormField id="phone" label="Telefone (WhatsApp)" error={errors.phone}>
                   {(control) => (
                     <Input {...control} type="tel" value={formData.phone || ""} onChange={(e) => updateField({ phone: e.target.value })} placeholder="(00) 00000-0000" />
                   )}
@@ -382,14 +451,26 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                 )}
               </FormField>
 
-              <FormField id="edit-status" label="Situação">
+              <FormField
+                id="edit-status"
+                label="Situação"
+                hint={
+                  isInRoute
+                    ? "Em rota: volta a ficar disponível quando o romaneio terminar."
+                    : "Inativo não aparece na escolha de motorista dos romaneios."
+                }
+              >
                 {(control) => (
-                  <Select value={formData.status || ""} onValueChange={(value) => updateField({ status: value as Driver["status"] })}>
+                  <Select
+                    value={formData.status || ""}
+                    onValueChange={(value) => updateField({ status: value as Driver["status"] })}
+                    disabled={isInRoute}
+                  >
                     <SelectTrigger {...control}>
                       <SelectValue placeholder="Escolha a situação" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(DRIVER_STATUS).map(([value, config]) => (
+                      {statusOptions.map(([value, config]) => (
                         <SelectItem key={value} value={value}>
                           {config.label}
                         </SelectItem>
@@ -399,7 +480,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                 )}
               </FormField>
 
-              <FormField id="edit-photo" label="Foto" optional hint="Endereço (link) de uma imagem na internet.">
+              <FormField id="edit-photo" label="Foto" optional hint="Endereço (link) de uma imagem na internet. Sem foto, mostramos as iniciais do nome.">
                 {(control) => (
                   <Input {...control} type="url" value={formData.photo || ""} onChange={(e) => updateField({ photo: e.target.value })} placeholder="https://..." />
                 )}
@@ -428,14 +509,20 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                     </Select>
                   )}
                 </FormField>
-                <FormField id="edit-vehicle-plate" label="Placa">
+                <FormField
+                  id="edit-vehicle-plate"
+                  label="Placa"
+                  error={errors.vehiclePlate}
+                  hint={formData.isOwnFleet ? "Opcional para motorista da casa." : "Placa antiga ou Mercosul."}
+                >
                   {(control) => (
                     <Input
                       {...control}
                       autoComplete="off"
+                      placeholder="ABC1D23"
                       className="font-data uppercase tracking-wider"
                       value={formData.vehiclePlate || ""}
-                      onChange={(e) => updateField({ vehiclePlate: e.target.value.toUpperCase() })}
+                      onChange={(e) => updateField({ vehiclePlate: normalizePlate(e.target.value) })}
                     />
                   )}
                 </FormField>

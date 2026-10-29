@@ -14,13 +14,28 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, Loader2, Lock, RotateCcw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
+
+// Respostas fora de 2xx da validacao, em linguagem simples (antes: "non-2xx status code").
+async function reversalErrorMessage(error: unknown): Promise<string> {
+  const info = await readEdgeFunctionError(error, "Não foi possível validar a senha. Tente de novo em instantes.");
+  if (info.status === 401) return "Sua sessão expirou. Entre de novo e repita o estorno.";
+  if (info.status === 500 && /not configured/i.test(info.message)) {
+    return "A senha de estorno ainda não foi configurada. Fale com o suporte Na Hora.";
+  }
+  if (info.status === 500) return "Não foi possível validar a senha. Tente de novo em instantes.";
+  return info.message;
+}
 
 interface ReversalPasswordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => Promise<boolean | void> | boolean | void;
   settlementId?: string;
+  /** Id do romaneio (vai para a validacao e o historico). */
   manifestCode?: string;
+  /** Numero do romaneio para a pessoa ler (ex.: 1/2026). Sem ele, mostra o id. */
+  manifestLabel?: string;
   driverName?: string;
 }
 
@@ -30,6 +45,7 @@ export function ReversalPasswordDialog({
   onConfirm,
   settlementId,
   manifestCode,
+  manifestLabel,
   driverName,
 }: ReversalPasswordDialogProps) {
   const [password, setPassword] = useState("");
@@ -53,18 +69,17 @@ export function ReversalPasswordDialog({
       });
 
       if (fnError) {
-        throw new Error(fnError.message || 'Erro ao validar senha');
+        throw new Error(await reversalErrorMessage(fnError));
       }
 
-      if (!data.valid) {
-        setRemainingAttempts(data.remainingAttempts ?? null);
-        const attemptsMsg = data.remainingAttempts !== undefined 
-          ? ` (${data.remainingAttempts} tentativas restantes)` 
-          : '';
-        setError(`${data.error || 'Senha incorreta'}${attemptsMsg}`);
+      if (!data?.valid) {
+        setRemainingAttempts(data?.remainingAttempts ?? null);
+        const left = data?.remainingAttempts;
+        const attemptsMsg = left !== undefined ? ` ${left === 1 ? "Resta 1 tentativa." : `Restam ${left} tentativas.`}` : "";
+        setError(`${data?.error || "Senha de estorno incorreta"}.${attemptsMsg}`);
         toast({
           title: "Senha incorreta",
-          description: data.error || "A senha de estorno informada está incorreta.",
+          description: "Confira a senha de estorno e tente de novo.",
           variant: "destructive",
         });
         return;
@@ -79,7 +94,7 @@ export function ReversalPasswordDialog({
         previous_status: "paid",
         new_status: "open",
         performed_by: userData?.user?.id || null,
-        notes: `Estorno autorizado para ${driverName || "motorista"} - Romaneio: ${manifestCode || "N/A"}`,
+        notes: `Estorno autorizado para ${driverName || "motorista"} - Romaneio: ${manifestLabel ? `${manifestLabel} (${manifestCode})` : manifestCode || "N/A"}`,
       });
 
       const reverted = await onConfirm();
@@ -95,7 +110,7 @@ export function ReversalPasswordDialog({
     } catch (err: unknown) {
       console.error("Error during reversal:", err);
       const message = err instanceof Error ? err.message : "";
-      setError(message || "Erro ao processar estorno");
+      setError(message || "Não foi possível estornar. Tente de novo em instantes.");
       toast({
         title: "Não foi possível estornar",
         description: message || "Tente de novo em instantes.",
@@ -126,8 +141,11 @@ export function ReversalPasswordDialog({
                 O romaneio sai de <strong className="text-foreground">pago</strong> e volta para{" "}
                 <strong className="text-foreground">a pagar</strong>. A ação fica registrada no histórico.
               </p>
-              {manifestCode && (
-                <p className="truncate rounded-md bg-muted px-3 py-2 font-data text-xs">Romaneio: {manifestCode}</p>
+              {(manifestLabel || manifestCode) && (
+                <p className="truncate rounded-md bg-muted px-3 py-2 text-xs text-foreground">
+                  Romaneio <span className="font-data font-semibold">{manifestLabel || manifestCode}</span>
+                  {driverName && <> · {driverName}</>}
+                </p>
               )}
             </div>
           </AlertDialogDescription>
@@ -169,7 +187,7 @@ export function ReversalPasswordDialog({
           <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
           <Button variant="destructive" onClick={handleConfirm} disabled={!password || isLoading}>
             {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}
-            {isLoading ? "Estornando" : "Estornar pagamento"}
+            {isLoading ? "Estornando..." : "Estornar pagamento"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

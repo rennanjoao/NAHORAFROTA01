@@ -20,6 +20,8 @@ import { DBManifest, formatManifestNumber } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { useTenantData } from "@/hooks/useTenantData";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { plateText, vehicleTypeLabel } from "./status";
 
 interface DeliveryItem {
   id: number | string;
@@ -44,18 +46,6 @@ interface ManifestPrintPreviewProps {
   dbManifest?: DBManifest | null;
 }
 
-const vehicleTypeLabels: Record<string, string> = {
-  Fiorino: "Fiorino",
-  Van: "Van/VUC",
-  VUC: "VUC",
-  Toco: "Toco",
-  Truck: "Truck",
-  Carreta: "Carreta",
-  truck: "Caminhão",
-  van: "VUC/Van",
-  moto: "Moto",
-};
-
 const freightTypeLabels: Record<string, string> = {
   fixed: "Frete fixo",
   lumpsum: "Frete fechado",
@@ -67,9 +57,10 @@ const parseWeight = (weight: string): number => {
   return parseFloat(weight.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
 };
 
-// Parse value string to number (e.g., "R$ 350,00" -> 350)
+// Parse value string to number (e.g., "R$ 1.350,00" -> 1350). Tira todos os pontos de milhar
+// (antes so o primeiro: "R$ 1.234.567,89" virava 1234,56).
 const parseValue = (value: string): number => {
-  return parseFloat(value.replace(/[^\d.,]/g, '').replace('.', '').replace(',', '.')) || 0;
+  return parseFloat(value.replace(/[^\d.,]/g, '').replace(/\./g, '').replace(',', '.')) || 0;
 };
 
 export function ManifestPrintPreview({ 
@@ -197,7 +188,14 @@ export function ManifestPrintPreview({
     if (!content) return;
 
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) {
+      toast({
+        title: "O navegador bloqueou a impressão",
+        description: "Permita janelas (pop-ups) para este site e toque em Imprimir de novo.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Landscape orientation print styles
     printWindow.document.write(`
@@ -307,7 +305,7 @@ export function ManifestPrintPreview({
                 )}
               </div>
               <div className="manifest-info text-right">
-                <div className="text-xs text-muted-foreground mb-1">Romaneio Nº</div>
+                <div className="text-xs text-muted-foreground mb-1">Romaneio nº</div>
                 <div className="manifest-id font-data text-xl font-bold text-primary">{manifestData.displayNumber}</div>
                 <div className="manifest-date text-xs text-muted-foreground mt-1">
                   {manifestData.createdAt.toLocaleDateString('pt-BR', {
@@ -318,7 +316,7 @@ export function ManifestPrintPreview({
                     minute: '2-digit',
                   })}
                 </div>
-                <div className="text-xs text-muted-foreground font-mono">{manifestData.id}</div>
+                <div className="text-xs text-muted-foreground font-data">{manifestData.id}</div>
               </div>
             </div>
 
@@ -326,7 +324,7 @@ export function ManifestPrintPreview({
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="section">
                 <div className="section-title text-xs font-bold mb-2 text-foreground border-b pb-1">
-                  Dados do Motorista
+                  Motorista
                 </div>
                 <div className="driver-info grid grid-cols-2 gap-2 text-xs">
                   <div className="info-item">
@@ -335,31 +333,35 @@ export function ManifestPrintPreview({
                   </div>
                   <div className="info-item">
                     <span className="info-label text-muted-foreground">CPF: </span>
-                    <span className="info-value font-semibold font-mono">{manifestData.driverCpf || '-'}</span>
+                    <span className="info-value font-semibold font-data">{manifestData.driverCpf || '-'}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label text-muted-foreground">Veículo: </span>
-                    <span className="info-value font-semibold">{vehicleTypeLabels[manifestData.vehicleType] || manifestData.vehicleType || '-'}</span>
+                    <span className="info-value font-semibold">{manifestData.vehicleType ? vehicleTypeLabel(manifestData.vehicleType) : '-'}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label text-muted-foreground">Placa: </span>
-                    <span className="info-value font-semibold font-mono">{manifestData.driverPlate || '-'}</span>
+                    <span className="info-value font-semibold font-data">{plateText(manifestData.driverPlate) || '-'}</span>
                   </div>
                 </div>
               </div>
 
               <div className="section">
                 <div className="section-title text-xs font-bold mb-2 text-foreground border-b pb-1">
-                  Informações do Frete
+                  Frete
                 </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="border-primary/40 bg-primary/10 text-xs text-primary">
-                    {freightTypeLabels[manifestData.freightType] || manifestData.freightType}
-                  </Badge>
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Frota propria nao tem tipo de frete (o banco guarda "fixed"). */}
+                  {!manifestData.isOwnVehicle && (
+                    <Badge variant="outline" className="border-primary/40 bg-primary/10 text-xs text-primary">
+                      {freightTypeLabels[manifestData.freightType] || manifestData.freightType}
+                    </Badge>
+                  )}
                   <Badge variant={manifestData.isOwnVehicle ? "default" : "outline"} className="text-xs">
-                    {manifestData.isOwnVehicle ? "Frota própria" : "Terceirizado"}
+                    {manifestData.isOwnVehicle ? "Frota própria" : "Terceiro / agregado"}
                   </Badge>
-                  {manifestData.estimatedDistance && (
+                  {/* Sem "> 0" o React escrevia um "0" solto quando a rota nao tinha distancia. */}
+                  {!!manifestData.estimatedDistance && manifestData.estimatedDistance > 0 && (
                     <span className="text-xs text-muted-foreground">
                       Distância: {manifestData.estimatedDistance.toFixed(1).replace(".", ",")} km
                     </span>
@@ -371,7 +373,7 @@ export function ManifestPrintPreview({
             {/* Deliveries Table - Compact */}
             <div className="section mb-4">
               <div className="section-title text-xs font-bold mb-2 text-foreground border-b pb-1">
-                Notas Fiscais ({deliveries.length})
+                Notas fiscais ({deliveries.length})
               </div>
               <Table>
                 <TableHeader>
@@ -389,18 +391,19 @@ export function ManifestPrintPreview({
                 <TableBody>
                   {deliveries.map((delivery, idx) => (
                     <TableRow key={delivery.id}>
-                      <TableCell className="font-mono text-muted-foreground text-xs">{idx + 1}</TableCell>
+                      <TableCell className="font-data text-muted-foreground text-xs">{idx + 1}</TableCell>
                       <TableCell className="font-data font-medium text-xs">{delivery.nfe}</TableCell>
-                      <TableCell className="max-w-[120px] truncate text-xs">{delivery.recipient}</TableCell>
+                      <TableCell className="max-w-[160px] text-xs">{delivery.recipient}</TableCell>
                       <TableCell className="text-xs">
-                        <div className="max-w-[180px]">
-                          <div className="truncate">{delivery.address}</div>
-                          <div className="text-muted-foreground text-xs truncate">
-                            {delivery.city}/{delivery.state} - {delivery.zipCode}
+                        {/* Papel: endereco inteiro, sem cortar com reticencias. */}
+                        <div className="max-w-[220px]">
+                          <div>{delivery.address}</div>
+                          <div className="text-muted-foreground text-xs">
+                            {[`${delivery.city}/${delivery.state}`, delivery.zipCode].filter(Boolean).join(" - ")}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">{delivery.phone || "Não informado"}</TableCell>
+                      <TableCell className="font-data text-xs whitespace-nowrap">{delivery.phone || "Não informado"}</TableCell>
                       <TableCell className="whitespace-nowrap text-right text-xs">{delivery.weight}</TableCell>
                       <TableCell className="whitespace-nowrap text-right text-xs">{delivery.value}</TableCell>
                       <TableCell className="text-center text-xs">
@@ -424,7 +427,7 @@ export function ManifestPrintPreview({
             {deliveriesWithObs.length > 0 && (
               <div className="obs-section mb-4 rounded-lg border border-warning/30 bg-warning/5 p-3">
                 <div className="obs-title mb-2 text-xs font-bold text-warning">
-                  Observações das Entregas
+                  Observações das entregas
                 </div>
                 <div className="space-y-1">
                   {deliveriesWithObs.map((delivery) => (
@@ -441,23 +444,25 @@ export function ManifestPrintPreview({
             <div className="footer mt-4 flex justify-between items-start">
               <div className="totals bg-muted/30 p-3 rounded-lg">
                 <div className="total-row flex justify-between gap-6 mb-1 text-xs">
-                  <span className="total-label text-muted-foreground">Peso Total:</span>
+                  <span className="total-label text-muted-foreground">Peso total:</span>
                   <span className="total-value font-bold">{totalWeight.toFixed(1).replace(".", ",")} kg</span>
                 </div>
                 <div className="total-row flex justify-between gap-6 mb-1 text-xs">
-                  <span className="total-label text-muted-foreground">Valor Mercadorias:</span>
+                  <span className="total-label text-muted-foreground">Valor das mercadorias:</span>
                   <span className="total-value font-bold">{formatCurrency(totalValue)}</span>
                 </div>
                 <Separator className="my-2" />
                 <div className="total-row flex justify-between gap-6 text-sm">
-                  <span className="total-label text-muted-foreground">Valor do Frete:</span>
-                  <span className="total-value font-data font-bold text-primary">{formatCurrency(manifestData.calculatedTotal)}</span>
+                  <span className="total-label text-muted-foreground">Valor do frete:</span>
+                  <span className="total-value font-data font-bold text-primary">
+                    {manifestData.isOwnVehicle ? "Sem acerto (frota própria)" : formatCurrency(manifestData.calculatedTotal)}
+                  </span>
                 </div>
               </div>
 
               <div className="signature text-center">
                 <div className="signature-line border-t border-foreground w-52 mx-auto pt-2 text-xs text-muted-foreground">
-                  Assinatura do Motorista
+                  Assinatura do motorista
                 </div>
               </div>
             </div>

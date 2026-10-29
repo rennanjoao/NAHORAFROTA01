@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { getOccurrenceLabel } from "@/hooks/useSLADB";
 import {
   Sheet,
   SheetContent,
@@ -10,9 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { EmptyState } from "@/components/patterns";
+import { EmptyState, FormField } from "@/components/patterns";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -67,7 +65,15 @@ import { ManifestPrintPreview } from "./ManifestPrintPreview";
 import { DeliveryProofViewer } from "./DeliveryProofViewer";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { recalculateManifestTotals } from "@/lib/manifestTotals";
-import { DeliveryStatusBadge, ManifestStatusBadge, getDeliveryStatus, vehicleTypeLabel } from "./status";
+import {
+  DeliveryStatusBadge,
+  ManifestStatusBadge,
+  OCCURRENCE_TYPES,
+  getDeliveryStatus,
+  occurrenceLabel,
+  plateText,
+  vehicleTypeLabel,
+} from "./status";
 
 interface ManifestDetailSheetProps {
   open: boolean;
@@ -80,16 +86,7 @@ interface ManifestInvoice extends DBInvoice {
   delivered_at: string | null;
 }
 
-const OCCURRENCE_TYPES = [
-  { value: "ausente", label: "Cliente ausente" },
-  { value: "recusado", label: "Recusado pelo cliente" },
-  { value: "endereco_nao_localizado", label: "Endereço não localizado" },
-  { value: "avaria", label: "Mercadoria avariada" },
-  { value: "extravio", label: "Mercadoria extraviada" },
-  { value: "area_risco", label: "Área de risco" },
-  { value: "fora_horario", label: "Fora do horário" },
-  { value: "outro", label: "Outro" },
-];
+const plural = (count: number, one: string, many: string) => (count === 1 ? `1 ${one}` : `${count} ${many}`);
 
 export function ManifestDetailSheet({
   open,
@@ -125,6 +122,8 @@ export function ManifestDetailSheet({
     invoice: ManifestInvoice | null;
   }>({ open: false, invoice: null });
   const [removeReason, setRemoveReason] = useState("");
+  // Janela gravando (evita clique duplo e mostra "Salvando…").
+  const [isSaving, setIsSaving] = useState(false);
 
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
@@ -232,11 +231,14 @@ export function ManifestDetailSheet({
   const handleConfirmDelivery = async () => {
     if (!deliveryDialog.invoice || !receiverName.trim()) {
       setDeliveryError("Informe quem recebeu.");
+      document.getElementById("receiver_name")?.focus();
       return;
     }
+    if (isSaving) return;
 
     const invoice = deliveryDialog.invoice;
 
+    setIsSaving(true);
     const { error } = await supabase
       .from("invoices")
       .update({
@@ -247,6 +249,7 @@ export function ManifestDetailSheet({
         updated_at: new Date().toISOString(),
       })
       .eq("id", invoice.id);
+    setIsSaving(false);
 
     if (error) {
       toast({
@@ -261,12 +264,13 @@ export function ManifestDetailSheet({
       "delivery_confirmed",
       invoice.id,
       { receiver_name: receiverName, receiver_document: receiverDocument },
-      `NF ${invoice.nfe_number} entregue para ${receiverName}`
+      `confirmou a entrega da NF ${invoice.nfe_number} para ${receiverName.trim()}`
     );
 
     toast({
       title: "Entrega confirmada",
-      description: `NF ${invoice.nfe_number} marcada como entregue.`,
+      description: `A NF ${invoice.nfe_number} ficou como entregue.`,
+      variant: "success",
     });
 
     setDeliveryDialog({ open: false, invoice: null });
@@ -280,21 +284,27 @@ export function ManifestDetailSheet({
   const handleRegisterOccurrence = async () => {
     if (!occurrenceDialog.invoice || !occurrenceType) {
       setOccurrenceError("Escolha o que aconteceu.");
+      document.getElementById("manifest-occurrence-type")?.focus();
       return;
     }
+    if (isSaving) return;
 
     const invoice = occurrenceDialog.invoice;
-    const occurrenceLabel = OCCURRENCE_TYPES.find(t => t.value === occurrenceType)?.label || occurrenceType;
+    const typeLabel = occurrenceLabel(occurrenceType);
+    const notes = occurrenceNotes.trim();
 
+    // Sem detalhes, a observacao da nota fica como estava (antes era apagada).
+    setIsSaving(true);
     const { error } = await supabase
       .from("invoices")
       .update({
         status: "occurrence",
         occurrence_type: occurrenceType,
-        observation: occurrenceNotes || null,
+        ...(notes ? { observation: notes } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", invoice.id);
+    setIsSaving(false);
 
     if (error) {
       toast({
@@ -310,16 +320,17 @@ export function ManifestDetailSheet({
       invoice.id,
       { 
         occurrence_type: occurrenceType,
-        occurrence_label: occurrenceLabel,
+        occurrence_label: typeLabel,
         nfe_number: invoice.nfe_number,
-        observation: occurrenceNotes || null,
+        observation: notes || null,
       },
-      `registrou ocorrência na NF ${invoice.nfe_number} - Tipo: ${occurrenceLabel}${occurrenceNotes ? ` - Obs: ${occurrenceNotes}` : ''}`
+      `registrou ocorrência na NF ${invoice.nfe_number} - Tipo: ${typeLabel}${notes ? ` - Obs: ${notes}` : ''}`
     );
 
     toast({
       title: "Ocorrência registrada",
-      description: `NF ${invoice.nfe_number} marcada com ocorrência.`,
+      description: `A NF ${invoice.nfe_number} ficou marcada como ocorrência.`,
+      variant: "success",
     });
 
     setOccurrenceDialog({ open: false, invoice: null });
@@ -337,9 +348,18 @@ export function ManifestDetailSheet({
 
   // Execute removal with reason and audit log
   const executeRemoveInvoice = async () => {
-    if (!removeDialog.invoice || !manifest) return;
-    
-    const invoice = removeDialog.invoice;
+    if (!removeDialog.invoice || !manifest || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await removeInvoice(removeDialog.invoice);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeInvoice = async (invoice: ManifestInvoice) => {
+    if (!manifest) return;
     const reason = removeReason.trim() || "Remoção manual do romaneio";
     const userFullName = await getCurrentUserFullName();
     const { data: userData } = await supabase.auth.getUser();
@@ -386,8 +406,9 @@ export function ManifestDetailSheet({
     });
 
     toast({
-      title: "NF removida",
-      description: `NF ${invoice.nfe_number} removida do romaneio.`,
+      title: "Nota removida do romaneio",
+      description: `A NF ${invoice.nfe_number} voltou para pendente.`,
+      variant: "success",
     });
 
     setRemoveDialog({ open: false, invoice: null });
@@ -455,11 +476,14 @@ export function ManifestDetailSheet({
           "finalized",
           null,
           { delivered_count: delivered, occurrence_count: returned },
-          `Romaneio finalizado - ${delivered} entregas, ${returned} ocorrências`
+          `finalizou o romaneio - ${plural(delivered, "entrega", "entregas")}, ${plural(returned, "ocorrência", "ocorrências")}`
         );
         toast({
           title: "Romaneio finalizado",
-          description: `${delivered} entrega(s) concluída(s); ${returned} nota(s) voltaram para a fila de romaneio.`,
+          description:
+            returned > 0
+              ? `${plural(delivered, "entrega concluída", "entregas concluídas")}; ${returned === 1 ? "1 nota voltou" : `${returned} notas voltaram`} para a fila de romaneio.`
+              : `${plural(delivered, "entrega concluída", "entregas concluídas")}.`,
           variant: "success",
         });
       }
@@ -469,8 +493,8 @@ export function ManifestDetailSheet({
       onOpenChange(false);
     } catch (err) {
       toast({
-        title: "Erro ao finalizar",
-        description: err instanceof Error ? err.message : "Não foi possível finalizar o romaneio.",
+        title: "Não foi possível finalizar o romaneio",
+        description: "Confira a internet e tente de novo.",
         variant: "destructive",
       });
     } finally {
@@ -498,14 +522,21 @@ export function ManifestDetailSheet({
   const createdAt = new Date(manifest.created_at);
 
   const closeDeliveryDialog = () => {
+    if (isSaving) return;
     setDeliveryDialog({ open: false, invoice: null });
     setDeliveryError(null);
+    setReceiverName("");
+    setReceiverDocument("");
   };
   const closeOccurrenceDialog = () => {
+    if (isSaving) return;
     setOccurrenceDialog({ open: false, invoice: null });
     setOccurrenceError(null);
+    setOccurrenceType("");
+    setOccurrenceNotes("");
   };
   const closeRemoveDialog = () => {
+    if (isSaving) return;
     setRemoveDialog({ open: false, invoice: null });
     setRemoveReason("");
   };
@@ -543,7 +574,7 @@ export function ManifestDetailSheet({
               <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5">
                 <Truck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="font-medium text-foreground">{vehicleTypeLabel(manifest.vehicle_type)}</span>
-                <span className="font-data text-xs text-muted-foreground">{manifest.vehicle_plate || "sem placa"}</span>
+                <span className="font-data text-xs text-muted-foreground">{plateText(manifest.vehicle_plate) || "sem placa"}</span>
               </span>
             </div>
 
@@ -665,7 +696,7 @@ export function ManifestDetailSheet({
                               {invoice.status === "occurrence" && invoice.occurrence_type && (
                                 <p className="flex items-center gap-1.5 text-sm text-destructive">
                                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                                  {OCCURRENCE_TYPES.find(t => t.value === invoice.occurrence_type)?.label || getOccurrenceLabel(invoice.occurrence_type)}
+                                  {occurrenceLabel(invoice.occurrence_type)}
                                 </p>
                               )}
 
@@ -762,45 +793,43 @@ export function ManifestDetailSheet({
             <DialogDescription>{deliveryDialog.invoice?.recipient_name}. Informe quem recebeu a mercadoria.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="receiver_name">Nome de quem recebeu</Label>
-              <Input
-                id="receiver_name"
-                value={receiverName}
-                onChange={(e) => {
-                  setReceiverName(e.target.value);
-                  setDeliveryError(null);
-                }}
-                placeholder="Nome completo"
-                autoComplete="off"
-                aria-invalid={!!deliveryError || undefined}
-                aria-describedby={deliveryError ? "receiver_name-error" : undefined}
-              />
-              {deliveryError && (
-                <p id="receiver_name-error" className="text-sm font-medium text-destructive">
-                  {deliveryError}
-                </p>
+            <FormField id="receiver_name" label="Nome de quem recebeu" required error={deliveryError}>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={receiverName}
+                  onChange={(e) => {
+                    setReceiverName(e.target.value);
+                    setDeliveryError(null);
+                  }}
+                  placeholder="Nome completo"
+                  autoComplete="off"
+                  disabled={isSaving}
+                />
               )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="receiver_document">Documento (RG ou CPF, opcional)</Label>
-              <Input
-                id="receiver_document"
-                value={receiverDocument}
-                onChange={(e) => setReceiverDocument(e.target.value)}
-                placeholder="Número do documento"
-                autoComplete="off"
-                className="font-data"
-              />
-            </div>
+            </FormField>
+            <FormField id="receiver_document" label="Documento (RG ou CPF)" optional>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={receiverDocument}
+                  onChange={(e) => setReceiverDocument(e.target.value)}
+                  placeholder="Número do documento"
+                  autoComplete="off"
+                  inputMode="numeric"
+                  className="font-data"
+                  disabled={isSaving}
+                />
+              )}
+            </FormField>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeDeliveryDialog}>
+            <Button variant="outline" onClick={closeDeliveryDialog} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button onClick={handleConfirmDelivery}>
-              <CheckCircle2 aria-hidden="true" />
-              Confirmar entrega
+            <Button onClick={handleConfirmDelivery} disabled={isSaving}>
+              {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}
+              {isSaving ? "Salvando…" : "Confirmar entrega"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -814,55 +843,50 @@ export function ManifestDetailSheet({
             <DialogDescription>{occurrenceDialog.invoice?.recipient_name}. Conte o que impediu a entrega.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="manifest-occurrence-type">O que aconteceu</Label>
-              <Select
-                value={occurrenceType}
-                onValueChange={(value) => {
-                  setOccurrenceType(value);
-                  setOccurrenceError(null);
-                }}
-              >
-                <SelectTrigger
-                  id="manifest-occurrence-type"
-                  aria-invalid={!!occurrenceError || undefined}
-                  aria-describedby={occurrenceError ? "manifest-occurrence-error" : undefined}
-                  className={occurrenceError ? "border-destructive" : undefined}
+            <FormField id="manifest-occurrence-type" label="O que aconteceu" required error={occurrenceError}>
+              {(field) => (
+                <Select
+                  value={occurrenceType}
+                  onValueChange={(value) => {
+                    setOccurrenceType(value);
+                    setOccurrenceError(null);
+                  }}
+                  disabled={isSaving}
                 >
-                  <SelectValue placeholder="Escolher o motivo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {OCCURRENCE_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {occurrenceError && (
-                <p id="manifest-occurrence-error" className="text-sm font-medium text-destructive">
-                  {occurrenceError}
-                </p>
+                  <SelectTrigger {...field} className={occurrenceError ? "border-destructive" : undefined}>
+                    <SelectValue placeholder="Escolher o motivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OCCURRENCE_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="occurrence_notes">Detalhes (opcional)</Label>
-              <Textarea
-                id="occurrence_notes"
-                value={occurrenceNotes}
-                onChange={(e) => setOccurrenceNotes(e.target.value)}
-                placeholder="Ex.: Portão fechado, ninguém atendeu."
-                rows={3}
-              />
-            </div>
+            </FormField>
+            <FormField id="occurrence_notes" label="Detalhes" optional hint="O texto fica salvo na observação da nota.">
+              {(field) => (
+                <Textarea
+                  {...field}
+                  value={occurrenceNotes}
+                  onChange={(e) => setOccurrenceNotes(e.target.value)}
+                  placeholder="Ex.: Portão fechado, ninguém atendeu."
+                  rows={3}
+                  className="resize-none"
+                  disabled={isSaving}
+                />
+              )}
+            </FormField>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={closeOccurrenceDialog}>
+            <Button variant="outline" onClick={closeOccurrenceDialog} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button onClick={handleRegisterOccurrence}>
-              <AlertTriangle aria-hidden="true" />
-              Registrar ocorrência
+            <Button onClick={handleRegisterOccurrence} disabled={isSaving}>
+              {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+              {isSaving ? "Salvando…" : "Registrar ocorrência"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -874,8 +898,9 @@ export function ManifestDetailSheet({
           <AlertDialogHeader>
             <AlertDialogTitle>Finalizar romaneio com ocorrências?</AlertDialogTitle>
             <AlertDialogDescription>
-              Este romaneio tem {stats.occurrence} nota(s) com ocorrência. Elas ficam como devolvidas e voltam para a fila
-              de romaneio.
+              {stats.occurrence === 1
+                ? "Este romaneio tem 1 nota com ocorrência. Ela fica como devolvida e volta para a fila de romaneio."
+                : `Este romaneio tem ${stats.occurrence} notas com ocorrência. Elas ficam como devolvidas e voltam para a fila de romaneio.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Alert variant="warning">
@@ -902,23 +927,26 @@ export function ManifestDetailSheet({
               {removeDialog.invoice?.recipient_name}. A nota volta para pendente e a mudança fica no histórico.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="remove_reason">Motivo (opcional)</Label>
-            <Textarea
-              id="remove_reason"
-              value={removeReason}
-              onChange={(e) => setRemoveReason(e.target.value)}
-              placeholder="Ex.: Não coube no veículo, mercadoria avariada."
-              rows={2}
-            />
-          </div>
+          <FormField id="remove_reason" label="Motivo" optional>
+            {(field) => (
+              <Textarea
+                {...field}
+                value={removeReason}
+                onChange={(e) => setRemoveReason(e.target.value)}
+                placeholder="Ex.: Não coube no veículo, mercadoria avariada."
+                rows={2}
+                className="resize-none"
+                disabled={isSaving}
+              />
+            )}
+          </FormField>
           <DialogFooter>
-            <Button variant="outline" onClick={closeRemoveDialog}>
+            <Button variant="outline" onClick={closeRemoveDialog} disabled={isSaving}>
               Cancelar
             </Button>
-            <Button onClick={executeRemoveInvoice} variant="destructive">
-              <Minus aria-hidden="true" />
-              Remover do romaneio
+            <Button onClick={executeRemoveInvoice} variant="destructive" disabled={isSaving}>
+              {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Minus aria-hidden="true" />}
+              {isSaving ? "Removendo…" : "Remover do romaneio"}
             </Button>
           </DialogFooter>
         </DialogContent>

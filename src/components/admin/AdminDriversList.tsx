@@ -17,6 +17,9 @@ const DRIVER_STATUS: Record<string, { label: string; tone: Tone }> = {
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("pt-BR");
 
+// "PENDENTE" e o marcador do cadastro sem placa: na tela vira texto, nao parece uma placa.
+const plateText = (plate?: string | null) => (!plate || plate === "PENDENTE" ? null : plate);
+
 function DriverStatus({ status }: { status: string }) {
   const config = DRIVER_STATUS[status] ?? { label: status, tone: "neutral" as Tone };
   return <StatusBadge tone={config.tone}>{config.label}</StatusBadge>;
@@ -31,7 +34,8 @@ interface AdminDriversListProps {
 
 /** Motoristas com login no app: tabela no computador, cartoes no celular. */
 export function AdminDriversList({ drivers, isLoading, emptyAction, onEdit }: AdminDriversListProps) {
-  if (isLoading) return <ListSkeleton rows={3} />;
+  // Esqueleto so na primeira carga: ao atualizar, a lista fica (e o foco nao se perde).
+  if (isLoading && drivers.length === 0) return <ListSkeleton rows={3} />;
 
   if (drivers.length === 0) {
     return (
@@ -67,14 +71,22 @@ export function AdminDriversList({ drivers, isLoading, emptyAction, onEdit }: Ad
                   <div className="flex min-w-0 items-center gap-3">
                     <PersonAvatar name={driver.name} src={driver.avatar || driver.photo} />
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-foreground">{driver.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{driver.email || driver.cpf}</p>
+                      <p className="truncate font-medium text-foreground" title={driver.name}>
+                        {driver.name}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground" title={driver.email || driver.cpf}>
+                        {driver.email || driver.cpf}
+                      </p>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
                   <p className="capitalize text-foreground">{driver.vehicle_type || "Veículo"}</p>
-                  <p className="font-data text-xs text-muted-foreground">{driver.vehicle_plate || "Sem placa"}</p>
+                  {plateText(driver.vehicle_plate) ? (
+                    <p className="font-data text-xs text-muted-foreground">{plateText(driver.vehicle_plate)}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Placa pendente</p>
+                  )}
                 </TableCell>
                 <TableCell>
                   <DriverStatus status={driver.status} />
@@ -97,7 +109,9 @@ export function AdminDriversList({ drivers, isLoading, emptyAction, onEdit }: Ad
                       <TooltipContent>Editar acesso</TooltipContent>
                     </Tooltip>
                   ) : (
-                    <span className="whitespace-nowrap text-xs text-muted-foreground">Sem login</span>
+                    <span className="whitespace-nowrap text-xs text-muted-foreground" title="Este motorista ainda não tem login no app.">
+                      Sem login
+                    </span>
                   )}
                 </TableCell>
               </TableRow>
@@ -113,8 +127,12 @@ export function AdminDriversList({ drivers, isLoading, emptyAction, onEdit }: Ad
             <div className="flex min-w-0 items-start gap-3">
               <PersonAvatar name={driver.name} src={driver.avatar || driver.photo} className="h-10 w-10" />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-foreground">{driver.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{driver.email || driver.cpf}</p>
+                <p className="truncate font-medium text-foreground" title={driver.name}>
+                  {driver.name}
+                </p>
+                <p className="truncate text-xs text-muted-foreground" title={driver.email || driver.cpf}>
+                  {driver.email || driver.cpf}
+                </p>
               </div>
               <DriverStatus status={driver.status} />
             </div>
@@ -123,7 +141,11 @@ export function AdminDriversList({ drivers, isLoading, emptyAction, onEdit }: Ad
                 <dt className="text-xs text-muted-foreground">Veículo</dt>
                 <dd className="text-foreground">
                   <span className="capitalize">{driver.vehicle_type || "Veículo"}</span>
-                  <span className="font-data text-muted-foreground"> · {driver.vehicle_plate || "sem placa"}</span>
+                  {plateText(driver.vehicle_plate) ? (
+                    <span className="font-data text-muted-foreground"> · {plateText(driver.vehicle_plate)}</span>
+                  ) : (
+                    <span className="text-muted-foreground"> · placa pendente</span>
+                  )}
                 </dd>
               </div>
               <div>

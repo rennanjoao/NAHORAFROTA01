@@ -15,7 +15,7 @@ export function SettlementSteps({ current }: { current: 1 | 2 | 3 }) {
             key={label}
             aria-current={state === "current" ? "step" : undefined}
             className={cn(
-              "flex flex-col gap-2 rounded-lg border px-3 py-2.5 transition-colors duration sm:flex-row sm:items-center sm:gap-3",
+              "flex min-w-0 flex-col gap-2 rounded-lg border px-2.5 py-2.5 transition-colors duration sm:flex-row sm:items-center sm:gap-3 sm:px-3",
               state === "current" && "border-primary/40 bg-primary/5",
               state === "upcoming" && "border-dashed",
             )}
@@ -33,7 +33,8 @@ export function SettlementSteps({ current }: { current: 1 | 2 | 3 }) {
             </span>
             <span
               className={cn(
-                "text-xs font-medium leading-snug sm:text-sm",
+                // Celular estreito (320px): quebra a palavra com hifen em vez de vazar do cartao.
+                "min-w-0 hyphens-auto break-words text-xs font-medium leading-snug sm:text-sm",
                 state === "upcoming" ? "text-muted-foreground" : "text-foreground",
               )}
             >

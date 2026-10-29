@@ -1,13 +1,8 @@
-import { useState, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { BarChart3, Building2, CalendarDays, FileText, Truck, UserCheck, Users } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths, isSameDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { BarChart3, Building2, FileText, Truck, UserCheck, Users } from "lucide-react";
+import { format } from "date-fns";
 import { CardsSkeleton, EmptyState, StatCard } from "@/components/patterns";
 import { useManifestsDB } from "@/hooks/useManifestsDB";
 import { formatCurrency } from "@/lib/formatCurrency";
@@ -31,24 +26,20 @@ const COLORS = {
   thirdParty: SERIES[1],
 };
 
-type QuickPeriod = "this-month" | "last-month" | "custom";
+interface FleetUsageReportProps {
+  /** Periodo escolhido no topo da tela (o mesmo das outras abas). Ponta vazia = sem limite. */
+  dateRange: { from?: Date; to?: Date };
+}
 
-export function FleetUsageReport() {
+export function FleetUsageReport({ dateRange }: FleetUsageReportProps) {
   const { getFleetUsageReport, isLoading } = useManifestsDB();
 
-  // Date range state - default to current month
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-  });
-  const [calendarOpen, setCalendarOpen] = useState(false);
-
-  // Get report data
+  // Antes esta aba tinha um periodo proprio, diferente do escolhido no topo.
   const reportData = useMemo(() => {
-    const startDate = format(dateRange.from, "yyyy-MM-dd");
-    const endDate = format(dateRange.to, "yyyy-MM-dd");
+    const startDate = dateRange.from ? format(dateRange.from, "yyyy-MM-dd") : "0000-01-01";
+    const endDate = dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : "9999-12-31";
     return getFleetUsageReport(startDate, endDate);
-  }, [dateRange, getFleetUsageReport]);
+  }, [dateRange.from, dateRange.to, getFleetUsageReport]);
 
   // Comparativo: categorias no eixo, uma serie por tipo de frota
   const comparisonData = [
@@ -57,29 +48,10 @@ export function FleetUsageReport() {
     { name: "Entregas", own: reportData.ownFleet.totalDeliveries, third: reportData.thirdParty.totalDeliveries },
   ];
 
-  // Quick period selectors
-  const setPeriod = (months: number) => {
-    const now = new Date();
-    if (months === 0) {
-      setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
-    } else {
-      const start = startOfMonth(subMonths(now, months));
-      setDateRange({ from: start, to: months === 1 ? endOfMonth(subMonths(now, 1)) : now });
-    }
-  };
-
-  const now = new Date();
-  const quickPeriod: QuickPeriod =
-    isSameDay(dateRange.from, startOfMonth(now)) && isSameDay(dateRange.to, endOfMonth(now))
-      ? "this-month"
-      : isSameDay(dateRange.from, startOfMonth(subMonths(now, 1))) && isSameDay(dateRange.to, endOfMonth(subMonths(now, 1)))
-        ? "last-month"
-        : "custom";
-
   if (isLoading) {
     return (
       <div role="status" aria-label="Carregando" className="space-y-6">
-        <Skeleton className="h-10 w-72" />
+        <Skeleton className="h-5 w-96 max-w-full" />
         <CardsSkeleton count={4} />
         <div className="grid gap-6 lg:grid-cols-2">
           <Skeleton className="h-[320px] rounded-lg" />
@@ -93,7 +65,6 @@ export function FleetUsageReport() {
   const ownShare = totalDrivers > 0 ? (reportData.ownFleet.driversCount / totalDrivers) * 100 : 0;
   const thirdShare = totalDrivers > 0 ? (reportData.thirdParty.driversCount / totalDrivers) * 100 : 0;
   const totalManifests = reportData.ownFleet.manifestsCount + reportData.thirdParty.manifestsCount;
-  const rangeLabel = `${format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} a ${format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}`;
 
   const comparisonSummary = `Gráfico de barras comparando frota própria e agregados: ${comparisonData
     .map((d) => `${d.name.toLowerCase()} ${d.own} da frota própria e ${d.third} de agregados`)
@@ -101,52 +72,9 @@ export function FleetUsageReport() {
 
   return (
     <div className="space-y-6">
-      {/* Periodo desta aba */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          Quantos motoristas da casa e agregados trabalharam e quanto foi de frete para terceiros.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Select
-            value={quickPeriod}
-            onValueChange={(v) => {
-              if (v === "this-month") setPeriod(0);
-              else if (v === "last-month") setPeriod(1);
-              else setCalendarOpen(true);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[11rem]" aria-label="Período da frota">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="this-month">Este mês</SelectItem>
-              <SelectItem value="last-month">Mês anterior</SelectItem>
-              <SelectItem value="custom">Escolher datas</SelectItem>
-            </SelectContent>
-          </Select>
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start font-normal" aria-label={`Datas: ${rangeLabel}. Alterar`}>
-                <CalendarDays className="text-muted-foreground" aria-hidden="true" />
-                <span className="font-data">{rangeLabel}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="range"
-                selected={{ from: dateRange.from, to: dateRange.to }}
-                onSelect={(range) => {
-                  if (range?.from && range?.to) {
-                    setDateRange({ from: range.from, to: range.to });
-                  }
-                }}
-                locale={ptBR}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Quantos motoristas da casa e agregados trabalharam e quanto foi de frete para terceiros, pela data dos romaneios.
+      </p>
 
       {/* Indicadores */}
       <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -179,14 +107,7 @@ export function FleetUsageReport() {
         <EmptyState
           icon={Truck}
           title="Nenhum romaneio neste período"
-          description="Escolha outro mês para comparar frota própria e agregados."
-          action={
-            quickPeriod !== "last-month" ? (
-              <Button variant="outline" onClick={() => setPeriod(1)}>
-                Ver mês anterior
-              </Button>
-            ) : undefined
-          }
+          description="Escolha outro período no topo da tela para comparar frota própria e agregados."
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">

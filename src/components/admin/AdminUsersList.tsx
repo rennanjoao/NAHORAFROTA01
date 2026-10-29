@@ -29,11 +29,16 @@ interface AdminUsersListProps {
 function RoleSelect({
   user,
   disabled,
+  lockReason,
+  hintId,
   onRoleChange,
   className,
 }: {
   user: SystemUser;
   disabled: boolean;
+  /** Por que nao da para mudar (vira dica do campo e tooltip no computador). */
+  lockReason?: string | null;
+  hintId?: string;
   onRoleChange: AdminUsersListProps["onRoleChange"];
   className?: string;
 }) {
@@ -43,7 +48,12 @@ function RoleSelect({
       onValueChange={(value) => onRoleChange(user.user_id, value as SystemUser["role"])}
       disabled={disabled}
     >
-      <SelectTrigger className={className} aria-label={`Nível de acesso de ${user.name}`}>
+      <SelectTrigger
+        className={className}
+        aria-label={`Nível de acesso de ${user.name}`}
+        aria-describedby={hintId}
+        title={lockReason ?? undefined}
+      >
         <SelectValue>{ADMIN_ROLE_LABELS[user.role] ?? user.role}</SelectValue>
       </SelectTrigger>
       <SelectContent>
@@ -86,7 +96,17 @@ export function AdminUsersList({
   onEdit,
   onRemove,
 }: AdminUsersListProps) {
-  if (isLoading) return <ListSkeleton rows={3} />;
+  // Esqueleto so na primeira carga: ao atualizar, a lista fica (e o foco nao se perde).
+  if (isLoading && users.length === 0) return <ListSkeleton rows={3} />;
+
+  // A empresa nao pode ficar sem administrador (o servidor tambem recusa).
+  const adminCount = users.filter((u) => u.role === "admin").length;
+  const lockReason = (systemUser: SystemUser) =>
+    systemUser.user_id === currentUserId
+      ? "Você não pode mudar o seu próprio nível."
+      : systemUser.role === "admin" && adminCount <= 1
+        ? "A empresa precisa de pelo menos um administrador."
+        : null;
 
   if (users.length === 0) {
     return (
@@ -117,6 +137,7 @@ export function AdminUsersList({
           <TableBody>
             {users.map((systemUser) => {
               const isCurrentUser = systemUser.user_id === currentUserId;
+              const locked = lockReason(systemUser);
               return (
                 <TableRow key={systemUser.id}>
                   <TableCell>
@@ -124,15 +145,28 @@ export function AdminUsersList({
                       <PersonAvatar name={systemUser.name} src={systemUser.avatar_url} />
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 font-medium text-foreground">
-                          <span className="truncate">{systemUser.name}</span>
+                          <span className="truncate" title={systemUser.name}>{systemUser.name}</span>
                           {isCurrentUser && <Badge variant="outline">Você</Badge>}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">{systemUser.email}</p>
+                        <p className="truncate text-xs text-muted-foreground" title={systemUser.email}>
+                          {systemUser.email}
+                        </p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <RoleSelect user={systemUser} disabled={isCurrentUser} onRoleChange={onRoleChange} />
+                    <RoleSelect
+                      user={systemUser}
+                      disabled={!!locked}
+                      lockReason={locked}
+                      hintId={locked ? `nivel-${systemUser.user_id}` : undefined}
+                      onRoleChange={onRoleChange}
+                    />
+                    {locked && (
+                      <p id={`nivel-${systemUser.user_id}`} className="mt-1 text-xs text-muted-foreground">
+                        {locked}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(systemUser.created_at)}</TableCell>
                   <TableCell className="text-right">
@@ -140,7 +174,10 @@ export function AdminUsersList({
                       <IconAction label={`Editar ${systemUser.name}`} onClick={() => onEdit(systemUser)}>
                         <Pencil aria-hidden="true" />
                       </IconAction>
-                      {!isCurrentUser && (
+                      {isCurrentUser ? (
+                        // Mesmo lugar do botao de remover: os lapis ficam alinhados na coluna.
+                        <span className="h-10 w-10 shrink-0" aria-hidden="true" />
+                      ) : (
                         <IconAction label={`Remover ${systemUser.name}`} onClick={() => onRemove(systemUser)} danger>
                           <Trash2 aria-hidden="true" />
                         </IconAction>
@@ -158,22 +195,25 @@ export function AdminUsersList({
       <ul className="stagger space-y-3 md:hidden">
         {users.map((systemUser) => {
           const isCurrentUser = systemUser.user_id === currentUserId;
+          const locked = lockReason(systemUser);
           return (
             <li key={systemUser.id} className="rounded-lg border bg-card p-4 shadow-sm">
               <div className="flex min-w-0 items-center gap-3">
                 <PersonAvatar name={systemUser.name} src={systemUser.avatar_url} className="h-10 w-10" />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 font-medium text-foreground">
-                    <span className="truncate">{systemUser.name}</span>
+                    <span className="truncate" title={systemUser.name}>{systemUser.name}</span>
                     {isCurrentUser && <Badge variant="outline">Você</Badge>}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{systemUser.email}</p>
+                  <p className="truncate text-xs text-muted-foreground" title={systemUser.email}>
+                    {systemUser.email}
+                  </p>
                 </div>
               </div>
               <div className="mt-3 space-y-1">
-                <RoleSelect user={systemUser} disabled={isCurrentUser} onRoleChange={onRoleChange} />
-                <p className="text-xs text-muted-foreground">
-                  {isCurrentUser ? "Você não pode mudar o seu próprio nível." : `No painel desde ${formatDate(systemUser.created_at)}`}
+                <RoleSelect user={systemUser} disabled={!!locked} lockReason={locked} hintId={`nivel-cel-${systemUser.user_id}`} onRoleChange={onRoleChange} />
+                <p id={`nivel-cel-${systemUser.user_id}`} className="text-xs text-muted-foreground">
+                  {locked ?? `No painel desde ${formatDate(systemUser.created_at)}`}
                 </p>
               </div>
               <div className="mt-3 flex gap-2 border-t pt-3">

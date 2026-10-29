@@ -26,11 +26,12 @@ export function vehicleStatus(position: StatusSource): VehicleMapStatus {
   return "onTime";
 }
 
-export const VEHICLE_STATUS: Record<VehicleMapStatus, { label: string; tone: Tone; hex: string }> = {
-  onTime: { label: "No prazo", tone: "success", hex: STATUS_HEX.ok },
-  atRisk: { label: "Em risco", tone: "warning", hex: STATUS_HEX.alert },
-  delayed: { label: "Atrasado", tone: "danger", hex: STATUS_HEX.late },
-  stale: { label: "Sem sinal", tone: "neutral", hex: STATUS_HEX.idle },
+/** `plural`: legenda com contagem ("0 atrasados", "1 atrasado"). */
+export const VEHICLE_STATUS: Record<VehicleMapStatus, { label: string; plural: string; tone: Tone; hex: string }> = {
+  onTime: { label: "No prazo", plural: "No prazo", tone: "success", hex: STATUS_HEX.ok },
+  atRisk: { label: "Em risco", plural: "Em risco", tone: "warning", hex: STATUS_HEX.alert },
+  delayed: { label: "Atrasado", plural: "Atrasados", tone: "danger", hex: STATUS_HEX.late },
+  stale: { label: "Sem sinal", plural: "Sem sinal", tone: "neutral", hex: STATUS_HEX.idle },
 };
 
 export function countByStatus(positions: StatusSource[]): MapStatusCounts {

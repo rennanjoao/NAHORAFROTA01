@@ -50,9 +50,10 @@ const TRIAL_POINTS = [
   { icon: ShieldCheck, title: "Seus dados protegidos", text: "Cada empresa só vê os próprios motoristas e entregas." },
 ];
 
-async function getFunctionErrorMessage(error: any): Promise<string> {
-  const fallback = error?.message || "Erro ao processar cadastro";
-  const response = error?.context;
+async function getFunctionErrorMessage(error: unknown): Promise<string> {
+  const err = error as { message?: string; context?: Response } | null;
+  const fallback = err?.message || "Não foi possível concluir o cadastro. Confira a internet e tente de novo.";
+  const response = err?.context;
 
   if (!response || typeof response.clone !== "function") {
     return fallback;
@@ -198,7 +199,7 @@ export default function RegisterPage() {
       }
 
       setSuccess(true);
-    } catch (err: any) {
+    } catch (err) {
       setFormError(await getFunctionErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -207,7 +208,7 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <AuthLayout variant="centered">
+      <AuthLayout variant="centered" pageTitle="Teste grátis liberado">
         <div className="space-y-4 text-center">
           <span aria-hidden="true" className="mx-auto flex h-16 w-16 animate-pop-in items-center justify-center rounded-full bg-success text-success-foreground">
             <CircleCheck className="h-8 w-8" />
@@ -233,6 +234,7 @@ export default function RegisterPage() {
   return (
     <AuthLayout
       width="md"
+      pageTitle="Cadastrar empresa"
       points={TRIAL_POINTS}
       headline={
         <>

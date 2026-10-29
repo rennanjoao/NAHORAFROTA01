@@ -188,7 +188,7 @@ export default function Index() {
           description="Onde cada motorista está e em que pé estão as notas de hoje."
           className="scroll-mt-24"
         >
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="min-w-0 lg:col-span-2">
               {realtimeAccess.allowed ? liveMap : <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>{liveMap}</PlanLockOverlay>}
             </div>
@@ -201,7 +201,7 @@ export default function Index() {
           title="Entregas no prazo (SLA)"
           description="Quanto das entregas chegou no prazo combinado com o cliente. A meta é 97%."
         >
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="min-w-0">
               {slaAccess.allowed ? (
                 <SLAWeeklyWidget />

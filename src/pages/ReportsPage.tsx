@@ -10,7 +10,7 @@ import { ReportsFilters } from "@/components/reports/ReportsFilters";
 import { defaultFilters, type FilterState, type ReportFilterOptions } from "@/components/reports/reportFilterState";
 import { InteractiveKPIs } from "@/components/reports/InteractiveKPIs";
 import { KPIDrilldownSheet, DrilldownType } from "@/components/reports/KPIDrilldownSheet";
-import { TopOffenders } from "@/components/reports/TopOffenders";
+import { TopOffenders, type OffenderTrend } from "@/components/reports/TopOffenders";
 import { ReportsCharts } from "@/components/reports/ReportsCharts";
 import { SLAEvolutionChart } from "@/components/reports/SLAEvolutionChart";
 import { ExportReportDialog, ExportOptions } from "@/components/reports/ExportReportDialog";
@@ -18,9 +18,8 @@ import { RegionalEfficiencyDashboard } from "@/components/reports/RegionalEffici
 import { FleetUsageReport } from "@/components/reports/FleetUsageReport";
 import { ProfitabilityReport } from "@/components/reports/ProfitabilityReport";
 import { useInvoicesDB } from "@/hooks/useInvoicesDB";
-import { useManifestsDB } from "@/hooks/useManifestsDB";
+import { formatManifestNumber, useManifestsDB } from "@/hooks/useManifestsDB";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
 import { getOccurrenceLabel, getOccurrenceWeight } from "@/hooks/useSLADB";
 import { downloadReportPdf, pdfCurrency, pdfPercent, type ReportPdfSection } from "@/lib/reportPdf";
 import { useTenantData } from "@/hooks/useTenantData";
@@ -43,6 +42,18 @@ function percentChange(current: number, previous: number): number {
   if (!previous) return 0;
   return ((current - previous) / previous) * 100;
 }
+
+/** Tendencia de um ranking: % contra o periodo anterior, "new" se antes era zero, null sem como comparar. */
+function offenderTrend(current: number, previous: number, hasPrevious: boolean): OffenderTrend {
+  if (!hasPrevious) return null;
+  if (!previous) return current > 0 ? "new" : null;
+  return Math.round(percentChange(current, previous));
+}
+
+const trendText = (trend: OffenderTrend) =>
+  trend === null ? "—" : trend === "new" ? "Novo" : `${trend > 0 ? "+" : ""}${trend}%`;
+
+const isFinalized = (status: string) => isDeliveredStatus(status) || status === "occurrence" || isReturnedStatus(status);
 
 /** SLA do periodo: media do SLA individual de cada motorista com NFs finalizadas. */
 function calculatePeriodSLA(list: { status: string; occurrence_type: string | null; driver_id: string | null }[]): number {
@@ -104,8 +115,9 @@ export default function ReportsPage() {
     setFilters(newFilters);
   };
 
+  // Limpa cliente, regiao, motorista e operacao; o periodo escolhido continua.
   const handleClearFilters = () => {
-    setFilters(defaultFilters);
+    setFilters((current) => ({ ...defaultFilters, dateRange: current.dateRange }));
   };
 
   // ========== FILTERED DATA ==========
@@ -209,25 +221,29 @@ export default function ReportsPage() {
   };
 
   // Calculate KPI data using period SLA
+  // Sem dados no periodo anterior a tendencia fica null ("Sem dados do periodo anterior"),
+  // em vez de "Igual ao periodo anterior".
   const kpiData = useMemo(() => {
     const avgCost = avgCostOf(filteredManifests, deliveryData.entregue);
     const previousAvgCost = avgCostOf(previousManifests, previousDeliveryData.entregue);
-    
+    const hasPrevious = previousDeliveryData.total > 0;
+    const relative = (current: number, previous: number) => (previous > 0 ? percentChange(current, previous) : null);
+
     return {
       sla: periodSLA,
-      slaTrend: previousDeliveryData.total > 0 ? periodSLA - previousPeriodSLA : 0,
+      slaTrend: previousInvoices.some((inv) => isFinalized(inv.status)) ? periodSLA - previousPeriodSLA : null,
       onTime: deliveryData.entregue,
-      onTimeTrend: percentChange(deliveryData.entregue, previousDeliveryData.entregue),
+      onTimeTrend: relative(deliveryData.entregue, previousDeliveryData.entregue),
       delayed: deliveryData.atrasado,
-      delayedTrend: percentChange(deliveryData.atrasado, previousDeliveryData.atrasado),
+      delayedTrend: relative(deliveryData.atrasado, previousDeliveryData.atrasado),
       returns: deliveryData.devolvido,
-      returnsTrend: percentChange(deliveryData.devolvido, previousDeliveryData.devolvido),
+      returnsTrend: relative(deliveryData.devolvido, previousDeliveryData.devolvido),
       avgCost,
-      avgCostTrend: percentChange(avgCost, previousAvgCost),
+      avgCostTrend: relative(avgCost, previousAvgCost),
       totalVolume: deliveryData.total,
-      volumeTrend: percentChange(deliveryData.total, previousDeliveryData.total),
+      volumeTrend: hasPrevious ? percentChange(deliveryData.total, previousDeliveryData.total) : null,
     };
-  }, [periodSLA, previousPeriodSLA, deliveryData, previousDeliveryData, filteredManifests, previousManifests]);
+  }, [periodSLA, previousPeriodSLA, previousInvoices, deliveryData, previousDeliveryData, filteredManifests, previousManifests]);
 
   // Impacto financeiro e insights: calculados, ainda nao exibidos (valores de exemplo).
   const financialImpactData = useMemo(() => ({
@@ -264,6 +280,11 @@ export default function ReportsPage() {
     };
     const currentReturns = countReturns(filteredInvoices);
     const previousReturns = countReturns(previousInvoices);
+    const hasPrevious = previousInvoices.length > 0;
+    // Atrasos de cada regiao no periodo anterior (para saber o que e novo).
+    const previousDelays = new Map(
+      rankRegionsByDelay(previousInvoices, [], manifestsById, Number.MAX_SAFE_INTEGER).map((r) => [r.region, r.delays]),
+    );
 
     return {
       routes: rankRegionsByDelay(filteredInvoices, previousInvoices, manifestsById).map(r => ({
@@ -271,7 +292,7 @@ export default function ReportsPage() {
         name: r.region,
         delays: r.delays,
         occurrences: r.occurrences,
-        trend: r.trend,
+        trend: offenderTrend(r.delays, previousDelays.get(r.region) || 0, hasPrevious),
       })),
       clients: Array.from(currentReturns.entries())
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
@@ -280,7 +301,7 @@ export default function ReportsPage() {
           rank: i + 1,
           name,
           returns,
-          trend: Math.round(percentChange(returns, previousReturns.get(name) || 0)),
+          trend: offenderTrend(returns, previousReturns.get(name) || 0, hasPrevious),
         })),
       reasons: occurrencesData.map((d, i) => ({
         rank: i + 1,
@@ -293,6 +314,45 @@ export default function ReportsPage() {
 
   // Charts data (only issues now, SLA has its own component)
   const chartsIssuesData = useMemo(() => occurrencesData, [occurrencesData]);
+
+  // Custo medio por entrega: a conta e os romaneios de agregados que entram nela
+  const costBreakdown = useMemo(() => {
+    const thirdParty = filteredManifests.filter((m) => !m.is_own_fleet && m.status !== "cancelled");
+    return {
+      manifests: thirdParty
+        .map((m) => ({
+          id: m.id,
+          code: formatManifestNumber(m),
+          driver: m.driver_name,
+          date: m.scheduled_date,
+          freight: m.freight_value || 0,
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date)),
+      totalFreight: thirdParty.reduce((sum, m) => sum + (m.freight_value || 0), 0),
+      delivered: deliveryData.entregue,
+      avgCost: kpiData.avgCost,
+    };
+  }, [filteredManifests, deliveryData.entregue, kpiData.avgCost]);
+
+  // Filtros da tela em texto (PDF e janela de exportar)
+  const filtersLabel = useMemo(() => {
+    const driverName = filterOptions.drivers.find(d => d.id === filters.driver)?.name;
+    return [
+      filters.client !== 'all' ? `Cliente: ${filters.client}` : null,
+      filters.route !== 'all' ? `Região: ${filters.route}` : null,
+      filters.driver !== 'all' ? `Motorista: ${driverName || filters.driver}` : null,
+      filters.operationType !== 'all' ? `Operação: ${filters.operationType === 'own_fleet' ? 'Frota própria' : 'Agregados'}` : null,
+    ].filter(Boolean).join(' • ');
+  }, [filters, filterOptions.drivers]);
+
+  // Clique numa regiao/cliente do ranking filtra a tela; o aviso confirma o que mudou.
+  const applyRankingFilter = (key: "route" | "client", value: string) => {
+    handleFiltersChange({ ...filters, [key]: value });
+    toast({
+      title: key === "route" ? `Mostrando só a região ${value}` : `Mostrando só o cliente ${value}`,
+      description: "Para ver tudo de novo, use Limpar filtros no topo da tela.",
+    });
+  };
 
   // Handle KPI click for drill-down
   const handleKPIClick = (type: DrilldownType) => {
@@ -308,13 +368,6 @@ export default function ReportsPage() {
       const periodLabel = filters.dateRange.from || filters.dateRange.to
         ? `${fmtDate(filters.dateRange.from)} a ${fmtDate(filters.dateRange.to)}`
         : 'Todo o histórico';
-      const driverName = filterOptions.drivers.find(d => d.id === filters.driver)?.name;
-      const filtersLabel = [
-        filters.client !== 'all' ? `Cliente: ${filters.client}` : null,
-        filters.route !== 'all' ? `Região: ${filters.route}` : null,
-        filters.driver !== 'all' ? `Motorista: ${driverName || filters.driver}` : null,
-        filters.operationType !== 'all' ? `Operação: ${filters.operationType === 'own_fleet' ? 'Frota própria' : 'Agregados'}` : null,
-      ].filter(Boolean).join(' • ') || 'Nenhum';
 
       const sections: ReportPdfSection[] = [];
       const activeManifests = filteredManifests.filter(m => m.status !== 'cancelled');
@@ -327,7 +380,7 @@ export default function ReportsPage() {
           title: 'Desempenho',
           summary: [
             ['SLA do período', pdfPercent(kpiData.sla)],
-            ['NFs no período', String(deliveryData.total)],
+            ['Notas no período', String(deliveryData.total)],
             ['Entregues', String(deliveryData.entregue)],
             ['Atrasadas', String(deliveryData.atrasado)],
             ['Devolvidas', String(deliveryData.devolvido)],
@@ -342,7 +395,7 @@ export default function ReportsPage() {
             headers: ['#', 'Região', 'Atrasos', 'Ocorrências', 'Tendência'],
             widths: [10, 82, 30, 32, 28],
             rows: topOffendersData.routes.map(r => [
-              String(r.rank), r.name, String(r.delays), String(r.occurrences), `${r.trend > 0 ? '+' : ''}${r.trend}%`,
+              String(r.rank), r.name, String(r.delays), String(r.occurrences), trendText(r.trend),
             ]),
           },
           emptyText: 'Nenhum atraso ou ocorrência no período.',
@@ -381,7 +434,7 @@ export default function ReportsPage() {
         sections.push({
           title: 'Principais clientes (por valor)',
           table: {
-            headers: ['Cliente', 'NFs', 'Valor'],
+            headers: ['Cliente', 'Notas', 'Valor'],
             widths: [122, 25, 35],
             rows: Array.from(byClient.entries())
               .sort((a, b) => b[1].value - a[1].value)
@@ -394,7 +447,7 @@ export default function ReportsPage() {
           table: {
             headers: ['#', 'Cliente', 'Devoluções', 'Tendência'],
             widths: [10, 112, 30, 30],
-            rows: topOffendersData.clients.map(c => [String(c.rank), c.name, String(c.returns), `${c.trend > 0 ? '+' : ''}${c.trend}%`]),
+            rows: topOffendersData.clients.map(c => [String(c.rank), c.name, String(c.returns), trendText(c.trend)]),
           },
           emptyText: 'Nenhuma devolução no período.',
         });
@@ -407,7 +460,7 @@ export default function ReportsPage() {
 
       const stamp = new Date().toISOString().slice(0, 10);
       const fileName = downloadReportPdf(
-        { companyName: tenant?.razao_social || 'Na Hora Frota', periodLabel, filtersLabel, sections },
+        { companyName: tenant?.razao_social || 'Na Hora Frota', periodLabel, filtersLabel: filtersLabel || 'Nenhum', sections },
         `relatorio-${stamp}.pdf`,
       );
       toast({
@@ -428,6 +481,11 @@ export default function ReportsPage() {
     setIsLoading(false);
     toast({ title: "Dados atualizados" });
   };
+
+  // Carregando pela primeira vez: esqueleto, e nao "nenhuma ocorrencia" por um instante.
+  const firstLoad = isLoading || (invoicesLoading && invoices.length === 0);
+  // Uso da frota e Rentabilidade so usam o periodo.
+  const periodOnlyTab = activeTab === "frota" || activeTab === "rentabilidade";
 
   const tabs = [
     { value: "desempenho", label: "Desempenho", icon: BarChart3 },
@@ -463,6 +521,7 @@ export default function ReportsPage() {
           options={filterOptions}
           onFiltersChange={handleFiltersChange}
           onClearFilters={handleClearFilters}
+          showEntityFilters={!periodOnlyTab}
         />
 
         {/* Abas: cada uma e uma visao do mesmo periodo */}
@@ -489,12 +548,13 @@ export default function ReportsPage() {
               data={kpiData}
               viewMode={filters.viewMode}
               onKPIClick={handleKPIClick}
+              loading={firstLoad}
             />
 
             <SLAEvolutionChart
               invoices={entityFilteredInvoices}
               dateRange={filters.dateRange}
-              isLoading={isLoading || (invoicesLoading && invoices.length === 0)}
+              isLoading={firstLoad}
               detailedAllowed={slaAccess.allowed}
             />
 
@@ -502,13 +562,14 @@ export default function ReportsPage() {
             <ReportsCharts
               slaData={[]}
               issuesData={chartsIssuesData}
-              isLoading={isLoading}
+              isLoading={firstLoad}
             />
 
             <TopOffenders
               data={topOffendersData}
-              onRouteClick={(route) => handleFiltersChange({ ...filters, route })}
-              onClientClick={(client) => handleFiltersChange({ ...filters, client })}
+              loading={firstLoad}
+              onRouteClick={(route) => applyRankingFilter("route", route)}
+              onClientClick={(client) => applyRankingFilter("client", client)}
             />
           </TabsContent>
 
@@ -523,13 +584,13 @@ export default function ReportsPage() {
                 total_value: inv.total_value,
                 occurrence_type: inv.occurrence_type,
               }))}
-              isLoading={invoicesLoading}
+              isLoading={firstLoad}
             />
           </TabsContent>
 
           {/* Uso de frota */}
           <TabsContent value="frota" className="mt-6">
-            <FleetUsageReport />
+            <FleetUsageReport dateRange={filters.dateRange} />
           </TabsContent>
 
           {/* Rentabilidade e agregados */}
@@ -537,6 +598,7 @@ export default function ReportsPage() {
             <ProfitabilityReport
               allowed={rentabilidadeAccess.allowed}
               upgradePlanLabel={rentabilidadeAccess.upgradePlanLabel}
+              dateRange={filters.dateRange}
             />
           </TabsContent>
         </Tabs>
@@ -548,15 +610,16 @@ export default function ReportsPage() {
         onOpenChange={setDrilldownOpen}
         kpiType={drilldownType}
         invoices={filteredInvoices}
+        cost={costBreakdown}
       />
 
       <ExportReportDialog
         open={showExportDialog}
         onOpenChange={setShowExportDialog}
-        currentTab="desempenho"
         onExport={handleExport}
         isExporting={isExporting}
         dateRange={filters.dateRange}
+        filtersLabel={filtersLabel}
       />
     </>
   );
