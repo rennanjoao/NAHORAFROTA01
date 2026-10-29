@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save } from "lucide-react";
-import { FormField } from "@/components/settings/FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { looksLikeEmail } from "./roleOptions";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";

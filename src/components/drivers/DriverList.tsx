@@ -8,7 +8,7 @@ import { toneText } from "@/components/patterns";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
-import { ActionMenu, type ActionMenuItem } from "./ActionMenu";
+import { ActionMenu, type ActionMenuItem } from "@/components/patterns/ActionMenu";
 import { slaTone } from "./driverConfig";
 import { DriverAvatar, DriverStatusBadge, PlateTag } from "./DriverBits";
 import type { DriverRecord } from "./useDriverQuickActions";

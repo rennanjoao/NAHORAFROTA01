@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPES, DOCUMENT_ACCEPT } from "./driverConfig";
 import { IconAction } from "./DriverBits";
-import { FormField } from "./FormField";
+import { FormField } from "@/components/patterns/FormField";
 
 // Borda vermelha no Select quando o campo tem erro (o Input ja faz isso sozinho).
 export const invalidSelectClass = "aria-[invalid=true]:border-destructive";

@@ -185,11 +185,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
 
       if (fetchError) throw fetchError;
 
-      toast({
-        title: "Romaneio Criado.",
-        description: `${result.manifest_code} com ${result.invoices_linked} NF(s) atribuído a ${input.driver_name}`,
-      });
-
+      // O sucesso e mostrado pela janela de confirmacao de quem chamou.
       return manifestData as DBManifest;
     } catch (err: any) {
       toast({

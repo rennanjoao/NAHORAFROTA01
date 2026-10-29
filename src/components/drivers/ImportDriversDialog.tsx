@@ -23,7 +23,7 @@ import {
   FIELD_LABELS,
   parseDriverRows,
 } from "@/lib/driverImport";
-import { useReturnFocus } from "./useReturnFocus";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 interface ImportDriversDialogProps {
   open: boolean;

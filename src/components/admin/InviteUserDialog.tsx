@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlanLimits } from "@/hooks/usePlanLimits";
 import { readEdgeFunctionError } from "@/lib/edgeFunctionError";
-import { FormField } from "@/components/settings/FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { CredentialsCard } from "./CredentialsCard";
 import { INVITE_ROLES, looksLikeEmail } from "./roleOptions";
 

@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { FormField } from "./FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { SettingsCard } from "./SettingsCard";
 
 const MIN_PASSWORD_LENGTH = 8;

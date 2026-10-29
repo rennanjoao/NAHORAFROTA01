@@ -27,9 +27,9 @@ import {
   RestrictedDocumentsNote,
   type BankValues,
 } from "./DriverFormParts";
-import { FieldGroup, FormField } from "./FormField";
+import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
-import { useReturnFocus } from "./useReturnFocus";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 type DriverDocuments = Partial<Record<DriverDocumentKey, { id?: string; name: string; url?: string; path?: string; uploadedAt: Date }>>;
 

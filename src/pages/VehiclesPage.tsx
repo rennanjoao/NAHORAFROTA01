@@ -3,11 +3,11 @@ import { AlertTriangle, CheckCircle2, Plus, Route, SearchX, Truck, Wrench } from
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CardsSkeleton, ConfirmDialog, EmptyState, FilterBar, PageHeader, SearchInput } from "@/components/patterns";
-import { FilterStatCard } from "@/components/drivers/FilterStatCard";
+import { FilterStatCard } from "@/components/patterns/FilterStatCard";
 import { VehicleCard } from "@/components/vehicles/VehicleCard";
 import { VehicleFormDialog } from "@/components/vehicles/VehicleFormDialog";
 import { COMPANY_VEHICLE_TYPES, emptyVehicleForm, type VehicleFormValues } from "@/components/vehicles/vehicleConfig";
-import { useReturnFocusOnClose } from "@/components/drivers/useReturnFocus";
+import { useReturnFocusOnClose } from "@/hooks/useReturnFocus";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
 import { toast } from "@/hooks/use-toast";
 import { useQueryAction } from "@/hooks/useQueryAction";

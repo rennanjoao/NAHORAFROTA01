@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { PersonAvatar } from "@/components/admin/PersonAvatar";
-import { FormField } from "./FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { SettingsCard } from "./SettingsCard";
 
 const roleLabels: Record<string, string> = {

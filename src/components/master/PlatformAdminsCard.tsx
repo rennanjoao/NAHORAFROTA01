@@ -8,7 +8,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog, EmptyState, ListSkeleton, Section } from "@/components/patterns";
 import { PersonAvatar } from "@/components/admin/PersonAvatar";
-import { FormField } from "@/components/settings/FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { Crown, Plus, Trash2, Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";

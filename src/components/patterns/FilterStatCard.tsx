@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { Check } from "lucide-react";
-import { StatCard } from "@/components/patterns";
+import { StatCard } from "./StatCard";
 import { cn } from "@/lib/utils";
 
 type FilterStatCardProps = Omit<ComponentProps<typeof StatCard>, "onClick" | "href"> & {

@@ -34,7 +34,7 @@ import { formatCurrency } from "@/lib/formatCurrency";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { SegmentedControl } from "./SegmentedControl";
+import { SegmentedControl } from "@/components/patterns/SegmentedControl";
 import { ManifestStatusBadge, vehicleTypeLabel } from "./status";
 
 type TimeFilter = "daily" | "weekly" | "all";

@@ -9,29 +9,37 @@ export interface SegmentedOption<T extends string> {
   icon?: LucideIcon;
 }
 
-interface SegmentedFilterProps<T extends string> {
+interface SegmentedControlProps<T extends string> {
+  /** Nome do grupo para leitor de tela (ex.: "Periodo"). */
   label: string;
-  value: T;
-  onChange: (value: T) => void;
   options: SegmentedOption<T>[];
+  /** null = nenhuma opcao ativa (ex.: datas escolhidas a mao). */
+  value: T | null;
+  onChange: (value: T) => void;
   className?: string;
 }
 
-/** Controle segmentado para filtros curtos (ex.: Todos, CLT, Agregados). */
-export function SegmentedFilter<T extends string>({ label, value, onChange, options, className }: SegmentedFilterProps<T>) {
+/**
+ * Escolha unica entre poucas opcoes curtas (periodo, tipo, status), com o
+ * mesmo visual das abas. Setas do teclado trocam a opcao em foco.
+ */
+export function SegmentedControl<T extends string>({ label, options, value, onChange, className }: SegmentedControlProps<T>) {
   return (
     <ToggleGroup
       type="single"
-      value={value}
+      value={value ?? ""}
       onValueChange={(next) => next && onChange(next as T)}
       aria-label={label}
-      className={cn("flex h-10 w-full gap-1 rounded-lg bg-muted p-1 text-muted-foreground sm:inline-flex sm:w-auto", className)}
+      className={cn(
+        "flex h-11 w-full gap-1 rounded-lg bg-muted p-1 text-muted-foreground sm:inline-flex sm:h-10 sm:w-auto",
+        className,
+      )}
     >
       {options.map(({ value: optionValue, label: optionLabel, count, icon: Icon }) => (
         <ToggleGroupItem
           key={optionValue}
           value={optionValue}
-          className="h-8 flex-1 gap-1.5 whitespace-nowrap px-3 hover:bg-card/60 sm:flex-none"
+          className="h-full flex-1 gap-1.5 whitespace-nowrap px-3 hover:bg-card/60 sm:flex-none"
         >
           {Icon && <Icon className="hidden h-4 w-4 sm:block" aria-hidden="true" />}
           {optionLabel}

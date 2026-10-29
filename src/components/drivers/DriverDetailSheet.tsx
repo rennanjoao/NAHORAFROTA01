@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPES, DRIVER_DOCUMENT_LABELS, PENDING_PLATE, slaTone, type DriverDocumentKey } from "./driverConfig";
 import { DataList, DataRow, DriverAvatar, DriverStatusBadge, IconAction, PlateTag } from "./DriverBits";
 import { driverDbId, useDriverQuickActions, type DriverRecord } from "./useDriverQuickActions";
-import { useReturnFocus, useReturnFocusOnClose } from "./useReturnFocus";
+import { useReturnFocus, useReturnFocusOnClose } from "@/hooks/useReturnFocus";
 
 interface DriverDetailSheetProps {
   driver: Driver | null;

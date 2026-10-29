@@ -23,9 +23,9 @@ import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError
 import { MAX_DRIVER_DOCUMENT_BYTES, uploadDriverDocument, type DriverDocumentType } from "@/lib/driverDocuments";
 import { CNH_CATEGORIES, DRIVER_DOCUMENT_KEYS, DRIVER_DOCUMENT_LABELS, DRIVER_VEHICLE_TYPES } from "./driverConfig";
 import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
-import { FieldGroup, FormField } from "./FormField";
+import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
-import { useReturnFocus } from "./useReturnFocus";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 interface DocumentFile {
   name: string;

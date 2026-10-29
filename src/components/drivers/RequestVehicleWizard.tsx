@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantData } from "@/hooks/useTenantData";
 import { DataList, DataRow } from "./DriverBits";
-import { FormField } from "./FormField";
-import { useReturnFocus } from "./useReturnFocus";
+import { FormField } from "@/components/patterns/FormField";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 // O pedido vai por e-mail para a equipe Na Hora, que confirma disponibilidade e
 // prazo pelo mesmo canal. Antes a tela mostrava "APROVADO" e nada era enviado.

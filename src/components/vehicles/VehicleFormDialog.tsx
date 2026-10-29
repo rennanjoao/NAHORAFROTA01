@@ -11,9 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FormField } from "@/components/drivers/FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { invalidSelectClass } from "@/components/drivers/DriverFormParts";
-import { useReturnFocus } from "@/components/drivers/useReturnFocus";
+import { useReturnFocus } from "@/hooks/useReturnFocus";
 import { vehicleCapacityByType, type CompanyVehicleType } from "@/stores/companyVehicleStore";
 import {
   COMPANY_VEHICLE_TYPES,

@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { FilterBar, SearchInput } from "@/components/patterns";
 import { cn } from "@/lib/utils";
 import { RegionFilter } from "./RegionFilter";
-import { SegmentedControl } from "./SegmentedControl";
+import { SegmentedControl } from "@/components/patterns/SegmentedControl";
 import type { TimeFilter } from "./types";
 
 export interface PeriodRange {

@@ -12,7 +12,7 @@ import { readEdgeFunctionError, toEmailLocalPart } from "@/lib/edgeFunctionError
 import { z } from "zod";
 import { isValidCPF } from "@/lib/documentValidation";
 import { describeCredentialsEmailResult, isValidContactEmail, sendDriverCredentialsEmail } from "@/lib/driverCredentials";
-import { FormField } from "@/components/settings/FormField";
+import { FormField } from "@/components/patterns/FormField";
 
 function generatePasswordFromCPF(cpf: string): string {
   const cleanCPF = cpf.replace(/\D/g, "");

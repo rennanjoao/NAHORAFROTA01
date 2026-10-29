@@ -4,7 +4,11 @@ import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+// Nao modal por padrao: o menu nao esconde o resto da pagina do leitor de tela
+// (axe "aria-hidden-focus") e um clique fora fecha, como em menus nativos.
+const DropdownMenu = ({ modal = false, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) => (
+  <DropdownMenuPrimitive.Root modal={modal} {...props} />
+);
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 

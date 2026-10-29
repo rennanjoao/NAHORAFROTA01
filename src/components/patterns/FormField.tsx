@@ -35,8 +35,8 @@ export function FormField({ id, label, required, optional, hint, error, classNam
   const describedBy = [errorId, hintId].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <Label htmlFor={id} className="flex items-baseline gap-1">
+    <div className={cn("min-w-0 space-y-1.5", className)}>
+      <Label htmlFor={id} className="flex flex-wrap items-baseline gap-x-1.5">
         {label}
         {optional && <span className="text-xs font-normal text-muted-foreground">(opcional)</span>}
       </Label>
@@ -46,15 +46,15 @@ export function FormField({ id, label, required, optional, hint, error, classNam
         "aria-describedby": describedBy,
         "aria-required": required ? true : undefined,
       })}
+      {hint && (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
+      )}
       {error && (
         <p id={errorId} className="flex items-start gap-1.5 text-xs font-medium text-destructive animate-fade-in">
           <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {error}
-        </p>
-      )}
-      {hint && (
-        <p id={hintId} className="text-xs text-muted-foreground">
-          {hint}
         </p>
       )}
     </div>

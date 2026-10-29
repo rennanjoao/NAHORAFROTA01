@@ -1,7 +1,7 @@
 import { MoreHorizontal, Pencil, Trash2, Truck, User, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/patterns";
-import { ActionMenu } from "@/components/drivers/ActionMenu";
+import { ActionMenu } from "@/components/patterns/ActionMenu";
 import type { CompanyVehicle } from "@/stores/companyVehicleStore";
 import { formatCapacity, VEHICLE_STATUS } from "./vehicleConfig";
 

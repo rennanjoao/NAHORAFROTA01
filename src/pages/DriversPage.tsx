@@ -3,16 +3,16 @@ import { CheckCircle2, FileSpreadsheet, MoreHorizontal, Plus, Route, SearchX, Tr
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState, FilterBar, ListSkeleton, PageHeader, SearchInput } from "@/components/patterns";
-import { ActionMenu } from "@/components/drivers/ActionMenu";
+import { ActionMenu } from "@/components/patterns/ActionMenu";
 import { RequestVehicleWizard } from "@/components/drivers/RequestVehicleWizard";
 import { ImportDriversDialog } from "@/components/drivers/ImportDriversDialog";
 import { DriverDetailSheet } from "@/components/drivers/DriverDetailSheet";
 import { EditDriverDialog } from "@/components/drivers/EditDriverDialog";
 import { NewDriverDialog } from "@/components/drivers/NewDriverDialog";
 import { DriverList } from "@/components/drivers/DriverList";
-import { FilterStatCard } from "@/components/drivers/FilterStatCard";
+import { FilterStatCard } from "@/components/patterns/FilterStatCard";
 import { ListPagination } from "@/components/drivers/ListPagination";
-import { SegmentedFilter } from "@/components/drivers/SegmentedFilter";
+import { SegmentedControl } from "@/components/patterns/SegmentedControl";
 import { DRIVER_VEHICLE_TYPES } from "@/components/drivers/driverConfig";
 import { useDriverQuickActions, type DriverRecord } from "@/components/drivers/useDriverQuickActions";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
@@ -409,7 +409,7 @@ export default function DriversPage() {
             }
           >
             <SearchInput label="Buscar motorista" placeholder="Nome, CPF ou placa" value={searchQuery} onChange={changeSearch} className="sm:max-w-xs" />
-            <SegmentedFilter
+            <SegmentedControl
               label="Tipo de motorista"
               value={filterDriverType}
               onChange={changeDriverType}

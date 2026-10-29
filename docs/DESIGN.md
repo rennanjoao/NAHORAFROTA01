@@ -75,6 +75,11 @@ Checklist de toda tela:
 - [ ] Imagens com `alt`; ícones decorativos com `aria-hidden`.
 - [ ] Funciona com Tab/Enter/Esc; nada fica preso.
 - [ ] Sem rolagem lateral no celular (390px); tabelas largas viram cartões.
+- [ ] Gráfico com resumo em texto para leitor de tela.
+- [ ] Ao fechar janela ou folha, o foco volta ao botão que abriu.
+
+Auditoria automática: axe-core (WCAG 2.2 A/AA + boas práticas) em todas as
+telas, nos dois temas, em 1440px e 390px. Meta: zero violações.
 
 ## 4. Estrutura (shell)
 
@@ -160,6 +165,11 @@ lateral `lg:grid-cols-3` (2 + 1).
 | Aviso na tela | `Alert variant="warning" | "info" | "destructive" | "success"` |
 | Mensagem rápida | `toast({ title, description })` (`variant: "destructive"` para erro, `"success"` para sucesso) |
 | Ação vinda da busca | `useQueryAction("new", () => setOpen(true))` |
+| Campo de formulário | `FormField` (rótulo, dica, erro e `aria-*` ligados por render prop) e `FieldGroup` |
+| Poucas opções curtas (período, tipo) | `SegmentedControl` (setas do teclado, contagem e ícone opcionais) |
+| Indicador que filtra a lista | `FilterStatCard` (`aria-pressed`, selo de marcado) |
+| Menu "…" de uma linha | `ActionMenu` (botão com nome: "Ações de João") |
+| Foco volta a quem abriu a janela | `useReturnFocus` (`src/hooks`) |
 
 Botões: `default` (principal, 1 por área), `outline` (secundário), `ghost`
 (ícones, terciário), `soft` (destaque leve), `destructive` (excluir),

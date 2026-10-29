@@ -11,7 +11,7 @@ import { formatCNPJ, validateCNPJ, formatPhone, formatCEP } from "@/lib/cnpjVali
 import { supabase } from "@/integrations/supabase/client";
 import { useTenantData } from "@/hooks/useTenantData";
 import { useAuth } from "@/contexts/AuthContext";
-import { FormField } from "./FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { SettingsCard } from "./SettingsCard";
 
 const UF_OPTIONS = [

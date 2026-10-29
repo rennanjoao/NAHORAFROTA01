@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, type Tone } from "@/components/patterns";
-import { FormField } from "@/components/settings/FormField";
+import { FormField } from "@/components/patterns/FormField";
 import { BellRing, FileText, Loader2, Plus, Receipt, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";

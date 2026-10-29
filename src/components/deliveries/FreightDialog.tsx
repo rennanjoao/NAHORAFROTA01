@@ -44,7 +44,7 @@ import { ManifestRecord, manifestStore } from "@/stores/manifestStore";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { companyVehicleStore, CompanyVehicle } from "@/stores/companyVehicleStore";
 import { useManifestsDB, CreateManifestInput, DBManifest } from "@/hooks/useManifestsDB";
-import { decodePolyline, geocodeAddress, optimizeRouteNearestNeighbor, formatDistance as formatDistanceRaw, formatDuration, Waypoint } from "@/lib/routeOptimization";
+import { decodePolyline, geocodeAddress, optimizeRouteNearestNeighbor, formatDistance, formatDuration, Waypoint } from "@/lib/routeOptimization";
 import { useTenantData } from "@/hooks/useTenantData";
 import { supabase } from "@/integrations/supabase/client";
 import { useDBDrivers } from "@/hooks/useDBDrivers";
@@ -114,7 +114,6 @@ function stopName(point: Waypoint, idx: number) {
 }
 
 /** Distancia com virgula decimal (pt-BR). */
-const formatDistance = (km: number) => formatDistanceRaw(km).replace(".", ",");
 
 /** Endereco vazio da base (", - /") vira um aviso legivel. */
 const readableAddress = (address?: string) =>
