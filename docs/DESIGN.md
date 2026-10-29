@@ -175,6 +175,8 @@ Botões: `default` (principal, 1 por área), `outline` (secundário), `ghost`
 (ícones, terciário), `soft` (destaque leve), `destructive` (excluir),
 `link`. Tamanhos: `sm` 36px, `default` 40px, `lg` 48px, `icon`, `icon-sm`.
 Texto do botão = verbo + objeto ("Importar notas", "Salvar motorista").
+Enquanto salva: `<Button loading>` (giro + `aria-busy`, ignora cliques e
+continua focável), em vez de `disabled`, que joga o foco para fora.
 
 ## 7. Movimento
 
