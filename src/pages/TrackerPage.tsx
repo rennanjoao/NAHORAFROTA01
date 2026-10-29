@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -564,12 +565,8 @@ export default function TrackerPage() {
       {/* Header */}
       <header className="bg-card border-b border-border p-4 safe-area-top">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Truck className="h-6 w-6 text-primary" />
-            <span className="text-lg font-bold text-primary font-space-grotesk">
-              NAHORAFROTA
-            </span>
-          </div>
+          {/* Logo em linha: faixa estreita (o nome nunca e digitado com fonte). */}
+          <BrandLogo arrangement="linha" className="w-[160px]" />
           <div className="flex items-center gap-2">
             {isTracking ? (
               <Wifi className="h-5 w-5 text-green-500 animate-pulse" />

@@ -97,7 +97,7 @@ serve(async (req) => {
     if ((existingTenants || []).length > 0 || (usedTrials || []).length > 0) {
       return jsonResponse(
         {
-          error: "Este CNPJ/CPF ja utilizou o periodo de teste gratis. Fale com a equipe NaHora Frota para contratar.",
+          error: "Este CNPJ/CPF ja utilizou o periodo de teste gratis. Fale com a equipe Na Hora Frota para contratar.",
           code: "trial_already_used",
         },
         409,

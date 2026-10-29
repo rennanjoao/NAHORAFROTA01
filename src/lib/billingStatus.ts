@@ -134,7 +134,7 @@ export function getBillingAlert(access: TenantAccess | null | undefined, now: Da
       daysRemaining: days,
       severity: days <= 1 ? "critical" : "warning",
       title: "Seu teste grátis está acabando",
-      message: `Seu período de teste ${when}. Contrate um plano para continuar usando o NaHora Frota sem interrupções.`,
+      message: `Seu período de teste ${when}. Contrate um plano para continuar usando o Na Hora Frota sem interrupções.`,
     };
   }
 
@@ -145,7 +145,7 @@ export function getBillingAlert(access: TenantAccess | null | undefined, now: Da
       daysRemaining: getTrialDaysLeft(access.trial_ends_at, now),
       severity: "critical",
       title: "Seu teste grátis terminou",
-      message: "O período de teste acabou e o acesso foi suspenso. Fale com a equipe NaHora Frota para contratar.",
+      message: "O período de teste acabou e o acesso foi suspenso. Fale com a equipe Na Hora Frota para contratar.",
     };
   }
 

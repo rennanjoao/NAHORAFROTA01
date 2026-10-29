@@ -154,7 +154,7 @@ export default function LiveMapMapbox({
             </div>
           </div>
         </div>
-        <div className="h-[500px] flex items-center justify-center bg-cyber-dark">
+        <div className="h-[500px] flex items-center justify-center bg-nhf-ink">
           <p className="text-muted-foreground">Token do Mapbox não configurado.</p>
         </div>
       </div>
@@ -170,7 +170,7 @@ export default function LiveMapMapbox({
             <Navigation className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real - Mapbox</h3>
+            <h3 className="font-semibold text-foreground font-heading">Mapa em Tempo Real - Mapbox</h3>
             <p className="text-sm text-muted-foreground">
               {positions.length === 1 ? "1 veículo ativo" : `${positions.length} veículos ativos`} • São Paulo
             </p>
@@ -338,7 +338,7 @@ export default function LiveMapMapbox({
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Velocidade</p>
-                            <p className="text-sm font-bold text-foreground font-space-grotesk">
+                            <p className="text-sm font-bold text-foreground font-heading">
                               {position.speed !== undefined ? `${Number(position.speed).toFixed(0)} km/h` : '0 km/h'}
                             </p>
                           </div>
@@ -366,7 +366,7 @@ export default function LiveMapMapbox({
                           <div>
                             <p className="text-xs text-muted-foreground">SLA</p>
                             <p className={cn(
-                              "text-sm font-bold font-space-grotesk",
+                              "text-sm font-bold font-heading",
                               position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
                                 ? "text-green-500" 
                                 : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
@@ -401,7 +401,7 @@ export default function LiveMapMapbox({
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Bateria</p>
-                            <p className="text-sm font-bold text-foreground font-space-grotesk">
+                            <p className="text-sm font-bold text-foreground font-heading">
                               {position.battery_level !== undefined ? `${position.battery_level}%` : '—'}
                             </p>
                           </div>
@@ -414,7 +414,7 @@ export default function LiveMapMapbox({
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Precisão</p>
-                            <p className="text-sm font-bold text-foreground font-space-grotesk">
+                            <p className="text-sm font-bold text-foreground font-heading">
                               {position.accuracy !== undefined ? `±${Number(position.accuracy).toFixed(0)}m` : '—'}
                             </p>
                           </div>
@@ -438,7 +438,7 @@ export default function LiveMapMapbox({
                         <div className="mb-3 border-t border-border pt-3">
                           <div className="flex justify-between text-xs mb-1.5">
                             <span className="text-muted-foreground">Entregas</span>
-                            <span className="text-foreground font-bold font-space-grotesk">
+                            <span className="text-foreground font-bold font-heading">
                               {position.deliveries_completed}/{position.total_deliveries}
                             </span>
                           </div>
@@ -482,18 +482,18 @@ export default function LiveMapMapbox({
         </Map>
 
         {/* Stats Overlay */}
-        <div className="absolute top-4 right-4 z-10 bg-cyber-dark/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
+        <div className="absolute top-4 right-4 z-10 bg-nhf-ink/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-500 font-space-grotesk">{onTimeCount}</p>
+              <p className="text-2xl font-bold text-green-500 font-heading">{onTimeCount}</p>
               <p className="text-xs text-muted-foreground">No Prazo</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary font-space-grotesk">{delayedCount}</p>
+              <p className="text-2xl font-bold text-primary font-heading">{delayedCount}</p>
               <p className="text-xs text-muted-foreground">Atrasados</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 font-space-grotesk">{staleCount}</p>
+              <p className="text-2xl font-bold text-red-500 font-heading">{staleCount}</p>
               <p className="text-xs text-muted-foreground">Sem Sinal</p>
             </div>
           </div>
@@ -501,7 +501,7 @@ export default function LiveMapMapbox({
 
         {/* Empty state */}
         {positions.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-cyber-dark/80 backdrop-blur-sm">
+          <div className="absolute inset-0 flex items-center justify-center bg-nhf-ink/80 backdrop-blur-sm">
             <div className="text-center p-6">
               <TruckIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-foreground font-medium mb-1">Nenhum veículo ativo</p>

@@ -18,7 +18,12 @@ export interface ReportPdfInput {
 
 const MARGIN = 14;
 const LINE = 6;
-const BRAND: [number, number, number] = [220, 38, 38];
+// Manual da marca (documento claro): titulo em Preto Asfalto, barra em Verde Na Hora,
+// verde como texto so em Verde Escuro; tabelas com cabecalho em Nevoa.
+const INK: [number, number, number] = [8, 8, 8];
+const GREEN: [number, number, number] = [4, 232, 164];
+const GREEN_DEEP: [number, number, number] = [11, 107, 79];
+const MIST: [number, number, number] = [242, 244, 245];
 
 /** Gera o PDF do relatorio e dispara o download. Retorna o nome do arquivo. */
 export function downloadReportPdf(input: ReportPdfInput, fileName: string): string {
@@ -38,7 +43,7 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
   // Cabecalho
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.setTextColor(...BRAND);
+  doc.setTextColor(...INK);
   doc.text("Relatório Operacional", MARGIN, y + 4);
   doc.setFontSize(10);
   doc.setTextColor(60);
@@ -54,16 +59,15 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
   });
   doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, MARGIN, y);
   y += 3;
-  doc.setDrawColor(...BRAND);
-  doc.setLineWidth(0.6);
-  doc.line(MARGIN, y, pageWidth - MARGIN, y);
+  doc.setFillColor(...GREEN);
+  doc.rect(MARGIN, y - 0.6, contentWidth, 1.2, "F");
   y += 7;
 
   for (const section of input.sections) {
     ensureSpace(16);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.setTextColor(30);
+    doc.setTextColor(...GREEN_DEEP);
     doc.text(section.title, MARGIN, y);
     y += LINE;
 
@@ -94,7 +98,7 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
         const height = Math.max(...wrapped.map((w) => w.length)) * 4.2 + 2;
         ensureSpace(height);
         if (header) {
-          doc.setFillColor(243, 244, 246);
+          doc.setFillColor(...MIST);
           doc.rect(MARGIN, y - 4, contentWidth, height, "F");
         }
         let x = MARGIN;
@@ -106,7 +110,7 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
           x += widths[i];
         });
         y += height;
-        doc.setDrawColor(229, 231, 235);
+        doc.setDrawColor(227, 230, 232);
         doc.setLineWidth(0.2);
         doc.line(MARGIN, y - 3, pageWidth - MARGIN, y - 3);
       };
@@ -134,7 +138,7 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(140);
-    doc.text(`NaHora Frota • Página ${page} de ${pages}`, pageWidth / 2, pageHeight - 6, { align: "center" });
+    doc.text(`Na Hora Frota · Sempre na hora · Página ${page} de ${pages}`, pageWidth / 2, pageHeight - 6, { align: "center" });
   }
 
   doc.save(fileName);

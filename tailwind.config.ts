@@ -14,9 +14,11 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Lato', 'system-ui', 'sans-serif'],
-        heading: ['Space Grotesk', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        // Manual da marca: Inter (texto/interface), Space Grotesk (titulos e dados).
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        heading: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+        data: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -27,6 +29,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -48,15 +51,25 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
-        cyber: {
-          DEFAULT: "hsl(var(--cyber))",
-          foreground: "hsl(var(--cyber-foreground))",
+        idle: {
+          DEFAULT: "hsl(var(--idle))",
+          foreground: "hsl(var(--idle-foreground))",
         },
-        "neon-red": {
-          DEFAULT: "hsl(var(--neon-red))",
-          foreground: "hsl(var(--neon-red-foreground))",
+        // Paleta da marca (brand/tokens/tailwind.colors.js)
+        nhf: {
+          green: "#04E8A4",
+          "green-deep": "#0B6B4F",
+          "green-tint": "#0F3D30",
+          "green-dark": "#00B37E",
+          ink: "#080808",
+          graphite: "#141617",
+          lead: "#2A2D30",
+          signal: "#8A9199",
+          mist: "#F2F4F5",
+          alert: "#FFC53D",
+          late: "#FF4D4F",
+          info: "#3B9CFF",
         },
-        "cyber-dark": "hsl(228 50% 8%)",
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
@@ -84,10 +97,15 @@ export default {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
+      // Manual: raio de 0 a 4px na interface; nada arredondado demais.
+      // rounded-full continua para pontos de status e avatares.
       borderRadius: {
+        "3xl": "var(--radius)",
+        "2xl": "var(--radius)",
+        xl: "var(--radius)",
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 1px)",
+        sm: "calc(var(--radius) - 2px)",
       },
       keyframes: {
         "accordion-down": {

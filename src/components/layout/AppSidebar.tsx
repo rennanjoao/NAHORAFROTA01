@@ -30,7 +30,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { CyberLogo } from "@/components/ui/CyberLogo";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsPlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { useFeatureAccess, Feature } from "@/hooks/useFeatureAccess";
@@ -166,9 +166,21 @@ export function AppSidebar({
           mobileOpen && "max-md:translate-x-0"
         )}
       >
-        {/* Logo - Cyber Branding Block */}
-        <div className="relative flex flex-col items-center justify-center py-6 px-3">
-          <CyberLogo collapsed={collapsed} />
+        {/* Logo: horizontal (versao principal) aberto; so o simbolo recolhido. */}
+        <div
+          className={cn(
+            "relative flex flex-col justify-center border-b border-sidebar-border",
+            collapsed ? "items-center py-6 px-2" : "items-start gap-2 px-6 py-6"
+          )}
+        >
+          {collapsed ? (
+            <BrandLogo arrangement="simbolo" className="w-9" />
+          ) : (
+            <>
+              <BrandLogo arrangement="horizontal" className="w-[164px]" />
+              <span className="nhf-label text-sidebar-foreground">Sempre na hora.</span>
+            </>
+          )}
           
           {/* Mobile close button */}
           <Button
@@ -179,9 +191,6 @@ export function AppSidebar({
           >
             <X className="h-5 w-5" />
           </Button>
-          
-          {/* Neon divider line */}
-          <div className="absolute bottom-0 left-0 w-full h-[1px] neon-divider" />
         </div>
 
         {/* Toggle button - desktop only */}
@@ -204,10 +213,8 @@ export function AppSidebar({
           <div className="px-3 pt-4 pb-2">
             <div className="flex items-center justify-between px-3 mb-2">
               <div className="flex items-center gap-2">
-                <Star className="h-3 w-3 text-yellow-500" />
-                <span className="text-xs font-medium text-sidebar-foreground uppercase tracking-wide">
-                  Favoritos
-                </span>
+                <Star className="h-3 w-3 text-sidebar-foreground" />
+                <span className="nhf-label text-sidebar-foreground">Favoritos</span>
               </div>
               <Button
                 variant="ghost"
@@ -238,9 +245,9 @@ export function AppSidebar({
                     to={item.path}
                     onClick={onMobileClose}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                      "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150",
                       isActive
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-sidebar-accent text-white shadow-[inset_2px_0_0_hsl(var(--primary))] [&>svg]:text-primary"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
                     )}
                   >
@@ -264,7 +271,7 @@ export function AppSidebar({
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {!collapsed && (
             <div className="flex items-center gap-2 px-3 mb-2">
-              <span className="text-xs font-medium text-sidebar-foreground uppercase tracking-wide">
+              <span className="nhf-label text-sidebar-foreground">
                 Módulos
               </span>
             </div>
@@ -287,11 +294,11 @@ export function AppSidebar({
                   onMobileClose?.();
                 }}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                   isLocked
                     ? "text-muted-foreground/50 cursor-not-allowed"
                     : isActive
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-sidebar-accent text-white shadow-[inset_2px_0_0_hsl(var(--primary))] [&>svg]:text-primary"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
                 )}
               >
@@ -338,13 +345,10 @@ export function AppSidebar({
                 to={item.path}
                 onClick={onMobileClose}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                  "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors duration-150",
+                  // Cores funcionais so para status: admin e master usam a cor do menu.
                   isActive
-                    ? "bg-primary text-primary-foreground"
-                    : isMasterLink
-                    ? "text-amber-400 hover:bg-sidebar-accent hover:text-amber-300"
-                    : isAdminLink
-                    ? "text-yellow-400 hover:bg-sidebar-accent hover:text-yellow-300"
+                    ? "bg-sidebar-accent text-white shadow-[inset_2px_0_0_hsl(var(--primary))] [&>svg]:text-primary"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-white"
                 )}
               >
@@ -395,7 +399,7 @@ export function AppSidebar({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-yellow-500" />
+              <Star className="h-5 w-5 text-primary" />
               Editar Favoritos
             </DialogTitle>
           </DialogHeader>

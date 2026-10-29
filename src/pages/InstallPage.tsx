@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -101,14 +102,11 @@ export default function InstallPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="p-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <Truck className="h-8 w-8 text-primary" />
-          <span className="text-2xl font-bold text-primary font-space-grotesk">
-            NAHORAFROTA
-          </span>
+        <div className="flex justify-center mb-4">
+          <BrandLogo arrangement="horizontal" className="w-[200px]" />
         </div>
         <Badge variant="outline" className="mb-2">
           Versão PWA

@@ -207,12 +207,12 @@ export function ManifestPrintPreview({
           <style>
             @page { size: landscape; margin: 10mm; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; padding: 15px; color: #1a1a1a; font-size: 11px; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 2px solid #DC2626; padding-bottom: 10px; }
-            .logo { font-size: 20px; font-weight: bold; color: #DC2626; }
+            body { font-family: Inter, Arial, sans-serif; padding: 15px; color: #1a1a1a; font-size: 11px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 2px solid #080808; padding-bottom: 10px; }
+            .logo { font-size: 20px; font-weight: bold; color: #080808; }
             .logo-sub { font-size: 10px; color: #666; }
             .manifest-info { text-align: right; }
-            .manifest-id { font-size: 16px; font-weight: bold; color: #DC2626; }
+            .manifest-id { font-size: 16px; font-weight: bold; color: #0B6B4F; font-variant-numeric: tabular-nums; }
             .manifest-date { font-size: 10px; color: #666; }
             .section { margin-bottom: 12px; }
             .section-title { font-size: 11px; font-weight: bold; margin-bottom: 6px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
@@ -232,7 +232,7 @@ export function ManifestPrintPreview({
             .total-value { font-weight: bold; }
             .signature { text-align: center; }
             .signature-line { border-top: 1px solid #333; width: 200px; margin: 0 auto; padding-top: 5px; font-size: 10px; color: #666; }
-            .freight-badge { display: inline-block; background: #DC2626; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; }
+            .freight-badge { display: inline-block; background: #080808; color: #04E8A4; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; }
             .obs-section { margin-top: 10px; padding: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 4px; }
             .obs-title { font-weight: bold; font-size: 10px; color: #92400e; margin-bottom: 5px; }
             .obs-item { font-size: 9px; margin-bottom: 3px; }
@@ -284,12 +284,13 @@ export function ManifestPrintPreview({
           </div>
         ) : (
           /* Print Content - Landscape Layout */
-          <div ref={printRef} className="p-6 bg-white text-black">
+          // ".light": documento em papel (tema claro da marca) dentro do dialogo escuro.
+          <div ref={printRef} className="light p-6 bg-white text-black">
             {/* Header */}
-            <div className="header flex justify-between items-start mb-4 border-b-2 border-primary pb-3">
+            <div className="header flex justify-between items-start mb-4 border-b-2 border-nhf-ink pb-3">
               <div>
-                <div className="logo text-xl font-bold text-primary">
-                  {company?.razaoSocial || "NaHoraFrota"}
+                <div className="logo text-xl font-bold text-nhf-ink">
+                  {company?.razaoSocial || "Na Hora Frota"}
                 </div>
                 {company?.cnpj && (
                   <div className="logo-sub text-xs text-muted-foreground">CNPJ: {formatCNPJ(company.cnpj)}</div>
@@ -303,7 +304,7 @@ export function ManifestPrintPreview({
               </div>
               <div className="manifest-info text-right">
                 <div className="text-xs text-muted-foreground mb-1">Romaneio Nº</div>
-                <div className="manifest-id text-xl font-bold text-primary">{manifestData.displayNumber}</div>
+                <div className="manifest-id text-xl font-bold text-nhf-green-deep font-data">{manifestData.displayNumber}</div>
                 <div className="manifest-date text-xs text-muted-foreground mt-1">
                   {manifestData.createdAt.toLocaleDateString('pt-BR', {
                     day: '2-digit',
@@ -348,11 +349,11 @@ export function ManifestPrintPreview({
                   Informações do Frete
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary text-xs">
+                  <Badge variant="outline" className="bg-nhf-mist text-nhf-green-deep border-nhf-green-deep text-xs">
                     {freightTypeLabels[manifestData.freightType] || manifestData.freightType}
                   </Badge>
                   <Badge variant={manifestData.isOwnVehicle ? "default" : "outline"} className="text-xs">
-                    {manifestData.isOwnVehicle ? "🚛 Frota Própria" : "📦 Terceirizado"}
+                    {manifestData.isOwnVehicle ? "Frota própria" : "Terceirizado"}
                   </Badge>
                   {manifestData.estimatedDistance && (
                     <span className="text-xs text-muted-foreground">
@@ -446,7 +447,7 @@ export function ManifestPrintPreview({
                 <Separator className="my-2" />
                 <div className="total-row flex justify-between gap-6 text-sm">
                   <span className="total-label text-muted-foreground">Valor do Frete:</span>
-                  <span className="total-value font-bold text-primary">{formatCurrency(manifestData.calculatedTotal)}</span>
+                  <span className="total-value font-bold text-nhf-green-deep font-data">{formatCurrency(manifestData.calculatedTotal)}</span>
                 </div>
               </div>
 
@@ -459,7 +460,7 @@ export function ManifestPrintPreview({
 
             {/* Footer note */}
             <div className="mt-6 pt-3 border-t text-center text-xs text-muted-foreground">
-              Documento gerado automaticamente pelo Sistema NaHoraFrota • {new Date().toLocaleDateString('pt-BR')}
+              Documento gerado automaticamente pelo Na Hora Frota • {new Date().toLocaleDateString('pt-BR')}
             </div>
           </div>
         )}

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import nahoraFrotaLogo from "@/assets/nahora-frota-logo.png";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { detectDocumentType, formatDocument, isValidCNPJ, onlyDigits } from "@/lib/documentValidation";
 import { TRIAL_DAYS } from "@/lib/billingStatus";
 import { getVisitorId, trackFunnelEvent } from "@/lib/funnel";
@@ -42,7 +42,7 @@ async function getFunctionErrorMessage(error: any): Promise<string> {
   try {
     const payload = await response.clone().json();
     if (payload?.code === "trial_already_used") {
-      return "Este CNPJ/CPF já utilizou o teste grátis. Fale com a equipe NaHora Frota para contratar um plano.";
+      return "Este CNPJ/CPF já utilizou o teste grátis. Fale com a equipe Na Hora Frota para contratar um plano.";
     }
     return payload?.error || payload?.message || fallback;
   } catch {
@@ -164,7 +164,7 @@ export default function RegisterPage() {
       if (!signInError) {
         toast({
           title: `🎉 Teste grátis de ${TRIAL_DAYS} dias liberado`,
-          description: "Bem-vindo ao NaHora Frota! Explore à vontade.",
+          description: "Bem-vindo ao Na Hora Frota. Seu teste grátis já começou.",
         });
         navigate("/", { replace: true });
         return;
@@ -190,7 +190,7 @@ export default function RegisterPage() {
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
             <h2 className="text-xl font-semibold">Teste grátis liberado!</h2>
             <p className="text-muted-foreground text-sm">
-              Sua empresa foi cadastrada e você já pode usar o NaHora Frota por {TRIAL_DAYS} dias sem custo.
+              Sua empresa foi cadastrada e você já pode usar o Na Hora Frota por {TRIAL_DAYS} dias sem custo.
             </p>
             {trialEndsAt && (
               <p className="text-muted-foreground text-xs">
@@ -207,31 +207,22 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-      </div>
+    <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Linhas de rota a 45 graus (manual da marca, elementos graficos). */}
+      <div className="absolute inset-0 nhf-routes pointer-events-none" aria-hidden="true" />
 
       <div className="w-full max-w-md relative z-10">
-        <div className="flex flex-col items-center mb-6">
-          <img
-            src={nahoraFrotaLogo}
-            alt="NAHORA FROTA"
-            className="w-48 h-auto object-contain"
-            style={{
-              filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5))",
-            }}
-          />
+        <div className="mb-6">
+          <BrandLogo arrangement="horizontal" className="w-[200px]" />
         </div>
 
-        <Card className="border-border/50 shadow-xl">
-          <CardHeader className="pb-3 text-center">
-            <h2 className="text-xl font-semibold">Cadastre sua Empresa</h2>
+        <Card className="shadow-xl">
+          <CardHeader className="pb-3">
+            <h2 className="text-xl font-bold">Cadastre sua empresa</h2>
             <p className="text-sm text-muted-foreground">
-              Preencha os dados para criar sua conta
+              Preencha os dados para criar sua conta.
             </p>
-            <div className="mt-2 inline-flex self-center items-center justify-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <div className="mt-2 inline-flex self-start items-center gap-2 rounded-sm border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               <Gift className="h-3.5 w-3.5" />
               {TRIAL_DAYS} dias grátis, sem cartão de crédito
             </div>

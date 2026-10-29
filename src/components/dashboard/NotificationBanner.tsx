@@ -17,7 +17,7 @@ export function NotificationBanner() {
     const until = access.trial_ends_at ? new Date(access.trial_ends_at).toLocaleDateString("pt-BR") : "";
     const remaining =
       daysRemaining <= 0 ? "termina hoje" : `${daysRemaining} dia${daysRemaining > 1 ? "s" : ""} restante${daysRemaining > 1 ? "s" : ""}`;
-    message = `Teste grátis: ${remaining}${until ? ` (até ${until})` : ""}. Fale com a equipe NaHora Frota para contratar.`;
+    message = `Teste grátis: ${remaining}${until ? ` (até ${until})` : ""}. Fale com a equipe Na Hora Frota para contratar.`;
     style =
       daysRemaining <= 1
         ? "bg-destructive/10 border-destructive/20 text-destructive"

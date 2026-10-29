@@ -18,7 +18,7 @@ function initialPasswordFromCpf(cpf: string | null): string | null {
 //
 // Segredos necessarios (Supabase > Edge Functions > Secrets):
 //   RESEND_API_KEY     chave da API do Resend (https://resend.com)
-//   RESEND_FROM_EMAIL  remetente verificado, ex.: "NaHora Frota <nao-responda@nahorafrota.tech>"
+//   RESEND_FROM_EMAIL  remetente verificado, ex.: "Na Hora Frota <nao-responda@nahorafrota.tech>"
 //   APP_URL            opcional, padrao https://nahorafrota.tech
 
 interface SendCredentialsRequest {
@@ -151,27 +151,36 @@ serve(async (req) => {
       ...(vehicle ? [["Veículo", vehicle] as [string, string]] : []),
     ];
 
+    // Manual da marca: faixa Preto Asfalto com o logo, corpo claro, CTA Verde Na Hora
+    // com texto preto (verde como texto so sobre fundo escuro).
     const html = `
-      <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#111">
-        <h2 style="margin:0 0 12px">Olá, ${escapeHtml(driverName)}!</h2>
-        <p>Seu cadastro como motorista na <strong>${escapeHtml(companyName)}</strong> foi concluído no NaHora Frota.</p>
-        <table style="border-collapse:collapse;width:100%;margin:16px 0">
-          ${rows
-            .map(
-              ([label, value]) =>
-                `<tr><td style="padding:8px;border:1px solid #e5e7eb;color:#555">${escapeHtml(label)}</td>` +
-                `<td style="padding:8px;border:1px solid #e5e7eb;font-weight:bold">${escapeHtml(value)}</td></tr>`,
-            )
-            .join("")}
-        </table>
-        <p>${login ? "Para começar, abra o app no celular e faça login:" : "Quando o seu acesso ao app for liberado, use o link abaixo para instalar:"}</p>
-        <p><a href="${appUrl}/install" style="display:inline-block;background:#f97316;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Instalar o app do motorista</a></p>
-        <p style="color:#555;font-size:13px">Por segurança, não compartilhe sua senha. Em caso de dúvida, fale com o responsável pela frota.</p>
+      <div style="font-family:Inter,Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#080808;background:#ffffff">
+        <div style="background:#080808;padding:20px 24px">
+          <img src="${appUrl}/email/nhf-logo-email.png" width="160" alt="Na Hora Frota" style="display:block;width:160px;height:auto;border:0">
+        </div>
+        <div style="height:4px;background:#04E8A4"></div>
+        <div style="padding:24px">
+          <h2 style="margin:0 0 12px;font-size:20px">Olá, ${escapeHtml(driverName)}.</h2>
+          <p style="margin:0 0 8px">Seu cadastro como motorista na <strong>${escapeHtml(companyName)}</strong> foi concluído no Na Hora Frota.</p>
+          <table style="border-collapse:collapse;width:100%;margin:16px 0">
+            ${rows
+              .map(
+                ([label, value]) =>
+                  `<tr><td style="padding:8px;border:1px solid #E3E6E8;background:#F2F4F5;color:#5B6168">${escapeHtml(label)}</td>` +
+                  `<td style="padding:8px;border:1px solid #E3E6E8;font-weight:bold">${escapeHtml(value)}</td></tr>`,
+              )
+              .join("")}
+          </table>
+          <p>${login ? "Para começar, abra o app no celular e faça login:" : "Quando o seu acesso ao app for liberado, use o link abaixo para instalar:"}</p>
+          <p><a href="${appUrl}/install" style="display:inline-block;background:#04E8A4;color:#080808;padding:12px 20px;border-radius:4px;text-decoration:none;font-weight:bold">Instalar o app do motorista</a></p>
+          <p style="color:#5B6168;font-size:13px">Por segurança, não compartilhe sua senha. Em caso de dúvida, fale com o responsável pela frota.</p>
+        </div>
+        <div style="padding:12px 24px;border-top:1px solid #E3E6E8;color:#5B6168;font-size:11px;letter-spacing:.08em;text-transform:uppercase">Na Hora Frota · Sempre na hora</div>
       </div>`;
 
     const text = [
-      `Olá, ${driverName}!`,
-      `Seu cadastro como motorista na ${companyName} foi concluído no NaHora Frota.`,
+      `Olá, ${driverName}.`,
+      `Seu cadastro como motorista na ${companyName} foi concluído no Na Hora Frota.`,
       ...rows.map(([label, value]) => `${label}: ${value}`),
       `Instale o app: ${appUrl}/install`,
     ].join("\n");
@@ -185,7 +194,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: fromEmail,
         to: [recipient],
-        subject: `Seu acesso ao app NaHora Frota - ${companyName}`,
+        subject: `Seu acesso ao app Na Hora Frota - ${companyName}`,
         html,
         text,
       }),

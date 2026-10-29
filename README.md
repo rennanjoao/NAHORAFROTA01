@@ -1,4 +1,4 @@
-# NaHoraFrota
+# Na Hora Frota
 
 Aplicacao web em React + Vite com Supabase para autenticacao, banco, realtime e storage.
 
@@ -50,7 +50,7 @@ Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o fronte
 3. Configure os segredos das functions (Supabase > Edge Functions > Secrets) para o e-mail
    de dados de acesso do motorista:
    - `RESEND_API_KEY`: chave da API do [Resend](https://resend.com)
-   - `RESEND_FROM_EMAIL`: remetente verificado, ex.: `NaHora Frota <nao-responda@nahorafrota.tech>`
+   - `RESEND_FROM_EMAIL`: remetente verificado, ex.: `Na Hora Frota <nao-responda@nahorafrota.tech>`
    - `APP_URL` (opcional): padrao `https://nahorafrota.tech`
 
    Sem esses segredos o cadastro do motorista funciona normalmente e o painel avisa que o

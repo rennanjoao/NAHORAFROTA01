@@ -74,7 +74,7 @@ export function WalletTab({ driverId }: WalletTabProps) {
             <Clock className="h-4 w-4 text-yellow-500" />
             <span className="text-xs text-yellow-500">A Receber</span>
           </div>
-          <p className="text-xl font-bold font-space-grotesk text-yellow-500">
+          <p className="text-xl font-bold font-heading text-yellow-500">
             {formatCurrency(totalPending)}
           </p>
         </Card>
@@ -84,7 +84,7 @@ export function WalletTab({ driverId }: WalletTabProps) {
             <CheckCircle className="h-4 w-4 text-green-500" />
             <span className="text-xs text-green-500">Recebido</span>
           </div>
-          <p className="text-xl font-bold font-space-grotesk text-green-500">
+          <p className="text-xl font-bold font-heading text-green-500">
             {formatCurrency(totalPaid)}
           </p>
         </Card>
@@ -118,7 +118,7 @@ export function WalletTab({ driverId }: WalletTabProps) {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-2">
-                      <span className="text-sm font-bold font-space-grotesk">
+                      <span className="text-sm font-bold font-heading">
                         {formatCurrency(item.amount)}
                       </span>
                       <Badge variant="secondary" className={config.color}>

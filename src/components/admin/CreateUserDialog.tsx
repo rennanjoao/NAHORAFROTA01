@@ -141,7 +141,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
   };
 
   const handleCopy = async () => {
-    const text = `Acesso ao NaHora Frota:\nE-mail: ${email.trim().toLowerCase()}\nSenha: ${password.trim()}\n\nAcesse: ${window.location.origin}/login`;
+    const text = `Acesso ao Na Hora Frota:\nE-mail: ${email.trim().toLowerCase()}\nSenha: ${password.trim()}\n\nAcesse: ${window.location.origin}/login`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     toast.success("Credenciais copiadas!");

@@ -49,7 +49,7 @@ function recordNotice(alert: BillingAlert, acknowledged: boolean) {
  * Pop-up para o administrador da empresa quando o teste gratis ou a fatura
  * estao vencendo. Aparece no maximo uma vez por dia por aviso, e registra no
  * banco que o aviso foi exibido e quando o cliente confirmou a ciencia, para a
- * equipe NaHora ver a "cobranca avisada" no painel Master.
+ * equipe Na Hora ver a "cobranca avisada" no painel Master.
  */
 export function BillingReminderDialog() {
   const { roles } = useAuth();
@@ -105,7 +105,7 @@ export function BillingReminderDialog() {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <a
-          href="mailto:suporte@nahorafrota.com.br?subject=Assinatura%20NaHora%20Frota"
+          href="mailto:suporte@nahorafrota.com.br?subject=Assinatura%20Na%20Hora%20Frota"
           className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
         >
           <Mail className="h-4 w-4" />

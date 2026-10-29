@@ -11,7 +11,7 @@ const COPY: Record<BlockReason, { title: string; message: string; hint: string }
   },
   trial_expired: {
     title: "Seu teste grátis terminou",
-    message: "Os 7 dias de teste do NaHora Frota chegaram ao fim e o acesso foi suspenso.",
+    message: "Os 7 dias de teste do Na Hora Frota chegaram ao fim e o acesso foi suspenso.",
     hint: "Fale com a nossa equipe para contratar um plano e continuar de onde parou. Seus dados ficam guardados.",
   },
   blocked: {
@@ -21,7 +21,7 @@ const COPY: Record<BlockReason, { title: string; message: string; hint: string }
   },
   pending: {
     title: "Conta em Análise",
-    message: "Sua empresa ainda está aguardando liberação da equipe NaHora Frota.",
+    message: "Sua empresa ainda está aguardando liberação da equipe Na Hora Frota.",
     hint: "Assim que o acesso for liberado você poderá entrar normalmente.",
   },
 };
@@ -46,7 +46,7 @@ export function SubscriptionBlockScreen({ reason = "expired", forDriver = false 
         <h1 className="text-2xl font-bold text-foreground">{forDriver ? "App indisponível" : copy.title}</h1>
         <p className="text-muted-foreground">
           {forDriver
-            ? "O acesso da sua transportadora ao NaHora Frota está suspenso no momento."
+            ? "O acesso da sua transportadora ao Na Hora Frota está suspenso no momento."
             : copy.message}
         </p>
         <p className="text-muted-foreground text-sm">

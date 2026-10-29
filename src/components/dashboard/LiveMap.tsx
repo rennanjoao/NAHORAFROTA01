@@ -82,7 +82,7 @@ function MapLoading({ positionCount }: { positionCount: number }) {
             <Navigation className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
+            <h3 className="font-semibold text-foreground font-heading">Mapa em Tempo Real</h3>
             <p className="text-sm text-muted-foreground">
               {positionCount === 1 ? "1 veículo ativo" : `${positionCount} veículos ativos`} • São Paulo
             </p>
@@ -93,7 +93,7 @@ function MapLoading({ positionCount }: { positionCount: number }) {
           <span className="text-xs font-medium">CARREGANDO</span>
         </div>
       </div>
-      <div className="h-[500px] flex flex-col items-center justify-center bg-cyber-dark/50 backdrop-blur">
+      <div className="h-[500px] flex flex-col items-center justify-center bg-nhf-ink/50 backdrop-blur">
         <div className="relative">
           <MapPin className="h-16 w-16 text-primary/50 animate-pulse" />
           <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full animate-ping" />
@@ -117,14 +117,14 @@ function MapError({ positionCount, error, onRetry }: { positionCount: number; er
             <AlertTriangle className="h-5 w-5 text-destructive" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
+            <h3 className="font-semibold text-foreground font-heading">Mapa em Tempo Real</h3>
             <p className="text-sm text-muted-foreground">
               {positionCount === 1 ? "1 veículo ativo" : `${positionCount} veículos ativos`} • Erro ao carregar
             </p>
           </div>
         </div>
       </div>
-      <div className="h-[500px] flex flex-col items-center justify-center bg-cyber-dark/50 backdrop-blur">
+      <div className="h-[500px] flex flex-col items-center justify-center bg-nhf-ink/50 backdrop-blur">
         <AlertTriangle className="h-16 w-16 text-destructive/50" />
         <p className="text-muted-foreground mt-4 font-medium">Erro ao carregar o mapa</p>
         <p className="text-xs text-muted-foreground/70 mt-1 max-w-md text-center px-4">

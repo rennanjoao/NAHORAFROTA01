@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import nahoraFrotaLogo from "@/assets/nahora-frota-logo.png";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { trackFunnelEvent } from "@/lib/funnel";
 import {
   Dialog,
@@ -219,34 +219,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-      </div>
+    <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
+      {/* Linhas de rota a 45 graus (manual da marca, elementos graficos). */}
+      <div className="absolute inset-0 nhf-routes pointer-events-none" aria-hidden="true" />
 
       <div className="w-full max-w-md relative z-10">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <img
-            src={nahoraFrotaLogo}
-            alt="NAHORA FROTA"
-            className="w-56 h-auto object-contain"
-            style={{
-              filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3))",
-            }}
-          />
-          <p className="text-muted-foreground mt-3 text-sm">Gestão completa para sua frota</p>
+        {/* Logo horizontal (versao principal) e assinatura */}
+        <div className="mb-8 space-y-5">
+          <BrandLogo arrangement="horizontal" className="w-[220px]" />
+          <p className="font-heading text-2xl font-bold leading-tight tracking-tight">
+            Gestão de frota em tempo real.
+            <br />
+            Entrega <span className="text-primary">sempre na hora.</span>
+          </p>
         </div>
 
         {/* Login Card */}
-        <Card className="border-border/50 shadow-xl">
-          <CardHeader className="pb-4 text-center">
-            <h2 className="text-xl font-semibold">Acesse sua conta</h2>
-            <p className="text-sm text-muted-foreground">
-              Entre com suas credenciais para continuar
-            </p>
+        <Card className="shadow-xl">
+          <CardHeader className="pb-4">
+            <h2 className="text-xl font-bold">Entrar na operação</h2>
+            <p className="text-sm text-muted-foreground">Use o e-mail e a senha da sua conta.</p>
           </CardHeader>
 
           <CardContent>
@@ -329,7 +321,7 @@ export default function LoginPage() {
                 ) : (
                   <ArrowRight className="h-4 w-4" />
                 )}
-                {isLoading ? "Entrando..." : "Entrar"}
+                {isLoading ? "Entrando" : "Entrar"}
               </Button>
             </form>
 

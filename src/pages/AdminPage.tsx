@@ -102,7 +102,7 @@ export default function AdminPage() {
     ? `Teste grátis até ${formatDate(access?.trial_ends_at) ?? "—"} (${daysRemaining <= 0 ? "termina hoje" : `${daysRemaining} dia(s) restante(s)`})`
     : formatDate(access?.next_due_date)
       ? `Próxima cobrança: ${formatDate(access?.next_due_date)}`
-      : "Próxima cobrança: a definir com a equipe NaHora Frota";
+      : "Próxima cobrança: a definir com a equipe Na Hora Frota";
   const [editTarget, setEditTarget] = useState<
     | { type: "user"; record: SystemUser }
     | { type: "driver"; record: (typeof drivers)[number] }
@@ -245,7 +245,7 @@ export default function AdminPage() {
                   Pagamento e contratação
                 </CardTitle>
                 <CardDescription>
-                  As faturas (boleto ou PIX) são emitidas pela equipe NaHora Frota e enviadas para o e-mail da empresa.
+                  As faturas (boleto ou PIX) são emitidas pela equipe Na Hora Frota e enviadas para o e-mail da empresa.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-3">

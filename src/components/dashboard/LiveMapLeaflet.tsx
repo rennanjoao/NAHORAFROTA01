@@ -186,7 +186,7 @@ export default function LiveMapLeaflet({
             <Navigation className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground font-space-grotesk">Mapa em Tempo Real</h3>
+            <h3 className="font-semibold text-foreground font-heading">Mapa em Tempo Real</h3>
             <p className="text-sm text-muted-foreground">
               {(onlineCount ?? positions.length) === 1 ? "1 veículo ativo" : `${onlineCount ?? positions.length} veículos ativos`} - OpenStreetMap
             </p>
@@ -229,25 +229,25 @@ export default function LiveMapLeaflet({
       <div className="relative h-[500px]">
         <div ref={containerRef} className="h-full w-full" />
 
-        <div className="absolute top-4 right-4 z-[400] bg-cyber-dark/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
+        <div className="absolute top-4 right-4 z-[400] bg-nhf-ink/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-500 font-space-grotesk">{counts.onTime}</p>
+              <p className="text-2xl font-bold text-green-500 font-heading">{counts.onTime}</p>
               <p className="text-xs text-muted-foreground">No Prazo</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary font-space-grotesk">{counts.delayed}</p>
+              <p className="text-2xl font-bold text-primary font-heading">{counts.delayed}</p>
               <p className="text-xs text-muted-foreground">Atrasados</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 font-space-grotesk">{counts.stale}</p>
+              <p className="text-2xl font-bold text-red-500 font-heading">{counts.stale}</p>
               <p className="text-xs text-muted-foreground">Sem Sinal</p>
             </div>
           </div>
         </div>
 
         {positions.length === 0 && (
-          <div className="absolute inset-0 z-[350] flex items-center justify-center bg-cyber-dark/80 backdrop-blur-sm">
+          <div className="absolute inset-0 z-[350] flex items-center justify-center bg-nhf-ink/80 backdrop-blur-sm">
             <div className="text-center p-6">
               <TruckIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-foreground font-medium mb-1">Nenhum veículo ativo</p>

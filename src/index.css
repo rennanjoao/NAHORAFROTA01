@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Lato:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -71,132 +71,100 @@ a {
 }
 
 @layer base {
-  :root {
-    /* Na Hora Transporte - Cyber-Logistics Theme */
-    --background: 0 0% 98%;
-    --foreground: 228 50% 8%;
+  /* Na Hora Frota · Manual da Marca v1.0 (brand/tokens). O produto vive no preto:
+     o modo escuro e o padrao; ".light" fica para documentos e impressao. */
+  :root,
+  .dark {
+    --background: 0 0% 3%;              /* Preto Asfalto #080808 */
+    --foreground: 0 0% 100%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 228 50% 8%;
+    --card: 200 7% 8%;                  /* Grafite #141617 */
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 228 50% 8%;
+    --popover: 200 7% 8%;
+    --popover-foreground: 0 0% 100%;
 
-    /* Neon Red Primary (#FF1F1F = 0 100% 56%) */
-    --primary: 0 100% 56%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 162 97% 46%;             /* Verde Na Hora #04E8A4 */
+    --primary-foreground: 0 0% 3%;
+    --primary-hover: 162 100% 35%;      /* #00B37E */
 
-    /* Cyber Dark Secondary (#0F1219 = 228 50% 8%) */
-    --secondary: 228 50% 96%;
-    --secondary-foreground: 228 50% 8%;
+    --secondary: 210 7% 18%;            /* Chumbo #2A2D30 */
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 210 7% 18%;
+    --muted-foreground: 212 7% 57%;     /* Cinza Sinal #8A9199 */
 
-    --accent: 0 100% 56%;
+    /* Hover de menus e botoes fantasma: superficie, nunca verde de fundo. */
+    --accent: 210 10% 12%;              /* #1C1F22 */
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 100% 56%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 359 100% 65%;        /* Atrasado / Ocorrencia #FF4D4F */
+    --destructive-foreground: 0 0% 3%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    --success: 162 97% 46%;             /* No prazo / Online / Entregue */
+    --success-foreground: 0 0% 3%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 228 50% 8%;
+    --warning: 42 100% 62%;             /* Atencao #FFC53D */
+    --warning-foreground: 0 0% 3%;
 
-    /* Cyber Cyan for data highlights */
-    --info: 187 92% 48%;
-    --info-foreground: 228 50% 8%;
+    --info: 210 100% 62%;               /* Em transito / Informacao #3B9CFF */
+    --info-foreground: 0 0% 3%;
 
-    /* Neon Red accent */
-    --neon-red: 0 100% 56%;
-    --neon-red-foreground: 0 0% 100%;
+    --idle: 212 7% 57%;                 /* Inativo / Finalizado */
+    --idle-foreground: 0 0% 3%;
 
-    /* Cyber accent for data emphasis */
-    --cyber: 187 92% 48%;
-    --cyber-foreground: 228 50% 8%;
+    --green-tint: 163 61% 15%;          /* Verde Tinta #0F3D30 */
+    --green-deep: 162 81% 23%;          /* Verde Escuro #0B6B4F (texto em fundo claro) */
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 0 100% 56%;
+    --border: 210 7% 18%;
+    --input: 210 7% 18%;
+    --ring: 162 97% 46%;
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;                  /* 4px: raio maximo da interface */
 
-    /* Dark Sidebar - Cyber Dark #0F1219 */
-    --sidebar-background: 228 50% 8%;
-    --sidebar-foreground: 220 9% 70%;
-    --sidebar-primary: 0 100% 56%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 50% 12%;
+    --sidebar-background: 210 12% 6%;   /* #0E1012 */
+    --sidebar-foreground: 212 7% 57%;
+    --sidebar-primary: 162 97% 46%;
+    --sidebar-primary-foreground: 0 0% 3%;
+    --sidebar-accent: 210 10% 12%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 228 50% 15%;
-    --sidebar-ring: 0 100% 56%;
+    --sidebar-border: 210 7% 18%;
+    --sidebar-ring: 162 97% 46%;
 
-    /* Shadows for light mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.45);
+
+    --nhf-chamfer: 18px;
+    --nhf-chamfer-sm: 10px;
+
+    color-scheme: dark;
   }
 
-  .dark {
-    /* Na Hora Transporte - Enterprise Dark Theme */
-    --background: 222 47% 6%;
-    --foreground: 220 9% 94%;
-
-    --card: 222 47% 9%;
-    --card-foreground: 220 9% 94%;
-
-    --popover: 222 47% 9%;
-    --popover-foreground: 220 9% 94%;
-
-    /* Red Primary stays the same for brand consistency */
-    --primary: 0 84% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 222 47% 14%;
-    --secondary-foreground: 220 9% 94%;
-
-    --muted: 222 47% 14%;
-    --muted-foreground: 220 9% 60%;
-
-    --accent: 0 84% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 71% 45%;
+  /* Documentos, relatorios e impressao. Verde como texto so em Verde Escuro. */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3%;
+    --primary: 162 97% 46%;
+    --primary-foreground: 0 0% 3%;
+    --secondary: 200 13% 95%;           /* Nevoa #F2F4F5 */
+    --secondary-foreground: 0 0% 3%;
+    --muted: 200 13% 95%;
+    --muted-foreground: 210 7% 38%;
+    --accent: 200 13% 95%;
+    --accent-foreground: 0 0% 3%;
+    --success: 162 81% 23%;
     --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
-
-    /* Cyber Cyan for data highlights */
-    --info: 187 92% 55%;
-    --info-foreground: 222 47% 11%;
-
-    --cyber: 187 92% 55%;
-    --cyber-foreground: 222 47% 11%;
-
-    --border: 222 47% 18%;
-    --input: 222 47% 18%;
-    --ring: 0 84% 55%;
-
-    /* Dark Sidebar - slightly darker than background */
-    --sidebar-background: 222 47% 5%;
-    --sidebar-foreground: 220 9% 70%;
-    --sidebar-primary: 0 84% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 10%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 222 47% 12%;
-    --sidebar-ring: 0 84% 55%;
-
-    /* Shadows for dark mode */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+    --info: 210 80% 42%;
+    --warning: 38 92% 36%;
+    --border: 200 8% 90%;
+    --input: 200 8% 90%;
+    --ring: 162 81% 23%;
+    color-scheme: light;
   }
 }
 
@@ -207,11 +175,24 @@ a {
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Lato', sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   }
 
+  /* Titulos em Space Grotesk, entreletra levemente negativa. */
   h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  /* Dados (horas, placas, codigos, valores): algarismos tabulares. */
+  .font-mono,
+  .font-data,
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.35);
   }
 }
 
@@ -221,39 +202,31 @@ a {
   }
 
   .card-danger {
-    @apply bg-destructive/5 border-destructive/30;
+    @apply bg-destructive/10 border-destructive/40;
   }
 
+  /* Sem gradiente na marca: destaque e uma palavra em verde. */
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-destructive;
+    @apply text-primary;
   }
 
-  /* Cyber accent for data highlights */
   .cyber-text {
     @apply text-info;
   }
 
-  .cyber-glow {
-    text-shadow: 0 0 10px hsl(var(--info) / 0.5);
-  }
-
-  /* Neon Red glow effect */
+  /* Efeitos de brilho foram aposentados pelo manual (sem neon, sem glow). */
+  .cyber-glow,
   .neon-glow {
-    text-shadow: 0 0 10px hsl(0 100% 56% / 0.8), 0 0 20px hsl(0 100% 56% / 0.6), 0 0 30px hsl(0 100% 56% / 0.4);
+    text-shadow: none;
   }
 
-  .shadow-neon {
-    box-shadow: 0 0 15px hsl(0 100% 56% / 0.5), 0 0 30px hsl(0 100% 56% / 0.3);
-  }
-
+  .shadow-neon,
   .shadow-neon-sm {
-    box-shadow: 0 0 8px hsl(0 100% 56% / 0.4), 0 0 16px hsl(0 100% 56% / 0.2);
+    box-shadow: none;
   }
 
-  /* Neon divider line */
   .neon-divider {
-    background: linear-gradient(90deg, transparent, hsl(0 100% 56% / 0.7), transparent);
-    box-shadow: 0 0 8px hsl(0 100% 56% / 0.5);
+    background: hsl(var(--border));
   }
 
   .animate-pulse-slow {
@@ -270,37 +243,102 @@ a {
   }
 
   .status-dot {
-    @apply w-2 h-2 rounded-full animate-pulse;
+    @apply w-2 h-2 rounded-full;
   }
 
+  /* So o estado "ao vivo / no prazo" pulsa. */
   .status-dot-success {
     @apply bg-success;
-    box-shadow: 0 0 8px hsl(142 76% 36% / 0.6);
+    animation: nhf-pulse 1.8s ease-out infinite;
   }
 
   .status-dot-warning {
     @apply bg-warning;
-    box-shadow: 0 0 8px hsl(38 92% 50% / 0.6);
   }
 
   .status-dot-danger {
     @apply bg-destructive;
-    box-shadow: 0 0 8px hsl(0 100% 56% / 0.6);
   }
 
   .status-dot-info {
     @apply bg-info;
-    box-shadow: 0 0 8px hsl(187 92% 48% / 0.6);
   }
 
   .metric-card {
-    @apply glass-card rounded-xl p-5 transition-all duration-300 hover:shadow-md hover:border-primary/30;
+    @apply glass-card rounded-lg p-5 transition-colors duration-200 hover:border-primary/40;
   }
 
-  /* Monospace numbers for financial data */
+  /* Dados: Space Grotesk com algarismos tabulares (horas, placas, KPIs, valores). */
   .font-data {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
     font-feature-settings: 'tnum' on, 'lnum' on;
+  }
+
+  /* Rotulo curto em caixa alta (eyebrow do manual). */
+  .nhf-label {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Chanfro de 45 graus no canto superior direito (botoes e cartoes de destaque). */
+  .nhf-chamfer {
+    clip-path: polygon(0 0, calc(100% - var(--nhf-chamfer)) 0, 100% var(--nhf-chamfer), 100% 100%, 0 100%);
+  }
+
+  .nhf-chamfer-sm {
+    clip-path: polygon(0 0, calc(100% - var(--nhf-chamfer-sm)) 0, 100% var(--nhf-chamfer-sm), 100% 100%, 0 100%);
+  }
+
+  /* Marcador de hora: carimbo com ponto de status. O ponto pulsa so "ao vivo". */
+  .nhf-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border: 1px solid hsl(var(--primary));
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.06);
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .nhf-live::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: nhf-pulse 1.8s ease-out infinite;
+  }
+
+  .nhf-live--off {
+    border-color: hsl(var(--destructive));
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.06);
+  }
+
+  .nhf-live--off::before {
+    animation: none;
+  }
+
+  @keyframes nhf-pulse {
+    0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55); }
+    100% { box-shadow: 0 0 0 10px hsl(var(--primary) / 0); }
+  }
+
+  /* Linhas de rota a 45 graus (fundo de capa / login). */
+  .nhf-routes {
+    background-image:
+      repeating-linear-gradient(-45deg, hsl(var(--primary) / 0.14) 0 1px, transparent 1px 110px),
+      repeating-linear-gradient(0deg, hsl(var(--primary) / 0.07) 0 1px, transparent 1px 56px);
   }
 
   /* Truncate with ellipsis for long text */
@@ -308,13 +346,15 @@ a {
     @apply truncate max-w-full;
   }
 
-  /* Button neon hover effect */
   .btn-neon {
-    @apply transition-all duration-300;
+    @apply transition-colors duration-200;
   }
 
-  .btn-neon:hover {
-    @apply shadow-neon;
+  @media (prefers-reduced-motion: reduce) {
+    .nhf-live::before,
+    .status-dot-success {
+      animation: none;
+    }
   }
 }
 
@@ -322,12 +362,25 @@ a {
 .leaflet-container {
   font-family: 'Inter', sans-serif;
   z-index: 0;
+  background: hsl(var(--background));
+}
+
+/* Manual: mapa com base escura e dessaturada (os tiles do OSM sao claros). */
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
 }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 12px;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
   padding: 0;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
 }
 
 .leaflet-popup-content {
@@ -335,8 +388,29 @@ a {
   min-width: 250px;
 }
 
-.leaflet-popup-tip {
-  background: white;
+.leaflet-container a.leaflet-popup-close-button {
+  color: hsl(var(--muted-foreground));
+}
+
+.leaflet-control-zoom a,
+.leaflet-bar a {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+.leaflet-control-zoom a:hover,
+.leaflet-bar a:hover {
+  background: hsl(var(--accent));
+}
+
+.leaflet-control-attribution {
+  background: hsl(var(--background) / 0.7) !important;
+  color: hsl(var(--muted-foreground));
+}
+
+.leaflet-control-attribution a {
+  color: hsl(var(--muted-foreground));
 }
 
 .custom-truck-marker {

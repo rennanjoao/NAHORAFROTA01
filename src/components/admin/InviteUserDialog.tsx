@@ -94,7 +94,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
 
   const handleCopyCredentials = async () => {
     if (!inviteResult) return;
-    const text = `Acesso ao NaHora Frota:\nE-mail: ${inviteResult.email}\nSenha temporária: ${inviteResult.tempPassword}\n\nAcesse: ${window.location.origin}/login`;
+    const text = `Acesso ao Na Hora Frota:\nE-mail: ${inviteResult.email}\nSenha temporária: ${inviteResult.tempPassword}\n\nAcesse: ${window.location.origin}/login`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     toast.success("Credenciais copiadas!");

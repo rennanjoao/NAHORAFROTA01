@@ -416,7 +416,7 @@ export default function ReportsPage() {
 
       const stamp = new Date().toISOString().slice(0, 10);
       const fileName = downloadReportPdf(
-        { companyName: tenant?.razao_social || 'NaHora Frota', periodLabel, filtersLabel, sections },
+        { companyName: tenant?.razao_social || 'Na Hora Frota', periodLabel, filtersLabel, sections },
         `relatorio-${stamp}.pdf`,
       );
       toast({

@@ -24,7 +24,7 @@ import { formatCurrency } from "@/lib/formatCurrency";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantData } from "@/hooks/useTenantData";
 
-// O pedido vai por e-mail para a equipe NaHora, que confirma disponibilidade e
+// O pedido vai por e-mail para a equipe Na Hora, que confirma disponibilidade e
 // prazo pelo mesmo canal. Antes a tela mostrava "APROVADO" e nada era enviado.
 const REQUEST_EMAIL = "suporte@nahorafrota.com.br";
 
@@ -105,7 +105,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
     const company = tenant?.razao_social || "Minha empresa";
 
     const body = [
-      "Olá, equipe NaHora Frota.",
+      "Olá, equipe Na Hora Frota.",
       "",
       "Gostaria de solicitar um carro extra:",
       "",
@@ -124,7 +124,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
 
     toast({
       title: "Pedido pronto para envio",
-      description: `Abrimos seu e-mail com o pedido para ${REQUEST_EMAIL}. Envie a mensagem; a equipe NaHora confirma a disponibilidade e o prazo por lá.`,
+      description: `Abrimos seu e-mail com o pedido para ${REQUEST_EMAIL}. Envie a mensagem; a equipe Na Hora confirma a disponibilidade e o prazo por lá.`,
     });
     resetForm();
     onOpenChange(false);
@@ -257,7 +257,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
                         <>
                           <p className="font-medium text-success">Região metropolitana</p>
                           <p className="text-sm text-success/80 mt-1">
-                            Prazo estimado de até 24h, sujeito à confirmação da equipe NaHora.
+                            Prazo estimado de até 24h, sujeito à confirmação da equipe Na Hora.
                           </p>
                         </>
                       ) : (

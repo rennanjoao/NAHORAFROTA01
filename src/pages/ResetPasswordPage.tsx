@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import nahoraFrotaLogo from "@/assets/nahora-frota-logo.png";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -83,15 +83,16 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8">
-          <img src={nahoraFrotaLogo} alt="NAHORA FROTA" className="w-48 h-auto object-contain" />
+    <div className="relative min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="absolute inset-0 nhf-routes pointer-events-none" aria-hidden="true" />
+      <div className="relative w-full max-w-md">
+        <div className="mb-8">
+          <BrandLogo arrangement="horizontal" className="w-[200px]" />
         </div>
 
         <Card className="border-border/50 shadow-xl">
           <CardHeader className="pb-4 text-center">
-            <h2 className="text-xl font-semibold flex items-center justify-center gap-2">
+            <h2 className="text-xl font-bold flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary" />
               Definir nova senha
             </h2>
