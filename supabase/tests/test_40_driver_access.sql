@@ -189,9 +189,10 @@ SELECT pg_temp.check((SELECT completed_at IS NOT NULL FROM public.manifests WHER
 
 -- Bloqueio automatico por atraso: so depois dos X dias configurados
 SELECT set_config('request.jwt.claim.sub', '', false);
-UPDATE public.tenants SET next_due_date = current_date - 2, auto_block_days = 5 WHERE id = '10000000-0000-0000-0000-00000000000c';
+-- Datas no fuso de Brasilia, como a regra (current_date e UTC e erra entre 0h e 3h UTC).
+UPDATE public.tenants SET next_due_date = (now() AT TIME ZONE 'America/Sao_Paulo')::date - 2, auto_block_days = 5 WHERE id = '10000000-0000-0000-0000-00000000000c';
 SELECT pg_temp.check(public.tenant_access_state('10000000-0000-0000-0000-00000000000c') = 'active', 'atraso dentro do prazo nao bloqueia');
-UPDATE public.tenants SET next_due_date = current_date - 6 WHERE id = '10000000-0000-0000-0000-00000000000c';
+UPDATE public.tenants SET next_due_date = (now() AT TIME ZONE 'America/Sao_Paulo')::date - 6 WHERE id = '10000000-0000-0000-0000-00000000000c';
 SELECT pg_temp.check(public.tenant_access_state('10000000-0000-0000-0000-00000000000c') = 'overdue', 'atraso acima do prazo bloqueia');
 SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 SELECT pg_temp.check((SELECT count(*) FROM public.invoices) = 0, 'cliente bloqueado por atraso nao le dados');
