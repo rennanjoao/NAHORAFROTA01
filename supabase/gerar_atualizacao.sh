@@ -13,6 +13,7 @@ MIGRATIONS=(
   20260526003000_add_tenants_plan_started_at.sql
   20260527100000_enforce_tenant_isolation.sql
   20260527103000_plan_limits_status_rpc.sql
+  20261028110000_ensure_billing_columns.sql
   20261028120000_trial_billing_funnel_and_ops.sql
   20261028130000_fix_driver_access_rpcs_and_realtime.sql
   20261029120000_checkout_orders.sql
