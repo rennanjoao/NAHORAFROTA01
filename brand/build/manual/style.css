@@ -164,12 +164,11 @@ th{font-family:var(--fm);font-size:11px;letter-spacing:.08em;text-transform:uppe
 .band--light .mock .cap{color:#5B6168}
 .mock svg{width:100%;height:auto}
 .mock--full{grid-column:1/-1}
-.card{width:min(100%,360px);aspect-ratio:85/55;padding:22px;display:grid;align-content:space-between;font-size:11px;line-height:1.4;box-shadow:0 30px 60px -30px rgba(0,0,0,.6)}
-.card--ink{background:var(--ink);color:#fff}
-.card--paper{background:var(--paper);color:var(--ink)}
-.card .nm{font-family:var(--fd);font-weight:700;font-size:18px;letter-spacing:-.01em}
-.card .mono{font-size:10px;letter-spacing:.06em}
-.cards{display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:center}
+/* mockups fotográficos (brand/mockups/fotos/, gerados por brand/build/fotos/build_fotos.py) */
+.mock .frame--foto{padding:0;place-items:stretch;background:var(--ink)}
+.mock .frame--foto img{display:block;width:100%;height:100%;object-fit:cover}
+.mock .frame--foto.par{grid-template-columns:1fr 1fr;gap:2px}
+.mock .r16x9{aspect-ratio:16/9}.mock .r16x10{aspect-ratio:16/10}.mock .r4x5{aspect-ratio:4/5}.mock .r3x1{aspect-ratio:3/1}
 .phone{width:min(100%,290px);aspect-ratio:9/19;background:var(--ink);border:8px solid #1C1F22;border-radius:38px;padding:34px 18px 18px;display:grid;grid-template-rows:auto 1fr auto;gap:18px;color:#fff;overflow:hidden;box-shadow:0 40px 80px -30px rgba(0,0,0,.7)}
 .phone .ui{display:grid;gap:12px;align-content:start}
 .phone .in{border:1px solid var(--lead);padding:12px;font-size:12px;color:var(--signal);font-family:var(--fm)}
@@ -206,17 +205,8 @@ th{font-family:var(--fm);font-size:11px;letter-spacing:.08em;text-transform:uppe
 .web .kp{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line)}
 .web .kp div{background:var(--ink);padding:16px 20px;font-family:var(--fm);font-size:11px;color:var(--signal);letter-spacing:.06em}
 .web .kp b{display:block;font-size:22px;color:#fff;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
-.badge{width:min(100%,230px);aspect-ratio:54/86;background:var(--paper);color:var(--ink);border-radius:12px;padding:18px;display:grid;grid-template-rows:auto 1fr auto;gap:12px;position:relative;overflow:hidden;box-shadow:0 30px 60px -30px rgba(0,0,0,.6);margin-inline:auto}
-.badge .top2{height:14px;background:var(--ink);margin:-18px -18px 0;display:grid;place-items:center}
-.badge .top2 i{width:34px;height:5px;border-radius:3px;background:var(--lead)}
-.badge .ph{aspect-ratio:1;background:linear-gradient(135deg,var(--mist),#D9DEE2);border-radius:8px;align-self:center}
-.badge .nm{font-family:var(--fd);font-weight:700;font-size:16px;line-height:1.1}
-.badge .role{font-family:var(--fm);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#5B6168}
 .sticker{width:min(100%,220px);aspect-ratio:1;border-radius:50%;background:var(--green);display:grid;place-items:center;margin-inline:auto;box-shadow:0 30px 60px -30px rgba(0,0,0,.6);position:relative}
 .sticker svg{width:60%}
-.sign{width:100%;aspect-ratio:3/1;background:var(--ink);color:#fff;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:24px;padding:clamp(16px,3vw,32px);border:6px solid var(--lead)}
-.sign .t{font-family:var(--fd);font-weight:700;font-size:clamp(18px,3.4vw,40px);letter-spacing:-.02em;line-height:1}
-.sign .m{font-family:var(--fm);font-size:clamp(10px,1.4vw,14px);letter-spacing:.1em;color:var(--green);margin-top:6px}
 /* creative line */
 .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--line);border:1px solid var(--line)}
 .pillars>div{background:var(--ink);padding:22px 20px;display:grid;gap:12px;align-content:start}
@@ -284,7 +274,7 @@ pre{margin:0;padding:18px;background:var(--graphite);color:#DDE2E6;font-family:v
   .band{break-before:page;padding-block:40px 48px}
   .hero,#sumario{break-before:auto}
   .hero{padding-top:56px}
-  .swatches .sw,.tile,.mock,.dont,.chip,.pair,.phase,.pillars>div,.toc a,.spec,.el,.figure,.two>*,.cols>*,table,.card,.phone,.post,.story,.sig,.slide,.web,.badge,.sticker,.sign,.check,.heads p,.vs .ex,.words>div,.status div,.mood>div,.scale>div,pre{break-inside:avoid}
+  .swatches .sw,.tile,.mock,.dont,.chip,.pair,.phase,.pillars>div,.toc a,.spec,.el,.figure,.two>*,.cols>*,table,.phone,.post,.story,.sig,.slide,.web,.sticker,.check,.heads p,.vs .ex,.words>div,.status div,.mood>div,.scale>div,pre{break-inside:avoid}
   .stack{gap:40px}
   .chap{margin-bottom:32px}
   .lockups,.tiles,.mocks,.donts{gap:14px}
@@ -292,4 +282,5 @@ pre{margin:0;padding:18px;background:var(--graphite);color:#DDE2E6;font-family:v
   .live i{animation:none}
   h1,h2,h3,p{orphans:3;widows:3}
   .chap,h2,h3,.eyebrow{break-after:avoid}
+  #aplicacoes .chap{break-after:auto} /* título + foto do baú não cabem numa página: sem isso o quadro da foto se parte */
 }

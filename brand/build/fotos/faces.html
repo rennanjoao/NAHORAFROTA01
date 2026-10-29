@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- Faces impressas aplicadas sobre as cenas de brand/mockups/cenas/ por build_fotos.py.
+     Cada elemento com id vira um PNG transparente (render_faces.cjs); só tinta, sem o fundo do suporte. -->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{--ink:#080808;--green:#04E8A4;--green-deep:#0B6B4F;--signal:#8A9199;--fd:'Space Grotesk','Inter',sans-serif;--fm:'Space Grotesk','Inter',sans-serif}
+html,body{margin:0;background:transparent}
+body{display:grid;gap:40px;padding:0;justify-items:start}
+.face{position:relative;overflow:hidden;background:transparent}
+.mono{font-family:var(--fm);font-weight:500;font-variant-numeric:tabular-nums;text-transform:uppercase}
+img{display:block}
+
+/* Lateral do baú branco, 3,5 : 1 (traseira à esquerda, cabine à direita). Logo ~40% da altura, terço dianteiro. */
+#bau{width:1750px;height:500px}
+#bau .logo{position:absolute;height:200px;right:140px;top:118px}
+#bau .tag{position:absolute;left:var(--tagx);top:350px;font-size:22px;letter-spacing:.17em;color:#5B6168}
+#bau svg{position:absolute;inset:0}
+
+/* Cartão 85 × 55 mm na proporção da foto (1,81 : 1), 3,64 px/mm */
+.card{width:362px;height:200px;box-sizing:border-box;padding:28px 29px 26px;display:grid;align-content:space-between;font-family:var(--fm)}
+.card .m{font-size:8.6px;letter-spacing:.06em;line-height:1.7}
+#cartao-frente{color:#fff}
+#cartao-frente .logo{width:164px}
+#cartao-frente .m{color:var(--signal)}
+#cartao-verso{color:var(--ink)}
+#cartao-verso .nm{font-family:var(--fd);font-weight:700;font-size:17px;letter-spacing:-.01em;margin:0}
+#cartao-verso .role{color:#5B6168;margin-top:3px}
+
+/* Crachá: proporção da foto (0,712 : 1); topo livre para o furo do cordão */
+#cracha{width:230px;height:323px;box-sizing:border-box;padding:40px 20px 20px;display:grid;grid-template-rows:auto auto 1fr;gap:14px;color:var(--ink)}
+#cracha .ph{width:112px;height:112px;border-radius:8px;overflow:hidden;background:#E3E7EA}
+#cracha .nm{font-family:var(--fd);font-weight:700;font-size:17px;line-height:1.1;margin:0}
+#cracha .role{font-size:9.5px;letter-spacing:.08em;color:#5B6168;margin-top:4px}
+#cracha .id{font-size:9.5px;letter-spacing:.06em;color:var(--green-deep);margin-top:8px}
+#cracha .logo{width:150px;align-self:end}
+
+/* Placa de pátio, 1,48 : 1 */
+#placa{width:590px;height:400px;box-sizing:border-box;padding:46px 50px 44px;display:grid;align-content:space-between;color:#fff}
+#placa .sym{width:104px}
+#placa .t{font-family:var(--fd);font-weight:700;font-size:62px;letter-spacing:-.02em;line-height:.98;margin:0}
+#placa .m{font-size:15px;letter-spacing:.1em;color:var(--green);margin-top:16px}
+</style>
+</head>
+<body>
+
+<div class="face" id="bau">
+  <svg viewBox="0 0 1750 500" aria-hidden="true"><polygon points="174.5,500 0,325.5 0,430 70,500" fill="#04E8A4"/></svg>
+  <img class="logo" src="../../mockups/artes/bau-lateral-logo-fundo-branco-2400mm.png" alt="">
+  <span class="tag mono">Sempre na hora · nahorafrota.com.br</span>
+</div>
+
+<div class="face card" id="cartao-frente">
+  <img class="logo" src="../../mockups/artes/cartao-frente-logo-45mm.png" alt="">
+  <div class="m mono" style="display:flex;justify-content:space-between"><span>Sempre na hora</span><span>nahorafrota.com.br</span></div>
+</div>
+
+<div class="face card" id="cartao-verso">
+  <div><p class="nm">Felipe Amancio</p><p class="m mono role">Diretor de Operações</p></div>
+  <div style="display:flex;justify-content:space-between;align-items:end;gap:12px">
+    <div class="m mono" style="text-transform:none">+55 11 90000-0000<br>felipe@nahorafrota.com.br</div>
+    <img src="../../logo/svg/nhf-simbolo-verde.svg" style="width:38px" alt="">
+  </div>
+</div>
+
+<div class="face" id="cracha">
+  <div class="ph"><svg viewBox="0 0 112 112" width="112" height="112" aria-hidden="true"><circle cx="56" cy="44" r="21" fill="#C7CDD2"/><path d="M14,112 C16,84 34,72 56,72 C78,72 96,84 98,112 Z" fill="#C7CDD2"/></svg></div>
+  <div><p class="nm">João Silva</p><p class="mono role">Motorista · Frota própria</p><p class="mono id">ID 0427 · CNH D</p></div>
+  <img class="logo" src="../../mockups/artes/cracha-rodape-logo-linha-40mm.png" alt="">
+</div>
+
+<div class="face" id="placa">
+  <img class="sym" src="../../logo/svg/nhf-simbolo-verde.svg" alt="">
+  <div><p class="t">Pátio 02<br>Carregamento</p><p class="m mono">● Conferência de romaneio</p></div>
+</div>
+
+<script>
+// alinha o rodapé do baú com a borda esquerda do logo
+addEventListener('load', () => { const b = document.getElementById('bau'); b.style.setProperty('--tagx', b.querySelector('.logo').offsetLeft + 'px'); });
+</script>
+</body>
+</html>
