@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useInView, useReducedMotion } from "framer-motion";
+import { animate, useInView, useMotionValue, useMotionValueEvent, useReducedMotion } from "framer-motion";
 import { Pause, Play, X, Check, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionHeader } from "../components/SectionHeader";
@@ -41,6 +41,79 @@ function pointAt(frac: number): [number, number] {
   return ROUTE[ROUTE.length - 1];
 }
 
+/* Direcao do trecho em que o veiculo esta (graus, 0 = para a direita). */
+function headingAt(frac: number) {
+  const [x0, y0] = pointAt(Math.max(0, frac - 0.004));
+  const [x1, y1] = pointAt(Math.min(1, frac + 0.004));
+  return (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI;
+}
+
+const ROUTE_POINTS = ROUTE.map((p) => p.join(",")).join(" ");
+
+/**
+ * Mapa da rota. Linha e veiculo saem do MESMO valor animado: a cada quadro o
+ * veiculo e recalculado sobre o trajeto, entao ele nunca corta caminho na
+ * esquina nem descola da linha verde.
+ */
+function SimMap({ progress, started, playing }: { progress: number; started: boolean; playing: boolean }) {
+  const reduce = useReducedMotion();
+  const mv = useMotionValue(progress);
+  const [p, setP] = useState(progress);
+  useMotionValueEvent(mv, "change", setP);
+  useEffect(() => {
+    if (reduce) {
+      mv.set(progress);
+      return;
+    }
+    const c = animate(mv, progress, { duration: playing ? 1.5 : 0.45, ease: [0.45, 0, 0.25, 1] });
+    return () => c.stop();
+  }, [progress, playing, reduce, mv]);
+
+  const [x, y] = pointAt(p);
+  const heading = headingAt(p);
+  return (
+    <div aria-hidden="true" className="overflow-hidden rounded-2xl border border-foreground/10 bg-muted/60">
+      <svg viewBox="0 0 400 240" className="h-auto w-full">
+        <defs>
+          <pattern id="ruas" width="48" height="48" patternUnits="userSpaceOnUse">
+            <path d="M48 0H0V48" fill="none" stroke="hsl(var(--foreground) / 0.07)" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="400" height="240" fill="url(#ruas)" />
+        <g fill="hsl(var(--foreground) / 0.045)">
+          <rect x="56" y="160" width="60" height="40" rx="3" />
+          <rect x="152" y="104" width="64" height="28" rx="3" />
+          <rect x="256" y="52" width="60" height="64" rx="3" />
+          <rect x="56" y="40" width="56" height="80" rx="3" />
+          <rect x="250" y="150" width="70" height="60" rx="3" />
+        </g>
+        {/* trajeto previsto + trecho percorrido */}
+        <polyline points={ROUTE_POINTS} fill="none" stroke="hsl(var(--foreground) / 0.18)" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="2 8" />
+        <polyline points={ROUTE_POINTS} fill="none" stroke="hsl(var(--brand))" strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" pathLength={1} strokeDasharray="1 1" strokeDashoffset={1 - p} />
+        {STOPS.map((f, i) => {
+          const [sx, sy] = pointAt(f);
+          const done = started && p >= f - 0.002;
+          return (
+            <g key={i}>
+              <circle cx={sx} cy={sy} r="7" fill={done ? "hsl(var(--brand))" : "hsl(var(--card))"} stroke={done ? "hsl(var(--brand))" : "hsl(var(--foreground) / 0.3)"} strokeWidth="2" style={{ transition: "fill .25s ease, stroke .25s ease" }} />
+              {done && <path d={`M${sx - 3} ${sy} l2 2 l4 -4`} fill="none" stroke="#080808" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
+            </g>
+          );
+        })}
+        {/* patio */}
+        <rect x="22" y="196" width="28" height="18" rx="4" fill="#080808" />
+        <text x="36" y="208" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="8" fontWeight="700" fill="#04E8A4">PÁTIO</text>
+        {/* veiculo: sempre sobre a linha, com a seta no sentido da rua */}
+        <g transform={`translate(${x} ${y})`}>
+          <circle r="15" fill="hsl(var(--brand) / 0.22)" className={playing ? "ping-ring" : undefined} style={{ animationDuration: "1.8s" }} />
+          <circle r="9.5" fill="#080808" stroke="hsl(var(--card))" strokeWidth="2.5" />
+          <path d="M-3.2 -3.6 L4 0 L-3.2 3.6 L-1.6 0 Z" fill="#04E8A4" transform={`rotate(${heading})`} />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 export function DaySimulator() {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
@@ -73,7 +146,6 @@ export function DaySimulator() {
   const moment = useMemo(() => [...MOMENTS].reverse().find((m) => m.t <= t) ?? MOMENTS[0], [t]);
   const delivered = DELIVERED_AT.filter((d) => d <= t).length;
   const progress = Math.min(1, Math.max(0, (t - 20) / (690 - 20)));
-  const [tx, ty] = pointAt(progress);
   const fill = `${(t / END) * 100}%`;
   // Placar acumulado do dia (sem painel x com painel).
   const calls = (t >= 240 ? 1 : 0) + (t >= 390 ? 3 : 0) + (t >= 540 ? 1 : 0);
@@ -183,54 +255,7 @@ export function DaySimulator() {
 
               {/* mapa + numeros */}
               <div className="order-1 lg:order-2" role="img" aria-label={`Mapa da rota às ${clock(t)}: ${delivered} de 14 entregas feitas.`}>
-                <div aria-hidden="true" className="overflow-hidden rounded-2xl border border-foreground/10 bg-muted/60">
-                  <svg viewBox="0 0 400 240" className="h-auto w-full">
-                    <defs>
-                      <pattern id="ruas" width="48" height="48" patternUnits="userSpaceOnUse">
-                        <path d="M48 0H0V48" fill="none" stroke="hsl(var(--foreground) / 0.07)" strokeWidth="1" />
-                      </pattern>
-                    </defs>
-                    <rect width="400" height="240" fill="url(#ruas)" />
-                    <g fill="hsl(var(--foreground) / 0.045)">
-                      <rect x="56" y="160" width="60" height="40" rx="3" />
-                      <rect x="152" y="104" width="64" height="28" rx="3" />
-                      <rect x="256" y="52" width="60" height="64" rx="3" />
-                      <rect x="56" y="40" width="56" height="80" rx="3" />
-                      <rect x="250" y="150" width="70" height="60" rx="3" />
-                    </g>
-                    <polyline points={ROUTE.map((p) => p.join(",")).join(" ")} fill="none" stroke="hsl(var(--foreground) / 0.18)" strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="2 8" />
-                    <polyline
-                      points={ROUTE.map((p) => p.join(",")).join(" ")}
-                      fill="none"
-                      stroke="hsl(var(--brand))"
-                      strokeWidth="4"
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                      pathLength={1}
-                      strokeDasharray="1"
-                      strokeDashoffset={1 - progress}
-                      style={{ transition: playing ? "stroke-dashoffset 1.2s ease" : undefined }}
-                    />
-                    {STOPS.map((f, i) => {
-                      const [x, y] = pointAt(f);
-                      const done = progress >= f - 0.001 && t >= 150;
-                      return (
-                        <g key={i}>
-                          <circle cx={x} cy={y} r="7" fill={done ? "hsl(var(--brand))" : "hsl(var(--card))"} stroke={done ? "hsl(var(--brand))" : "hsl(var(--foreground) / 0.3)"} strokeWidth="2" />
-                          {done && <path d={`M${x - 3} ${y} l2 2 l4 -4`} fill="none" stroke="#080808" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />}
-                        </g>
-                      );
-                    })}
-                    {/* patio */}
-                    <rect x="22" y="196" width="28" height="18" rx="4" fill="#080808" />
-                    <text x="36" y="208" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="8" fontWeight="700" fill="#04E8A4">PÁTIO</text>
-                    {/* veiculo */}
-                    <g style={{ transform: `translate(${tx}px, ${ty}px)`, transition: playing ? "transform 1.2s ease" : undefined }}>
-                      <circle r="16" fill="hsl(var(--brand) / 0.2)" />
-                      <circle r="11" fill="hsl(var(--brand))" stroke="hsl(var(--card))" strokeWidth="3" />
-                    </g>
-                  </svg>
-                </div>
+                <SimMap progress={progress} started={t >= 150} playing={playing} />
                 <dl aria-hidden="true" className="mt-3 grid grid-cols-3 gap-2 text-center">
                   {[
                     ["Entregues", `${delivered}/14`],

@@ -56,7 +56,7 @@ export function Nav() {
       <motion.div aria-hidden="true" style={{ scaleX: progress }} className="absolute inset-x-0 top-0 h-[2px] origin-left bg-brand" />
       <nav aria-label="Principal" className="container flex h-[72px] items-center justify-between gap-4">
         <Link to="/" className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Na Hora Frota — início">
-          <Logo variant="linha" className="h-7 w-auto" />
+          <Logo variant="linha" className="h-6 w-auto min-[420px]:h-7" />
         </Link>
 
         <NavLinks links={LINKS} anchor={anchor} />
@@ -70,7 +70,8 @@ export function Nav() {
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
-          <ThemeToggle />
+          {/* em telas muito estreitas o tema fica dentro do menu, para o botao do menu caber */}
+          <ThemeToggle className="hidden min-[380px]:inline-flex" />
           <button
             type="button"
             aria-expanded={open}
@@ -92,9 +93,12 @@ export function Nav() {
             </a>
           ))}
           <div className="mt-3 flex flex-col gap-2 border-t border-foreground/10 pt-4">
-            <Link to={account.to} className="rounded-lg px-3 py-3 text-base font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              {account.label}
-            </Link>
+            <div className="flex items-center justify-between gap-3">
+              <Link to={account.to} className="rounded-lg px-3 py-3 text-base font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {account.label}
+              </Link>
+              <ThemeToggle className="min-[380px]:hidden" />
+            </div>
             <Cta href={anchor("planos")} onClick={() => setOpen(false)} className="w-full">
               Ver planos
             </Cta>

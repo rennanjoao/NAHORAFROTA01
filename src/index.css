@@ -756,6 +756,22 @@
     mask-image: radial-gradient(75% 70% at 50% 35%, #000 30%, transparent 85%);
   }
 
+  /* Padrao "rotas" da marca (BrandRoutes.tsx): bem de leve, preto no claro e verde no escuro. */
+  .brand-routes { color: hsl(var(--foreground)); }
+  .brand-routes-diag { opacity: 0.09; }
+  .brand-routes-street { opacity: 0.06; }
+  .brand-routes-node { opacity: 0.18; }
+  .brand-routes-lit { fill: hsl(var(--brand)); }
+  .dark .brand-routes { color: hsl(var(--brand)); }
+  .dark .brand-routes-diag { opacity: 0.1; }
+  .dark .brand-routes-street { opacity: 0.06; }
+  .dark .brand-routes-node { opacity: 0.24; }
+  /* Na capa: forte no alto, some antes do fim da dobra. */
+  .hero-routes {
+    -webkit-mask-image: radial-gradient(120% 95% at 60% 0%, #000 35%, transparent 82%);
+    mask-image: radial-gradient(120% 95% at 60% 0%, #000 35%, transparent 82%);
+  }
+
   /* Marca-texto verde atras da palavra (so no claro; no escuro vira texto verde). */
   .marker {
     background-image: linear-gradient(transparent 60%, hsl(var(--brand) / 0.85) 60%, hsl(var(--brand) / 0.85) 94%, transparent 94%);
@@ -921,6 +937,14 @@
   }
   .group:hover .shine::after { transform: translateX(120%); }
 
+  /* Aviso que aparece e some em ciclo (entrega confirmada nos Recursos). */
+  .toast-loop { animation: toast-loop 9s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+  @keyframes toast-loop {
+    0%, 28% { opacity: 0; transform: translateY(10px) scale(0.96); }
+    34%, 84% { opacity: 1; transform: translateY(0) scale(1); }
+    92%, 100% { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  }
+
   /* Orbita (pontos girando em volta do escudo). */
   .orbit { animation: orbit 24s linear infinite; transform-origin: center; transform-box: fill-box; }
   .orbit-rev { animation-direction: reverse; animation-duration: 36s; }
@@ -928,7 +952,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bob, .bob-slow, .wobble, .route-flow, .orbit { animation: none; }
+  .bob, .bob-slow, .wobble, .route-flow, .orbit, .toast-loop { animation: none; }
   .tilt, .tilt[data-active="true"] { transform: none; }
   .plx { transform: none; }
 }
@@ -936,4 +960,5 @@
 :root[data-motion="reduce"] .bob-slow,
 :root[data-motion="reduce"] .wobble,
 :root[data-motion="reduce"] .route-flow,
-:root[data-motion="reduce"] .orbit { animation: none; }
+:root[data-motion="reduce"] .orbit,
+:root[data-motion="reduce"] .toast-loop { animation: none; }
