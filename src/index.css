@@ -758,14 +758,14 @@
 
   /* Padrao "rotas" da marca (BrandRoutes.tsx): bem de leve, preto no claro e verde no escuro. */
   .brand-routes { color: hsl(var(--foreground)); }
-  .brand-routes-diag { opacity: 0.09; }
-  .brand-routes-street { opacity: 0.06; }
-  .brand-routes-node { opacity: 0.18; }
+  .brand-routes-diag { opacity: 0.055; }
+  .brand-routes-street { opacity: 0.035; }
+  .brand-routes-node { opacity: 0.1; }
   .brand-routes-lit { fill: hsl(var(--brand)); }
   .dark .brand-routes { color: hsl(var(--brand)); }
-  .dark .brand-routes-diag { opacity: 0.1; }
-  .dark .brand-routes-street { opacity: 0.06; }
-  .dark .brand-routes-node { opacity: 0.24; }
+  .dark .brand-routes-diag { opacity: 0.06; }
+  .dark .brand-routes-street { opacity: 0.04; }
+  .dark .brand-routes-node { opacity: 0.14; }
   /* Na capa: forte no alto, some antes do fim da dobra. */
   .hero-routes {
     -webkit-mask-image: radial-gradient(120% 95% at 60% 0%, #000 35%, transparent 82%);

@@ -1,16 +1,36 @@
 import { useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const ROUTES = [
-  { id: "r-ok", d: "M90,330 C160,250 230,290 300,210 S420,120 540,90", color: "hsl(var(--brand))", plate: "ABC1D23", dur: "14s", begin: "0s", stops: [[230, 262], [372, 150], [540, 90]] },
-  { id: "r-warn", d: "M90,330 C200,360 300,380 420,320 S560,300 590,220", color: "#FFC53D", plate: "DEF7G89", dur: "18s", begin: "-6s", stops: [[300, 372], [470, 311], [590, 220]] },
-  { id: "r-late", d: "M90,330 C120,200 180,150 230,80 S330,40 420,60", color: "#FF4D4F", plate: "GHI4J56", dur: "16s", begin: "-10s", stops: [[160, 160], [300, 48], [420, 60]] },
+type Pt = readonly [number, number];
+
+/* Cada rota: duas curvas de Bezier encadeadas (M p0 C c1 c2 p1 S c4 p2). */
+const RAW = [
+  { id: "r-ok", pts: [[90, 330], [160, 250], [230, 290], [300, 210], [420, 120], [540, 90]], color: "hsl(var(--brand))", plate: "ABC1D23", dur: "14s", begin: "0s" },
+  { id: "r-warn", pts: [[90, 330], [200, 360], [300, 380], [420, 320], [560, 300], [590, 220]], color: "#FFC53D", plate: "DEF7G89", dur: "18s", begin: "-6s" },
+  { id: "r-late", pts: [[90, 330], [120, 200], [180, 150], [230, 80], [330, 40], [420, 60]], color: "#FF4D4F", plate: "GHI4J56", dur: "16s", begin: "-10s" },
 ] as const;
 
-type Props = { className?: string; showLegend?: boolean; compact?: boolean };
+function cubic(p0: Pt, c1: Pt, c2: Pt, p3: Pt, t: number): [number, number] {
+  const u = 1 - t;
+  const f = (i: 0 | 1) => u * u * u * p0[i] + 3 * u * u * t * c1[i] + 3 * u * t * t * c2[i] + t * t * t * p3[i];
+  return [f(0), f(1)];
+}
+
+/* Paradas calculadas pela propria curva: ficam sempre em cima da linha. */
+const ROUTES = RAW.map((r) => {
+  const [p0, c1, c2, p1, c4, p2] = r.pts;
+  const c3: Pt = [2 * p1[0] - c2[0], 2 * p1[1] - c2[1]]; // o "S" espelha o controle anterior
+  return {
+    ...r,
+    d: `M${p0} C${c1} ${c2} ${p1} S${c4} ${p2}`,
+    stops: [cubic(p0, c1, c2, p1, 0.55), cubic(p1, c3, c4, p2, 0.42), [p2[0], p2[1]] as [number, number]],
+  };
+});
+
+type Props = { className?: string; compact?: boolean };
 
 /** Mapa de rotas animado (SVG puro): grade de ruas, três rotas e placas em movimento. */
-export function RouteMap({ className, showLegend = true, compact = false }: Props) {
+export function RouteMap({ className, compact = false }: Props) {
   const reduce = useReducedMotion();
   return (
     <svg viewBox="0 0 640 420" className={cn("h-full w-full", className)} aria-hidden="true" focusable="false">
@@ -50,7 +70,7 @@ export function RouteMap({ className, showLegend = true, compact = false }: Prop
           <path d={r.d} fill="none" stroke={r.color} strokeWidth="8" strokeLinecap="round" strokeOpacity="0.12" />
           {r.stops.map(([x, y], i) => (
             <g key={i}>
-              <circle cx={x} cy={y} r="4" fill="hsl(var(--card))" stroke={r.color} strokeWidth="2" />
+              <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r="4.5" fill="hsl(var(--card))" stroke={r.color} strokeWidth="2" />
             </g>
           ))}
         </g>
@@ -100,17 +120,6 @@ export function RouteMap({ className, showLegend = true, compact = false }: Prop
         </g>
       ))}
 
-      {showLegend && (
-        <g fontFamily="Space Grotesk, sans-serif" fontSize="9.5" fontWeight="600" letterSpacing="0.8">
-          <rect x="12" y="382" width="226" height="26" rx="3" fill="hsl(var(--card))" fillOpacity="0.9" stroke="hsl(var(--border))" />
-          <circle cx="26" cy="395" r="4" fill="hsl(var(--brand))" />
-          <text x="35" y="398.5" fill="hsl(var(--foreground) / 0.85)">NO PRAZO</text>
-          <circle cx="104" cy="395" r="4" fill="#FFC53D" />
-          <text x="113" y="398.5" fill="hsl(var(--foreground) / 0.85)">ATENÇÃO</text>
-          <circle cx="176" cy="395" r="4" fill="#FF4D4F" />
-          <text x="185" y="398.5" fill="hsl(var(--foreground) / 0.85)">ATRASADO</text>
-        </g>
-      )}
     </svg>
   );
 }
