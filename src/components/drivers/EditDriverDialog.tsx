@@ -23,6 +23,8 @@ import { Driver, VehicleType } from "@/contexts/LogisticsContext";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useDriverDocumentsAccess } from "@/hooks/useDriverDocumentsAccess";
+import { formatDocument, isValidCPF } from "@/lib/documentValidation";
+import { isValidContactEmail } from "@/lib/driverCredentials";
 
 interface DriverDocuments {
   cnh?: { id?: string; name: string; url?: string; path?: string; uploadedAt: Date };
@@ -277,13 +279,24 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
   const handleSave = async () => {
     if (!driver) return;
 
+    if (formData.cpf && !isValidCPF(formData.cpf)) {
+      toast({ title: "CPF inválido", description: "Confira os números do CPF.", variant: "destructive" });
+      setActiveTab("personal");
+      return;
+    }
+    if (formData.email?.trim() && !isValidContactEmail(formData.email)) {
+      toast({ title: "E-mail inválido", description: "Confira o e-mail de contato do motorista.", variant: "destructive" });
+      setActiveTab("personal");
+      return;
+    }
+
     setIsSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Include banking info in the save
-    const saveSucceeded = await onSave({ 
-      ...driver, 
+    const saveSucceeded = await onSave({
+      ...driver,
       ...formData,
+      cpf: formData.cpf ? formatDocument(formData.cpf) : driver.cpf,
       banco: bankingInfo.banco,
       agencia: bankingInfo.agencia,
       conta: bankingInfo.conta,
@@ -293,11 +306,6 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     setIsSaving(false);
     if (!saveSucceeded) return;
     onOpenChange(false);
-
-    toast({
-      title: "✅ Motorista atualizado",
-      description: `Dados de ${formData.name} foram atualizados.`,
-    });
   };
 
   if (!driver) return null;
@@ -376,6 +384,18 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                     placeholder="(00) 00000-0000"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contact-email">E-mail de contato</Label>
+                <Input
+                  id="contact-email"
+                  type="email"
+                  value={formData.email || ""}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="motorista@email.com"
+                />
+                <p className="text-xs text-muted-foreground">Recebe os dados de acesso ao app.</p>
               </div>
 
               <div className="space-y-2">

@@ -11,6 +11,7 @@ export interface DBDriver {
   tenant_id?: string | null;
   name: string;
   email?: string | null;
+  contact_email?: string | null;
   cpf: string;
   phone: string;
   avatar: string;

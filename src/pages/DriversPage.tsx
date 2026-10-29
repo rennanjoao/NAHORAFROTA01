@@ -192,7 +192,8 @@ export default function DriversPage() {
         name: d.name,
         cpf: d.cpf,
         phone: d.phone,
-        email: "",
+        // E-mail de contato (recebe os dados de acesso), nao o login interno do app.
+        email: d.contact_email || "",
         photo: d.avatar || d.photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(d.name || "Motorista")}`,
         vehiclePlate: d.vehicle_plate,
         vehicleType: normalizeVehicleTypeForDisplay(d.vehicle_type),
@@ -649,7 +650,7 @@ export default function DriversPage() {
 
           if (!driverDbId) {
             toast({
-              title: "âŒ Erro ao atualizar",
+              title: "❌ Erro ao atualizar",
               description: "Não foi possível identificar o motorista selecionado.",
               variant: "destructive",
             });
@@ -660,6 +661,7 @@ export default function DriversPage() {
             name: updatedDriver.name,
             cpf: updatedDriver.cpf,
             phone: updatedDriver.phone,
+            contact_email: updatedDriver.email?.trim().toLowerCase() || null,
             avatar: updatedDriver.photo,
             photo: updatedDriver.photo,
             vehicle_plate: updatedDriver.vehiclePlate,
@@ -696,11 +698,7 @@ export default function DriversPage() {
           setSelectedDriver((currentDriver) =>
             currentDriver && (currentDriver as any)._dbId === driverDbId ? refreshedDriver : currentDriver
           );
-          // Note: In a real app, this would update the context
-          toast({
-            title: "✅ Motorista atualizado",
-            description: `Dados de ${updatedDriver.name} foram atualizados.`,
-          });
+          // O aviso de sucesso sai do updateDriver (antes eram tres avisos iguais).
           return true;
         }}
       />

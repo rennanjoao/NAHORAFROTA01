@@ -123,7 +123,6 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     agency: "",
     accountNumber: "",
     accountType: "corrente",
-    pixKeyType: "",
     pixKeyValue: "",
   });
 
@@ -599,8 +598,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         agency: "",
         accountNumber: "",
         accountType: "corrente",
-        pixKeyType: "",
-        pixKeyValue: "",
+            pixKeyValue: "",
       });
       setDocuments({});
       setIsOwnFleet(false);
@@ -1167,40 +1165,22 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                     </SelectTrigger>
                     <SelectContent className="bg-popover">
                       <SelectItem value="corrente">Conta Corrente</SelectItem>
-                      <SelectItem value="poupanca">Conta Poupanca</SelectItem>
-                      <SelectItem value="salario">Conta Salario</SelectItem>
+                      <SelectItem value="poupanca">Conta Poupança</SelectItem>
+                      <SelectItem value="salario">Conta Salário</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="border-t border-border pt-4 mt-2">
                   <h5 className="text-sm font-medium text-muted-foreground mb-3">Dados PIX</h5>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Tipo de Chave</Label>
-                      <Select
-                        value={formData.pixKeyType}
-                        onValueChange={(v) => setFormData({ ...formData, pixKeyType: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover">
-                          <SelectItem value="cpf">CPF</SelectItem>
-                          <SelectItem value="email">E-mail</SelectItem>
-                          <SelectItem value="phone">Telefone</SelectItem>
-                          <SelectItem value="random">Chave Aleatória</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Chave PIX</Label>
-                      <Input
-                        placeholder="Sua chave PIX"
-                        value={formData.pixKeyValue}
-                        onChange={(e) => setFormData({ ...formData, pixKeyValue: e.target.value })}
-                      />
-                    </div>
+                  {/* O tipo da chave nao era gravado em lugar nenhum; so a chave vai para o cadastro. */}
+                  <div className="space-y-2">
+                    <Label>Chave PIX</Label>
+                    <Input
+                      placeholder="CPF, e-mail, telefone ou chave aleatória"
+                      value={formData.pixKeyValue}
+                      onChange={(e) => setFormData({ ...formData, pixKeyValue: e.target.value })}
+                    />
                   </div>
                 </div>
               </TabsContent>
