@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { motion, useScroll, useSpring } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
@@ -17,9 +16,7 @@ const LINKS = [
   { id: "duvidas", label: "Dúvidas" },
 ];
 
-
 export function Nav() {
-  // Quem ja esta logado nao precisa de "Entrar": vai direto ao painel (ou ao app, se for motorista).
   const { session, isDriverUser } = useAuth();
   const account = session
     ? isDriverUser
@@ -31,18 +28,13 @@ export function Nav() {
   const anchor = useAnchor();
   const location = useLocation();
 
-  const { scrollYProgress } = useScroll();
-  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30 });
-
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
   useEffect(() => setOpen(false), [location.pathname, location.hash]);
-
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -56,25 +48,16 @@ export function Nav() {
   }, [open]);
 
   return (
-    <header
-      className={cn(
-        "fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow,border-color] duration-300",
-        scrolled || open ? "glass border-b hairline" : "border-b border-transparent bg-transparent",
-      )}
-    >
-      <motion.div aria-hidden="true" style={{ scaleX: progress }} className="absolute inset-x-0 top-0 h-[2px] origin-left bg-brand" />
+    <header className={cn("fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow] duration-200", (scrolled || open) && "bg-background/90 shadow-[0_1px_0_0_hsl(var(--foreground)/0.08)] backdrop-blur-md")}>
       <nav aria-label="Principal" className="container flex h-[72px] items-center justify-between gap-4">
-        <Link to="/" className="flex items-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Na Hora Frota — início">
+        <Link to="/" className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Na Hora Frota — início">
           <Logo variant="linha" className="h-7 w-auto" />
         </Link>
 
-        <ul className="hidden items-center gap-1 lg:flex">
+        <ul className="hidden items-center gap-1 rounded-full border border-foreground/10 bg-card/80 p-1 lg:flex">
           {LINKS.map((l) => (
             <li key={l.id}>
-              <a
-                href={anchor(l.id)}
-                className="whitespace-nowrap rounded px-2.5 py-2 text-sm font-medium text-foreground/75 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:px-3"
-              >
+              <a href={anchor(l.id)} className="block whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium text-foreground/75 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {l.label}
               </a>
             </li>
@@ -83,15 +66,10 @@ export function Nav() {
 
         <div className="hidden items-center gap-2 lg:flex">
           <ThemeToggle />
-          <Link
-            to={account.to}
-            className="rounded px-4 py-2 text-sm font-semibold text-foreground/85 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <Link to={account.to} className="rounded-full px-4 py-2 text-sm font-semibold text-foreground/85 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {account.label}
           </Link>
-          <Cta href={anchor("planos")} className="ml-1">
-            Começar agora
-          </Cta>
+          <Cta href={anchor("planos")}>Ver planos</Cta>
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
@@ -102,35 +80,26 @@ export function Nav() {
             aria-controls="menu-mobile"
             aria-label={open ? "Fechar menu" : "Abrir menu"}
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded border border-border text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-foreground/10 bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {open ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
           </button>
         </div>
       </nav>
 
-      <div
-        id="menu-mobile"
-        hidden={!open}
-        className="min-h-[calc(100dvh-72px)] border-t border-border bg-background lg:hidden"
-      >
+      <div id="menu-mobile" hidden={!open} className="min-h-[calc(100dvh-72px)] border-t border-foreground/10 bg-background lg:hidden">
         <div className="container flex flex-col gap-1 py-4">
           {LINKS.map((l) => (
-            <a
-              key={l.id}
-              href={anchor(l.id)}
-              onClick={() => setOpen(false)}
-              className="rounded px-3 py-3 text-base font-medium text-foreground/85 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
+            <a key={l.id} href={anchor(l.id)} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-base font-medium text-foreground/85 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {l.label}
             </a>
           ))}
-          <div className="mt-3 flex flex-col gap-2 border-t border-border pt-4">
-            <Link to={account.to} className="rounded px-3 py-3 text-base font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <div className="mt-3 flex flex-col gap-2 border-t border-foreground/10 pt-4">
+            <Link to={account.to} className="rounded-lg px-3 py-3 text-base font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               {account.label}
             </Link>
             <Cta href={anchor("planos")} onClick={() => setOpen(false)} className="w-full">
-              Começar agora
+              Ver planos
             </Cta>
           </div>
         </div>

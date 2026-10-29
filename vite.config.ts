@@ -64,8 +64,8 @@ export default defineConfig(({ mode }) => ({
         clientsClaim: false,
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        // A cena 3D do site e as fotos nao entram no cache offline (grandes e so do site).
-        globIgnores: ['**/Hero3D-*.js', '**/*.jpg'],
+        // Fotos do site nao entram no cache offline.
+        globIgnores: ['**/*.jpg'],
         // Checkout sempre vai a rede (retorno do Stripe, pedido em andamento).
         navigateFallbackDenylist: [/^\/checkout\//, /^\/comprar\//],
         runtimeCaching: [

@@ -1,147 +1,131 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { useResolvedTheme } from "@/components/theme/PreferencesProvider";
-import { motion, useInView, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { ArrowDown, Clock, Lock, MonitorSmartphone } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { CheckCircle2, Clock, Satellite, Gift, Wallet } from "lucide-react";
 import { Cta } from "../components/Cta";
-import { LiveClock } from "../components/LiveClock";
-import { Magnetic } from "../motion/Magnetic";
-import { TextReveal, LineReveal } from "../motion/TextReveal";
-import { Counter } from "../motion/Counter";
+import { PhoneMockup } from "../components/mockups/PhoneMockup";
 import { RouteMap } from "../components/mockups/RouteMap";
 
-const Hero3D = lazy(() => import("../components/Hero3D"));
-
+const EASE = [0.2, 0.8, 0.2, 1] as const;
 const TRUST = [
-  { icon: Clock, text: "Acesso liberado na hora, após o pagamento" },
-  { icon: MonitorSmartphone, text: "Sem instalação: navegador no PC, app no celular" },
-  { icon: Lock, text: "Dados isolados por empresa" },
+  { icon: Clock, text: "Acesso na hora, após o pagamento" },
+  { icon: Satellite, text: "Sem rastreador: o GPS do celular basta" },
+  { icon: Gift, text: "7 dias grátis para testar" },
 ];
 
-/** Capa: cidade 3D com rotas ao vivo e a mensagem principal. Ocupa a tela inteira. */
-export function Hero() {
-  const resolvedTheme = useResolvedTheme();
+function Item({ children, delay }: { children: React.ReactNode; delay: number }) {
   const reduce = useReducedMotion();
-  const ref = useRef<HTMLElement>(null);
-  const inView = useInView(ref, { margin: "0px 0px -20% 0px" });
-  const [mounted, setMounted] = useState(false);
-  const [show3D, setShow3D] = useState(false);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const fade = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
-  const rise = useTransform(scrollYProgress, [0, 1], [0, -120]);
-
-  useEffect(() => {
-    setMounted(true);
-    const wide = window.matchMedia("(min-width: 1024px)").matches;
-    let webgl = false;
-    try {
-      const c = document.createElement("canvas");
-      webgl = !!(c.getContext("webgl2") || c.getContext("webgl"));
-    } catch {
-      webgl = false;
-    }
-    const id = window.setTimeout(() => setShow3D(wide && webgl), 200);
-    return () => window.clearTimeout(id);
-  }, []);
-  const dark = mounted ? resolvedTheme !== "light" : true;
-
   return (
-    <section ref={ref} id="inicio" className="relative isolate flex min-h-[100svh] flex-col overflow-hidden" aria-labelledby="hero-title">
-      {/* cena */}
-      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
-        {show3D ? (
-          <div className="absolute inset-0 [mask-image:linear-gradient(to_bottom,#000_55%,transparent_100%)]">
-            <Suspense fallback={null}>
-              <Hero3D dark={dark} animate={!reduce && inView} scroll={scrollYProgress} />
-            </Suspense>
-          </div>
-        ) : (
-          <div className="absolute inset-0 opacity-70 [mask-image:radial-gradient(70%_70%_at_70%_40%,#000_20%,transparent_100%)]">
-            <RouteMap showLegend={false} compact className="scale-[1.6] lg:scale-100" />
-          </div>
-        )}
-        {/* legibilidade do texto: sombra a esquerda e base que funde com a proxima secao */}
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent lg:via-background/40 lg:to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-b from-transparent to-background" />
-        <div className="orb -left-40 top-20 h-[520px] w-[520px] bg-brand/10" />
-      </div>
+    <motion.div initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay, ease: EASE }}>
+      {children}
+    </motion.div>
+  );
+}
 
-      {/* HUD do topo: hora ao vivo e numeros da operacao */}
-      <div className="container relative z-10 flex items-center justify-between pt-[96px]">
-        <motion.div initial={reduce ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}>
-          <LiveClock label="Ao vivo" />
-        </motion.div>
-        <motion.ul
-          className="hidden items-center gap-6 font-data text-[11px] uppercase tracking-[0.12em] text-muted-foreground md:flex"
-          initial={reduce ? false : { opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          aria-label="Exemplo de indicadores do painel"
-        >
-          <li><span className="text-brand"><Counter to={14} /></span> em rota</li>
-          <li><span className="text-foreground"><Counter to={148} /></span> entregues hoje</li>
-          <li><span className="text-brand"><Counter to={98} suffix="%" /></span> no prazo</li>
-        </motion.ul>
-      </div>
-
-      {/* mensagem */}
-      <motion.div style={reduce ? undefined : { opacity: fade, y: rise }} className="container relative z-10 flex flex-1 flex-col justify-center py-14 lg:py-10">
-        <div className="max-w-[46rem]">
-          <TextReveal
-            as="h1"
-            id="hero-title"
-            text="Quem vê a rota inteira chega primeiro."
-            accent="chega primeiro."
-            className="display text-[clamp(2.9rem,8.2vw,6.6rem)]"
-            delay={0.15}
-          />
-          <LineReveal delay={0.55} className="mt-7 max-w-xl">
-            <p className="text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              Romaneio na mão do motorista. Cada placa no mapa. SLA medido por entrega e acerto fechado no mesmo dia. Tudo numa tela, no navegador e no celular.
+/** Capa: mensagem a esquerda, ilustracao do produto a direita (celular do motorista + cartoes do painel). */
+export function Hero() {
+  const reduce = useReducedMotion();
+  return (
+    <section id="inicio" className="hero-glow relative overflow-hidden pt-[72px]" aria-labelledby="hero-title">
+      <div className="container grid items-center gap-12 py-16 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:py-24">
+        <div className="max-w-[40rem]">
+          <Item delay={0}>
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-brand" />
+              Gestão de entregas e frota
+            </span>
+          </Item>
+          <Item delay={0.06}>
+            <h1 id="hero-title" className="mt-6 font-heading text-[2.5rem] font-semibold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+              Sua frota no mapa.
+              <br />
+              Suas entregas <span className="whitespace-nowrap text-brand">na hora.</span>
+            </h1>
+          </Item>
+          <Item delay={0.12}>
+            <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+              Painel para transportadoras e distribuidoras: romaneio no celular do motorista, posição de cada veículo, canhoto com foto e acerto do frete. Tudo no navegador, sem instalar nada.
             </p>
-          </LineReveal>
-          <motion.div
-            className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
-            initial={reduce ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <Magnetic>
+          </Item>
+          <Item delay={0.18}>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Cta href="#planos" size="lg" arrow>
-                Ver planos e começar
+                Ver planos
               </Cta>
-            </Magnetic>
-            <Magnetic strength={0.2}>
-              <Cta href="#produto" size="lg" variant="outline">
-                Ver o painel
+              <Cta href="#como-funciona" size="lg" variant="outline">
+                Como funciona
               </Cta>
-            </Magnetic>
-          </motion.div>
-          <motion.ul
-            className="mt-12 flex flex-col gap-3 sm:flex-row sm:gap-8"
-            initial={reduce ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 1 }}
-          >
-            {TRUST.map((t) => (
-              <li key={t.text} className="flex items-start gap-2.5 text-sm text-foreground/75">
-                <t.icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                <span>{t.text}</span>
-              </li>
-            ))}
-          </motion.ul>
+            </div>
+          </Item>
+          <Item delay={0.26}>
+            <ul className="mt-8 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-x-6">
+              {TRUST.map((t) => (
+                <li key={t.text} className="flex items-center gap-2 text-sm text-foreground/80">
+                  <t.icon aria-hidden="true" className="h-4 w-4 shrink-0 text-brand" />
+                  {t.text}
+                </li>
+              ))}
+            </ul>
+          </Item>
         </div>
-      </motion.div>
 
-      {/* indicador de rolagem */}
-      <motion.div style={reduce ? undefined : { opacity: fade }} className="container relative z-10 flex items-end justify-between pb-8" aria-hidden="true">
-        <div className="flex items-center gap-3 font-data text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-          <span className="scroll-cue h-10 w-px overflow-hidden" />
-          <span className="flex items-center gap-1.5">
-            Role para ver o painel <ArrowDown className="h-3 w-3" />
-          </span>
-        </div>
-        <p className="hidden font-data text-[11px] uppercase tracking-[0.14em] text-muted-foreground md:block">Gestão de entregas e frota · Brasil</p>
-      </motion.div>
+        {/* ilustracao */}
+        <motion.div
+          className="relative mx-auto w-full max-w-[560px]"
+          initial={reduce ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15, ease: EASE }}
+          role="img"
+          aria-label="App do motorista com a próxima entrega, ao lado de cartões do painel: entrega confirmada com foto, SLA do dia em 98% e acerto do frete fechado."
+        >
+          <div aria-hidden="true" className="relative h-[560px] sm:h-[620px]">
+            {/* mapa ao fundo */}
+            <div className="site-card absolute left-0 top-10 w-[300px] overflow-hidden p-2 sm:w-[340px]">
+              <div className="flex items-center justify-between px-1 pb-1.5 pt-0.5 font-data text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span>Mapa ao vivo</span>
+                <span className="text-brand">14 veículos</span>
+              </div>
+              <div className="aspect-[16/11] overflow-hidden rounded-xl bg-muted">
+                <RouteMap compact showLegend={false} />
+              </div>
+            </div>
+
+            {/* celular */}
+            <div className="absolute right-0 top-0 w-[250px] sm:right-4 sm:w-[270px]">
+              <PhoneMockup className="w-full" static />
+            </div>
+
+            {/* badges */}
+            <div className="float-slow absolute left-4 top-[-6px] flex items-center gap-3 rounded-2xl border border-foreground/10 bg-card px-4 py-3 shadow-lg sm:left-10">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-nhf-ink">
+                <CheckCircle2 className="h-5 w-5" strokeWidth={2.5} />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">Entregue · 14:32</span>
+                <span className="block text-xs text-muted-foreground">NF 48213 · foto e assinatura</span>
+              </span>
+            </div>
+
+            <div className="float-slower absolute bottom-24 right-[-8px] w-[168px] rounded-2xl border border-foreground/10 bg-card p-4 shadow-lg sm:right-[-16px]">
+              <span className="label-caps text-[10px] text-muted-foreground">SLA do dia</span>
+              <span className="mt-1 block font-data text-3xl font-bold tracking-tight text-brand">98%</span>
+              <span className="mt-2 flex h-6 items-end gap-1">
+                {[70, 85, 60, 95, 80, 90, 100].map((h, i) => (
+                  <span key={i} className="flex-1 rounded-sm bg-brand/80" style={{ height: `${h}%` }} />
+                ))}
+              </span>
+            </div>
+
+            <div className="float-slow absolute bottom-4 left-6 flex items-center gap-3 rounded-2xl border border-foreground/10 bg-card px-4 py-3 shadow-lg sm:left-16">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-soft text-brand">
+                <Wallet className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold">Acerto fechado · R$ 1.240</span>
+                <span className="block text-xs text-muted-foreground">João Silva · pago por Pix</span>
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </section>
   );
 }

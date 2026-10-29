@@ -184,18 +184,6 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
-        // Site publico
-        "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(24px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        "pulse-ring": {
-          "0%": { transform: "scale(0.8)", opacity: "0.8" },
-          "100%": { transform: "scale(2.2)", opacity: "0" },
-        },
-        scan: { "0%": { top: "0%" }, "100%": { top: "100%" } },
-        "spin-slow": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } },
-        dash: { to: { strokeDashoffset: "-40" } },
       },
       animation: {
         "accordion-down": "accordion-down 0.25s var(--ease-out)",
@@ -207,11 +195,6 @@ export default {
         "scale-in": "scale-in 0.24s var(--ease-out) backwards",
         "pop-in": "pop-in 0.32s var(--ease-spring) both",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
-        "fade-up": "fade-up 0.7s cubic-bezier(.2,.8,.2,1) forwards",
-        "pulse-ring": "pulse-ring 1.8s cubic-bezier(.2,.8,.2,1) infinite",
-        scan: "scan 4s linear infinite",
-        "spin-slow": "spin-slow 24s linear infinite",
-        dash: "dash 1.2s linear infinite",
       },
     },
   },

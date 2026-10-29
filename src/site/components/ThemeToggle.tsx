@@ -1,25 +1,20 @@
 import { Moon, Sun } from "lucide-react";
-import type { MouseEvent } from "react";
 import { usePreferences } from "@/components/theme/PreferencesProvider";
 import { cn } from "@/lib/utils";
 
-/** Alterna claro/escuro no site. Mesma preferencia do painel (nhf-prefs). */
+/** Alterna claro/escuro. Le o tema real do <html> (o site pode estar claro sem escolha salva). */
 export function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = usePreferences();
-  const isDark = resolvedTheme === "dark";
+  const { setTheme } = usePreferences();
+  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
   const label = isDark ? "Mudar para modo claro" : "Mudar para modo escuro";
-  const onClick = (event: MouseEvent<HTMLButtonElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    setTheme(isDark ? "light" : "dark", { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-  };
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex h-10 w-10 items-center justify-center rounded border border-border text-foreground/80 transition-colors hover:border-brand hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-10 w-10 items-center justify-center rounded-full border border-foreground/10 bg-card text-foreground/80 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >

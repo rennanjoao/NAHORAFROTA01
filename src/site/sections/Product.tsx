@@ -1,161 +1,90 @@
-import { useRef, useState, useEffect } from "react";
-import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
-import { MapPin, FileText, Camera, Wallet, Gauge, BarChart3, Users, Check } from "lucide-react";
+import { useId, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { MapPin, FileText, Camera, Wallet, Gauge, BarChart3, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionHeader } from "../components/SectionHeader";
-import { Stagger, StaggerItem } from "../components/Reveal";
-import { Spotlight } from "../motion/Spotlight";
+import { Reveal, Stagger, StaggerItem } from "../components/Reveal";
 import { MapPanel, ManifestPanel, ProofPanel, SettlementPanel } from "../components/mockups/Panels";
 
-const CHAPTERS = [
-  {
-    id: "mapa",
-    icon: MapPin,
-    eyebrow: "Mapa ao vivo",
-    title: "Cada placa, um ponto no mapa.",
-    text: "A posição vem do celular do motorista, a cada 30 segundos, sem rastreador. Em rota, parado ou atrasado: a cor diz na hora.",
-    bullets: ["Sem rastreador: o GPS do celular basta", "Parado há mais de 10 min vira alerta", "Filtro por motorista, região e status"],
-    Panel: MapPanel,
-    label: "Mapa ao vivo com veículos em rota, filtros e detalhe do motorista selecionado",
-  },
-  {
-    id: "romaneio",
-    icon: FileText,
-    eyebrow: "Romaneio e entregas",
-    title: "Importe o XML, monte o romaneio, despache.",
-    text: "Notas em lote direto da NF-e, ordem das paradas otimizada e romaneio impresso ou no celular, em minutos.",
-    bullets: ["XML da NF-e em lote, sem digitar", "Ordem das paradas otimizada em um clique", "Frete e tipo de frota definidos no despacho"],
-    Panel: ManifestPanel,
-    label: "Montagem de romaneio com notas importadas do XML, ordem otimizada e botão de despachar",
-  },
-  {
-    id: "canhoto",
-    icon: Camera,
-    eyebrow: "Canhoto digital",
-    title: "Prova de entrega com hora, foto e assinatura.",
-    text: "O motorista confirma na porta do cliente. O comprovante entra no painel na mesma hora, ligado à nota.",
-    bullets: ["Foto com hora e posição", "Assinatura e nome de quem recebeu", "Ligado à NF: acha em segundos"],
-    Panel: ProofPanel,
-    label: "Comprovante de entrega com foto, assinatura, recebedor e SLA cumprido",
-  },
-  {
-    id: "acerto",
-    icon: Wallet,
-    eyebrow: "Acerto financeiro",
-    title: "Frete, adiantamento, desconto. Acerto fechado.",
-    text: "Cada romaneio de agregado gera o acerto sozinho. Histórico por motorista e chave Pix na tela para pagar.",
-    bullets: ["Acerto por romaneio, automático", "Adiantamentos e descontos lançados", "Histórico por motorista e por semana"],
-    Panel: SettlementPanel,
-    label: "Acerto financeiro do motorista com frete, adiantamento, pedágio, total a pagar e chave Pix",
-  },
+const TABS = [
+  { id: "mapa", icon: MapPin, label: "Mapa ao vivo", title: "Cada placa, um ponto no mapa.", text: "A posição vem do celular do motorista, a cada 30 segundos. Em rota, parado ou atrasado: a cor diz na hora.", Panel: MapPanel, alt: "Mapa ao vivo com veículos em rota, filtros e detalhe do motorista selecionado" },
+  { id: "romaneio", icon: FileText, label: "Romaneio", title: "Importe o XML, monte o romaneio, despache.", text: "Notas em lote direto da NF-e, ordem das paradas otimizada e romaneio no celular do motorista.", Panel: ManifestPanel, alt: "Montagem de romaneio com notas importadas do XML e botão de despachar" },
+  { id: "canhoto", icon: Camera, label: "Canhoto", title: "Prova de entrega com hora, foto e assinatura.", text: "O motorista confirma na porta do cliente. O comprovante entra no painel na mesma hora, ligado à nota.", Panel: ProofPanel, alt: "Comprovante de entrega com foto, assinatura, recebedor e SLA cumprido" },
+  { id: "acerto", icon: Wallet, label: "Acerto", title: "Frete, adiantamento, desconto. Acerto fechado.", text: "Cada romaneio de agregado gera o acerto sozinho. Histórico por motorista e chave Pix na tela.", Panel: SettlementPanel, alt: "Acerto do motorista com frete, adiantamento, total a pagar e chave Pix" },
 ];
 
 const MORE = [
-  { icon: Gauge, title: "SLA não se promete. Se mede.", text: "Diário e semanal, por motorista, por região e por entrega. Quem atrasa aparece. Quem cumpre também." },
-  { icon: BarChart3, title: "Relatórios que fecham a reunião.", text: "Lucratividade por rota, eficiência por região, top ofensores. Exporte em PDF para a segunda-feira." },
-  { icon: Users, title: "Cada um vê o que precisa.", text: "Administrador, gestor de frota, despachante e visualizador. Motorista só vê o romaneio dele." },
+  { icon: Gauge, title: "SLA medido, não prometido", text: "Diário e semanal, por motorista, região e entrega." },
+  { icon: BarChart3, title: "Relatórios para a reunião", text: "Lucratividade por rota, eficiência por região e top ofensores, em PDF." },
+  { icon: Users, title: "Cada um vê o que precisa", text: "Admin, gestor, despachante e visualizador. Motorista só vê o romaneio dele." },
 ];
 
-function Chapter({ c, index, onActive }: { c: (typeof CHAPTERS)[number]; index: number; onActive: (i: number) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { amount: 0.55 });
-  useEffect(() => {
-    if (inView) onActive(index);
-  }, [inView, index, onActive]);
-  return (
-    <div ref={ref} className="flex min-h-[60vh] flex-col justify-center py-10 lg:min-h-[78vh]">
-      <p className="label-caps flex items-center gap-3 text-brand">
-        <span className="font-data text-muted-foreground">0{index + 1}</span>
-        <c.icon aria-hidden="true" className="h-4 w-4" />
-        {c.eyebrow}
-      </p>
-      <h3 className="display-md mt-5 text-[clamp(1.8rem,3.4vw,2.8rem)]">{c.title}</h3>
-      <p className="mt-5 max-w-md text-pretty text-lg leading-relaxed text-muted-foreground">{c.text}</p>
-      <ul className="mt-6 space-y-2.5">
-        {c.bullets.map((b) => (
-          <li key={b} className="flex items-start gap-2.5 text-sm text-foreground/85">
-            <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand" strokeWidth={2.5} />
-            {b}
-          </li>
-        ))}
-      </ul>
-      {/* no celular a tela aparece junto do texto */}
-      <div className="mt-8 lg:hidden" role="img" aria-label={c.label}>
-        <div aria-hidden="true">
-          <c.Panel />
-        </div>
-      </div>
-    </div>
-  );
-}
-
+/** O produto na pratica: abas que trocam a tela do painel. */
 export function Product() {
   const reduce = useReducedMotion();
   const [active, setActive] = useState(0);
-  const Active = CHAPTERS[active].Panel;
+  const base = useId();
+  const tab = TABS[active];
   return (
-    <section id="produto" className="scroll-mt-nav relative border-t hairline py-24 lg:py-36" aria-labelledby="produto-title">
-      <div aria-hidden="true" className="orb right-[-200px] top-40 h-[600px] w-[600px] bg-brand/[0.07]" />
+    <section id="produto" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="produto-title">
       <div className="container">
-        <SectionHeader
-          index="02"
-          size="xl"
-          eyebrow="O produto"
-          title="O pátio inteiro numa tela."
-          accent="numa tela."
-          lead="Sete módulos que falam a língua do pátio: romaneio, rota, canhoto, SLA, acerto. Sem traduzir para inglês de software."
-        />
+        <SectionHeader align="center" eyebrow="O produto" title="O pátio inteiro numa tela." accent="numa tela." lead="Escolha um módulo para ver como ele aparece no painel." />
 
-        <div className="mt-10 grid gap-12 lg:mt-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
-          <div>
-            {CHAPTERS.map((c, i) => (
-              <Chapter key={c.id} c={c} index={i} onActive={setActive} />
+        <Reveal className="mt-10">
+          <div role="tablist" aria-label="Módulos do painel" className="mx-auto flex max-w-3xl flex-wrap justify-center gap-2">
+            {TABS.map((t, i) => (
+              <button
+                key={t.id}
+                role="tab"
+                id={`${base}-tab-${t.id}`}
+                aria-selected={i === active}
+                aria-controls={`${base}-panel-${t.id}`}
+                tabIndex={i === active ? 0 : -1}
+                onClick={() => setActive(i)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowRight") setActive((a) => (a + 1) % TABS.length);
+                  if (e.key === "ArrowLeft") setActive((a) => (a - 1 + TABS.length) % TABS.length);
+                }}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  i === active ? "border-brand bg-brand text-nhf-ink" : "border-foreground/10 bg-card text-foreground/80 hover:border-brand/50",
+                )}
+              >
+                <t.icon aria-hidden="true" className="h-4 w-4" />
+                {t.label}
+              </button>
             ))}
           </div>
 
-          {/* palco fixo */}
-          <div className="hidden lg:block">
-            <div className="sticky top-28">
-              <div className="relative" role="img" aria-label={CHAPTERS[active].label}>
-                <div aria-hidden="true" className="absolute -inset-6 -z-10 rounded-[32px] bg-brand/10 blur-3xl" />
-                <div aria-hidden="true" className="relative min-h-[460px]">
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                      key={CHAPTERS[active].id}
-                      initial={reduce ? false : { opacity: 0, y: 18, scale: 0.985, filter: "blur(6px)" }}
-                      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-                      exit={{ opacity: 0, y: -14, scale: 0.985, filter: "blur(6px)" }}
-                      transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                      <Active />
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </div>
-              <ol aria-hidden="true" className="mt-5 flex items-center gap-2">
-                {CHAPTERS.map((c, i) => (
-                  <li key={c.id} className="flex items-center gap-2">
-                    <span className={cn("h-1 rounded-full transition-all duration-500", i === active ? "w-10 bg-brand" : "w-4 bg-foreground/15")} />
-                  </li>
-                ))}
-                <li className="ml-auto font-data text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                  {CHAPTERS[active].eyebrow}
-                </li>
-              </ol>
+          <div id={`${base}-panel-${tab.id}`} role="tabpanel" aria-labelledby={`${base}-tab-${tab.id}`} className="mx-auto mt-8 grid max-w-5xl items-start gap-8 lg:grid-cols-[0.8fr_1.4fr]">
+            <div className="lg:pt-6">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={tab.id} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+                  <h3 className="font-heading text-2xl font-semibold tracking-tight">{tab.title}</h3>
+                  <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">{tab.text}</p>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+            <div role="img" aria-label={tab.alt}>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div key={tab.id} aria-hidden="true" initial={reduce ? false : { opacity: 0, scale: 0.99 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="shadow-lg">
+                  <tab.Panel />
+                </motion.div>
+              </AnimatePresence>
             </div>
           </div>
-        </div>
+        </Reveal>
 
-        <Stagger className="mt-16 grid gap-4 md:grid-cols-3 lg:mt-24" gap={0.08}>
+        <Stagger className="mt-14 grid gap-5 md:grid-cols-3" gap={0.06}>
           {MORE.map((m) => (
             <StaggerItem key={m.title}>
-              <Spotlight as="article" className="spot-border h-full rounded-lg border hairline bg-card/60 p-6 transition-colors">
-                <span className="flex h-10 w-10 items-center justify-center rounded-md border border-brand/30 bg-brand/10 text-brand">
+              <div className="site-card h-full p-6">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
                   <m.icon aria-hidden="true" className="h-5 w-5" />
                 </span>
-                <h3 className="mt-5 font-heading text-xl font-bold leading-tight tracking-tight">{m.title}</h3>
-                <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">{m.text}</p>
-              </Spotlight>
+                <h3 className="mt-4 font-heading text-lg font-semibold tracking-tight">{m.title}</h3>
+                <p className="mt-1.5 text-pretty text-sm leading-relaxed text-muted-foreground">{m.text}</p>
+              </div>
             </StaggerItem>
           ))}
         </Stagger>
