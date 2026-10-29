@@ -178,9 +178,9 @@ export function DriverList(props: DriverListProps) {
         {drivers.map((driver) => (
           <li
             key={driver._dbId || driver.id}
-            className="card-interactive relative rounded-lg border bg-card p-4 text-card-foreground shadow-sm"
+            className="card-interactive relative flex flex-col rounded-lg border bg-card p-4 text-card-foreground shadow-sm"
           >
-            <div className="flex items-start gap-3">
+            <div className="flex flex-1 items-start gap-3">
               <DriverAvatar photo={driver.photo} className="h-11 w-11" />
               <div className="min-w-0 flex-1">
                 <button type="button" onClick={() => onOpen(driver)} className={cn(stretchedButton, "block max-w-full truncate leading-snug after:rounded-lg")}>
