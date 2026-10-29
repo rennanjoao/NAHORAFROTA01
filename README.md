@@ -1,4 +1,4 @@
-# NaHoraFrota
+# Na Hora Frota
 
 Aplicacao web em React + Vite com Supabase para autenticacao, banco, realtime e storage.
 
@@ -32,6 +32,48 @@ Importante:
 
 - Use apenas a chave publica/anon do Supabase no frontend.
 - Nunca coloque `service_role` no `.env` do Vite.
+
+## Banco e Edge Functions (Supabase)
+
+Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o frontend.
+
+1. Aplique as migrations, nesta ordem (as duas sao idempotentes):
+   - `supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql` (trial de 7 dias,
+     funil, avisos de cobranca, chegada por raio, auto-finalizacao de romaneio e permissoes);
+   - `supabase/migrations/20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do
+     app do motorista, fotos de comprovante para a equipe, RPCs com checagem de empresa,
+     realtime, troca de nivel de acesso, ordem das paradas, finalizar/excluir romaneio,
+     carteira do motorista, bloqueio por atraso e limites do plano iguais aos da tela).
+2. Publique as edge functions alteradas/novas: `register-tenant`, `create-user`,
+   `invite-user`, `create-driver`, `update-user-access` e `send-driver-credentials`
+   (todas usam a pasta `_shared`).
+3. Configure os segredos das functions (Supabase > Edge Functions > Secrets) para o e-mail
+   de dados de acesso do motorista:
+   - `RESEND_API_KEY`: chave da API do [Resend](https://resend.com)
+   - `RESEND_FROM_EMAIL`: remetente verificado, ex.: `Na Hora Frota <nao-responda@nahorafrota.tech>`
+   - `APP_URL` (opcional): padrao `https://nahorafrota.tech`
+
+   Sem esses segredos o cadastro do motorista funciona normalmente e o painel avisa que o
+   e-mail nao foi enviado.
+4. Recuperacao de senha ("Esqueci minha senha"): em Supabase > Authentication > URL
+   Configuration, inclua `https://SEU-DOMINIO/reset-password` em "Redirect URLs". O e-mail de
+   recuperacao usa o SMTP configurado no Supabase (o padrao tem limite baixo de envios; para
+   producao configure um SMTP proprio, por exemplo o do Resend).
+
+Para conferir as regras em um Postgres local descartavel (nunca em producao):
+
+```sh
+PGURL=postgres://postgres@localhost:5432/postgres ./supabase/tests/run.sh
+```
+
+Regras de acesso aplicadas pelo banco:
+
+- Empresa nova entra em teste gratis de 7 dias; ao fim, o banco deixa de servir os dados
+  ate o Super Admin ativar a assinatura ou estender o teste (+7 dias, no painel Master).
+- O teste gratis e liberado uma unica vez por CNPJ da empresa e por CPF/CNPJ de cobranca.
+- Plano, status, trial, vencimento e documento de cobranca so mudam pelo Super Admin.
+- Dados da empresa, usuarios e niveis de acesso so mudam pelo Administrador da empresa.
+- Arquivos de documentos do motorista so abrem para o Super Admin.
 
 ## Build de producao
 

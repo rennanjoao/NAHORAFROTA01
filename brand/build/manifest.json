@@ -1,0 +1,341 @@
+[
+ {
+  "file": "logo/svg/nhf-logo-horizontal-cor-fundo-escuro.svg",
+  "w": 903.1457142857143,
+  "h": 212.0,
+  "png": [
+   1200,
+   2400
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-vertical-cor-fundo-escuro.svg",
+  "w": 481.14571428571423,
+  "h": 480.0,
+  "png": [
+   800,
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-linha-cor-fundo-escuro.svg",
+  "w": 1750.142857142857,
+  "h": 212.0,
+  "png": [
+   1600,
+   3200
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-cor-fundo-escuro.svg",
+  "w": 481.14571428571423,
+  "h": 212.0,
+  "png": [
+   1000
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-linha-cor-fundo-escuro.svg",
+  "w": 1325.1428571428569,
+  "h": 150.0,
+  "png": [
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-horizontal-cor-fundo-claro.svg",
+  "w": 903.1457142857143,
+  "h": 212.0,
+  "png": [
+   1200,
+   2400
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-vertical-cor-fundo-claro.svg",
+  "w": 481.14571428571423,
+  "h": 480.0,
+  "png": [
+   800,
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-linha-cor-fundo-claro.svg",
+  "w": 1750.142857142857,
+  "h": 212.0,
+  "png": [
+   1600,
+   3200
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-cor-fundo-claro.svg",
+  "w": 481.14571428571423,
+  "h": 212.0,
+  "png": [
+   1000
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-linha-cor-fundo-claro.svg",
+  "w": 1325.1428571428569,
+  "h": 150.0,
+  "png": [
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-horizontal-mono-branco.svg",
+  "w": 903.1457142857143,
+  "h": 212.0,
+  "png": [
+   1200,
+   2400
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-vertical-mono-branco.svg",
+  "w": 481.14571428571423,
+  "h": 480.0,
+  "png": [
+   800,
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-linha-mono-branco.svg",
+  "w": 1750.142857142857,
+  "h": 212.0,
+  "png": [
+   1600,
+   3200
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-mono-branco.svg",
+  "w": 481.14571428571423,
+  "h": 212.0,
+  "png": [
+   1000
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-linha-mono-branco.svg",
+  "w": 1325.1428571428569,
+  "h": 150.0,
+  "png": [
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-horizontal-mono-preto.svg",
+  "w": 903.1457142857143,
+  "h": 212.0,
+  "png": [
+   1200,
+   2400
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-vertical-mono-preto.svg",
+  "w": 481.14571428571423,
+  "h": 480.0,
+  "png": [
+   800,
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-linha-mono-preto.svg",
+  "w": 1750.142857142857,
+  "h": 212.0,
+  "png": [
+   1600,
+   3200
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-mono-preto.svg",
+  "w": 481.14571428571423,
+  "h": 212.0,
+  "png": [
+   1000
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-linha-mono-preto.svg",
+  "w": 1325.1428571428569,
+  "h": 150.0,
+  "png": [
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-horizontal-mono-verde.svg",
+  "w": 903.1457142857143,
+  "h": 212.0,
+  "png": [
+   1200,
+   2400
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-vertical-mono-verde.svg",
+  "w": 481.14571428571423,
+  "h": 480.0,
+  "png": [
+   800,
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-logo-linha-mono-verde.svg",
+  "w": 1750.142857142857,
+  "h": 212.0,
+  "png": [
+   1600,
+   3200
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-mono-verde.svg",
+  "w": 481.14571428571423,
+  "h": 212.0,
+  "png": [
+   1000
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-wordmark-linha-mono-verde.svg",
+  "w": 1325.1428571428569,
+  "h": 150.0,
+  "png": [
+   1600
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-simbolo-verde.svg",
+  "w": 365.0,
+  "h": 212.0,
+  "png": [
+   512,
+   1024
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-simbolo-branco.svg",
+  "w": 365.0,
+  "h": 212.0,
+  "png": [
+   512,
+   1024
+  ]
+ },
+ {
+  "file": "logo/svg/nhf-simbolo-preto.svg",
+  "w": 365.0,
+  "h": 212.0,
+  "png": [
+   512,
+   1024
+  ]
+ },
+ {
+  "file": "icones/nhf-app-icon-escuro.svg",
+  "w": 1024.0,
+  "h": 1024.0,
+  "png": [
+   1024,
+   512,
+   192
+  ]
+ },
+ {
+  "file": "icones/nhf-app-icon-verde.svg",
+  "w": 1024.0,
+  "h": 1024.0,
+  "png": [
+   1024,
+   512,
+   192
+  ]
+ },
+ {
+  "file": "icones/nhf-app-icon-claro.svg",
+  "w": 1024.0,
+  "h": 1024.0,
+  "png": [
+   1024,
+   512,
+   192
+  ]
+ },
+ {
+  "file": "icones/nhf-app-icon-maskable.svg",
+  "w": 1024.0,
+  "h": 1024.0,
+  "png": [
+   512
+  ]
+ },
+ {
+  "file": "icones/nhf-avatar-escuro.svg",
+  "w": 1024.0,
+  "h": 1024.0,
+  "png": [
+   1024,
+   400
+  ]
+ },
+ {
+  "file": "icones/nhf-avatar-verde.svg",
+  "w": 1024.0,
+  "h": 1024.0,
+  "png": [
+   1024,
+   400
+  ]
+ },
+ {
+  "file": "icones/nhf-favicon.svg",
+  "w": 64.0,
+  "h": 64.0,
+  "png": [
+   64,
+   32
+  ]
+ },
+ {
+  "file": "padroes/nhf-padrao-chevron-escuro.svg",
+  "w": 1200.0,
+  "h": 800.0,
+  "png": [
+   1200
+  ]
+ },
+ {
+  "file": "padroes/nhf-padrao-chevron-verde.svg",
+  "w": 1200.0,
+  "h": 800.0,
+  "png": [
+   1200
+  ]
+ },
+ {
+  "file": "padroes/nhf-padrao-rotas-escuro.svg",
+  "w": 1200.0,
+  "h": 800.0,
+  "png": [
+   1200
+  ]
+ },
+ {
+  "file": "padroes/nhf-padrao-rotas-claro.svg",
+  "w": 1200.0,
+  "h": 800.0,
+  "png": [
+   1200
+  ]
+ }
+]

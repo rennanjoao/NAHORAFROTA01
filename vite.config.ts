@@ -26,17 +26,18 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
       manifest: {
-        name: 'Na Hora Frota - Ops Watch Go',
+        name: 'Na Hora Frota',
         short_name: 'NaHoraFrota',
-        description: 'Sistema de gestão de entregas e monitoramento de frota em tempo real',
-        theme_color: '#00D4AA',
-        background_color: '#0a0a0a',
+        description: 'Gestão de frota em tempo real. Entrega sempre na hora.',
+        theme_color: '#080808',
+        background_color: '#080808',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
-        start_url: '/tracker',
+        // "/" leva o motorista ao app (/tracker) e a equipe ao painel.
+        start_url: '/',
         icons: [
           {
             src: 'pwa-192x192.png',

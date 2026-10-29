@@ -1,0 +1,682 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Na Hora Frota · Design System 2026
+   --------------------------------------------------------------------------
+   1. Tokens (tema claro, tema escuro, alto contraste)
+   2. Base (tipografia, foco, rolagem, movimento reduzido)
+   3. Componentes da marca e padroes (carimbo ao vivo, linhas de rota,
+      entrada de pagina, cartao interativo, skeleton)
+   4. Utilitarios legados (mantidos por compatibilidade)
+   5. Mapas (Leaflet)
+   Documentacao: docs/DESIGN.md
+   ========================================================================== */
+
+/* 1. TOKENS ---------------------------------------------------------------- */
+@layer base {
+  /* Tema claro. Verde da marca como texto so na versao escura (#0B6B4F), que
+     passa o contraste AA em fundo branco. O verde vivo (--brand) fica para
+     detalhes decorativos. Todos os pares texto/fundo foram medidos (>= 4,5:1). */
+  :root,
+  .light {
+    --background: 210 20% 98%;
+    --foreground: 210 14% 7%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 14% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 14% 7%;
+
+    --primary: 162 84% 24%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 162 84% 19%;
+
+    --brand: 162 97% 46%;
+    --brand-foreground: 0 0% 3%;
+
+    --secondary: 210 16% 94%;
+    --secondary-foreground: 210 14% 7%;
+    --muted: 210 16% 94%;
+    --muted-foreground: 213 9% 38%;
+    --accent: 210 16% 95%;
+    --accent-foreground: 210 14% 7%;
+
+    --destructive: 358 72% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 24%;
+    --success-foreground: 0 0% 100%;
+    --warning: 30 95% 31%;
+    --warning-foreground: 0 0% 100%;
+    --info: 213 85% 40%;
+    --info-foreground: 0 0% 100%;
+    --idle: 213 9% 40%;
+    --idle-foreground: 0 0% 100%;
+
+    --green-tint: 160 60% 94%;
+    --green-deep: 162 81% 23%;
+
+    --border: 214 15% 89%;
+    --input: 214 13% 80%;
+    --ring: 162 84% 30%;
+
+    --sidebar-background: 210 20% 97%;
+    --sidebar-foreground: 213 10% 32%;
+    --sidebar-primary: 162 84% 24%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 16% 92%;
+    --sidebar-accent-foreground: 210 14% 7%;
+    --sidebar-border: 214 15% 90%;
+    --sidebar-ring: 162 84% 30%;
+
+    --chart-1: 162 84% 30%;
+    --chart-2: 213 85% 48%;
+    --chart-3: 30 95% 42%;
+    --chart-4: 262 52% 52%;
+    --chart-5: 358 72% 50%;
+
+    --overlay: 215 25% 8%;
+    --overlay-opacity: 0.45;
+
+    --shadow-xs: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(16 24 40 / 0.08), 0 1px 2px -1px rgb(16 24 40 / 0.05);
+    --shadow-md: 0 6px 16px -4px rgb(16 24 40 / 0.1), 0 2px 4px -2px rgb(16 24 40 / 0.05);
+    --shadow-lg: 0 16px 32px -8px rgb(16 24 40 / 0.16), 0 4px 8px -4px rgb(16 24 40 / 0.06);
+    --shadow-xl: 0 28px 56px -16px rgb(16 24 40 / 0.24);
+    --highlight: 0 0 #0000;
+
+    color-scheme: light;
+  }
+
+  /* Tema escuro: o padrao do produto (manual da marca). */
+  .dark {
+    --background: 220 10% 4%;
+    --foreground: 210 20% 96%;
+
+    --card: 220 8% 7%;
+    --card-foreground: 210 20% 96%;
+    --popover: 220 8% 9%;
+    --popover-foreground: 210 20% 96%;
+
+    --primary: 162 97% 46%;
+    --primary-foreground: 0 0% 3%;
+    --primary-hover: 162 97% 40%;
+
+    --brand: 162 97% 46%;
+    --brand-foreground: 0 0% 3%;
+
+    --secondary: 220 7% 13%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 220 7% 12%;
+    --muted-foreground: 214 9% 63%;
+    --accent: 220 7% 13%;
+    --accent-foreground: 210 20% 96%;
+
+    --destructive: 359 100% 68%;
+    --destructive-foreground: 0 0% 3%;
+    --success: 162 90% 48%;
+    --success-foreground: 0 0% 3%;
+    --warning: 42 100% 62%;
+    --warning-foreground: 0 0% 3%;
+    --info: 210 100% 66%;
+    --info-foreground: 0 0% 3%;
+    --idle: 214 9% 60%;
+    --idle-foreground: 0 0% 3%;
+
+    --green-tint: 163 61% 15%;
+    --green-deep: 162 81% 23%;
+
+    --border: 220 7% 15%;
+    --input: 220 7% 21%;
+    --ring: 162 97% 46%;
+
+    --sidebar-background: 220 10% 5.5%;
+    --sidebar-foreground: 214 9% 68%;
+    --sidebar-primary: 162 97% 46%;
+    --sidebar-primary-foreground: 0 0% 3%;
+    --sidebar-accent: 220 7% 12%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 220 7% 13%;
+    --sidebar-ring: 162 97% 46%;
+
+    --chart-1: 162 97% 46%;
+    --chart-2: 210 100% 66%;
+    --chart-3: 42 100% 62%;
+    --chart-4: 262 80% 74%;
+    --chart-5: 359 100% 68%;
+
+    --overlay: 0 0% 0%;
+    --overlay-opacity: 0.65;
+
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+    --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 20px 40px -12px rgb(0 0 0 / 0.7);
+    --shadow-xl: 0 32px 64px -16px rgb(0 0 0 / 0.8);
+    --highlight: inset 0 1px 0 0 rgb(255 255 255 / 0.04);
+
+    color-scheme: dark;
+  }
+
+  /* Alto contraste (Configuracoes > Aparencia): textos secundarios e bordas
+     mais fortes, para quem enxerga pouco ou usa a tela no sol. */
+  :root[data-contrast="more"] {
+    --muted-foreground: 213 12% 24%;
+    --border: 214 12% 70%;
+    --input: 214 12% 55%;
+    --sidebar-foreground: 213 12% 20%;
+  }
+  :root[data-contrast="more"].dark {
+    --muted-foreground: 214 12% 82%;
+    --border: 220 7% 34%;
+    --input: 220 7% 45%;
+    --sidebar-foreground: 214 12% 86%;
+  }
+
+  /* Tamanho do texto (Configuracoes > Aparencia). Tudo e medido em rem. */
+  :root[data-text-size="large"] { font-size: 17px; }
+  :root[data-text-size="larger"] { font-size: 18.5px; }
+
+  :root {
+    --radius: 0.75rem;
+
+    /* Movimento: saida suave (expo), molinha leve para confirmacoes. */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --duration-fast: 120ms;
+    --duration: 200ms;
+    --duration-slow: 360ms;
+
+    --topbar-height: 3.75rem;
+    --sidebar-width: 16rem;
+    --sidebar-width-collapsed: 4.5rem;
+    --bottom-nav-height: 4.25rem;
+  }
+}
+
+/* 2. BASE ------------------------------------------------------------------ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+    /* Tab e ancoras param abaixo do topo fixo (e acima da barra inferior no celular). */
+    scroll-padding-top: calc(var(--topbar-height) + 1rem);
+  }
+  @media (max-width: 767px) {
+    html {
+      scroll-padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 1rem);
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss03';
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  .font-mono,
+  .font-data,
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: hsl(var(--brand) / 0.35);
+  }
+
+  /* Foco sempre visivel no teclado, inclusive em elementos sem anel proprio. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Toque: sem o flash cinza do iOS e sem atraso de duplo toque. */
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* iOS amplia a tela em campos com fonte menor que 16px. */
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1rem) !important;
+    }
+  }
+
+  /* Barras de rolagem finas e discretas nos dois temas. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Troca de tema com revelacao circular (View Transitions API). */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+
+  /* Movimento reduzido: pelo sistema ou por Configuracoes > Aparencia. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  :root[data-motion="reduce"] *,
+  :root[data-motion="reduce"] *::before,
+  :root[data-motion="reduce"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 3. COMPONENTES DA MARCA E PADROES ----------------------------------------- */
+@layer components {
+  /* Rotulo curto (eyebrow do manual). */
+  .nhf-label {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Marcador de hora: selo com ponto de status. O ponto pulsa so "ao vivo". */
+  .nhf-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3125rem 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid hsl(var(--primary) / 0.35);
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.08);
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .nhf-live::before {
+    content: "";
+    width: 0.4375rem;
+    height: 0.4375rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: nhf-pulse 1.8s ease-out infinite;
+  }
+
+  .nhf-live--off {
+    border-color: hsl(var(--destructive) / 0.4);
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.08);
+  }
+
+  .nhf-live--off::before {
+    animation: none;
+  }
+
+  @keyframes nhf-pulse {
+    0% { box-shadow: 0 0 0 0 hsl(var(--brand) / 0.55); }
+    100% { box-shadow: 0 0 0 0.5rem hsl(var(--brand) / 0); }
+  }
+
+  /* Linhas de rota a 45 graus (fundo de capa, login, 404). */
+  .nhf-routes {
+    background-image:
+      repeating-linear-gradient(-45deg, hsl(var(--primary) / 0.1) 0 1px, transparent 1px 110px),
+      repeating-linear-gradient(0deg, hsl(var(--primary) / 0.05) 0 1px, transparent 1px 56px);
+    -webkit-mask-image: radial-gradient(ellipse at 70% 0%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(ellipse at 70% 0%, #000 20%, transparent 75%);
+  }
+
+  /* Entrada de pagina: sobe 8px e aparece. */
+  /* "backwards": terminada a animacao, nao sobra transform (um transform
+     permanente quebraria elementos position:fixed dentro da pagina). */
+  .page-enter {
+    animation: page-enter var(--duration-slow) var(--ease-out) backwards;
+  }
+
+  /* Filhos entram em sequencia (ate 12; o resto entra junto do ultimo). */
+  .stagger > * {
+    animation: page-enter var(--duration-slow) var(--ease-out) backwards;
+  }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .stagger > *:nth-child(7) { animation-delay: 240ms; }
+  .stagger > *:nth-child(8) { animation-delay: 280ms; }
+  .stagger > *:nth-child(9) { animation-delay: 320ms; }
+  .stagger > *:nth-child(10) { animation-delay: 360ms; }
+  .stagger > *:nth-child(11) { animation-delay: 400ms; }
+  .stagger > *:nth-child(n + 12) { animation-delay: 440ms; }
+
+  @keyframes page-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* "Pular para o conteudo": primeiro item do Tab, visivel so com foco. */
+  .skip-link {
+    position: fixed;
+    left: 1rem;
+    top: -4rem;
+    z-index: 1300;
+    padding: 0.625rem 1rem;
+    border-radius: var(--radius);
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-weight: 600;
+    font-size: 0.875rem;
+    box-shadow: var(--shadow-lg);
+    transition: top var(--duration) var(--ease-out);
+  }
+  .skip-link:focus {
+    top: 1rem;
+  }
+
+  /* Cartao clicavel: levanta 1px, ganha sombra e borda verde. */
+  .card-interactive {
+    cursor: pointer;
+    transition:
+      transform var(--duration) var(--ease-out),
+      box-shadow var(--duration) var(--ease-out),
+      border-color var(--duration) var(--ease-out),
+      background-color var(--duration) var(--ease-out);
+  }
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md), var(--highlight);
+    border-color: hsl(var(--primary) / 0.35);
+  }
+  .card-interactive:active {
+    transform: translateY(0) scale(0.995);
+  }
+
+  /* Skeleton com brilho que percorre o bloco. */
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: hsl(var(--muted));
+  }
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.06), transparent);
+    animation: shimmer 1.6s infinite;
+  }
+
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
+  }
+
+  /* Tecla de atalho (Ctrl K, ?, Esc). */
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.375rem;
+    height: 1.375rem;
+    padding: 0 0.375rem;
+    border-radius: 0.375rem;
+    border: 1px solid hsl(var(--border));
+    border-bottom-width: 2px;
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  /* Superficie translucida para barras fixas (topo, navegacao inferior). */
+  .surface-glass {
+    background: hsl(var(--background) / 0.82);
+    -webkit-backdrop-filter: saturate(1.6) blur(14px);
+    backdrop-filter: saturate(1.6) blur(14px);
+  }
+
+  .truncate-safe {
+    @apply truncate max-w-full;
+  }
+
+  .btn-neon {
+    @apply transition-colors duration-200;
+  }
+}
+
+/* 4. UTILITARIOS LEGADOS ---------------------------------------------------- */
+@layer utilities {
+  .glass-card {
+    @apply bg-card border border-border shadow-sm;
+  }
+
+  .card-danger {
+    @apply bg-destructive/10 border-destructive/40;
+  }
+
+  .gradient-text {
+    @apply text-primary;
+  }
+
+  .cyber-text {
+    @apply text-info;
+  }
+
+  .cyber-glow,
+  .neon-glow {
+    text-shadow: none;
+  }
+
+  .shadow-neon,
+  .shadow-neon-sm {
+    box-shadow: none;
+  }
+
+  .neon-divider {
+    background: hsl(var(--border));
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-success {
+    @apply bg-success;
+    animation: nhf-pulse 1.8s ease-out infinite;
+  }
+
+  .status-dot-warning {
+    @apply bg-warning;
+  }
+
+  .status-dot-danger {
+    @apply bg-destructive;
+  }
+
+  .status-dot-info {
+    @apply bg-info;
+  }
+
+  .metric-card {
+    @apply glass-card rounded-lg p-5 transition-colors duration-200 hover:border-primary/40;
+  }
+
+  .font-data {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'tnum' on, 'lnum' on;
+  }
+
+  /* Chanfro de 45 graus (detalhe da marca em capas e selos). */
+  .nhf-chamfer {
+    clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+  }
+
+  .nhf-chamfer-sm {
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 5. MAPAS (LEAFLET) -------------------------------------------------------- */
+.leaflet-container {
+  font-family: 'Inter', sans-serif;
+  z-index: 0;
+  background: hsl(var(--muted));
+}
+
+/* Tiles do OSM: no escuro, base escura e dessaturada (manual); no claro, so
+   menos saturada para nao brigar com os marcadores. */
+.nhf-map-dark {
+  filter: saturate(0.55) contrast(0.95);
+}
+.dark .nhf-map-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  padding: 0;
+  box-shadow: var(--shadow-lg);
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  min-width: 250px;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: hsl(var(--muted-foreground));
+}
+
+.leaflet-control-zoom.leaflet-bar {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.leaflet-control-zoom a,
+.leaflet-bar a {
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+.leaflet-control-zoom a:hover,
+.leaflet-bar a:hover {
+  background: hsl(var(--accent));
+}
+
+.leaflet-control-attribution {
+  background: hsl(var(--background) / 0.75) !important;
+  color: hsl(var(--muted-foreground));
+}
+
+.leaflet-control-attribution a {
+  color: hsl(var(--muted-foreground));
+}
+
+.custom-truck-marker,
+.custom-destination-marker,
+.route-marker {
+  background: transparent;
+  border: 0;
+}
+
+.leaflet-marker-shadow {
+  display: none;
+}
+
+.route-marker__pin {
+  align-items: center;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  border-radius: 9999px;
+  box-shadow: 0 6px 16px hsl(var(--foreground) / 0.22);
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
