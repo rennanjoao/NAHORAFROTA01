@@ -68,7 +68,7 @@ export function ReportsCharts({ slaData, issuesData, isLoading }: ReportsChartsP
     const colors = [
       "hsl(var(--destructive))",
       "hsl(var(--warning))", 
-      "hsl(24, 95%, 53%)", // orange
+      "hsl(var(--info))",
       "hsl(var(--primary))",
       "hsl(var(--muted-foreground))",
     ];

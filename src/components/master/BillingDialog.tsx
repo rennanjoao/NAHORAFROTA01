@@ -78,8 +78,8 @@ const cycleLabels: Record<string, string> = {
 };
 
 const financialStatusConfig: Record<string, { label: string; className: string }> = {
-  current: { label: "Em dia", className: "bg-emerald-500/20 text-emerald-400" },
-  pending: { label: "Pendente", className: "bg-yellow-500/20 text-yellow-400" },
+  current: { label: "Em dia", className: "bg-success/20 text-success" },
+  pending: { label: "Pendente", className: "bg-warning/20 text-warning" },
   blocked: { label: "Bloqueado", className: "bg-destructive/20 text-destructive" },
 };
 
@@ -184,7 +184,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       toast({ title: "Erro ao registrar aviso", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "✅ Cobrança marcada como avisada" });
+    toast({ title: "Cobrança marcada como avisada" });
     setNoticeNotes("");
     fetchHistory();
     onSaved();
@@ -209,7 +209,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "✅ Dados financeiros salvos" });
+      toast({ title: "Dados financeiros salvos" });
       onSaved();
     }
   };
@@ -235,7 +235,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     if (error) {
       toast({ title: "Erro ao registrar", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "✅ Pagamento registrado" });
+      toast({ title: "Pagamento registrado" });
 
       // Pagamento de empresa em teste encerra o trial e ativa a assinatura
       if (tenant.status === "trial") {
@@ -246,7 +246,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
         if (activateError) {
           toast({ title: "Erro ao ativar assinatura", description: activateError.message, variant: "destructive" });
         } else {
-          toast({ title: "✅ Assinatura ativada", description: "O período de teste foi encerrado." });
+          toast({ title: "Assinatura ativada", description: "O período de teste foi encerrado." });
         }
       }
 
@@ -489,7 +489,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
                       {n.channel === "in_app" && (
                         <Badge
                           variant="outline"
-                          className={`text-[10px] ${n.acknowledged_at ? "bg-emerald-500/20 text-emerald-400" : ""}`}
+                          className={`text-[10px] ${n.acknowledged_at ? "bg-success/20 text-success" : ""}`}
                         >
                           {n.acknowledged_at ? "Cliente ciente" : "Exibido"}
                         </Badge>

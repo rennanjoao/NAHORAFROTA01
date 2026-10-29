@@ -98,8 +98,8 @@ export function FleetManifestsModal({ open, onOpenChange, data, type }: FleetMan
                           className={cn(
                             "text-xs",
                             manifest.status === "completed" || manifest.status === "paid"
-                              ? "bg-green-500/10 text-green-600 border-green-500/30"
-                              : "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                              ? "bg-success/10 text-success border-success/30"
+                              : "bg-info/10 text-info border-info/30"
                           )}
                         >
                           {getStatusLabel(manifest.status)}

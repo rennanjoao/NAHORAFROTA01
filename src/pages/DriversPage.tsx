@@ -66,7 +66,7 @@ import { uniqueChannelName } from "@/lib/realtime";
 // active = Disponível (verde), in_route = Em Rota (azul), inactive = Inativo (cinza)
 const statusConfig: Record<string, { label: string; className: string; color: string }> = {
   active: { label: "Disponível", className: "bg-success/20 text-success border-success/30", color: "text-success" },
-  in_route: { label: "Em Rota", className: "bg-primary/20 text-primary border-primary/30", color: "text-primary" },
+  in_route: { label: "Em Rota", className: "bg-info/20 text-info border-info/30", color: "text-info" },
   inactive: { label: "Inativo", className: "bg-muted/50 text-muted-foreground border-muted", color: "text-muted-foreground" },
   pending_approval: { label: "Pendente", className: "bg-warning/20 text-warning border-warning/30", color: "text-warning" },
 };
@@ -650,7 +650,7 @@ export default function DriversPage() {
 
           if (!driverDbId) {
             toast({
-              title: "❌ Erro ao atualizar",
+              title: "Erro ao atualizar",
               description: "Não foi possível identificar o motorista selecionado.",
               variant: "destructive",
             });

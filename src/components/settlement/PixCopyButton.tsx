@@ -29,13 +29,13 @@
        await navigator.clipboard.writeText(keyToCopy);
        setCopied(true);
        toast({
-         title: "✅ PIX Copiado!",
+         title: "PIX Copiado.",
          description: `Chave PIX copiada para a área de transferência.`,
        });
        setTimeout(() => setCopied(false), 2000);
      } catch (err) {
        toast({
-         title: "❌ Erro ao copiar",
+         title: "Erro ao copiar",
          description: "Não foi possível copiar a chave PIX.",
          variant: "destructive",
        });

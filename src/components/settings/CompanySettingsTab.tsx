@@ -91,7 +91,7 @@ export function CompanySettingsTab() {
       } else {
         setLatitude(data.latitude);
         setLongitude(data.longitude);
-        toast({ title: "✅ Coordenadas Obtidas", description: `Lat: ${data.latitude.toFixed(6)}, Lng: ${data.longitude.toFixed(6)}` });
+        toast({ title: "Coordenadas Obtidas", description: `Lat: ${data.latitude.toFixed(6)}, Lng: ${data.longitude.toFixed(6)}` });
       }
     } catch {
       toast({ title: "Erro na Geocodificação", description: "Não foi possível obter as coordenadas.", variant: "destructive" });

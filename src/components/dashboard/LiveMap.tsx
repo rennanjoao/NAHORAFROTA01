@@ -96,7 +96,7 @@ function MapLoading({ positionCount }: { positionCount: number }) {
       <div className="h-[500px] flex flex-col items-center justify-center bg-nhf-ink/50 backdrop-blur">
         <div className="relative">
           <MapPin className="h-16 w-16 text-primary/50 animate-pulse" />
-          <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full animate-ping" />
+          <div className="absolute -top-1 -right-1 h-4 w-4 bg-success rounded-full animate-ping" />
         </div>
         <p className="text-muted-foreground mt-4 font-medium">Carregando mapa...</p>
         <p className="text-xs text-muted-foreground/70 mt-1">

@@ -41,7 +41,7 @@ export function NotificationBanner() {
     // 1-5 days remaining
     icon = Clock;
     message = `Sua assinatura vence em ${daysRemaining} dia${daysRemaining > 1 ? "s" : ""}. Regularize para evitar interrupções.`;
-    style = "bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400";
+    style = "bg-warning/10 border-warning/20 text-warning";
   } else {
     return null;
   }

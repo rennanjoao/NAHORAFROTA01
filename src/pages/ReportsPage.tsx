@@ -420,7 +420,7 @@ export default function ReportsPage() {
         `relatorio-${stamp}.pdf`,
       );
       toast({
-        title: "✅ Relatório Exportado",
+        title: "Relatório Exportado",
         description: `${fileName} baixado.`,
       });
     } catch (err) {
@@ -483,7 +483,7 @@ export default function ReportsPage() {
         {/* View Mode Indicator */}
         <div className="flex items-center gap-2">
           <Badge variant="default" className="text-xs">
-            📊 Visão Operacional
+            Visão Operacional
           </Badge>
           <span className="text-sm text-muted-foreground">
             Foco em volumes e contagens

@@ -283,7 +283,7 @@ export function ManifestDetailSheet({
     );
 
     toast({
-      title: "✅ Entrega confirmada",
+      title: "Entrega confirmada",
       description: `NF ${invoice.nfe_number} marcada como entregue.`,
     });
 
@@ -340,7 +340,7 @@ export function ManifestDetailSheet({
     );
 
     toast({
-      title: "⚠️ Ocorrência registrada",
+      title: "Ocorrência registrada",
       description: `NF ${invoice.nfe_number} marcada com ocorrência.`,
     });
 
@@ -408,7 +408,7 @@ export function ManifestDetailSheet({
     });
 
     toast({
-      title: "✅ NF removida",
+      title: "NF removida",
       description: `NF ${invoice.nfe_number} removida do romaneio.`,
     });
 
@@ -480,7 +480,7 @@ export function ManifestDetailSheet({
           `Romaneio finalizado - ${delivered} entregas, ${returned} ocorrências`
         );
         toast({
-          title: "✅ Romaneio Finalizado",
+          title: "Romaneio Finalizado",
           description: `${delivered} entrega(s) concluída(s), ${returned} NF(s) retornaram para roteirização.`,
         });
       }
@@ -716,7 +716,7 @@ export function ManifestDetailSheet({
                             </p>
 
                             {invoice.arrived_at && (
-                              <p className="text-xs font-medium text-blue-600 flex items-center gap-1.5">
+                              <p className="text-xs font-medium text-info flex items-center gap-1.5">
                                 <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
                                 Motorista chegou às{" "}
                                 {new Date(invoice.arrived_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}

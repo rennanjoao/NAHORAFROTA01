@@ -101,7 +101,7 @@ export function SLAWeeklyWidget() {
             </div>
           </div>
           <div className="text-right">
-            <Badge className={cn("text-white font-bold", slaStatus.badgeBgClass)}>
+            <Badge className={cn("font-bold", slaStatus.badgeBgClass)}>
               {slaStatus.labelPt}
             </Badge>
             <div className="mt-1">

@@ -192,7 +192,7 @@ export function useSystemUsers() {
       }
 
       toast({
-        title: '✅ Permissão atualizada',
+        title: 'Permissão atualizada',
         description: `Usuário agora é ${roleLabels[newRole]}.`,
       });
 
@@ -225,7 +225,7 @@ export function useSystemUsers() {
       }
 
       toast({
-        title: '🗑️ Usuário deletado',
+        title: 'Usuário deletado',
         description: 'Usuário removido completamente do sistema.',
       });
 

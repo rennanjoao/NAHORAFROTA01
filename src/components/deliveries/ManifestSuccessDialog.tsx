@@ -75,13 +75,13 @@ export function ManifestSuccessDialog({
       `- Código: ${manifest.manifest_code}\n` +
       `- Entregas: ${manifest.deliveries_count}\n` +
       `- Frete: ${formatCurrency(manifest.freight_value)}\n\n` +
-      `As entregas já estão no app do motorista. Boas entregas!`;
+      `As entregas já estão no app do motorista. Boas entregas.`;
 
     const hasPhone = openWhatsApp(driverPhone, message);
     if (!hasPhone) openWhatsApp(null, message);
 
     toast({
-      title: "📱 WhatsApp aberto",
+      title: "WhatsApp aberto",
       description: hasPhone
         ? `Conversa com ${manifest.driver_name} pronta para enviar.`
         : "Telefone do motorista não cadastrado: selecione o contato para enviar.",
@@ -169,7 +169,7 @@ export function ManifestSuccessDialog({
           <Button 
             type="button"
             onClick={handleSendWhatsApp} 
-            className="w-full gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white"
+            className="w-full gap-2"
             style={{ fontSize: '16px' }}
           >
             <MessageCircle className="h-4 w-4" />

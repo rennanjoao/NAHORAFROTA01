@@ -205,7 +205,7 @@ export default function LoginPage() {
       console.warn("Tenant check failed (non-blocking):", err);
     }
 
-    toast({ title: "✅ Login realizado", description: "Bem-vindo de volta!" });
+    toast({ title: "Login realizado", description: "Bem-vindo de volta." });
     setIsLoading(false);
   };
 

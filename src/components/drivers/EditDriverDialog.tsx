@@ -218,7 +218,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
       [type]: { name: file.name, url, uploadedAt: new Date() }
     }));
     toast({
-      title: "📄 Documento carregado",
+      title: "Documento carregado",
       description: `${file.name} foi adicionado com sucesso.`,
     });
   };
@@ -250,7 +250,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
       return newDocs;
     });
     toast({
-      title: "🗑️ Documento removido",
+      title: "Documento removido",
       description: "O documento foi removido.",
     });
   };
@@ -466,8 +466,8 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                     <SelectValue placeholder="Selecione o vínculo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="own">🏢 Frota Própria (não gera valor a receber)</SelectItem>
-                    <SelectItem value="third">🚚 Terceiro / Agregado (gera valor a receber)</SelectItem>
+                    <SelectItem value="own">Frota própria (não gera valor a receber)</SelectItem>
+                    <SelectItem value="third">Terceiro / Agregado (gera valor a receber)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">

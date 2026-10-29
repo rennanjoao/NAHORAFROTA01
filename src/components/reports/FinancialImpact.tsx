@@ -50,8 +50,8 @@ export function FinancialImpact({ data }: FinancialImpactProps) {
       formula: `${data.reworkPercentage.toFixed(1)}% das entregas`,
       value: data.reworkCost,
       icon: Repeat,
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10",
+      color: "text-warning",
+      bgColor: "bg-warning/10",
     },
   ];
 

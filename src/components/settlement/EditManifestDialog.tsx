@@ -69,7 +69,7 @@ export function EditManifestDialog({ manifest, open, onOpenChange, onSave }: Edi
     onOpenChange(false);
 
     toast({
-      title: "✅ Romaneio atualizado",
+      title: "Romaneio atualizado",
       description: `Valor alterado para ${formatCurrency(numericValue)}`,
     });
   };

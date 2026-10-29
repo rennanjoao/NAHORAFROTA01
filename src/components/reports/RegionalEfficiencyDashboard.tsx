@@ -51,12 +51,13 @@
    'hsl(var(--success))',
    'hsl(var(--warning))',
    'hsl(var(--destructive))',
-   'hsl(210, 80%, 60%)',
-   'hsl(150, 60%, 50%)',
-   'hsl(30, 80%, 55%)',
-   'hsl(280, 60%, 60%)',
-   'hsl(180, 60%, 50%)',
-   'hsl(340, 70%, 55%)',
+   // Sem paleta categorica no manual: variacoes das cores da marca.
+   'hsl(var(--info))',
+   'hsl(var(--muted-foreground))',
+   'hsl(162 81% 23%)',
+   'hsl(0 0% 100%)',
+   'hsl(162 100% 35%)',
+   'hsl(210 100% 78%)',
  ];
  
  function CustomTooltip({ active, payload, label }: any) {

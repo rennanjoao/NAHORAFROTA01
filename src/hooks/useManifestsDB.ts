@@ -186,14 +186,14 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       if (fetchError) throw fetchError;
 
       toast({
-        title: "✅ Romaneio Criado!",
+        title: "Romaneio Criado.",
         description: `${result.manifest_code} com ${result.invoices_linked} NF(s) atribuído a ${input.driver_name}`,
       });
 
       return manifestData as DBManifest;
     } catch (err: any) {
       toast({
-        title: "❌ Erro ao criar romaneio",
+        title: "Erro ao criar romaneio",
         description: err.message || "As notas não foram alteradas. Tente novamente.",
         variant: "destructive",
       });
@@ -343,7 +343,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       }
 
       toast({
-        title: "✅ NF removida do romaneio",
+        title: "NF removida do romaneio",
         description: `A nota foi desvinculada e voltou para pendente.`,
       });
 
@@ -351,7 +351,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       return true;
     } catch (err: any) {
       toast({
-        title: "❌ Erro ao remover NF",
+        title: "Erro ao remover NF",
         description: err.message,
         variant: "destructive",
       });
@@ -398,7 +398,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       const activeStatuses = ["pending", "in_progress"];
       if (!activeStatuses.includes(manifest.status)) {
         toast({
-          title: "❌ Operação bloqueada",
+          title: "Operação bloqueada",
           description: `Não é possível adicionar NFs a um romaneio ${manifest.status === "completed" ? "concluído" : manifest.status === "paid" ? "pago" : "cancelado"}.`,
           variant: "destructive",
         });
@@ -473,7 +473,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       }
 
       toast({
-        title: "✅ NF adicionada ao romaneio",
+        title: "NF adicionada ao romaneio",
         description: `A nota foi vinculada ao Romaneio nº ${manifestDisplayNumber}.`,
       });
 
@@ -481,7 +481,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
       return true;
     } catch (err: any) {
       toast({
-        title: "❌ Erro ao adicionar NF",
+        title: "Erro ao adicionar NF",
         description: err.message,
         variant: "destructive",
       });

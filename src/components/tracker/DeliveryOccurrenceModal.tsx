@@ -218,14 +218,14 @@ export function DeliveryOccurrenceModal({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-orange-600">
+          <DialogTitle className="flex items-center gap-2 text-warning">
             <AlertTriangle className="h-5 w-5" />
             Registrar Ocorrência
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm space-y-1 dark:border-orange-800 dark:bg-orange-900/20">
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm space-y-1">
             <p>
               <span className="text-muted-foreground">NF-e: </span>
               <span className="font-mono font-semibold">{nfeNumber || "N/A"}</span>
@@ -304,7 +304,7 @@ export function DeliveryOccurrenceModal({
             <Button
               onClick={handleSubmit}
               disabled={isLoading || !occurrenceType}
-              className="flex-1 h-12 gap-2 bg-orange-600 hover:bg-orange-700"
+              className="flex-1 h-12 gap-2 bg-warning hover:bg-warning/90"
             >
               {isLoading ? (
                 <>

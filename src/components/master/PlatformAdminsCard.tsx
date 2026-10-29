@@ -123,7 +123,7 @@ export function PlatformAdminsCard() {
       if (error) throw error;
 
       toast({
-        title: "✅ Platform Admin adicionado",
+        title: "Platform Admin adicionado",
         description: `${profile.name} agora tem acesso ao Painel Master.`,
       });
 
@@ -152,7 +152,7 @@ export function PlatformAdminsCard() {
       if (error) throw error;
 
       toast({
-        title: "🗑️ Acesso removido",
+        title: "Acesso removido",
         description: `${adminName} não tem mais acesso ao Painel Master.`,
       });
 
@@ -171,7 +171,7 @@ export function PlatformAdminsCard() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-amber-400" />
+          <ShieldCheck className="h-5 w-5 text-warning" />
           Administradores da Plataforma
         </CardTitle>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -184,7 +184,7 @@ export function PlatformAdminsCard() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-amber-400" />
+                <Crown className="h-5 w-5 text-warning" />
                 Adicionar Platform Admin
               </DialogTitle>
               <DialogDescription>
@@ -249,7 +249,7 @@ export function PlatformAdminsCard() {
               {admins.map((admin) => (
                 <TableRow key={admin.user_id}>
                   <TableCell className="font-medium flex items-center gap-2">
-                    <Crown className="h-4 w-4 text-amber-400" />
+                    <Crown className="h-4 w-4 text-warning" />
                     {admin.name}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{admin.email}</TableCell>
@@ -258,7 +258,7 @@ export function PlatformAdminsCard() {
                   </TableCell>
                   <TableCell className="text-right">
                     {admin.user_id === user?.id ? (
-                      <Badge variant="outline" className="text-amber-400 border-amber-500/30">
+                      <Badge variant="outline" className="text-warning border-warning/30">
                         Você
                       </Badge>
                     ) : (

@@ -142,7 +142,7 @@ export function AppSidebar({
     setFavorites(newFavorites);
     setIsEditingFavorites(false);
     toast({
-      title: "✅ Favoritos Atualizados",
+      title: "Favoritos Atualizados",
       description: "Seus favoritos foram salvos com sucesso.",
     });
   };

@@ -165,9 +165,9 @@ export default function Index() {
           <h2 className="text-lg font-semibold text-foreground">Painel de Operações</h2>
           <div className="flex items-center gap-4">
             {/* Active Drivers Badge */}
-            <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-2">
-              <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-2 rounded-lg bg-info/10 border border-info/20 px-4 py-2">
+              <div className="h-2 w-2 rounded-full bg-info animate-pulse" />
+              <span className="text-sm font-medium text-info">
                 {driversInRouteCount} em rota
               </span>
             </div>
@@ -450,7 +450,7 @@ export default function Index() {
                           variant="outline"
                           className={cn(
                             occurrences > 0
-                              ? "bg-orange-500/10 text-orange-600 border-orange-500/30"
+                              ? "bg-warning/10 text-warning border-warning/30"
                               : "bg-success/10 text-success border-success/30"
                           )}
                         >

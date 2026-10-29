@@ -194,7 +194,7 @@ function DriverAttentionCard({
               <p className="font-medium text-foreground truncate flex items-center gap-1.5">
                 {driver.name}
                 {driver.isInRoute && (
-                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/30">
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-info/10 text-info border-info/30">
                     <Truck className="h-3 w-3 mr-0.5" /> em rota
                   </Badge>
                 )}
@@ -223,7 +223,7 @@ function DriverAttentionCard({
           <Button
             size="sm"
             variant="ghost"
-            className="text-green-500 hover:text-green-600"
+            className="text-success hover:text-success"
             onClick={handleWhatsApp}
             title={`Chamar ${driver.name} no WhatsApp`}
             aria-label={`Chamar ${driver.name} no WhatsApp`}
@@ -718,7 +718,7 @@ export function PredictiveIntelligence() {
           <p className="font-medium text-success">
             {onlyInRoute && driversInRoute.length === 0
               ? "Nenhum motorista em rota no momento"
-              : "Nenhum motorista precisa de atenção neste período!"
+              : "Nenhum motorista precisa de atenção neste período."
             }
           </p>
           <p className="text-sm">

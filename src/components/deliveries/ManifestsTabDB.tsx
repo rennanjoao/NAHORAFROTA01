@@ -48,11 +48,11 @@ import { supabase } from "@/integrations/supabase/client";
 type TimeFilter = "daily" | "weekly" | "all";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pendente", color: "bg-amber-100 text-amber-800" },
-  in_progress: { label: "Em Rota", color: "bg-blue-100 text-blue-800" },
-  completed: { label: "Concluído", color: "bg-emerald-100 text-emerald-800" },
-  paid: { label: "Pago", color: "bg-green-500 text-white" },
-  cancelled: { label: "Cancelado", color: "bg-red-100 text-red-800" },
+  pending: { label: "Pendente", color: "bg-warning/15 text-warning" },
+  in_progress: { label: "Em Rota", color: "bg-info/15 text-info" },
+  completed: { label: "Concluído", color: "bg-success/15 text-success" },
+  paid: { label: "Pago", color: "bg-success text-success-foreground" },
+  cancelled: { label: "Cancelado", color: "bg-destructive/15 text-destructive" },
 };
 
 interface ManifestsTabDBProps {
@@ -165,7 +165,7 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
       const reopened = result.reopened_count ?? 0;
       const kept = result.kept_count ?? 0;
       toast({
-        title: "✅ Romaneio excluído",
+        title: "Romaneio excluído",
         description:
           kept > 0
             ? `${reopened} NF(s) voltaram para pendente; ${kept} já finalizada(s) mantiveram o status.`
@@ -228,7 +228,7 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
             <Clock className="h-4 w-4" />
             Em Aberto
           </div>
-          <div className="text-2xl font-bold text-amber-600">{stats.pending}</div>
+          <div className="text-2xl font-bold text-warning">{stats.pending}</div>
           <div className="text-sm text-muted-foreground">Aguardando baixa</div>
         </Card>
         <Card className="p-4">
@@ -236,7 +236,7 @@ export function ManifestsTabDB({ externalSearch }: ManifestsTabDBProps = {}) {
             <CheckCircle2 className="h-4 w-4" />
             Concluídos
           </div>
-          <div className="text-2xl font-bold text-emerald-600">
+          <div className="text-2xl font-bold text-success">
             {stats.completed}
           </div>
           <div className="text-sm text-muted-foreground">Finalizados</div>

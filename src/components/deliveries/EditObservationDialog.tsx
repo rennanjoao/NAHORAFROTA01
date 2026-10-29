@@ -72,7 +72,7 @@ export function EditObservationDialog({
         return;
       }
       toast({
-        title: "✅ Observação salva",
+        title: "Observação salva",
         description: `Observação atualizada para ${deliveryNfe}.`,
       });
       onOpenChange(false);

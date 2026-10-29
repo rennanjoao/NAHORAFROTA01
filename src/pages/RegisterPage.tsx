@@ -163,7 +163,7 @@ export default function RegisterPage() {
 
       if (!signInError) {
         toast({
-          title: `🎉 Teste grátis de ${TRIAL_DAYS} dias liberado`,
+          title: `Teste grátis de ${TRIAL_DAYS} dias liberado`,
           description: "Bem-vindo ao Na Hora Frota. Seu teste grátis já começou.",
         });
         navigate("/", { replace: true });
@@ -187,7 +187,7 @@ export default function RegisterPage() {
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-md border-border/50 shadow-xl">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+            <CheckCircle className="h-16 w-16 text-success mx-auto" />
             <h2 className="text-xl font-semibold">Teste grátis liberado!</h2>
             <p className="text-muted-foreground text-sm">
               Sua empresa foi cadastrada e você já pode usar o Na Hora Frota por {TRIAL_DAYS} dias sem custo.

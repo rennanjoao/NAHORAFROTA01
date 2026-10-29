@@ -155,7 +155,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
         </Card>
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
-            <Gift className="h-8 w-8 text-sky-400" />
+            <Gift className="h-8 w-8 text-info" />
             <div>
               <p className="text-2xl font-bold">{summary?.trial_active ?? inTrial.length}</p>
               <p className="text-xs text-muted-foreground">Testando agora</p>
@@ -164,7 +164,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
         </Card>
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
-            <UserX className="h-8 w-8 text-orange-400" />
+            <UserX className="h-8 w-8 text-warning" />
             <div>
               <p className="text-2xl font-bold">{summary?.trial_expired_not_converted ?? expiredNotConverted.length}</p>
               <p className="text-xs text-muted-foreground">Testaram e não contrataram</p>
@@ -173,7 +173,7 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
         </Card>
         <Card>
           <CardContent className="pt-6 flex items-center gap-3">
-            <TrendingUp className="h-8 w-8 text-emerald-400" />
+            <TrendingUp className="h-8 w-8 text-success" />
             <div>
               <p className="text-2xl font-bold">
                 {summary ? pct(summary.converted, summary.registered) : "—"}

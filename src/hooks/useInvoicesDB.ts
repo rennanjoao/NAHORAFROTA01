@@ -224,7 +224,7 @@ export function useInvoicesDB() {
 
       if (!options.silent) {
         toast({
-          title: '✅ NF atualizada',
+          title: 'NF atualizada',
           description: 'Nota fiscal atualizada com sucesso.',
         });
       }
@@ -258,7 +258,7 @@ export function useInvoicesDB() {
       if (error) throw error;
 
       toast({
-        title: '✅ Status atualizado',
+        title: 'Status atualizado',
         description: `NF alterada para ${STATUS_LABELS[status] || status}.`,
       });
       return true;
@@ -288,7 +288,7 @@ export function useInvoicesDB() {
       if (error) throw error;
 
       toast({
-        title: '✅ NFs atribuídas',
+        title: 'NFs atribuídas',
         description: `${invoiceIds.length} nota(s) atribuída(s) ao romaneio.`,
       });
     } catch (err: any) {
@@ -317,7 +317,7 @@ export function useInvoicesDB() {
       if (error) throw error;
 
       toast({
-        title: '✅ NF removida do romaneio',
+        title: 'NF removida do romaneio',
         description: 'A nota fiscal voltou para pendente.',
       });
     } catch (err: any) {
@@ -367,7 +367,7 @@ export function useInvoicesDB() {
 
       setInvoices((prev) => prev.filter((inv) => inv.id !== id));
       toast({
-        title: '🗑️ NF removida',
+        title: 'NF removida',
         description: 'Nota fiscal excluída com sucesso.',
       });
       return true;

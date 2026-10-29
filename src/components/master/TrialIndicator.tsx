@@ -20,8 +20,8 @@ export function TrialIndicator({ trialEndsAt, extensions }: TrialIndicatorProps)
   const color = expired
     ? "bg-destructive/20 text-destructive border-destructive/30"
     : days <= 2
-      ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-      : "bg-sky-500/20 text-sky-400 border-sky-500/30";
+      ? "bg-warning/20 text-warning border-warning/30"
+      : "bg-info/20 text-info border-info/30";
 
   return (
     <Tooltip>
@@ -72,7 +72,7 @@ export function BillingNoticeBadge({ notice }: { notice: BillingNoticeSummary | 
           variant="outline"
           className={`gap-1 text-[10px] cursor-default ${
             confirmed
-              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+              ? "bg-success/10 text-success border-success/30"
               : "bg-muted text-muted-foreground"
           }`}
         >

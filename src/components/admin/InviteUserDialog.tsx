@@ -97,7 +97,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
     const text = `Acesso ao Na Hora Frota:\nE-mail: ${inviteResult.email}\nSenha temporária: ${inviteResult.tempPassword}\n\nAcesse: ${window.location.origin}/login`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success("Credenciais copiadas!");
+    toast.success("Credenciais copiadas.");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -134,7 +134,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
             <div className="rounded-lg border border-success/30 bg-success/10 p-4 space-y-3">
               <p className="font-semibold text-success flex items-center gap-2">
                 <Check className="h-5 w-5" />
-                Acesso criado com sucesso!
+                Acesso criado com sucesso.
               </p>
               <div className="space-y-2 text-sm">
                 <div>
@@ -152,7 +152,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
             </div>
             <Button onClick={handleCopyCredentials} className="w-full gap-2">
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copiado!" : "Copiar Credenciais"}
+              {copied ? "Copiado." : "Copiar Credenciais"}
             </Button>
           </div>
         ) : (

@@ -96,7 +96,7 @@ function EfficiencyGauge({ percentage }: { percentage: number }) {
         x={cx}
         y={cy - 8}
         textAnchor="middle"
-        className="fill-[#1e3a5f] dark:fill-blue-300"
+        className="fill-foreground"
         style={{ fontSize: "20px", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}
       >
         {clamped.toFixed(1)}%
@@ -297,7 +297,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
           <CardContent className="flex items-center gap-4">
             <EfficiencyGauge percentage={percentage} />
             <div>
-              <p className="text-3xl font-bold font-mono" style={{ color: "#1e3a5f" }}>
+              <p className="text-3xl font-bold font-mono" style={{ color: "hsl(var(--foreground))" }}>
                 {percentage.toFixed(1)}%
               </p>
               <div className="flex items-center gap-1 mt-1">
@@ -383,9 +383,9 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel }: Profitability
                 <Line
                   type="monotone"
                   dataKey="percentage"
-                  stroke="#1e3a5f"
+                  stroke="hsl(var(--primary))"
                   strokeWidth={2.5}
-                  dot={{ fill: "#1e3a5f", r: 4 }}
+                  dot={{ fill: "hsl(var(--primary))", r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>

@@ -17,7 +17,7 @@ import { useOperationalAlerts, OperationalAlert } from "@/hooks/useOperationalAl
 const severityColors: Record<OperationalAlert["severity"], string> = {
   critical: "border-l-destructive bg-destructive/5",
   high: "border-l-warning bg-warning/5",
-  medium: "border-l-orange-500 bg-orange-500/5",
+  medium: "border-l-orange-500 bg-warning/5",
 };
 
 function formatTimeAgo(date: Date): string {

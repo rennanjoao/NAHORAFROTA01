@@ -316,7 +316,7 @@ export default function TrackerPage() {
       .then(({ data }) => {
         if (data?.status === 'completed') {
           toast.success('Romaneio finalizado', {
-            description: 'Todas as entregas foram concluídas. Bom trabalho!',
+            description: 'Todas as entregas foram concluídas. Bom trabalho.',
             duration: 4000,
           });
         }
@@ -529,7 +529,7 @@ export default function TrackerPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="p-6 text-center max-w-md">
-          <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <AlertTriangle className="h-12 w-12 text-warning mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Login Necessário</h2>
           <p className="text-muted-foreground mb-4">
             Faça login para iniciar o rastreamento GPS.
@@ -569,12 +569,12 @@ export default function TrackerPage() {
           <BrandLogo arrangement="linha" className="w-[160px]" />
           <div className="flex items-center gap-2">
             {isTracking ? (
-              <Wifi className="h-5 w-5 text-green-500 animate-pulse" />
+              <Wifi className="h-5 w-5 text-success animate-pulse" />
             ) : (
               <WifiOff className="h-5 w-5 text-muted-foreground" />
             )}
             {batteryLevel > 20 ? (
-              <Battery className="h-5 w-5 text-green-500" />
+              <Battery className="h-5 w-5 text-success" />
             ) : (
               <BatteryLow className="h-5 w-5 text-destructive" />
             )}
@@ -601,7 +601,7 @@ export default function TrackerPage() {
                 {linkedDriver.vehicle_plate} • {linkedDriver.vehicle_type}
               </span>
             </div>
-            <AlertTriangle className="h-4 w-4 text-yellow-500 ml-auto" />
+            <AlertTriangle className="h-4 w-4 text-warning ml-auto" />
           </button>
         ) : driverInfo && (
           <button 
@@ -623,8 +623,8 @@ export default function TrackerPage() {
             <Card className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${isTracking ? 'bg-green-500/20' : 'bg-muted'}`}>
-                    <Navigation className={`h-5 w-5 ${isTracking ? 'text-green-500' : 'text-muted-foreground'}`} />
+                  <div className={`p-2 rounded-lg ${isTracking ? 'bg-success/20' : 'bg-muted'}`}>
+                    <Navigation className={`h-5 w-5 ${isTracking ? 'text-success' : 'text-muted-foreground'}`} />
                   </div>
                   <div>
                     <p className="font-medium text-sm">
@@ -636,7 +636,7 @@ export default function TrackerPage() {
                       </p>
                     )}
                     {gpsError && !gpsBlocked && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">{gpsError}</p>
+                      <p className="text-xs text-warning">{gpsError}</p>
                     )}
                   </div>
                 </div>
@@ -705,7 +705,7 @@ export default function TrackerPage() {
 
           <TabsContent value="report" className="mt-0">
             <Card className="p-6 text-center">
-              <FileWarning className="h-12 w-12 mx-auto mb-4 text-yellow-500" />
+              <FileWarning className="h-12 w-12 mx-auto mb-4 text-warning" />
               <h3 className="text-lg font-semibold mb-2">Registrar Ocorrência</h3>
               <p className="text-sm text-muted-foreground mb-4">
                 Reporte acidentes, atrasos ou problemas mecânicos

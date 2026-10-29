@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Navigation, Radio, RefreshCw, Truck as TruckIcon } from 'lucide-react';
@@ -35,10 +36,10 @@ interface LiveMapLeafletProps {
 }
 
 function getMarkerColor(position: FleetPosition) {
-  if (position.gpsStale) return '#dc2626';
-  if (position.current_delay && position.current_delay > 0) return '#ff1f1f';
-  if (position.individual_sla && position.individual_sla < 90) return '#f59e0b';
-  return '#22c55e';
+  if (position.gpsStale) return STATUS_HEX.idle;
+  if (position.current_delay && position.current_delay > 0) return STATUS_HEX.late;
+  if (position.individual_sla && position.individual_sla < 90) return STATUS_HEX.alert;
+  return STATUS_HEX.ok;
 }
 
 function escapeHtml(value: unknown) {
@@ -59,7 +60,7 @@ function buildPopup(position: FleetPosition) {
   return `
     <div style="min-width:220px;font-family:Inter,system-ui,sans-serif">
       <strong>${escapeHtml(position.driver_name || 'Motorista')}</strong>
-      <div style="margin-top:6px;color:#64748b;font-size:12px">
+      <div style="margin-top:6px;color:${STATUS_HEX.idle};font-size:12px;font-family:'Space Grotesk',Inter,sans-serif;letter-spacing:.04em">
         ${escapeHtml(position.vehicle_plate || 'Placa pendente')}
         ${position.vehicle_type ? ` - ${escapeHtml(position.vehicle_type)}` : ''}
       </div>
@@ -70,7 +71,7 @@ function buildPopup(position: FleetPosition) {
       </div>
       ${
         phone
-          ? `<a href="https://wa.me/${phone}" target="_blank" rel="noreferrer" style="display:block;margin-top:10px;padding:7px 10px;border-radius:6px;background:#16a34a;color:white;text-align:center;text-decoration:none;font-weight:700">Abrir WhatsApp</a>`
+          ? `<a href="https://wa.me/${phone}" target="_blank" rel="noreferrer" style="display:block;margin-top:10px;padding:8px 10px;border-radius:4px;background:${STATUS_HEX.ok};color:${STATUS_HEX.ink};text-align:center;text-decoration:none;font-weight:700">Chamar no WhatsApp</a>`
           : ''
       }
     </div>
@@ -146,9 +147,7 @@ export default function LiveMapLeaflet({
         icon: L.divIcon({
           className: '',
           html: `
-            <div style="position:relative;transform:rotate(${Number(position.heading || 0)}deg)">
-              <div style="width:38px;height:38px;border-radius:999px;background:${color};display:flex;align-items:center;justify-content:center;box-shadow:0 0 18px ${color}88;border:2px solid white;color:white;font-weight:900">T</div>
-            </div>
+            ${vehicleMarkerHtml(color, Number(position.heading || 0))}
           `,
           iconSize: [38, 38],
           iconAnchor: [19, 19],
@@ -205,7 +204,7 @@ export default function LiveMapLeaflet({
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-green-500" />
+            <div className="h-3 w-3 rounded-full bg-success" />
             <span className="text-xs text-muted-foreground">No Prazo</span>
           </div>
           <div className="flex items-center gap-2">
@@ -213,7 +212,7 @@ export default function LiveMapLeaflet({
             <span className="text-xs text-muted-foreground">Atrasado</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-red-600 animate-pulse" />
+            <div className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
             <span className="text-xs text-muted-foreground">Sem Sinal</span>
           </div>
           <div className="flex items-center gap-1.5 text-success">
@@ -232,15 +231,15 @@ export default function LiveMapLeaflet({
         <div className="absolute top-4 right-4 z-[400] bg-nhf-ink/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-500 font-heading">{counts.onTime}</p>
+              <p className="text-2xl font-bold text-success font-data">{counts.onTime}</p>
               <p className="text-xs text-muted-foreground">No Prazo</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary font-heading">{counts.delayed}</p>
+              <p className="text-2xl font-bold text-destructive font-data">{counts.delayed}</p>
               <p className="text-xs text-muted-foreground">Atrasados</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 font-heading">{counts.stale}</p>
+              <p className="text-2xl font-bold text-idle font-data">{counts.stale}</p>
               <p className="text-xs text-muted-foreground">Sem Sinal</p>
             </div>
           </div>

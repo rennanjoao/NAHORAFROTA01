@@ -68,7 +68,7 @@ const VEHICLE_TYPES: CompanyVehicleType[] = ["Fiorino", "VUC", "Toco", "Truck", 
 
 const statusConfig: Record<VehicleStatus, { label: string; className: string; icon: typeof CheckCircle }> = {
   available: { label: "Disponível", className: "bg-success/20 text-success border-success/30", icon: CheckCircle },
-  in_use: { label: "Em Uso", className: "bg-primary/20 text-primary border-primary/30", icon: Truck },
+  in_use: { label: "Em Uso", className: "bg-info/20 text-info border-info/30", icon: Truck },
   maintenance: { label: "Manutenção", className: "bg-warning/20 text-warning border-warning/30", icon: Wrench },
 };
 
@@ -211,7 +211,7 @@ export default function VehiclesPage() {
       invalidatePlanStatus(queryClient);
 
       toast({
-        title: "✅ Veículo Cadastrado!",
+        title: "Veículo Cadastrado.",
         description: `${newVehicle.plate} foi adicionado à frota e salvo no banco de dados.`,
       });
 
@@ -248,7 +248,7 @@ export default function VehiclesPage() {
       });
 
       toast({
-        title: "✅ Veículo Atualizado!",
+        title: "Veículo Atualizado.",
         description: `${selectedVehicle.plate} foi atualizado no banco de dados.`,
       });
 
@@ -277,7 +277,7 @@ export default function VehiclesPage() {
       await companyVehicleStore.delete(selectedVehicle.id);
       invalidatePlanStatus(queryClient);
       toast({
-        title: "🗑️ Veículo Removido",
+        title: "Veículo Removido",
         description: `${selectedVehicle.plate} foi removido da frota.`,
       });
 

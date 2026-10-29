@@ -53,7 +53,7 @@ export function describeCredentialsEmailResult(
   if (result.sent) {
     return {
       kind: "success",
-      title: "📧 Dados de acesso enviados",
+      title: "Dados de acesso enviados",
       description: `O motorista recebeu o login e o link do app em ${result.recipient}.`,
     };
   }

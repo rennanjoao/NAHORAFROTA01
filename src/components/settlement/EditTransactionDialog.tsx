@@ -98,7 +98,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange, onSave 
     onOpenChange(false);
 
     toast({
-      title: "✅ Lançamento atualizado",
+      title: "Lançamento atualizado",
       description: `${description} foi atualizado com sucesso.`,
     });
   };

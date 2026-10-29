@@ -88,7 +88,7 @@ export function useTenantData() {
       setTenant(prev => prev ? { ...prev, ...updates } : null);
 
       toast({
-        title: '✅ Dados da Empresa Salvos',
+        title: 'Dados da Empresa Salvos',
         description: 'As informações foram atualizadas com sucesso.',
       });
     } catch (err: any) {

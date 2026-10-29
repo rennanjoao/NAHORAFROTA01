@@ -87,7 +87,7 @@ export function DriversInRouteModal({ open, onOpenChange, data, invoicesInTransi
                           <h4 className="font-semibold text-foreground truncate">
                             {driver.name}
                           </h4>
-                          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">
+                          <Badge variant="outline" className="bg-info/10 text-info border-info/30">
                             Em Rota
                           </Badge>
                         </div>
@@ -129,7 +129,7 @@ export function DriversInRouteModal({ open, onOpenChange, data, invoicesInTransi
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                              className="h-7 bg-success/10 text-success hover:bg-success/20"
                               onClick={() => handleWhatsApp(driver.phone)}
                             >
                               <Phone className="h-3 w-3 mr-1" />

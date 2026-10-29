@@ -94,12 +94,12 @@ interface DeliveryDetailSheetProps {
 
 const statusConfig = {
   pending: { label: "Pendente", color: "bg-muted text-muted-foreground" },
-  in_transit: { label: "Em Rota", color: "bg-primary text-primary-foreground" },
+  in_transit: { label: "Em Rota", color: "bg-info text-info-foreground" },
   delivered: { label: "Entregue", color: "bg-success text-success-foreground" },
   delayed: { label: "Atrasado", color: "bg-destructive text-destructive-foreground" },
-  occurrence: { label: "Ocorrência", color: "bg-orange-500 text-white" },
-  returning: { label: "Em Devolução", color: "bg-purple-500 text-white" },
-  returned: { label: "Devolvido", color: "bg-slate-500 text-white" },
+  occurrence: { label: "Ocorrência", color: "bg-warning text-warning-foreground" },
+  returning: { label: "Em Devolução", color: "bg-info text-info-foreground" },
+  returned: { label: "Devolvido", color: "bg-idle text-idle-foreground" },
 };
 
 const actionIcons = {
@@ -115,7 +115,7 @@ const actionColors = {
   invoice_removed: "text-destructive",
   manifest_finalized: "text-success",
   status_change: "text-primary",
-  occurrence: "text-orange-500",
+  occurrence: "text-warning",
 };
 
 const actionLabels: Record<string, string> = {
@@ -535,11 +535,11 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
               <>
                 <Separator />
                 <div className="space-y-3">
-                  <h4 className="font-semibold flex items-center gap-2 text-orange-500">
+                  <h4 className="font-semibold flex items-center gap-2 text-warning">
                     <AlertTriangle className="h-4 w-4" />
                     Ocorrência Registrada
                   </h4>
-                  <div className="pl-6 space-y-2 text-sm bg-orange-50 dark:bg-orange-950/30 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
+                  <div className="pl-6 space-y-2 text-sm bg-warning/10 rounded-lg p-3 border border-warning/30">
                     <p className="font-medium">{getOccurrenceLabel(delivery.occurrenceType)}</p>
                     {delivery.observation && (
                       <p className="text-muted-foreground">{delivery.observation}</p>
@@ -547,9 +547,9 @@ export function DeliveryDetailSheet({ delivery, open, onOpenChange, onAddressUpd
                     {occurrenceEntries.length > 0 && (
                       <div className="space-y-3 pt-2">
                         {occurrenceEntries.map((occurrence) => (
-                          <div key={occurrence.id} className="space-y-2 rounded-lg border border-orange-200 bg-background p-2 dark:border-orange-800">
+                          <div key={occurrence.id} className="space-y-2 rounded-lg border border-warning/30 bg-background p-2">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-medium text-orange-600">
+                              <span className="text-xs font-medium text-warning">
                                 {getOccurrenceLabel(occurrence.type)}
                               </span>
                               <span className="text-[11px] text-muted-foreground">

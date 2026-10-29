@@ -51,8 +51,8 @@ export function ManifestCard({ manifest, completedCount, totalCount }: ManifestC
           <span className="text-[10px] text-muted-foreground">Entregas</span>
         </div>
         <div className="flex flex-col items-center p-2 bg-background/50 rounded-lg">
-          <MapPin className="h-4 w-4 text-green-500 mb-1" />
-          <span className="text-lg font-bold text-green-600">{completedCount}</span>
+          <MapPin className="h-4 w-4 text-success mb-1" />
+          <span className="text-lg font-bold text-success">{completedCount}</span>
           <span className="text-[10px] text-muted-foreground">Feitas</span>
         </div>
         <div className="flex flex-col items-center p-2 bg-background/50 rounded-lg">
@@ -72,7 +72,7 @@ export function ManifestCard({ manifest, completedCount, totalCount }: ManifestC
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div 
-            className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-500"
+            className="h-full bg-gradient-to-r from-success to-success transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>

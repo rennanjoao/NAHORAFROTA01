@@ -193,7 +193,7 @@ export function DeliveryProofModal({
       if (invoiceError) throw invoiceError;
 
       localStorage.removeItem(DRAFT_KEY(invoiceId));
-      toast.success("Entrega confirmada com sucesso!");
+      toast.success("Entrega confirmada com sucesso.");
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -329,18 +329,18 @@ export function DeliveryProofModal({
               <p className="text-sm text-muted-foreground">Revise os dados e confirme a entrega</p>
               <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
                 <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-green-500" />
+                  <Check className="h-4 w-4 text-success" />
                   <span className="text-sm">Foto capturada</span>
                 </div>
                 {signatureDataUrl && (
                   <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-success" />
                     <span className="text-sm">Assinatura coletada</span>
                   </div>
                 )}
                 {receiverName && (
                   <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-success" />
                     <span className="text-sm">Recebedor: {receiverName}</span>
                   </div>
                 )}
@@ -352,7 +352,7 @@ export function DeliveryProofModal({
                 <Button
                   onClick={handleSubmit}
                   disabled={isLoading}
-                  className="flex-1 gap-2 bg-green-600 hover:bg-green-700"
+                  className="flex-1 gap-2 bg-success hover:bg-success/90"
                 >
                   {isLoading ? (
                     <>

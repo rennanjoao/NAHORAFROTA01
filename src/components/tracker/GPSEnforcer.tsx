@@ -8,7 +8,7 @@ interface GPSEnforcerProps {
 
 export function GPSEnforcer({ error, onRetry }: GPSEnforcerProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-red-600 flex flex-col items-center justify-center p-8 text-white">
+    <div className="fixed inset-0 z-50 bg-destructive flex flex-col items-center justify-center p-8 text-destructive-foreground">
       <div className="animate-pulse mb-6">
         <MapPinOff className="h-24 w-24" />
       </div>

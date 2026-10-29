@@ -33,7 +33,7 @@
          <AlertDialogHeader>
            <AlertDialogTitle className="flex items-center gap-2">
              {isLinkedToManifest ? (
-               <AlertTriangle className="h-5 w-5 text-amber-500" />
+               <AlertTriangle className="h-5 w-5 text-warning" />
              ) : (
                <Trash2 className="h-5 w-5 text-destructive" />
              )}
@@ -45,7 +45,7 @@
                  <p>
                    A NF <strong className="font-mono">{invoiceNfe}</strong> está vinculada a um romaneio.
                  </p>
-                 <p className="text-amber-600 dark:text-amber-400">
+                 <p className="text-warning">
                    Para excluir esta nota fiscal, primeiro remova-a do romaneio através da opção 
                    "Remover do Romaneio" no menu de ações.
                  </p>

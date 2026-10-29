@@ -33,38 +33,38 @@ const statusConfig: Record<string, {
   pending: { 
     label: 'Pendente', 
     icon: Clock, 
-    color: 'text-yellow-600',
-    bgColor: 'bg-yellow-100 dark:bg-yellow-900/30'
+    color: 'text-warning',
+    bgColor: 'bg-warning/15'
   },
   in_transit: { 
     label: 'Em Trânsito', 
     icon: Navigation, 
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100 dark:bg-blue-900/30'
+    color: 'text-info',
+    bgColor: 'bg-info/15'
   },
   loaded: { 
     label: 'Carregado', 
     icon: Package, 
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100 dark:bg-purple-900/30'
+    color: 'text-info',
+    bgColor: 'bg-info/15'
   },
   delivered: { 
     label: 'Entregue', 
     icon: CheckCircle, 
-    color: 'text-green-600',
-    bgColor: 'bg-green-100 dark:bg-green-900/30'
+    color: 'text-success',
+    bgColor: 'bg-success/15'
   },
   occurrence: { 
     label: 'Ocorrência', 
     icon: AlertCircle, 
-    color: 'text-red-600',
-    bgColor: 'bg-red-100 dark:bg-red-900/30'
+    color: 'text-destructive',
+    bgColor: 'bg-destructive/15'
   },
   returned: { 
     label: 'Devolvido', 
     icon: AlertTriangle, 
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-100 dark:bg-orange-900/30'
+    color: 'text-warning',
+    bgColor: 'bg-warning/15'
   },
 };
 
@@ -95,15 +95,15 @@ function DeliveryItem({
   const cityInfo = delivery.address_city || '';
 
   return (
-    <Card className={`p-4 ${isDelivered ? 'opacity-60 bg-muted/30' : hasOccurrence ? 'bg-orange-50/50 dark:bg-orange-900/10' : 'bg-card'}`}>
+    <Card className={`p-4 ${isDelivered ? 'opacity-60 bg-muted/30' : hasOccurrence ? 'bg-warning/10' : 'bg-card'}`}>
       <div className="flex gap-3">
         {/* Index Number */}
         <div className={`
           flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
           ${isDelivered 
-            ? 'bg-green-500 text-white' 
+            ? 'bg-success text-success-foreground' 
             : hasOccurrence 
-              ? 'bg-orange-500 text-white'
+              ? 'bg-warning text-warning-foreground'
               : 'bg-primary text-primary-foreground'}
         `}>
           {isDelivered ? (
@@ -127,7 +127,7 @@ function DeliveryItem({
                 <p className="text-[10px] text-muted-foreground">NF-e: {delivery.nfe_number}</p>
               )}
               {delivery.arrived_at && !isDelivered && !hasOccurrence && (
-                <p className="text-[10px] font-medium text-blue-600 flex items-center gap-1">
+                <p className="text-[10px] font-medium text-info flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
                   Você chegou às {new Date(delivery.arrived_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -158,7 +158,7 @@ function DeliveryItem({
               <Button
                 onClick={() => onNavigate(delivery)}
                 size="lg"
-                className="w-full h-12 gap-2 bg-[#33ccff] hover:bg-[#2bb8e8] text-black font-bold"
+                className="w-full h-12 gap-2 bg-info text-info-foreground hover:bg-info/90 font-bold"
               >
                 <Navigation className="h-5 w-5" />
                 Navegar
@@ -172,7 +172,7 @@ function DeliveryItem({
                   <Button
                     onClick={() => onFinishDelivery(delivery)}
                     size="lg"
-                    className="h-12 gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold"
+                    className="h-12 gap-2 bg-success hover:bg-success/90 text-success-foreground font-semibold"
                   >
                     <CheckCircle className="h-5 w-5" />
                     Finalizar
@@ -185,7 +185,7 @@ function DeliveryItem({
                     onClick={() => onRegisterOccurrence(delivery)}
                     size="lg"
                     variant="outline"
-                    className="h-12 gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 font-semibold"
+                    className="h-12 gap-2 border-warning text-warning hover:bg-warning/10 font-semibold"
                   >
                     <AlertTriangle className="h-5 w-5" />
                     Ocorrência
@@ -197,14 +197,14 @@ function DeliveryItem({
 
           {/* Delivered/Occurrence status message */}
           {isDelivered && (
-            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
+            <div className="flex items-center gap-2 text-sm text-success bg-success/10 p-2 rounded-lg">
               <CheckCircle className="h-4 w-4" />
               <span>Entrega concluída</span>
             </div>
           )}
           
           {hasOccurrence && (
-            <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg">
+            <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 p-2 rounded-lg">
               <AlertTriangle className="h-4 w-4" />
               <span>Ocorrência registrada</span>
             </div>
@@ -284,7 +284,7 @@ export function DeliveryList({
             </Button>
           )}
           {occurrenceCount > 0 && (
-            <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+            <Badge variant="outline" className="text-xs text-warning border-warning/30">
               {occurrenceCount} ocorrência{occurrenceCount !== 1 ? 's' : ''}
             </Badge>
           )}

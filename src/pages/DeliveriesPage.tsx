@@ -158,14 +158,16 @@ const OPEN_STATUSES = new Set<string>(["pending", "in_transit", "delayed", "occu
 // Empty initial state - all data comes from database
 const initialDeliveries: Delivery[] = [];
 
+// Manual da marca: status com cor funcional em contorno + texto (nunca so cor) e
+// tabela sem linhas pintadas; atraso/ocorrencia ganham so uma barra lateral.
 const statusConfig = {
-  pending: { label: "Pendente", icon: Clock, color: "bg-slate-500 text-white", rowColor: "" },
-  in_transit: { label: "Em Rota", icon: Truck, color: "bg-blue-500 text-white", rowColor: "bg-blue-50/50 dark:bg-blue-950/20" },
-  delivered: { label: "Entregue", icon: CheckCircle2, color: "bg-green-500 text-white", rowColor: "bg-green-50/50 dark:bg-green-950/20" },
-  delayed: { label: "Atrasado", icon: AlertTriangle, color: "bg-destructive text-destructive-foreground", rowColor: "bg-destructive/5" },
-  occurrence: { label: "Ocorrência", icon: AlertTriangle, color: "bg-orange-500 text-white", rowColor: "bg-orange-50 dark:bg-orange-950/20" },
-  returning: { label: "Em Devolução", icon: RotateCcw, color: "bg-purple-500 text-white", rowColor: "bg-purple-50 dark:bg-purple-950/20" },
-  returned: { label: "Devolvido", icon: Warehouse, color: "bg-slate-600 text-white", rowColor: "bg-slate-100 dark:bg-slate-900/30" },
+  pending: { label: "Pendente", icon: Clock, color: "bg-idle/10 text-idle border-idle/40", rowColor: "" },
+  in_transit: { label: "Em Rota", icon: Truck, color: "bg-info/10 text-info border-info/40", rowColor: "" },
+  delivered: { label: "Entregue", icon: CheckCircle2, color: "bg-success/10 text-success border-success/40", rowColor: "" },
+  delayed: { label: "Atrasado", icon: AlertTriangle, color: "bg-destructive/10 text-destructive border-destructive/40", rowColor: "shadow-[inset_3px_0_0_hsl(var(--destructive))]" },
+  occurrence: { label: "Ocorrência", icon: AlertTriangle, color: "bg-warning/10 text-warning border-warning/40", rowColor: "shadow-[inset_3px_0_0_hsl(var(--warning))]" },
+  returning: { label: "Em Devolução", icon: RotateCcw, color: "bg-info/10 text-info border-info/40", rowColor: "" },
+  returned: { label: "Devolvido", icon: Warehouse, color: "bg-secondary text-foreground border-border", rowColor: "" },
 };
 
 type TimeFilter = "daily" | "weekly" | "monthly";
@@ -685,7 +687,7 @@ export default function DeliveriesPage() {
 
     await refetchInvoices();
     toast({
-      title: "✅ NF liberada para romaneamento",
+      title: "NF liberada para romaneamento",
       description: `NF ${deliveryForReRoute.nfe} pode ser romaneada novamente.`,
     });
 
@@ -822,7 +824,7 @@ export default function DeliveriesPage() {
       setIsPrintPreviewOpen(true);
     } else if (action === "resend" && manifest) {
       toast({
-        title: "✅ Romaneio atualizado no app",
+        title: "Romaneio atualizado no app",
         description: `A NF já aparece na lista de entregas de ${manifest.driver_name} no app do motorista.`,
       });
     }
@@ -946,7 +948,7 @@ export default function DeliveriesPage() {
       }
 
       toast({
-        title: "✅ Entrega Confirmada",
+        title: "Entrega Confirmada",
         description: `NF ${deliveryForConfirm.nfe} marcada como entregue.`,
       });
 
@@ -1103,7 +1105,7 @@ export default function DeliveriesPage() {
 
     await refetchInvoices();
     toast({
-      title: "✅ Retorno Confirmado",
+      title: "Retorno Confirmado",
       description: `NF ${delivery.nfe} marcada como devolvida ao galpão.`,
     });
   };
@@ -1661,7 +1663,7 @@ export default function DeliveriesPage() {
                             <HoverCard>
                               <HoverCardTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-6 w-6">
-                                  <History className="h-4 w-4 text-amber-500" />
+                                  <History className="h-4 w-4 text-warning" />
                                 </Button>
                               </HoverCardTrigger>
                               <HoverCardContent className="w-80" align="start">
@@ -1694,7 +1696,7 @@ export default function DeliveriesPage() {
                                           <Truck className="h-3 w-3" />
                                           {entry.driverName}
                                         </div>
-                                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                        <div className="flex items-center gap-2 text-warning">
                                           <AlertTriangle className="h-3 w-3" />
                                           {entry.reason}
                                         </div>
@@ -1757,7 +1759,7 @@ export default function DeliveriesPage() {
                             {(delivery.status === "pending" || delivery.status === "in_transit") && (
                               <DropdownMenuItem 
                                 onClick={() => handleOpenOccurrence(delivery)} 
-                                className="text-orange-600"
+                                className="text-warning"
                               >
                                 <AlertTriangle className="h-4 w-4 mr-2" />
                                 Registrar Ocorrência
@@ -1768,7 +1770,7 @@ export default function DeliveriesPage() {
                             {delivery.status === "in_transit" && (delivery as any).dbId && (
                               <DropdownMenuItem 
                                 onClick={() => handleOpenConfirmDelivery(delivery)} 
-                                className="text-green-600"
+                                className="text-success"
                               >
                                 <CheckCircle2 className="h-4 w-4 mr-2" />
                                 Confirmar Entrega
@@ -1895,10 +1897,10 @@ export default function DeliveriesPage() {
               <span className="block mb-4">
                 Você está prestes a liberar a <strong>NF {deliveryForReRoute?.nfe}</strong> para ser romaneada novamente.
               </span>
-              <span className="block p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200">
+              <span className="block p-4 bg-warning/10 border border-warning/30 rounded-lg text-warning">
                 <strong className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="h-4 w-4" />
-                  Atenção!
+                  Atenção.
                 </strong>
                 Você já conferiu se essa mercadoria chegou na empresa?
               </span>

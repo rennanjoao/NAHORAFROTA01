@@ -130,7 +130,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       }
 
       setCreated(true);
-      toast.success(`Usuário ${name.trim()} criado com sucesso!`);
+      toast.success(`Usuário ${name.trim()} criado com sucesso.`);
       onUserCreated?.();
     } catch (err: any) {
       console.error("Error creating user:", err);
@@ -144,7 +144,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
     const text = `Acesso ao Na Hora Frota:\nE-mail: ${email.trim().toLowerCase()}\nSenha: ${password.trim()}\n\nAcesse: ${window.location.origin}/login`;
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success("Credenciais copiadas!");
+    toast.success("Credenciais copiadas.");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -170,10 +170,10 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
 
         {created ? (
           <div className="space-y-4 py-4">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-3">
-              <p className="flex items-center gap-2 font-semibold text-emerald-400">
+            <div className="rounded-lg border border-success/30 bg-success/10 p-4 space-y-3">
+              <p className="flex items-center gap-2 font-semibold text-success">
                 <Check className="h-5 w-5" />
-                Usuário criado com sucesso!
+                Usuário criado com sucesso.
               </p>
 
               <div className="space-y-2 text-sm">
@@ -202,7 +202,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
 
             <Button onClick={handleCopy} className="w-full gap-2">
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copiado!" : "Copiar Credenciais"}
+              {copied ? "Copiado." : "Copiar Credenciais"}
             </Button>
           </div>
         ) : (

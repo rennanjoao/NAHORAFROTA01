@@ -400,7 +400,7 @@ export function ManifestPrintPreview({
                       <TableCell className="text-right text-xs">{delivery.weight}</TableCell>
                       <TableCell className="text-right text-xs">{delivery.value}</TableCell>
                       <TableCell className="text-center text-xs">
-                        {delivery.observation ? "⚠️" : "-"}
+                        {delivery.observation ? "Obs." : "-"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -420,7 +420,7 @@ export function ManifestPrintPreview({
             {deliveriesWithObs.length > 0 && (
               <div className="obs-section bg-warning/5 border border-warning/30 p-3 rounded-lg mb-4">
                 <div className="obs-title text-xs font-bold text-warning mb-2">
-                  ⚠️ Observações das Entregas
+                  Observações das Entregas
                 </div>
                 <div className="space-y-1">
                   {deliveriesWithObs.map((delivery) => (

@@ -160,13 +160,13 @@ import { uniqueChannelName } from "@/lib/realtime";
        if (error) throw error;
  
        toast({
-         title: "✅ Acerto Finalizado!",
+         title: "Acerto Finalizado.",
          description: `Pagamento registrado com sucesso.`,
        });
        return true;
      } catch (err: any) {
        toast({
-         title: "❌ Erro ao finalizar acerto",
+         title: "Erro ao finalizar acerto",
          description: err.message,
          variant: "destructive",
        });
@@ -211,13 +211,13 @@ import { uniqueChannelName } from "@/lib/realtime";
        }
  
        toast({
-         title: isDeduction ? "➖ Desconto adicionado" : "➕ Crédito adicionado",
+         title: isDeduction ? "Desconto adicionado" : "Crédito adicionado",
          description: `${description}: R$ ${Math.abs(amount).toFixed(2)}`,
        });
        return true;
      } catch (err: any) {
        toast({
-         title: "❌ Erro ao adicionar lançamento",
+         title: "Erro ao adicionar lançamento",
          description: err.message,
          variant: "destructive",
        });
@@ -253,7 +253,7 @@ import { uniqueChannelName } from "@/lib/realtime";
       return true;
     } catch (err: any) {
       toast({
-        title: "❌ Erro ao estornar",
+        title: "Erro ao estornar",
         description: err.message,
         variant: "destructive",
       });

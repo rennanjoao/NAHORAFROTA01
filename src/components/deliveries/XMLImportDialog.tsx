@@ -358,7 +358,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
       setStep("complete");
 
       toast({
-        title: "✅ Importação concluída",
+        title: "Importação concluída",
         description:
           skippedNow > 0
             ? `${importedNow} nota(s) importada(s) e ${skippedNow} ignorada(s) por duplicidade.`
@@ -405,7 +405,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
             {step === "processing" && "Processando arquivos..."}
             {step === "review" && "Revise as notas antes de confirmar a importação."}
             {step === "importing" && "Salvando notas fiscais..."}
-            {step === "complete" && "Importação concluída!"}
+            {step === "complete" && "Importação concluída."}
           </DialogDescription>
         </DialogHeader>
 
@@ -532,9 +532,9 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
                         {invoice.isDuplicate ? (
                           <span className="text-muted-foreground">—</span>
                         ) : invoice.isGeocoded ? (
-                          <MapPin className="h-4 w-4 text-green-500 mx-auto" />
+                          <MapPin className="h-4 w-4 text-success mx-auto" />
                         ) : (
-                          <FileWarning className="h-4 w-4 text-yellow-500 mx-auto" />
+                          <FileWarning className="h-4 w-4 text-warning mx-auto" />
                         )}
                       </TableCell>
                       <TableCell>
@@ -591,7 +591,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
         {/* Complete Step */}
         {step === "complete" && (
           <div className="py-12 text-center">
-            <CheckCircle2 className="h-16 w-16 mx-auto text-green-500 mb-4" />
+            <CheckCircle2 className="h-16 w-16 mx-auto text-success mb-4" />
             <h3 className="text-xl font-medium mb-2">Importação Concluída!</h3>
             <div className="flex justify-center gap-4 mb-6">
               <Badge variant="default" className="text-base px-4 py-2">

@@ -161,7 +161,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
       [type]: { name: file.name, url, uploadedAt: new Date(), file }
     }));
     toast({
-      title: "📄 Documento anexado",
+      title: "Documento anexado",
       description: `${file.name} será enviado ao salvar o motorista.`,
     });
   };
@@ -200,12 +200,12 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     try {
       await navigator.clipboard.writeText(text);
       toast({
-        title: "✅ Copiado!",
+        title: "Copiado.",
         description: `${label} copiado para a área de transferência.`,
       });
     } catch (err) {
       toast({
-        title: "❌ Erro ao copiar",
+        title: "Erro ao copiar",
         description: "Não foi possível copiar. Copie manualmente.",
         variant: "destructive",
       });
@@ -226,7 +226,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     // Validate required fields
     if (!formData.name || !formData.cpf || !formData.phone || !formData.cnhNumber) {
       toast({
-        title: "⚠️ Campos obrigatórios",
+        title: "Campos obrigatórios",
         description: "Por favor, preencha todos os campos obrigatórios na aba Pessoal.",
         variant: "destructive",
       });
@@ -236,7 +236,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
     if (!isValidCPF(formData.cpf)) {
       toast({
-        title: "⚠️ CPF inválido",
+        title: "CPF inválido",
         description: "Confira os números do CPF do motorista.",
         variant: "destructive",
       });
@@ -249,7 +249,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
     if (formData.contactEmail.trim() && !isValidContactEmail(formData.contactEmail)) {
       toast({
-        title: "⚠️ E-mail inválido",
+        title: "E-mail inválido",
         description: "Confira o e-mail do motorista que vai receber os dados de acesso.",
         variant: "destructive",
       });
@@ -259,7 +259,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
     if (!isOwnFleet && (!formData.vehicleType || !formData.vehiclePlate)) {
       toast({
-        title: "⚠️ Dados do veículo",
+        title: "Dados do veículo",
         description: "Para motoristas terceiros, informe o tipo e placa do veículo.",
         variant: "destructive",
       });
@@ -271,7 +271,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     if (createLogin) {
       if (!generatedEmail) {
         toast({
-          title: "⚠️ Nome obrigatório",
+          title: "Nome obrigatório",
           description: "Preencha o nome para gerar o e-mail de login.",
           variant: "destructive",
         });
@@ -317,7 +317,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           const errMsg = data.error;
           if (errMsg.includes("already been registered") || errMsg.includes("email_exists")) {
             toast({
-              title: "❌ Login já existe",
+              title: "Login já existe",
               description: "Este e-mail ou identificador já está cadastrado no sistema. Use outro e-mail ou desmarque 'Criar Login de Acesso'.",
               variant: "destructive",
             });
@@ -326,7 +326,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           }
           // Show error with details
           toast({
-            title: "❌ Erro ao criar login",
+            title: "Erro ao criar login",
             description: errMsg,
             variant: "destructive",
           });
@@ -360,7 +360,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         }
         if (createdUserId) {
         toast({
-          title: "✅ Login criado",
+          title: "Login criado",
           description: `Login: ${createdUserEmail || generatedEmail}`,
         });
         }
@@ -621,7 +621,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         setActiveTab("vehicle");
       }
       toast({
-        title: "❌ Erro ao cadastrar",
+        title: "Erro ao cadastrar",
         description: errorMessage,
         variant: "destructive",
       });
@@ -826,9 +826,9 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                   </div>
 
                   {!formData.name && (
-                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm">
-                      <p className="text-amber-600 dark:text-amber-400">
-                        ⚠️ Preencha o nome para gerar o e-mail de login
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm">
+                      <p className="text-warning">
+                        Preencha o nome para gerar o e-mail de login
                       </p>
                     </div>
                   )}
@@ -1006,9 +1006,9 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                       </div>
 
                       {!formData.name && (
-                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm">
-                          <p className="text-amber-600 dark:text-amber-400">
-                            ⚠️ Preencha o nome para gerar o e-mail de login
+                        <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 text-sm">
+                          <p className="text-warning">
+                            Preencha o nome para gerar o e-mail de login
                           </p>
                         </div>
                       )}

@@ -31,7 +31,7 @@ export function InvoicesInTransitModal({ open, onOpenChange, data }: InvoicesInT
       <SheetContent className="w-full sm:max-w-lg">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Truck className="h-5 w-5 text-blue-500" />
+            <Truck className="h-5 w-5 text-info" />
             Em Rota
           </SheetTitle>
           <SheetDescription>
@@ -58,7 +58,7 @@ export function InvoicesInTransitModal({ open, onOpenChange, data }: InvoicesInT
                         <span className="font-mono text-sm font-medium">
                           NF {invoice.nfe_number || invoice.id.slice(0, 8)}
                         </span>
-                        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">
+                        <Badge variant="outline" className="bg-info/10 text-info border-info/30">
                           <Truck className="h-3 w-3 mr-1" />
                           Em Rota
                         </Badge>

@@ -69,7 +69,7 @@ export function RegisterOccurrenceDialog({
     onSave(deliveryId, occurrenceType, observation);
 
     toast({
-      title: "⚠️ Ocorrência Registrada",
+      title: "Ocorrência Registrada",
       description: `Ocorrência registrada na NF ${deliveryNfe} por ${currentUser}.`,
     });
 
@@ -89,7 +89,7 @@ export function RegisterOccurrenceDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-orange-600">
+          <DialogTitle className="flex items-center gap-2 text-warning">
             <AlertTriangle className="h-5 w-5" />
             Registrar Ocorrência
           </DialogTitle>
@@ -136,7 +136,7 @@ export function RegisterOccurrenceDialog({
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="bg-orange-600 hover:bg-orange-700"
+            className="bg-warning hover:bg-warning/90"
           >
             {isSaving ? (
               <>

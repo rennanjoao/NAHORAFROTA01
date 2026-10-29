@@ -30,13 +30,13 @@ export function TodayLoadedModal({ open, onOpenChange, data }: TodayLoadedModalP
   const getStatusConfig = (status: string) => {
     switch (status) {
       case "in_transit":
-        return { label: "Em Rota", icon: Truck, className: "bg-blue-500/10 text-blue-600 border-blue-500/30" };
+        return { label: "Em Rota", icon: Truck, className: "bg-info/10 text-info border-info/30" };
       case "delivered":
-        return { label: "Entregue", icon: CheckCircle2, className: "bg-green-500/10 text-green-600 border-green-500/30" };
+        return { label: "Entregue", icon: CheckCircle2, className: "bg-success/10 text-success border-success/30" };
       case "occurrence":
-        return { label: "Ocorrência", icon: AlertCircle, className: "bg-orange-500/10 text-orange-600 border-orange-500/30" };
+        return { label: "Ocorrência", icon: AlertCircle, className: "bg-warning/10 text-warning border-warning/30" };
       case "returned":
-        return { label: "Devolvida", icon: AlertCircle, className: "bg-red-500/10 text-red-600 border-red-500/30" };
+        return { label: "Devolvida", icon: AlertCircle, className: "bg-destructive/10 text-destructive border-destructive/30" };
       default:
         return { label: status, icon: Package, className: "bg-muted text-muted-foreground" };
     }

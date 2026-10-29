@@ -60,20 +60,20 @@ export interface SLAStatusConfig {
 
 export const getSLAStatus = (sla: number | null): SLAStatusConfig => {
   const slaValue = sla || 0;
-  if (slaValue >= 98) return { label: "EXCELENTE", color: "text-emerald-600", bgColor: "bg-emerald-500", borderColor: "border-emerald-500" };
-  if (slaValue >= 95) return { label: "BOM", color: "text-green-500", bgColor: "bg-green-500", borderColor: "border-green-500" };
-  if (slaValue >= 90) return { label: "REGULAR / ALERTA", color: "text-yellow-500", bgColor: "bg-yellow-500", borderColor: "border-yellow-500" };
-  if (slaValue >= 85) return { label: "RUIM", color: "text-orange-500", bgColor: "bg-orange-500", borderColor: "border-orange-500" };
-  return { label: "PÉSSIMO", color: "text-red-600", bgColor: "bg-red-600", borderColor: "border-red-600" };
+  if (slaValue >= 98) return { label: "EXCELENTE", color: "text-success", bgColor: "bg-success", borderColor: "border-success" };
+  if (slaValue >= 95) return { label: "BOM", color: "text-success", bgColor: "bg-success", borderColor: "border-success" };
+  if (slaValue >= 90) return { label: "REGULAR / ALERTA", color: "text-warning", bgColor: "bg-warning", borderColor: "border-warning" };
+  if (slaValue >= 85) return { label: "RUIM", color: "text-warning", bgColor: "bg-warning", borderColor: "border-warning" };
+  return { label: "PÉSSIMO", color: "text-destructive", bgColor: "bg-destructive", borderColor: "border-destructive" };
 };
 
 export const getIndividualSLAColor = (sla: number | null): string => {
   const slaValue = sla || 0;
-  if (slaValue >= 98) return "text-emerald-600";
-  if (slaValue >= 95) return "text-green-500";
-  if (slaValue >= 90) return "text-yellow-500";
-  if (slaValue >= 85) return "text-orange-500";
-  return "text-red-600";
+  if (slaValue >= 98) return "text-success";
+  if (slaValue >= 95) return "text-success";
+  if (slaValue >= 90) return "text-warning";
+  if (slaValue >= 85) return "text-warning";
+  return "text-destructive";
 };
 
 // ============== GEOGRAPHIC DATA FOR RISK MAP ==============
@@ -158,26 +158,26 @@ export const getFinishedStatusConfig = (status: FinishedRouteStatus) => {
     case "finalizada":
       return {
         label: "Finalizada",
-        color: "text-emerald-600",
-        bgColor: "bg-emerald-500",
-        borderColor: "border-emerald-500/30",
-        bgLight: "bg-emerald-500/10",
+        color: "text-success",
+        bgColor: "bg-success",
+        borderColor: "border-success/30",
+        bgLight: "bg-success/10",
       };
     case "finalizada_ocorrencia":
       return {
         label: "Finalizada com Ocorrência",
-        color: "text-blue-600",
-        bgColor: "bg-blue-500",
-        borderColor: "border-blue-500/30",
-        bgLight: "bg-blue-500/10",
+        color: "text-info",
+        bgColor: "bg-info",
+        borderColor: "border-info/30",
+        bgLight: "bg-info/10",
       };
     case "interrompida":
       return {
         label: "Interrompida",
-        color: "text-yellow-600",
-        bgColor: "bg-yellow-500",
-        borderColor: "border-yellow-500/30",
-        bgLight: "bg-yellow-500/10",
+        color: "text-warning",
+        bgColor: "bg-warning",
+        borderColor: "border-warning/30",
+        bgLight: "bg-warning/10",
       };
   }
 };

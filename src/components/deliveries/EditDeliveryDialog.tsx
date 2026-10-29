@@ -221,7 +221,7 @@ export function EditDeliveryDialog({
     onOpenChange(false);
 
     toast({
-      title: isManualConfirm ? "✅ Entrega confirmada manualmente" : "✅ Entrega atualizada",
+      title: isManualConfirm ? "Entrega confirmada manualmente" : "Entrega atualizada",
       description: isManualConfirm 
         ? `NF ${formData.nfe} marcada como entregue por ${currentUser}.`
         : `NF ${formData.nfe} foi atualizada com sucesso.`,

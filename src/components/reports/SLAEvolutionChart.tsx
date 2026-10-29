@@ -381,7 +381,7 @@ export function SLAEvolutionChart({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           {monthSelect}
         {currentSLA != null && currentScheme && (
-          <Badge className={cn(currentScheme.badgeBgClass, "text-white")}>
+          <Badge className={cn(currentScheme.badgeBgClass)}>
             {formatSLA(currentSLA)}% — {currentScheme.labelPt}
           </Badge>
         )}
@@ -433,7 +433,7 @@ export function SLAEvolutionChart({
                   monthStats.delta == null
                     ? "text-muted-foreground"
                     : monthStats.delta >= 0
-                      ? "text-emerald-600"
+                      ? "text-success"
                       : "text-destructive"
                 )}
               >
@@ -486,10 +486,10 @@ export function SLAEvolutionChart({
               {/* Reference lines for thresholds */}
               <ReferenceLine
                 y={97}
-                stroke="hsl(152, 69%, 40%)"
+                stroke="hsl(var(--muted-foreground))"
                 strokeDasharray="4 4"
                 strokeOpacity={0.5}
-                label={{ value: "Meta 97%", position: "insideTopLeft", fill: "hsl(152, 69%, 40%)", fontSize: 11 }}
+                label={{ value: "Meta 97%", position: "insideTopLeft", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
               />
               <ReferenceLine
                 y={75}
@@ -518,9 +518,9 @@ export function SLAEvolutionChart({
                 type="monotone"
                 dataKey="current"
                 name={`Mês Atual`}
-                stroke="hsl(221, 83%, 53%)"
+                stroke="hsl(var(--primary))"
                 strokeWidth={3}
-                dot={{ r: 4, fill: "hsl(221, 83%, 53%)", stroke: "hsl(var(--background))", strokeWidth: 2 }}
+                dot={{ r: 4, fill: "hsl(var(--primary))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
                 activeDot={{ r: 6, strokeWidth: 2 }}
                 connectNulls
               />

@@ -58,19 +58,19 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
         return { 
           label: "Entregue", 
           icon: CheckCircle2, 
-          className: "bg-green-500/10 text-green-600 border-green-500/30" 
+          className: "bg-success/10 text-success border-success/30" 
         };
       case "occurrence":
         return { 
           label: invoice.occurrence_type || "Ocorrência", 
           icon: AlertCircle, 
-          className: "bg-orange-500/10 text-orange-600 border-orange-500/30" 
+          className: "bg-warning/10 text-warning border-warning/30" 
         };
       case "returned":
         return { 
           label: "Devolvida", 
           icon: AlertCircle, 
-          className: "bg-red-500/10 text-red-600 border-red-500/30" 
+          className: "bg-destructive/10 text-destructive border-destructive/30" 
         };
       default:
         return { 
@@ -163,7 +163,7 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
               {deliveredInvoices.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                     <h4 className="text-sm font-semibold text-foreground">
                       Entregas Realizadas ({deliveredInvoices.length})
                     </h4>
@@ -178,7 +178,7 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
               {occurrenceInvoices.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                    <AlertCircle className="h-4 w-4 text-warning" />
                     <h4 className="text-sm font-semibold text-foreground">
                       Ocorrências / Devoluções ({occurrenceInvoices.length})
                     </h4>
@@ -252,8 +252,8 @@ export function FinishedDriversModal({ open, onOpenChange, data }: FinishedDrive
                             variant="outline"
                             className={cn(
                               hasOccurrences
-                                ? "bg-orange-500/10 text-orange-600 border-orange-500/30"
-                                : "bg-green-500/10 text-green-600 border-green-500/30"
+                                ? "bg-warning/10 text-warning border-warning/30"
+                                : "bg-success/10 text-success border-success/30"
                             )}
                           >
                             {hasOccurrences ? (

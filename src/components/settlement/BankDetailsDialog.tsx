@@ -34,13 +34,13 @@
        await navigator.clipboard.writeText(text);
        setCopiedField(field);
        toast({
-         title: "✅ Copiado!",
+         title: "Copiado.",
          description: `${field} copiado para a área de transferência.`,
        });
        setTimeout(() => setCopiedField(null), 2000);
      } catch (err) {
        toast({
-         title: "❌ Erro ao copiar",
+         title: "Erro ao copiar",
          description: "Não foi possível copiar o texto.",
          variant: "destructive",
        });

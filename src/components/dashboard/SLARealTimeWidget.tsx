@@ -42,9 +42,9 @@ function RankBadge({ rank }: { rank: number | null }) {
     <span
       className={cn(
         "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-        rank === 1 && "bg-amber-400 text-amber-950",
-        rank === 2 && "bg-slate-300 text-slate-900",
-        rank === 3 && "bg-orange-300 text-orange-950",
+        rank === 1 && "bg-warning text-warning-foreground",
+        rank === 2 && "bg-idle text-foreground",
+        rank === 3 && "bg-warning/30 text-warning",
         rank > 3 && "bg-muted text-foreground"
       )}
       title={`${rank}º lugar no SLA de hoje`}
@@ -268,7 +268,7 @@ export function SLARealTimeWidget() {
               <span className="text-sm font-medium">SLA de Hoje</span>
               <div className="flex items-center gap-2">
                 <Badge className={cn(
-                  "text-white font-bold",
+                  "font-bold",
                   fleetColorScheme.badgeBgClass
                 )}>
                   {fleetColorScheme.labelPt}
@@ -293,9 +293,9 @@ export function SLARealTimeWidget() {
             <div className="flex justify-between mt-1 text-xs text-muted-foreground">
               <span>0</span>
               <span className="text-destructive">{SLA_THRESHOLDS.ATTENTION}</span>
-              <span className="text-blue-600">{SLA_THRESHOLDS.GOOD}</span>
-              <span className="text-emerald-600">{SLA_THRESHOLDS.EXCELLENT}</span>
-              <span className="text-emerald-600">100</span>
+              <span className="text-info">{SLA_THRESHOLDS.GOOD}</span>
+              <span className="text-success">{SLA_THRESHOLDS.EXCELLENT}</span>
+              <span className="text-success">100</span>
             </div>
           </div>
 
@@ -338,7 +338,7 @@ export function SLARealTimeWidget() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-amber-500" />
+                <Trophy className="h-4 w-4 text-warning" />
                 Ranking de SLA dos motoristas hoje
               </h4>
               <span className="text-xs text-muted-foreground">{todayRanking.length} motorista(s)</span>

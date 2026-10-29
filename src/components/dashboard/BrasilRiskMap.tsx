@@ -369,11 +369,11 @@ const nationalStats = {
 const getRiskColor = (level: RiskZone["riskLevel"]) => {
   switch (level) {
     case "critical":
-      return "#ef4444"; // red-500
+      return "#FF4D4F"; // atrasado/critico (manual)
     case "high":
-      return "#f97316"; // orange-500
+      return "#FFC53D"; // atencao (manual)
     case "medium":
-      return "#eab308"; // yellow-500
+      return "#8A9199"; // moderado: Cinza Sinal (manual)
   }
 };
 
@@ -527,14 +527,14 @@ export function BrasilRiskMap() {
       }).addTo(map);
 
       // Popup with security alert
-      const trendIcon = zone.statistics.yearlyTrend > 0 ? "📈" : "📉";
-      const trendColor = zone.statistics.yearlyTrend > 0 ? "#ef4444" : "#22c55e";
+      const trendIcon = zone.statistics.yearlyTrend > 0 ? "▲" : "▼";
+      const trendColor = zone.statistics.yearlyTrend > 0 ? "#FF4D4F" : "#04E8A4";
       
       const getDangerZoneColor = (risk: "extreme" | "high" | "moderate") => {
         switch (risk) {
-          case "extreme": return "#ef4444";
-          case "high": return "#f97316";
-          case "moderate": return "#eab308";
+          case "extreme": return "#FF4D4F";
+          case "high": return "#FFC53D";
+          case "moderate": return "#8A9199";
         }
       };
 
@@ -547,8 +547,8 @@ export function BrasilRiskMap() {
       };
       
       const popupContent = `
-        <div style="padding: 14px; min-width: 380px; max-width: 420px; font-family: 'Inter', sans-serif; color: #f8fafc; max-height: 500px; overflow-y: auto;">
-          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #374151;">
+        <div style="padding: 14px; min-width: 380px; max-width: 420px; font-family: 'Inter', sans-serif; color: #FFFFFF; max-height: 500px; overflow-y: auto;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #2A2D30;">
             <div style="width: 44px; height: 44px; border-radius: 10px; background: ${color}20; display: flex; align-items: center; justify-content: center;">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2">
                 <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
@@ -560,7 +560,7 @@ export function BrasilRiskMap() {
               <h4 style="font-weight: 700; font-size: 15px; margin: 0; color: ${color};">
                 ${zone.state} - ${getRiskLabel(zone.riskLevel)}
               </h4>
-              <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+              <p style="font-size: 12px; color: #8A9199; margin: 0;">
                 ${zone.name}
               </p>
             </div>
@@ -569,12 +569,12 @@ export function BrasilRiskMap() {
           <div>
             <!-- Estatísticas -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
-              <div style="padding: 10px; background: #1e293b; border-radius: 8px;">
-                <p style="font-size: 10px; color: #6b7280; margin: 0; text-transform: uppercase;">% do Total</p>
+              <div style="padding: 10px; background: #1C1F22; border-radius: 4px;">
+                <p style="font-size: 10px; color: #8A9199; margin: 0; text-transform: uppercase;">% do Total</p>
                 <p style="font-size: 20px; font-weight: 700; color: ${color}; margin: 4px 0 0 0;">${zone.statistics.percentOfTotal}%</p>
               </div>
-              <div style="padding: 10px; background: #1e293b; border-radius: 8px;">
-                <p style="font-size: 10px; color: #6b7280; margin: 0; text-transform: uppercase;">Tendência</p>
+              <div style="padding: 10px; background: #1C1F22; border-radius: 4px;">
+                <p style="font-size: 10px; color: #8A9199; margin: 0; text-transform: uppercase;">Tendência</p>
                 <p style="font-size: 20px; font-weight: 700; color: ${trendColor}; margin: 4px 0 0 0;">
                   ${trendIcon} ${zone.statistics.yearlyTrend > 0 ? '+' : ''}${zone.statistics.yearlyTrend}%
                 </p>
@@ -583,25 +583,25 @@ export function BrasilRiskMap() {
 
             <!-- Cidades Afetadas -->
             <div style="margin-bottom: 14px;">
-              <p style="font-size: 10px; color: #6b7280; margin: 0 0 8px 0; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">
-                🏙️ Cidades Afetadas (${zone.cities.length})
+              <p style="font-size: 10px; color: #8A9199; margin: 0 0 8px 0; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">
+                Cidades afetadas (${zone.cities.length})
               </p>
               <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                ${zone.cities.map(c => `<span style="font-size: 10px; padding: 3px 8px; background: #334155; border-radius: 4px; white-space: nowrap;">${c}</span>`).join('')}
+                ${zone.cities.map(c => `<span style="font-size: 10px; padding: 3px 8px; background: #2A2D30; border-radius: 4px; white-space: nowrap;">${c}</span>`).join('')}
               </div>
             </div>
 
             <!-- Zonas Perigosas -->
             <div style="margin-bottom: 14px;">
-              <p style="font-size: 10px; color: #ef4444; margin: 0 0 8px 0; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">
-                ⚠️ Zonas de Maior Risco (${zone.dangerousZones.length})
+              <p style="font-size: 10px; color: #FF4D4F; margin: 0 0 8px 0; text-transform: uppercase; display: flex; align-items: center; gap: 4px;">
+                Zonas de maior risco (${zone.dangerousZones.length})
               </p>
               <div style="space-y: 6px;">
                 ${zone.dangerousZones.map(dz => `
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #1e293b; border-radius: 6px; border-left: 3px solid ${getDangerZoneColor(dz.risk)}; margin-bottom: 6px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #1C1F22; border-radius: 4px; border-left: 3px solid ${getDangerZoneColor(dz.risk)}; margin-bottom: 6px;">
                     <div>
-                      <p style="font-size: 11px; font-weight: 600; margin: 0; color: #f8fafc;">${dz.name}</p>
-                      <p style="font-size: 10px; color: #9ca3af; margin: 2px 0 0 0;">${dz.type}</p>
+                      <p style="font-size: 11px; font-weight: 600; margin: 0; color: #FFFFFF;">${dz.name}</p>
+                      <p style="font-size: 10px; color: #8A9199; margin: 2px 0 0 0;">${dz.type}</p>
                     </div>
                     <span style="font-size: 9px; padding: 2px 6px; background: ${getDangerZoneColor(dz.risk)}20; color: ${getDangerZoneColor(dz.risk)}; border-radius: 4px; font-weight: 600;">
                       ${getDangerZoneLabel(dz.risk)}
@@ -613,21 +613,21 @@ export function BrasilRiskMap() {
 
             <!-- Principais Alvos -->
             <div style="margin-bottom: 12px;">
-              <p style="font-size: 10px; color: #6b7280; margin: 0 0 6px 0; text-transform: uppercase;">🎯 Principais Alvos</p>
+              <p style="font-size: 10px; color: #8A9199; margin: 0 0 6px 0; text-transform: uppercase;">Principais alvos</p>
               <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                ${zone.statistics.mainTargets.map(t => `<span style="font-size: 10px; padding: 3px 8px; background: #7c3aed20; color: #a78bfa; border-radius: 4px;">${t}</span>`).join('')}
+                ${zone.statistics.mainTargets.map(t => `<span style="font-size: 10px; padding: 3px 8px; background: #3B9CFF1F; color: #3B9CFF; border-radius: 4px;">${t}</span>`).join('')}
               </div>
             </div>
 
             <!-- Recomendação -->
-            <div style="padding: 12px; background: #f59e0b15; border-radius: 8px; border: 1px solid #f59e0b30; margin-bottom: 10px;">
-              <p style="font-size: 10px; color: #f59e0b; margin: 0 0 4px 0; text-transform: uppercase;">📋 Recomendação de Segurança</p>
-              <p style="font-size: 11px; font-weight: 500; color: #f8fafc; margin: 0; line-height: 1.4;">${zone.recommendation}</p>
+            <div style="padding: 12px; background: #FFC53D15; border-radius: 4px; border: 1px solid #FFC53D30; margin-bottom: 10px;">
+              <p style="font-size: 10px; color: #FFC53D; margin: 0 0 4px 0; text-transform: uppercase;">Recomendação de segurança</p>
+              <p style="font-size: 11px; font-weight: 500; color: #FFFFFF; margin: 0; line-height: 1.4;">${zone.recommendation}</p>
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <p style="font-size: 10px; color: #6b7280; margin: 0;">Fonte: ${zone.source}</p>
-              <span style="font-size: 10px; color: #6b7280;">${zone.statistics.monthlyOccurrences} ocorrências/mês</span>
+              <p style="font-size: 10px; color: #8A9199; margin: 0;">Fonte: ${zone.source}</p>
+              <span style="font-size: 10px; color: #8A9199;">${zone.statistics.monthlyOccurrences} ocorrências/mês</span>
             </div>
           </div>
         </div>
@@ -674,12 +674,12 @@ export function BrasilRiskMap() {
               <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
               {criticalCount} Críticos
             </Badge>
-            <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/30 gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-orange-500" />
+            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-warning" />
               {highCount} Alto Risco
             </Badge>
-            <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-yellow-500" />
+            <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-warning" />
               {mediumCount} Médio
             </Badge>
           </div>
@@ -760,7 +760,7 @@ export function BrasilRiskMap() {
           <div 
             ref={mapContainerRef} 
             className="h-[450px] md:h-[550px] w-full"
-            style={{ background: "#0f172a" }}
+            style={{ background: "#080808" }}
           />
           
           {/* Legend */}
@@ -772,11 +772,11 @@ export function BrasilRiskMap() {
                 <span className="text-xs">Crítico (&gt;10% nacional)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-orange-500" />
+                <div className="w-3 h-3 rounded-full bg-warning" />
                 <span className="text-xs">Alto (3-10%)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                <div className="w-3 h-3 rounded-full bg-warning" />
                 <span className="text-xs">Médio (&lt;3%)</span>
               </div>
             </div>
@@ -841,8 +841,8 @@ export function BrasilRiskMap() {
                     className={cn(
                       "p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
                       zone.riskLevel === "critical" ? "bg-destructive/5 border-destructive/20" :
-                      zone.riskLevel === "high" ? "bg-orange-500/5 border-orange-500/20" :
-                      "bg-yellow-500/5 border-yellow-500/20"
+                      zone.riskLevel === "high" ? "bg-warning/5 border-warning/20" :
+                      "bg-warning/5 border-warning/20"
                     )}
                     onClick={() => {
                       if (mapRef.current) {

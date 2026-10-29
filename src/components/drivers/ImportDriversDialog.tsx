@@ -162,7 +162,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
     if (result.imported > 0) {
       onImported();
       toast({
-        title: "✅ Importação concluída",
+        title: "Importação concluída",
         description: `${result.imported} motorista(s) cadastrado(s)${result.failed.length ? `, ${result.failed.length} com erro` : ""}.`,
       });
     }

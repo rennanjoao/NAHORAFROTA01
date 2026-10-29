@@ -34,17 +34,17 @@ import { isTrialExpired } from "@/lib/billingStatus";
 import { FunnelAnalytics } from "@/components/master/FunnelAnalytics";
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
-  active: { label: "Ativo", icon: <CheckCircle2 className="h-3 w-3" />, className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
-  inactive: { label: "Aguardando", icon: <Loader2 className="h-3 w-3" />, className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+  active: { label: "Ativo", icon: <CheckCircle2 className="h-3 w-3" />, className: "bg-success/20 text-success border-success/30" },
+  inactive: { label: "Aguardando", icon: <Loader2 className="h-3 w-3" />, className: "bg-warning/20 text-warning border-warning/30" },
   blocked: { label: "Bloqueado", icon: <Ban className="h-3 w-3" />, className: "bg-destructive/20 text-destructive border-destructive/30" },
-  trial: { label: "Em teste", icon: <Gift className="h-3 w-3" />, className: "bg-sky-500/20 text-sky-400 border-sky-500/30" },
-  trial_expired: { label: "Teste expirado", icon: <Gift className="h-3 w-3" />, className: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
+  trial: { label: "Em teste", icon: <Gift className="h-3 w-3" />, className: "bg-info/20 text-info border-info/30" },
+  trial_expired: { label: "Teste expirado", icon: <Gift className="h-3 w-3" />, className: "bg-warning/20 text-warning border-warning/30" },
 };
 
 const planConfig: Record<string, { label: string; className: string }> = {
   basic: { label: "Basic", className: "bg-muted text-muted-foreground" },
   control: { label: "Control", className: "bg-primary/20 text-primary" },
-  total: { label: "Total", className: "bg-amber-500/20 text-amber-400" },
+  total: { label: "Total", className: "bg-warning/20 text-warning" },
 };
 
 type PlanLimitsSummary = { max_users: number; max_drivers: number };
@@ -119,7 +119,7 @@ export default function MasterAdminPage() {
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "✅ Status atualizado", description: `${tenant.razao_social} agora está ${statusConfig[newStatus]?.label || newStatus}.` });
+      toast({ title: "Status atualizado", description: `${tenant.razao_social} agora está ${statusConfig[newStatus]?.label || newStatus}.` });
     }
   };
 
@@ -130,7 +130,7 @@ export default function MasterAdminPage() {
     if (error) {
       toast({ title: "Erro ao estender teste", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "✅ Teste estendido", description: `${tenant.razao_social} ganhou mais 7 dias de teste grátis.` });
+      toast({ title: "Teste estendido", description: `${tenant.razao_social} ganhou mais 7 dias de teste grátis.` });
     }
   };
 
@@ -139,7 +139,7 @@ export default function MasterAdminPage() {
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "✅ Plano atualizado", description: `${tenant.razao_social} agora no plano ${planConfig[newPlan]?.label || newPlan}.` });
+      toast({ title: "Plano atualizado", description: `${tenant.razao_social} agora no plano ${planConfig[newPlan]?.label || newPlan}.` });
     }
   };
 
@@ -149,7 +149,7 @@ export default function MasterAdminPage() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Crown className="h-7 w-7 text-amber-400" />
+            <Crown className="h-7 w-7 text-warning" />
             Painel Master
           </h1>
           <p className="text-muted-foreground">Gestão de clientes e planos da plataforma</p>
@@ -157,8 +157,8 @@ export default function MasterAdminPage() {
 
         {/* Billing Alert Banner */}
         {(dueSoonCount > 0 || overdueCount > 0) && (
-          <div className="flex items-center gap-3 rounded-lg border p-3 bg-yellow-500/5 border-yellow-500/30">
-            <Bell className="h-5 w-5 text-yellow-400 flex-shrink-0" />
+          <div className="flex items-center gap-3 rounded-lg border p-3 bg-warning/5 border-warning/30">
+            <Bell className="h-5 w-5 text-warning flex-shrink-0" />
             <div className="flex-1 text-sm">
               {overdueCount > 0 && (
                 <span className="text-destructive font-medium mr-3">
@@ -167,7 +167,7 @@ export default function MasterAdminPage() {
                 </span>
               )}
               {dueSoonCount > 0 && (
-                <span className="text-yellow-400">
+                <span className="text-warning">
                   {dueSoonCount} cliente(s) com vencimento nos próximos 5 dias
                 </span>
               )}
@@ -191,7 +191,7 @@ export default function MasterAdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                <CheckCircle2 className="h-8 w-8 text-success" />
                 <div>
                   <p className="text-2xl font-bold">{activeTenants}</p>
                   <p className="text-xs text-muted-foreground">Ativos</p>
@@ -202,7 +202,7 @@ export default function MasterAdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <Gift className="h-8 w-8 text-sky-400" />
+                <Gift className="h-8 w-8 text-info" />
                 <div>
                   <p className="text-2xl font-bold">{trialTenants}</p>
                   <p className="text-xs text-muted-foreground">
@@ -215,7 +215,7 @@ export default function MasterAdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <ShieldAlert className="h-8 w-8 text-yellow-400" />
+                <ShieldAlert className="h-8 w-8 text-warning" />
                 <div>
                   <p className="text-2xl font-bold">{pendingTenants}</p>
                   <p className="text-xs text-muted-foreground">Aguardando</p>
@@ -226,7 +226,7 @@ export default function MasterAdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <Users className="h-8 w-8 text-blue-400" />
+                <Users className="h-8 w-8 text-info" />
                 <div>
                   <p className="text-2xl font-bold">{totalUsers}</p>
                   <p className="text-xs text-muted-foreground">Total Usuários</p>
@@ -237,7 +237,7 @@ export default function MasterAdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <DollarSign className="h-8 w-8 text-amber-400" />
+                <DollarSign className="h-8 w-8 text-warning" />
                 <div>
                   <p className="text-2xl font-bold text-destructive">{overdueCount}</p>
                   <p className="text-xs text-muted-foreground">Inadimplentes</p>
@@ -357,7 +357,7 @@ export default function MasterAdminPage() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div className="flex items-center gap-1.5 text-sm">
-                                      <Truck className="h-3.5 w-3.5 text-emerald-400" />
+                                      <Truck className="h-3.5 w-3.5 text-success" />
                                       <span className="font-medium">{tenant.drivers_count || 0}</span>
                                       <span className="text-muted-foreground">/</span>
                                       <span className="text-muted-foreground">
@@ -405,7 +405,7 @@ export default function MasterAdminPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-sky-400 border-sky-500/30 hover:bg-sky-500/10"
+                                  className="text-info border-info/30 hover:bg-info/10"
                                   disabled={extendingTenantId === tenant.id}
                                   onClick={() => handleExtendTrial(tenant)}
                                   title="Estender o teste grátis por mais 7 dias"
@@ -422,7 +422,7 @@ export default function MasterAdminPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                                  className="text-success border-success/30 hover:bg-success/10"
                                   onClick={() => handleStatusChange(tenant, 'active')}
                                   title="Cliente contratou: encerra o teste e ativa a assinatura"
                                 >
@@ -433,7 +433,7 @@ export default function MasterAdminPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                                  className="text-success border-success/30 hover:bg-success/10"
                                   onClick={() => handleStatusChange(tenant, 'active')}
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" /> Aprovar
@@ -469,7 +469,7 @@ export default function MasterAdminPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                                  className="text-success border-success/30 hover:bg-success/10"
                                   onClick={() => handleStatusChange(tenant, 'active')}
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" /> Reativar

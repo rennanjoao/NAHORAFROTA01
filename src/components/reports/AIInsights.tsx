@@ -97,7 +97,7 @@ export function AIInsights({ data }: AIInsightsProps) {
       case "info":
         return { badge: "bg-primary/10 text-primary border-primary/30", dot: "bg-primary" };
       case "insight":
-        return { badge: "bg-orange-500/10 text-orange-500 border-orange-500/30", dot: "bg-orange-500" };
+        return { badge: "bg-warning/10 text-warning border-warning/30", dot: "bg-warning" };
       case "opportunity":
         return { badge: "bg-success/10 text-success border-success/30", dot: "bg-success" };
       default:
@@ -108,12 +108,12 @@ export function AIInsights({ data }: AIInsightsProps) {
   return (
     <Card className="p-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20">
-          <Sparkles className="h-5 w-5 text-violet-500" />
+        <div className="p-2 rounded-lg bg-gradient-to-br from-info/20 to-info/20">
+          <Sparkles className="h-5 w-5 text-info" />
         </div>
         <div>
           <h3 className="font-semibold text-lg flex items-center gap-2">
-            🔎 Insights da Operação
+            Insights da Operação
             <Badge variant="outline" className="text-xs font-normal">
               Análise Inteligente
             </Badge>

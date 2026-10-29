@@ -262,7 +262,7 @@ export function RequestVehicleWizard({ open, onOpenChange }: RequestVehicleWizar
                         </>
                       ) : (
                         <>
-                          <p className="font-medium text-warning">⚠️ Rota Longa</p>
+                          <p className="font-medium text-warning">Rota longa</p>
                           <p className="text-sm text-warning/80 mt-1">
                             Prazo estimado de 24h a 72h, sujeito à análise de risco e disponibilidade.
                           </p>

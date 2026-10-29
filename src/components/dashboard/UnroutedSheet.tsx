@@ -61,7 +61,7 @@ export function UnroutedSheet({ open, onOpenChange }: UnroutedSheetProps) {
 
         <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/20">
           <p className="text-sm text-warning font-medium">
-            ⚠️ Notas pendentes de roteiro ({pendingCount} novas + {returnedCount} devoluções)
+            Notas pendentes de roteiro ({pendingCount} novas + {returnedCount} devoluções)
           </p>
         </div>
 

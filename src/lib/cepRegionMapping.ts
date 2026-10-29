@@ -86,36 +86,36 @@
  export function getRegionColor(region: string): string {
    // Capital - tons de azul
    if (region.startsWith('SP -')) {
-     if (region.includes('Central')) return 'bg-blue-500';
-     if (region.includes('Norte')) return 'bg-blue-400';
-     if (region.includes('Sul')) return 'bg-blue-600';
-     if (region.includes('Leste')) return 'bg-blue-300';
-     if (region.includes('Oeste')) return 'bg-blue-700';
-     return 'bg-blue-500';
+     if (region.includes('Central')) return 'bg-info';
+     if (region.includes('Norte')) return 'bg-info';
+     if (region.includes('Sul')) return 'bg-info';
+     if (region.includes('Leste')) return 'bg-info/30';
+     if (region.includes('Oeste')) return 'bg-info';
+     return 'bg-info';
    }
    
    // GSP - tons de verde
    if (region.startsWith('GSP')) {
-     if (region.includes('Oeste')) return 'bg-emerald-500';
-     if (region.includes('Norte')) return 'bg-emerald-400';
-     if (region.includes('Leste')) return 'bg-emerald-600';
-     if (region.includes('ABC')) return 'bg-emerald-700';
-     return 'bg-emerald-500';
+     if (region.includes('Oeste')) return 'bg-success';
+     if (region.includes('Norte')) return 'bg-success';
+     if (region.includes('Leste')) return 'bg-success';
+     if (region.includes('ABC')) return 'bg-success';
+     return 'bg-success';
    }
    
    // Litoral - tons de cyan
-   if (region.startsWith('Litoral')) return 'bg-cyan-500';
+   if (region.startsWith('Litoral')) return 'bg-info';
    
    // Interior - tons de amber/orange
    if (region.startsWith('Interior')) {
-     if (region.includes('Campinas')) return 'bg-amber-500';
-     if (region.includes('Ribeirão')) return 'bg-amber-600';
-     if (region.includes('Sorocaba')) return 'bg-orange-500';
-     if (region.includes('Vale')) return 'bg-amber-400';
-     return 'bg-amber-500';
+     if (region.includes('Campinas')) return 'bg-warning';
+     if (region.includes('Ribeirão')) return 'bg-warning';
+     if (region.includes('Sorocaba')) return 'bg-warning';
+     if (region.includes('Vale')) return 'bg-warning';
+     return 'bg-warning';
    }
    
-   return 'bg-gray-500';
+   return 'bg-idle';
  }
  
  export function getCategoryLabel(category: RegionInfo['category']): string {

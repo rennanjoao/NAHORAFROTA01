@@ -78,7 +78,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    toast({ title: "✅ Senha alterada", description: "Você já está conectado com a nova senha." });
+    toast({ title: "Senha alterada", description: "Você já está conectado com a nova senha." });
     navigate("/", { replace: true });
   };
 

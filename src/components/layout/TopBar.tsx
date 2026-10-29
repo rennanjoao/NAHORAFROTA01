@@ -93,16 +93,11 @@ export function TopBar({ onMenuToggle, showMenuButton }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
+        {/* Marcador de hora do manual: o ponto so pulsa quando esta online. */}
         {isOnline ? (
-          <div className="hidden md:flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 border border-success/20">
-            <div className="status-dot status-dot-success" />
-            <span className="text-sm font-medium text-success">Sistema Online</span>
-          </div>
+          <span className="nhf-live hidden md:inline-flex">Sistema online</span>
         ) : (
-          <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-1.5 border border-destructive/20">
-            <div className="h-2 w-2 rounded-full bg-destructive" />
-            <span className="text-sm font-medium text-destructive">Sem conexão</span>
-          </div>
+          <span className="nhf-live nhf-live--off">Sem conexão</span>
         )}
 
         <Button

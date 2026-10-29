@@ -55,10 +55,10 @@ export function RemoveFromManifestDialog({
                 romaneio <strong className="font-mono">{manifestId}</strong>.
               </p>
 
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200">
+              <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg text-warning">
                 <div className="flex items-center gap-2 mb-2 font-semibold">
                   <AlertTriangle className="h-4 w-4" />
-                  Atenção!
+                  Atenção.
                 </div>
                 <p className="text-sm">
                   Esta ação irá desvincular a NF do romaneio atual e retornar

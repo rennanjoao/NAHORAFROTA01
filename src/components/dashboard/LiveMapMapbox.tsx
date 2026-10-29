@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
 import Map, { Marker, NavigationControl, FullscreenControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Navigation, Radio, RefreshCw, Truck as TruckIcon, MessageCircle, Gauge, Battery, MapPin, Clock } from 'lucide-react';
@@ -62,17 +63,11 @@ export default function LiveMapMapbox({
 
   // Calculate marker color based on GPS stale / SLA / delay
   const getMarkerColor = (position: FleetPosition) => {
-    // GPS stale = red (Sem Sinal)
-    if (position.gpsStale) {
-      return '#DC2626'; // Red-600 - GPS stale
-    }
-    if (position.current_delay && position.current_delay > 0) {
-      return '#FF1F1F'; // Neon red - delayed
-    }
-    if (position.individual_sla && position.individual_sla < 90) {
-      return '#FFA500'; // Orange - at risk
-    }
-    return '#4ADE80'; // Green - on time
+    // Cores funcionais do manual da marca.
+    if (position.gpsStale) return STATUS_HEX.idle; // sem sinal
+    if (position.current_delay && position.current_delay > 0) return STATUS_HEX.late; // atrasado
+    if (position.individual_sla && position.individual_sla < 90) return STATUS_HEX.alert; // em risco
+    return STATUS_HEX.ok; // no prazo
   };
 
   // Fit bounds to show all vehicles
@@ -189,7 +184,7 @@ export default function LiveMapMapbox({
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-green-500" />
+            <div className="h-3 w-3 rounded-full bg-success" />
             <span className="text-xs text-muted-foreground">No Prazo</span>
           </div>
           <div className="flex items-center gap-2">
@@ -197,7 +192,7 @@ export default function LiveMapMapbox({
             <span className="text-xs text-muted-foreground">Atrasado</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-red-600 animate-pulse" />
+            <div className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
             <span className="text-xs text-muted-foreground">Sem Sinal</span>
           </div>
           <div className="flex items-center gap-1.5 text-success">
@@ -249,9 +244,10 @@ export default function LiveMapMapbox({
                     {/* Speed badge - counter-rotate to stay horizontal */}
                     {position.speed > 0 && !position.gpsStale && (
                       <div
-                        className="absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white whitespace-nowrap"
-                        style={{ 
+                        className="absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-sm text-[10px] font-bold whitespace-nowrap font-data"
+                        style={{
                           backgroundColor: markerColor,
+                          color: STATUS_HEX.ink,
                           transform: `rotate(${-(position.heading || 0)}deg)`
                         }}
                       >
@@ -262,26 +258,19 @@ export default function LiveMapMapbox({
                     {/* GPS Stale badge - "Sem Sinal" */}
                     {position.gpsStale && (
                       <div
-                        className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-bold text-white whitespace-nowrap animate-pulse"
-                        style={{ 
-                          backgroundColor: '#DC2626',
+                        className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-sm text-[10px] font-bold whitespace-nowrap"
+                        style={{
+                          backgroundColor: STATUS_HEX.idle,
+                          color: STATUS_HEX.ink,
                           transform: `rotate(${-(position.heading || 0)}deg)`
                         }}
                       >
-                        ⚠ Sem Sinal
+                        SEM SINAL
                       </div>
                     )}
 
-                    {/* Truck icon */}
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
-                      style={{
-                        backgroundColor: markerColor,
-                        boxShadow: `0 0 20px ${markerColor}80`,
-                      }}
-                    >
-                      <TruckIcon className="h-5 w-5 text-white" />
-                    </div>
+                    {/* Veiculo = simbolo da marca sobre circulo preto, anel na cor do status */}
+                    <div dangerouslySetInnerHTML={{ __html: vehicleMarkerHtml(markerColor, 0, 40) }} />
                   </div>
 
                   {/* Static popup - NOT inside rotating container */}
@@ -308,7 +297,7 @@ export default function LiveMapMapbox({
                           <div 
                             className={cn(
                               "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-card",
-                              position.is_active ? "bg-green-500" : "bg-muted"
+                              position.is_active ? "bg-success" : "bg-muted"
                             )}
                           />
                         </div>
@@ -349,17 +338,17 @@ export default function LiveMapMapbox({
                           <div className={cn(
                             "p-1.5 rounded-md",
                             position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
-                              ? "bg-green-500/10" 
+                              ? "bg-success/10" 
                               : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
-                                ? "bg-yellow-500/10" 
+                                ? "bg-warning/10" 
                                 : "bg-primary/10"
                           )}>
                             <div className={cn(
                               "h-4 w-4 rounded-full",
                               position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
-                                ? "bg-green-500" 
+                                ? "bg-success" 
                                 : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
-                                  ? "bg-yellow-500" 
+                                  ? "bg-warning" 
                                   : "bg-primary"
                             )} />
                           </div>
@@ -368,9 +357,9 @@ export default function LiveMapMapbox({
                             <p className={cn(
                               "text-sm font-bold font-heading",
                               position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
-                                ? "text-green-500" 
+                                ? "text-success" 
                                 : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
-                                  ? "text-yellow-500" 
+                                  ? "text-warning" 
                                   : "text-primary"
                             )}>
                               {position.individual_sla !== undefined 
@@ -385,17 +374,17 @@ export default function LiveMapMapbox({
                           <div className={cn(
                             "p-1.5 rounded-md",
                             position.battery_level !== undefined && position.battery_level > 50 
-                              ? "bg-green-500/10" 
+                              ? "bg-success/10" 
                               : position.battery_level !== undefined && position.battery_level > 20 
-                                ? "bg-yellow-500/10" 
+                                ? "bg-warning/10" 
                                 : "bg-destructive/10"
                           )}>
                             <Battery className={cn(
                               "h-4 w-4",
                               position.battery_level !== undefined && position.battery_level > 50 
-                                ? "text-green-500" 
+                                ? "text-success" 
                                 : position.battery_level !== undefined && position.battery_level > 20 
-                                  ? "text-yellow-500" 
+                                  ? "text-warning" 
                                   : "text-destructive"
                             )} />
                           </div>
@@ -463,7 +452,7 @@ export default function LiveMapMapbox({
                       {position.phone ? (
                         <button
                           onClick={() => handleWhatsApp(position.phone)}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-colors shadow-md"
+                          className="w-full bg-success hover:bg-success/90 text-success-foreground py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-colors shadow-md"
                         >
                           <MessageCircle className="h-4 w-4" />
                           Abrir WhatsApp
@@ -485,15 +474,15 @@ export default function LiveMapMapbox({
         <div className="absolute top-4 right-4 z-10 bg-nhf-ink/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-500 font-heading">{onTimeCount}</p>
+              <p className="text-2xl font-bold text-success font-heading">{onTimeCount}</p>
               <p className="text-xs text-muted-foreground">No Prazo</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary font-heading">{delayedCount}</p>
+              <p className="text-2xl font-bold text-destructive font-data">{delayedCount}</p>
               <p className="text-xs text-muted-foreground">Atrasados</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 font-heading">{staleCount}</p>
+              <p className="text-2xl font-bold text-destructive font-heading">{staleCount}</p>
               <p className="text-xs text-muted-foreground">Sem Sinal</p>
             </div>
           </div>

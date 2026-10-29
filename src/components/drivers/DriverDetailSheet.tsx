@@ -39,7 +39,7 @@ interface DriverDetailSheetProps {
 // Status config matching database values: active = Disponível, in_route = Em Rota, inactive = Inativo
 const statusConfig: Record<string, { label: string; className: string }> = {
   active: { label: "Disponível", className: "bg-success/20 text-success border-success/30" },
-  in_route: { label: "Em Rota", className: "bg-primary/20 text-primary border-primary/30" },
+  in_route: { label: "Em Rota", className: "bg-info/20 text-info border-info/30" },
   inactive: { label: "Inativo", className: "bg-muted text-muted-foreground border-muted" },
   pending_approval: { label: "Pendente", className: "bg-warning/20 text-warning border-warning/30" },
 };
@@ -183,7 +183,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     // Safety check: cannot inactivate if driver is in_route
     if (isInRoute) {
       toast({
-        title: "⚠️ Operação Bloqueada",
+        title: "Operação Bloqueada",
         description: "Não é possível inativar um motorista que está Em Rota. Finalize o romaneio primeiro.",
         variant: "destructive",
       });
@@ -217,7 +217,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
       if (!data) throw new Error("Você não tem permissão para esta tarefa");
 
       toast({
-        title: isInactive ? "✅ Motorista Reativado" : "⏸️ Motorista Inativado",
+        title: isInactive ? "Motorista Reativado" : "Motorista Inativado",
         description: isInactive 
           ? `${driver.name} está disponível para novos romaneios.`
           : `${driver.name} foi removido das listas de seleção.`,
@@ -229,7 +229,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     } catch (err: any) {
       console.error("Error toggling driver status:", err);
       toast({
-        title: "❌ Erro",
+        title: "Erro",
         description: err.message || "Não foi possível alterar o status.",
         variant: "destructive",
       });
@@ -254,7 +254,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
       if (error) {
         console.error("RPC delete_driver_complete error:", error);
         toast({
-          title: "❌ Erro ao remover",
+          title: "Erro ao remover",
           description: error.message || "Não foi possível remover o motorista.",
           variant: "destructive",
         });
@@ -265,7 +265,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
       const result = data as { success: boolean; error?: string; message?: string };
       if (!result.success) {
         toast({
-          title: "❌ Erro ao remover",
+          title: "Erro ao remover",
           description: result.error || "Não foi possível remover o motorista.",
           variant: "destructive",
         });
@@ -273,7 +273,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
       }
 
       toast({
-        title: "🗑️ Motorista Removido",
+        title: "Motorista Removido",
         description: `${driver.name} foi removido do sistema.`,
       });
 
@@ -283,7 +283,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
     } catch (err: any) {
       console.error("Error deleting driver:", err);
       toast({
-        title: "❌ Erro ao remover",
+        title: "Erro ao remover",
         description: err.message || "Não foi possível remover o motorista.",
         variant: "destructive",
       });
@@ -318,7 +318,7 @@ export function DriverDetailSheet({ driver, open, onOpenChange, onEditDriver, on
           <div className="grid grid-cols-2 gap-2">
             <Button 
               onClick={handleWhatsApp}
-              className="bg-green-500 hover:bg-green-600 text-white gap-1 h-10 text-sm font-medium"
+              className="bg-success hover:bg-success/90 text-success-foreground gap-1 h-10 text-sm font-medium"
             >
               <MessageCircle className="h-4 w-4" />
               WhatsApp

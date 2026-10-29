@@ -185,8 +185,8 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
 
       toast.success(
         edgeData.updated
-          ? `Motorista ${normalizedName} atualizado com sucesso!`
-          : `Motorista ${normalizedName} criado com sucesso!`,
+          ? `Motorista ${normalizedName} atualizado com sucesso.`
+          : `Motorista ${normalizedName} criado com sucesso.`,
       );
 
       // Dispara o e-mail com os dados de cadastro para o motorista

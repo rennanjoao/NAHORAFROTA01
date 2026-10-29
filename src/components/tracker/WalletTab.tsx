@@ -52,9 +52,9 @@ export function WalletTab({ driverId }: WalletTabProps) {
     .reduce((sum, i) => sum + Number(i.amount), 0);
 
   const statusConfig = {
-    pending: { label: "Pendente", icon: Clock, color: "bg-yellow-500/10 text-yellow-500" },
-    paid: { label: "Pago", icon: CheckCircle, color: "bg-green-500/10 text-green-500" },
-    cancelled: { label: "Cancelado", icon: DollarSign, color: "bg-red-500/10 text-red-500" },
+    pending: { label: "Pendente", icon: Clock, color: "bg-warning/10 text-warning" },
+    paid: { label: "Pago", icon: CheckCircle, color: "bg-success/10 text-success" },
+    cancelled: { label: "Cancelado", icon: DollarSign, color: "bg-destructive/10 text-destructive" },
   };
 
   if (isLoading) {
@@ -69,22 +69,22 @@ export function WalletTab({ driverId }: WalletTabProps) {
     <div className="space-y-4">
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
-        <Card className="p-4 bg-yellow-500/10 border-yellow-500/30">
+        <Card className="p-4 bg-warning/10 border-warning/30">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="h-4 w-4 text-yellow-500" />
-            <span className="text-xs text-yellow-500">A Receber</span>
+            <Clock className="h-4 w-4 text-warning" />
+            <span className="text-xs text-warning">A Receber</span>
           </div>
-          <p className="text-xl font-bold font-heading text-yellow-500">
+          <p className="text-xl font-bold font-heading text-warning">
             {formatCurrency(totalPending)}
           </p>
         </Card>
 
-        <Card className="p-4 bg-green-500/10 border-green-500/30">
+        <Card className="p-4 bg-success/10 border-success/30">
           <div className="flex items-center gap-2 mb-1">
-            <CheckCircle className="h-4 w-4 text-green-500" />
-            <span className="text-xs text-green-500">Recebido</span>
+            <CheckCircle className="h-4 w-4 text-success" />
+            <span className="text-xs text-success">Recebido</span>
           </div>
-          <p className="text-xl font-bold font-heading text-green-500">
+          <p className="text-xl font-bold font-heading text-success">
             {formatCurrency(totalPaid)}
           </p>
         </Card>

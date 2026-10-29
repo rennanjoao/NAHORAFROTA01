@@ -152,12 +152,12 @@ export function DeliveryProofViewer({
             <DialogTitle className="flex items-center gap-2">
               {isDelivered ? (
                 <>
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <CheckCircle2 className="h-5 w-5 text-success" />
                   <span>Comprovante de Entrega</span>
                 </>
               ) : hasOccurrence ? (
                 <>
-                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  <AlertTriangle className="h-5 w-5 text-warning" />
                   <span>Ocorrência de Entrega</span>
                 </>
               ) : (
@@ -182,10 +182,10 @@ export function DeliveryProofViewer({
                     variant="outline"
                     className={
                       isDelivered
-                        ? "bg-green-100 text-green-700 border-green-300"
+                        ? "bg-success/15 text-success border-success/30"
                         : hasOccurrence
-                        ? "bg-orange-100 text-orange-700 border-orange-300"
-                        : "bg-yellow-100 text-yellow-700 border-yellow-300"
+                        ? "bg-warning/15 text-warning border-warning/30"
+                        : "bg-warning/15 text-warning border-warning/30"
                     }
                   >
                     {isDelivered ? "Entregue" : hasOccurrence ? "Ocorrência" : "Pendente"}
@@ -214,7 +214,7 @@ export function DeliveryProofViewer({
                       {proofs.map((proof) => (
                         <div
                           key={proof.id}
-                          className="border rounded-lg p-3 space-y-3 bg-green-50/50 dark:bg-green-900/10"
+                          className="border rounded-lg p-3 space-y-3 bg-success/10"
                         >
                           {/* Photo */}
                           {proof.photo_url && (
@@ -277,7 +277,7 @@ export function DeliveryProofViewer({
                                 href={`https://www.google.com/maps?q=${proof.latitude},${proof.longitude}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-600 hover:underline"
+                                className="flex items-center gap-1 text-info hover:underline"
                               >
                                 <MapPin className="h-3 w-3" />
                                 Ver local
@@ -294,17 +294,17 @@ export function DeliveryProofViewer({
                     <div className="space-y-3">
                       <Separator />
                       <h4 className="font-semibold text-sm flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-orange-600" />
+                        <AlertTriangle className="h-4 w-4 text-warning" />
                         Histórico de Ocorrências ({occurrences.length})
                       </h4>
 
                       {occurrences.map((occ) => (
                         <div
                           key={occ.id}
-                          className="border rounded-lg p-3 space-y-2 bg-orange-50/50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800"
+                          className="border rounded-lg p-3 space-y-2 bg-warning/10 border-warning/30"
                         >
                           <div className="flex items-start justify-between">
-                            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                            <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">
                               {getOccurrenceLabel(occ.type)}
                             </Badge>
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -343,7 +343,7 @@ export function DeliveryProofViewer({
                               href={occ.photo_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                              className="inline-flex items-center gap-1 text-xs text-info hover:underline"
                             >
                               <ExternalLink className="h-3 w-3" />
                               Abrir ou baixar imagem
@@ -355,7 +355,7 @@ export function DeliveryProofViewer({
                               href="#"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs flex items-center gap-1 text-blue-600 hover:underline"
+                              className="text-xs flex items-center gap-1 text-info hover:underline"
                             >
                               <MapPin className="h-3 w-3" />
                               Ver local da ocorrência

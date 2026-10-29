@@ -63,7 +63,7 @@ export function ReversalPasswordDialog({
           : '';
         setError(`${data.error || 'Senha incorreta'}${attemptsMsg}`);
         toast({
-          title: "❌ Senha Incorreta",
+          title: "Senha Incorreta",
           description: data.error || "A senha de estorno informada está incorreta.",
           variant: "destructive",
         });
@@ -86,7 +86,7 @@ export function ReversalPasswordDialog({
       if (reverted === false) return;
 
       toast({
-        title: "✅ Estorno Autorizado",
+        title: "Estorno Autorizado",
         description: "O valor foi revertido para 'A Pagar'. Ação registrada no log de auditoria.",
       });
       onOpenChange(false);
@@ -96,7 +96,7 @@ export function ReversalPasswordDialog({
       console.error("Error during reversal:", err);
       setError(err.message || "Erro ao processar estorno");
       toast({
-        title: "❌ Erro",
+        title: "Erro",
         description: err.message || "Não foi possível processar o estorno.",
         variant: "destructive",
       });

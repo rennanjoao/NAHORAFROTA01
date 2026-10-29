@@ -193,7 +193,7 @@ export function SLADrilldownModal({
               </div>
               <div className="text-right">
                 <Badge className={cn(
-                  "text-white font-bold",
+                  "font-bold",
                   fleetColorScheme.badgeBgClass
                 )}>
                   {fleetColorScheme.labelPt}
@@ -286,7 +286,7 @@ function DriversListView({
       <div className="text-center py-12">
         <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-success" />
         <p className="text-lg font-semibold text-success mb-2">
-          Operação Saudável! 🎉
+          Operação Saudável! 
         </p>
         <p className="text-muted-foreground">
           Todos os motoristas estão acima da meta de {SLA_THRESHOLDS.EXCELLENT}%
@@ -301,7 +301,7 @@ function DriversListView({
         <div className="text-center py-4">
           <CheckCircle2 className="h-14 w-14 mx-auto mb-3 text-success" />
           <p className="text-lg font-semibold text-success mb-2">
-            Operação Saudável!
+            Operação Saudável.
           </p>
           <p className="text-muted-foreground">
             Todos os motoristas estão acima da meta de {SLA_THRESHOLDS.EXCELLENT}%
@@ -313,11 +313,11 @@ function DriversListView({
       {orphanInvoices.length > 0 && (
         <DriverSection
           title="NFs Sem Motorista Associado"
-          icon={<AlertTriangle className="h-4 w-4 text-orange-500" />}
+          icon={<AlertTriangle className="h-4 w-4 text-warning" />}
           count={orphanInvoices.length}
-          colorClass="text-orange-500"
-          bgClass="bg-orange-500/10"
-          borderClass="border-orange-500/30"
+          colorClass="text-warning"
+          bgClass="bg-warning/10"
+          borderClass="border-warning/30"
         >
           {orphanInvoices.map((invoice) => (
             <OrphanInvoiceRow key={invoice.id} invoice={invoice} />
@@ -385,11 +385,11 @@ function DriversListView({
         <DriverSection
           title={`Bom, abaixo da meta (${SLA_THRESHOLDS.GOOD}-${SLA_THRESHOLDS.EXCELLENT - 0.1}%)`}
           subtitle="Clique para ver as NFs"
-          icon={<AlertCircle className="h-4 w-4 text-blue-600" />}
+          icon={<AlertCircle className="h-4 w-4 text-info" />}
           count={goodDrivers.length}
-          colorClass="text-blue-600"
-          bgClass="bg-blue-500/10"
-          borderClass="border-blue-500/30"
+          colorClass="text-info"
+          bgClass="bg-info/10"
+          borderClass="border-info/30"
         >
           {goodDrivers.map((driver, index) => (
             <DriverRow
@@ -511,15 +511,13 @@ function DriverRow({
           ? "border-destructive/30 bg-destructive/5 hover:bg-destructive/10"
           : isHealthy
           ? "border-success/30 bg-success/5 hover:bg-success/10"
-          : isGood
-          ? "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10"
           : "border-warning/30 bg-warning/5 hover:bg-warning/10"
       )}
     >
       {/* Rank */}
       <div className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white shrink-0",
-        isCritical ? "bg-destructive" : isHealthy ? "bg-success" : isGood ? "bg-blue-600" : "bg-warning"
+        "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-nhf-ink shrink-0",
+        isCritical ? "bg-destructive" : isHealthy ? "bg-success" : "bg-warning"
       )}>
         {index + 1}
       </div>
@@ -531,7 +529,7 @@ function DriverRow({
           alt={driver.driver_name}
           className={cn(
             "h-10 w-10 rounded-full object-cover border-2 shrink-0",
-            isCritical ? "border-destructive" : isHealthy ? "border-success" : isGood ? "border-blue-600" : "border-warning"
+            isCritical ? "border-destructive" : isHealthy ? "border-success" : "border-warning"
           )}
         />
       ) : (
@@ -542,7 +540,7 @@ function DriverRow({
             : isHealthy
             ? "bg-success/10 border-success"
             : isGood
-            ? "bg-blue-500/10 border-blue-600"
+            ? "bg-info/10 border-info"
             : "bg-warning/10 border-warning"
         )}>
           {driver.driver_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
@@ -555,7 +553,7 @@ function DriverRow({
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{delivered} entregas</span>
           <span>{total} NFs</span>
-          <span className={isCritical ? "text-destructive" : isHealthy ? "text-success" : isGood ? "text-blue-600" : "text-warning"}>
+          <span className={isCritical ? "text-destructive" : isHealthy ? "text-success" : "text-warning"}>
             {occurrences} ocorrências
           </span>
         </div>
@@ -590,13 +588,13 @@ function OrphanInvoiceRow({ invoice }: { invoice: OrphanInvoice }) {
       "flex items-center gap-3 p-3 rounded-lg border",
       isZeroWeight
         ? "border-destructive/30 bg-destructive/5"
-        : "border-orange-500/30 bg-orange-500/5"
+        : "border-warning/30 bg-warning/5"
     )}>
       <div className={cn(
         "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-        isZeroWeight ? "bg-destructive/10" : "bg-orange-500/10"
+        isZeroWeight ? "bg-destructive/10" : "bg-warning/10"
       )}>
-        <FileText className={cn("h-5 w-5", isZeroWeight ? "text-destructive" : "text-orange-500")} />
+        <FileText className={cn("h-5 w-5", isZeroWeight ? "text-destructive" : "text-warning")} />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -607,7 +605,7 @@ function OrphanInvoiceRow({ invoice }: { invoice: OrphanInvoice }) {
       <div className="text-right shrink-0">
         <Badge variant="outline" className={cn(
           "text-xs",
-          isZeroWeight ? "bg-destructive/10 text-destructive border-destructive/30" : "bg-orange-500/10 text-orange-500 border-orange-500/30"
+          isZeroWeight ? "bg-destructive/10 text-destructive border-destructive/30" : "bg-warning/10 text-warning border-warning/30"
         )}>
           {getOccurrenceLabel(invoice.occurrenceType)}
         </Badge>
@@ -672,7 +670,7 @@ function DriverInvoicesView({
               {formatSLA(sla)}%
             </p>
             <Badge className={cn(
-              "text-white font-bold",
+              "font-bold",
               colorScheme.badgeBgClass
             )}>
               {colorScheme.labelPt}

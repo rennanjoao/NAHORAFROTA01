@@ -84,7 +84,7 @@ const routeLineLayer: LayerProps = {
   id: "optimized-route-line",
   type: "line",
   paint: {
-    "line-color": "#ef4444",
+    "line-color": "#04E8A4", // manual: rotas em Verde Na Hora
     "line-width": 4,
     "line-opacity": 0.85,
   },
@@ -136,7 +136,7 @@ function LeafletRouteMap({ points, lineCoordinates }: LeafletRouteMapProps) {
 
     if (latLngRoute.length > 1) {
       L.polyline(latLngRoute, {
-        color: "#ff1f2d",
+        color: "#04E8A4", // manual: rotas em Verde Na Hora
         weight: 5,
         opacity: 0.9,
         lineCap: "round",
@@ -707,7 +707,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
 
       if (!tenant?.latitude || !tenant?.longitude) {
         toast({
-          title: "⚠️ Coordenadas da Base não definidas",
+          title: "Coordenadas da Base não definidas",
           description: "Vá em Configurações > Dados da Empresa e clique em 'Obter Coordenadas' para definir o ponto de partida.",
           variant: "destructive",
         });
@@ -740,7 +740,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
           const withoutCoords = invoices.filter(inv => !inv.latitude || !inv.longitude);
           if (withoutCoords.length > 0) {
             toast({
-              title: `⚠️ ${withoutCoords.length} NF(s) sem coordenadas`,
+              title: `${withoutCoords.length} NF(s) sem coordenadas`,
               description: "Essas notas não foram incluídas no cálculo de distância. Geocodifique-as para maior precisão.",
             });
           }
@@ -750,7 +750,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       if (deliveryWaypoints.length === 0) {
         setRouteCalculationError("Nenhuma nota fiscal selecionada possui coordenadas GPS válidas para calcular a rota.");
         toast({
-          title: "❌ Sem coordenadas para calcular",
+          title: "Sem coordenadas para calcular",
           description: "Nenhuma nota fiscal possui coordenadas GPS. Importe XMLs com endereço válido.",
           variant: "destructive",
         });
@@ -764,7 +764,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
       setHasCalculatedRoute(true);
       
       toast({
-        title: "✅ Rota Calculada",
+        title: "Rota Calculada",
         description: `${route.waypoints.length} paradas, ${formatDistance(route.totalDistance)}, ~${formatDuration(route.totalDuration)}`,
       });
     } catch (error) {
@@ -1346,7 +1346,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                       </p>
                     ) : (
                       <p className="text-xs text-destructive break-words leading-relaxed">
-                        ⚠️ Endereço incompleto. Preencha em Configurações → Empresa
+                        Endereço incompleto. Preencha em Configurações → Empresa
                       </p>
                     )}
                   </div>
@@ -1651,7 +1651,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
               {/* Fleet type badge */}
               <div className="flex justify-center">
                 <Badge variant={fleetType === "own_fleet" ? "default" : "outline"} className="text-sm">
-                  {fleetType === "own_fleet" ? "🏢 Frota Própria" : "👥 Terceiro / Agregado"}
+                  {fleetType === "own_fleet" ? "Frota Própria" : "Terceiro / Agregado"}
                 </Badge>
               </div>
 
@@ -1768,7 +1768,7 @@ export function FreightDialog({ open, onOpenChange, selectedCount, selectedDeliv
                   <div className="flex justify-between py-2 border-b">
                     <span className="text-muted-foreground">Tipo de Operação</span>
                     <Badge variant={fleetType === "own_fleet" ? "default" : "secondary"}>
-                      {fleetType === "own_fleet" ? "🏢 Frota Própria" : "👥 Terceiro"}
+                      {fleetType === "own_fleet" ? "Frota Própria" : "Terceiro"}
                     </Badge>
                   </div>
                   <div className="flex justify-between py-2 border-b">

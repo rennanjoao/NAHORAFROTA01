@@ -41,10 +41,10 @@ interface DriverOccurrencesSheetProps {
 }
 
 const occurrenceTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  accident: { label: "Acidente", icon: AlertTriangle, color: "text-red-500 bg-red-500/10" },
-  delay: { label: "Atraso", icon: Clock, color: "text-yellow-500 bg-yellow-500/10" },
-  mechanical: { label: "Problema Mecânico", icon: Wrench, color: "text-orange-500 bg-orange-500/10" },
-  other: { label: "Outro", icon: FileText, color: "text-blue-500 bg-blue-500/10" },
+  accident: { label: "Acidente", icon: AlertTriangle, color: "text-destructive bg-destructive/10" },
+  delay: { label: "Atraso", icon: Clock, color: "text-warning bg-warning/10" },
+  mechanical: { label: "Problema Mecânico", icon: Wrench, color: "text-warning bg-warning/10" },
+  other: { label: "Outro", icon: FileText, color: "text-info bg-info/10" },
 };
 
 export function DriverOccurrencesSheet({
@@ -91,7 +91,7 @@ export function DriverOccurrencesSheet({
         <SheetContent side="bottom" className="h-[85vh] rounded-t-2xl">
           <SheetHeader className="pb-4 border-b">
             <SheetTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertTriangle className="h-5 w-5 text-warning" />
               Ocorrências de {driverName}
             </SheetTitle>
           </SheetHeader>

@@ -29,10 +29,10 @@ export function DueDateIndicator({ nextDueDate, financialStatus }: DueDateIndica
     color = "bg-destructive/20 text-destructive border-destructive/30";
     label = `Atrasado ${Math.abs(diff)}d`;
   } else if (diff <= 7) {
-    color = "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    color = "bg-warning/20 text-warning border-warning/30";
     label = diff === 0 ? "Vence hoje" : `Vence em ${diff}d`;
   } else {
-    color = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+    color = "bg-success/20 text-success border-success/30";
     label = `${diff}d restantes`;
   }
 

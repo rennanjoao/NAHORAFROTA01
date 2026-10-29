@@ -229,7 +229,7 @@ export function FinishDeliveryModal({
 
       localStorage.removeItem(DRAFT_KEY(invoiceId));
 
-      toast.success("Entrega finalizada com sucesso!");
+      toast.success("Entrega finalizada com sucesso.");
       resetAndClose();
       onSuccess();
     } catch (error: any) {
@@ -260,7 +260,7 @@ export function FinishDeliveryModal({
     >
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-green-600">
+          <DialogTitle className="flex items-center gap-2 text-success">
             <Check className="h-5 w-5" />
             Finalizar Entrega
           </DialogTitle>
@@ -359,7 +359,7 @@ export function FinishDeliveryModal({
             <Button
               onClick={handleSubmit}
               disabled={isLoading || !receiverName.trim() || !receiverDocument.trim()}
-              className="flex-1 h-12 gap-2 bg-green-600 hover:bg-green-700"
+              className="flex-1 h-12 gap-2 bg-success hover:bg-success/90"
             >
               {isLoading ? (
                 <>

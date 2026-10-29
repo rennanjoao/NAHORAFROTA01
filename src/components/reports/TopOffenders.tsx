@@ -49,7 +49,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
   const getRankBadge = (rank: number) => {
     const colors = {
       1: "bg-destructive text-destructive-foreground",
-      2: "bg-orange-500 text-white",
+      2: "bg-warning text-warning-foreground",
       3: "bg-warning text-warning-foreground",
     };
     return colors[rank as keyof typeof colors] || "bg-muted text-muted-foreground";
@@ -70,7 +70,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
         {/* Top 5 Routes with Delays */}
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
-            <MapPin className="h-4 w-4 text-primary" />
+            <MapPin className="h-4 w-4 text-destructive" />
             <h4 className="font-medium">Top 5 Regiões com Atraso</h4>
           </div>
           <p className="text-xs text-muted-foreground -mt-2 mb-3">
@@ -116,7 +116,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
         {/* Top 5 Clients with Returns */}
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
-            <Building2 className="h-4 w-4 text-primary" />
+            <Building2 className="h-4 w-4 text-destructive" />
             <h4 className="font-medium">Top 5 Clientes com Devolução</h4>
           </div>
           <div className="space-y-3">
@@ -156,7 +156,7 @@ export function TopOffenders({ data, onRouteClick, onClientClick }: TopOffenders
         {/* Top 5 Occurrence Reasons */}
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
-            <AlertCircle className="h-4 w-4 text-primary" />
+            <AlertCircle className="h-4 w-4 text-destructive" />
             <h4 className="font-medium">Top 5 Motivos de Ocorrência</h4>
           </div>
           <div className="space-y-3">

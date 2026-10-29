@@ -406,7 +406,7 @@ export default function SettlementPage() {
     setAdjustmentObservation("");
 
     toast({
-      title: adjustmentType === "credit" ? "✅ Crédito registrado" : "✅ Débito registrado",
+      title: adjustmentType === "credit" ? "Crédito registrado" : "Débito registrado",
       description: `${adjustmentDescription}: ${adjustmentType === "credit" ? "+" : "-"}${formatCurrency(Math.abs(value))}`,
     });
   };
@@ -419,7 +419,7 @@ export default function SettlementPage() {
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
     toast({
-      title: "🗑️ Ajuste removido",
+      title: "Ajuste removido",
       description: "O lançamento foi excluído com sucesso.",
     });
   };
@@ -460,7 +460,7 @@ export default function SettlementPage() {
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
     toast({
-      title: paid ? "✅ Lançamento quitado" : "🔄 Lançamento reaberto",
+      title: paid ? "Lançamento quitado" : "Lançamento reaberto",
       description: `${adjustment.description}: ${formatCurrency(adjustment.value)}`,
     });
   };
@@ -489,7 +489,7 @@ export default function SettlementPage() {
 
     if (error) {
       toast({
-        title: "❌ Erro ao marcar como pago",
+        title: "Erro ao marcar como pago",
         description: error.message,
         variant: "destructive",
       });
@@ -498,7 +498,7 @@ export default function SettlementPage() {
 
     await fetchManifests();
     toast({
-      title: "✅ Pagamento registrado",
+      title: "Pagamento registrado",
       description: `Romaneio marcado como pago.`,
     });
   };
@@ -520,7 +520,7 @@ export default function SettlementPage() {
 
     if (error) {
       toast({
-        title: "❌ Erro ao atualizar romaneio",
+        title: "Erro ao atualizar romaneio",
         description: error.message,
         variant: "destructive",
       });
@@ -549,7 +549,7 @@ export default function SettlementPage() {
 
       if (error) {
         toast({
-          title: "❌ Erro ao estornar",
+          title: "Erro ao estornar",
           description: error.message,
           variant: "destructive",
         });
