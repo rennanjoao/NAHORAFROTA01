@@ -26,13 +26,14 @@ interface DriverListProps {
 const stretchedButton =
   "text-left font-medium text-foreground after:absolute after:inset-0 after:content-[''] hover:text-primary focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring";
 
-function VehicleSummary({ driver }: { driver: DriverRecord }) {
+// nowrap: na tabela o texto nao quebra no meio (com texto "Maior" a celula ficava em 2 linhas).
+function VehicleSummary({ driver, nowrap }: { driver: DriverRecord; nowrap?: boolean }) {
   // CLT sem placa propria usa um veiculo da empresa a cada rota.
   if (driver.isOwnFleet && (!driver.vehiclePlate || driver.vehiclePlate === "PENDENTE")) {
-    return <span className="text-sm text-muted-foreground">Veículo da empresa</span>;
+    return <span className={cn("text-sm text-muted-foreground", nowrap && "whitespace-nowrap")}>Veículo da empresa</span>;
   }
   return (
-    <span className="inline-flex flex-wrap items-center gap-2">
+    <span className={cn("inline-flex items-center gap-2", nowrap ? "flex-nowrap whitespace-nowrap" : "flex-wrap")}>
       <span className="text-sm text-foreground">{driver.vehicleType}</span>
       <PlateTag plate={driver.vehiclePlate} />
     </span>
@@ -48,7 +49,7 @@ function SlaValue({ sla, compact }: { sla: number | null | undefined; compact?: 
         <span className="sr-only">Sem entregas</span>
       </>
     ) : (
-      <span className="text-sm text-muted-foreground">Sem entregas</span>
+      <span className="whitespace-nowrap text-sm text-muted-foreground">Sem entregas</span>
     );
   }
   return <span className={cn("font-data text-sm font-semibold", toneText[slaTone(sla)])}>{formatSLA(sla)}%</span>;
@@ -112,7 +113,9 @@ export function DriverList(props: DriverListProps) {
               <TableHead className="hidden xl:table-cell" title="Entregues sobre notas finalizadas nos últimos 6 meses">
                 Entregas (6 meses)
               </TableHead>
-              <TableHead title="Entregas no prazo (SLA) nos últimos 6 meses">No prazo (6 meses)</TableHead>
+              <TableHead title="Entregas no prazo (SLA) nos últimos 6 meses">
+                No prazo (6 meses)
+              </TableHead>
               <TableHead className="text-right" title="Frete de romaneios ainda não pagos">
                 A receber
               </TableHead>
@@ -146,7 +149,7 @@ export function DriverList(props: DriverListProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <VehicleSummary driver={driver} />
+                    <VehicleSummary driver={driver} nowrap />
                   </TableCell>
                   <TableCell>
                     <DriverStatusBadge status={driver.status} />

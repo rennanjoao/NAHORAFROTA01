@@ -46,6 +46,8 @@ export function ProfileSettings() {
 
   const handleSaveProfile = async (event?: FormEvent) => {
     event?.preventDefault();
+    // O botao continua focavel enquanto salva (aria-disabled): evita salvar duas vezes.
+    if (isSavingProfile) return;
     if (!user?.id) {
       toast({
         title: "Sessão expirada",
@@ -110,7 +112,7 @@ export function ProfileSettings() {
       onSubmit={handleSaveProfile}
       footerHint="As alterações valem em todos os aparelhos em que você entra."
       footer={
-        <Button type="submit" disabled={isSavingProfile}>
+        <Button type="submit" aria-disabled={isSavingProfile || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
           {isSavingProfile ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
           {isSavingProfile ? "Salvando..." : "Salvar alterações"}
         </Button>

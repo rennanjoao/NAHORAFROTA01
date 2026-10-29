@@ -197,6 +197,9 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
 
   // Fetch initial positions - ONLY active drivers
   const fetchPositions = useCallback(async () => {
+    // Sem internet mantem a ultima posicao conhecida (antes zerava o mapa:
+    // "0 veiculos com GPS ligado").
+    if (!navigator.onLine) return;
     const tenantId = await getCurrentTenantId();
     if (!tenantId) {
       setPositions([]);

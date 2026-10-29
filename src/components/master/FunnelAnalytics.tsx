@@ -131,7 +131,14 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={fetchSummary} disabled={isLoading} aria-label="Atualizar funil">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => !isLoading && fetchSummary()}
+                  aria-disabled={isLoading || undefined}
+                  className="aria-disabled:pointer-events-none aria-disabled:opacity-60"
+                  aria-label="Atualizar funil"
+                >
                   <RefreshCw className={isLoading ? "animate-spin" : undefined} aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
@@ -153,7 +160,8 @@ export function FunnelAnalytics({ tenants, onExtendTrial, extendingTenantId }: F
         <StatCard label="Visitantes únicos" value={summary?.visitors ?? "—"} icon={MousePointerClick} />
         <StatCard label="Testando agora" value={summary?.trial_active ?? inTrial.length} icon={Gift} tone="info" />
         <StatCard
-          label="Testaram e não contrataram"
+          label="Não contrataram"
+          hint="O teste acabou sem virar cliente"
           value={summary?.trial_expired_not_converted ?? expiredNotConverted.length}
           icon={UserX}
           tone="warning"

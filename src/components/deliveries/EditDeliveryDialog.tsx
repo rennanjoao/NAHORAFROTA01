@@ -419,7 +419,7 @@ export function EditDeliveryDialog({
         </div>
 
         {/* Rodape preso embaixo: salvar sempre a vista no formulario longo. */}
-        <DialogFooter className="sticky bottom-0 z-10 -mx-6 -mb-6 border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:justify-between">
+        <DialogFooter className="sticky bottom-[calc(max(1.5rem,env(safe-area-inset-bottom))*-1)] z-10 -mx-6 mb-[calc(max(1.5rem,env(safe-area-inset-bottom))*-1)] border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:justify-between">
           <Button
             type="button"
             variant="ghost"

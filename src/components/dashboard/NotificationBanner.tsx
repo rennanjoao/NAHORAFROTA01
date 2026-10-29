@@ -2,6 +2,7 @@ import { AlertCircle, Clock, Gift, Mail, ShieldAlert, type LucideIcon } from "lu
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { SUPPORT_EMAIL } from "@/config/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { plural } from "./status";
 
@@ -10,8 +11,13 @@ type BannerVariant = "info" | "warning" | "destructive";
 /** Aviso da assinatura (teste gratis, vencimento, atraso) no topo do painel. */
 export function NotificationBanner() {
   const { status, daysRemaining, isLoading, access } = useSubscriptionStatus();
+  const { roles } = useAuth();
+  // So o administrador contrata e paga; para a equipe o aviso diz a quem recorrer.
+  const isAdmin = roles.includes("admin");
 
   if (isLoading || !access || access.is_platform_admin) return null;
+  // Teste gratis: so interessa a quem contrata.
+  if (status === "trial" && !isAdmin) return null;
 
   let icon: LucideIcon = Clock;
   let title = "";
@@ -53,6 +59,7 @@ export function NotificationBanner() {
   }
 
   const Icon = icon;
+  if (!isAdmin && status !== "trial") message = "Avise o administrador da sua empresa para não perder o acesso.";
 
   return (
     <Alert variant={variant} role="status" className="mb-6">
@@ -62,12 +69,14 @@ export function NotificationBanner() {
           <p className="font-semibold leading-snug text-foreground">{title}</p>
           <AlertDescription className="mt-0.5">{message}</AlertDescription>
         </div>
-        <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-center">
-          <a href={`mailto:${SUPPORT_EMAIL}`}>
-            <Mail aria-hidden="true" />
-            Falar com a equipe
-          </a>
-        </Button>
+        {isAdmin && (
+          <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-center">
+            <a href={`mailto:${SUPPORT_EMAIL}`}>
+              <Mail aria-hidden="true" />
+              Falar com a equipe
+            </a>
+          </Button>
+        )}
       </div>
     </Alert>
   );

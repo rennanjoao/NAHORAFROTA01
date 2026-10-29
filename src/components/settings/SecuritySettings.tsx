@@ -84,6 +84,8 @@ export function SecuritySettings() {
   // Antes o botao so mostrava "Senha alterada" sem mudar nada.
   const handleChangePassword = async (event: FormEvent) => {
     event.preventDefault();
+    // O botao continua focavel enquanto confere (aria-disabled): evita enviar duas vezes.
+    if (isChangingPassword) return;
     const email = user?.email;
     if (!email) {
       toast({ title: "Sessão expirada", description: "Entre de novo para trocar a senha.", variant: "destructive" });
@@ -188,7 +190,7 @@ export function SecuritySettings() {
         onSubmit={handleChangePassword}
         footerHint="Depois de trocar, use a nova senha no próximo acesso."
         footer={
-          <Button type="submit" disabled={isChangingPassword}>
+          <Button type="submit" aria-disabled={isChangingPassword || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
             {isChangingPassword ? <Loader2 className="animate-spin" aria-hidden="true" /> : <KeyRound aria-hidden="true" />}
             {isChangingPassword ? "Alterando..." : "Alterar senha"}
           </Button>

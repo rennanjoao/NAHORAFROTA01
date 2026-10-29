@@ -79,6 +79,7 @@ export function PlatformAdminsCard() {
 
   const handleAdd = async (event?: FormEvent) => {
     event?.preventDefault();
+    if (adding) return;
     if (!email.trim()) {
       setEmailError("Digite o e-mail de quem vai ter acesso.");
       document.getElementById("adminEmail")?.focus();
@@ -214,7 +215,7 @@ export function PlatformAdminsCard() {
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={adding}>
                 Cancelar
               </Button>
-              <Button type="submit" form="platform-admin-form" disabled={adding}>
+              <Button type="submit" form="platform-admin-form" aria-disabled={adding || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
                 {adding ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Crown aria-hidden="true" />}
                 {adding ? "Adicionando..." : "Conceder acesso"}
               </Button>

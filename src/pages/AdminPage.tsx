@@ -204,10 +204,10 @@ export default function AdminPage() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={refetch}
-                        disabled={isLoading}
+                        onClick={() => !isLoading && refetch()}
+                        aria-disabled={isLoading || undefined}
                         aria-label="Atualizar lista de usuários"
-                        className="max-sm:hidden"
+                        className="max-sm:hidden aria-disabled:pointer-events-none aria-disabled:opacity-60"
                       >
                         <RefreshCw className={cn(isLoading && "animate-spin")} aria-hidden="true" />
                       </Button>

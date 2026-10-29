@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigation } from "@/hooks/useNavigation";
 import { KIND_META, searchAll, toFilterTerm, type ResultKind, type SearchResult } from "@/lib/globalSearch";
 import { useShell } from "./ShellContext";
+import { useOnline } from "./useOnline";
 
 interface PaletteAction {
   id: string;
@@ -114,6 +115,7 @@ export function CommandPalette() {
   const { setTheme, setPreference, textSize } = usePreferences();
   const { signOut } = useAuth();
 
+  const online = useOnline();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -125,7 +127,8 @@ export function CommandPalette() {
   }, [open]);
 
   useEffect(() => {
-    if (term.length < 2) {
+    // Sem internet nao busca dados (telas e acoes continuam funcionando).
+    if (term.length < 2 || !online) {
       setResults([]);
       setSearching(false);
       return;
@@ -144,7 +147,7 @@ export function CommandPalette() {
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [term]);
+  }, [term, online]);
 
   const run = (fn: () => void) => {
     closePanel();
@@ -307,7 +310,14 @@ export function CommandPalette() {
           </div>
 
           <CommandPrimitive.List className="max-h-[min(62vh,440px)] overflow-y-auto overscroll-contain p-1.5">
-            {nothing && (
+            {q.length >= 2 && !online && (
+              <div role="status" className="mx-1.5 my-1.5 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+                <p className="font-medium text-foreground">Sem internet</p>
+                <p className="mt-0.5 text-muted-foreground">Motoristas, placas e notas voltam a aparecer quando a conexão voltar. Telas e atalhos funcionam.</p>
+              </div>
+            )}
+
+            {nothing && online && (
               <div className="px-6 py-10 text-center">
                 <p className="text-sm font-medium text-foreground">Nada encontrado para “{q}”.</p>
                 <p className="mt-1 text-sm text-muted-foreground">Tente o número da nota, a placa ou parte do nome.</p>

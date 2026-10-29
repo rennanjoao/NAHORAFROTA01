@@ -177,7 +177,12 @@ export default function MasterAdminPage() {
         title="Painel Master"
         description="Empresas da plataforma, testes grátis e cobranças."
         actions={
-          <Button variant="outline" onClick={fetchTenants} disabled={isLoading}>
+          <Button
+            variant="outline"
+            onClick={() => !isLoading && fetchTenants()}
+            aria-disabled={isLoading || undefined}
+            className="aria-disabled:pointer-events-none aria-disabled:opacity-60"
+          >
             <RefreshCw className={isLoading ? "animate-spin" : undefined} aria-hidden="true" />
             Atualizar dados
           </Button>

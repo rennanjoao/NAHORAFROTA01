@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Building2, CheckCircle2, FileUp, FileWarning, Flag, MapPinned, Package, RefreshCw, Truck, UserCheck, Wallet, Banknote } from "lucide-react";
+import { Building2, CheckCircle2, Crown, FileUp, FileWarning, Flag, MapPinned, Package, RefreshCw, Truck, UserCheck, Wallet, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageLoading, Section, StatCard } from "@/components/patterns";
+import { EmptyState, PageHeader, PageLoading, Section, StatCard } from "@/components/patterns";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useIsPlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
 import { useTenantData } from "@/hooks/useTenantData";
 import { useDashboardKPIs } from "@/hooks/useDashboardKPIs";
@@ -48,6 +49,7 @@ export default function Index() {
 
   // Empresa ainda sendo criada: evita tela vazia para usuario novo
   const { tenant, isLoading: tenantLoading } = useTenantData();
+  const { isPlatformAdmin } = useIsPlatformAdmin();
 
   const {
     isLoading,
@@ -105,19 +107,44 @@ export default function Index() {
   }
 
   if (!tenant) {
+    // Equipe da plataforma sem empresa: o caminho e o Painel Master (antes via
+    // "Preparando o ambiente da sua empresa", que nunca terminava).
+    if (isPlatformAdmin) {
+      return (
+        <>
+          <PageHeader title="Início" description="Sua conta é da equipe Na Hora Frota e não está ligada a uma empresa." />
+          <EmptyState
+            icon={Crown}
+            title="Nenhuma empresa ligada a esta conta"
+            description="Acompanhe as empresas, os testes grátis e as cobranças no Painel Master."
+            action={
+              <Button asChild>
+                <Link to="/master">
+                  <Crown aria-hidden="true" />
+                  Abrir o Painel Master
+                </Link>
+              </Button>
+            }
+          />
+        </>
+      );
+    }
     return (
-      <EmptyState
-        icon={Building2}
-        title="Preparando o ambiente da sua empresa"
-        description="Isso leva alguns instantes. Se demorar mais que alguns minutos, recarregue a página ou fale com o suporte."
-        action={
-          <Button onClick={() => window.location.reload()}>
-            <RefreshCw aria-hidden="true" />
-            Recarregar página
-          </Button>
-        }
-        className="mt-10"
-      />
+      <>
+        <h1 className="sr-only">Início</h1>
+        <EmptyState
+          icon={Building2}
+          title="Preparando o ambiente da sua empresa"
+          description="Isso leva alguns instantes. Se demorar mais que alguns minutos, recarregue a página ou fale com o suporte."
+          action={
+            <Button onClick={() => window.location.reload()}>
+              <RefreshCw aria-hidden="true" />
+              Recarregar página
+            </Button>
+          }
+          className="mt-10"
+        />
+      </>
     );
   }
 

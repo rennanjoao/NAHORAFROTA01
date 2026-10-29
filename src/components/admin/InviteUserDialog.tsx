@@ -59,6 +59,8 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
 
   const handleInvite = async (event?: FormEvent) => {
     event?.preventDefault();
+    // O botao continua focavel enquanto gera (aria-disabled): evita gerar duas vezes.
+    if (isLoading) return;
     if (!canAddUser) {
       toast.error(
         `O plano ${planLabels[plan] || plan} permite até ${limits.max_users} ${limits.max_users === 1 ? "usuário" : "usuários"}. Fale com a equipe para mudar de plano.`,
@@ -226,7 +228,7 @@ export function InviteUserDialog({ onUserInvited }: InviteUserDialogProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
                 Cancelar
               </Button>
-              <Button type="submit" form="invite-user-form" disabled={isLoading}>
+              <Button type="submit" form="invite-user-form" aria-disabled={isLoading || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
                 {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Mail aria-hidden="true" />}
                 {isLoading ? "Gerando..." : "Gerar acesso"}
               </Button>

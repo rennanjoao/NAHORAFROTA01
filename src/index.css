@@ -208,6 +208,13 @@
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
     -webkit-text-size-adjust: 100%;
+    /* Tab e ancoras param abaixo do topo fixo (e acima da barra inferior no celular). */
+    scroll-padding-top: calc(var(--topbar-height) + 1rem);
+  }
+  @media (max-width: 767px) {
+    html {
+      scroll-padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 1rem);
+    }
   }
 
   body {

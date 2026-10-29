@@ -385,7 +385,7 @@ export function EditAccessDialog({ target, open, onOpenChange, onSaved, takenEma
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button type="submit" form="edit-access-form" disabled={isSaving}>
+          <Button type="submit" form="edit-access-form" aria-disabled={isSaving || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
             {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
             {isSaving ? "Salvando..." : "Salvar alterações"}
           </Button>

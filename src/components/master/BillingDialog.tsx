@@ -209,8 +209,9 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
     setLoadingHistory(false);
   };
 
+  // Os botoes ficam focaveis enquanto salvam (aria-disabled): o foco nao se perde.
   const handleRegisterNotice = async () => {
-    if (!tenant) return;
+    if (!tenant || savingNotice) return;
     setSavingNotice(true);
     const { error } = await supabase.from("billing_notices").insert({
       tenant_id: tenant.id,
@@ -234,7 +235,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
   };
 
   const handleSave = async () => {
-    if (!tenant) return;
+    if (!tenant || saving) return;
     setSaving(true);
     const { error } = await supabase
       .from("tenants")
@@ -410,7 +411,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
                 </FormField>
               </div>
               <div className="flex justify-end">
-                <Button type="submit" disabled={saving} className="max-sm:w-full">
+                <Button type="submit" aria-disabled={saving || undefined} className="max-sm:w-full aria-disabled:pointer-events-none aria-disabled:opacity-60">
                   {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
                   {saving ? "Salvando..." : "Salvar contrato"}
                 </Button>
@@ -546,7 +547,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
                 </FormField>
               </div>
               <div className="flex justify-end">
-                <Button type="submit" variant="outline" disabled={savingNotice} className="max-sm:w-full">
+                <Button type="submit" variant="outline" aria-disabled={savingNotice || undefined} className="max-sm:w-full aria-disabled:pointer-events-none aria-disabled:opacity-60">
                   {savingNotice ? <Loader2 className="animate-spin" aria-hidden="true" /> : <BellRing aria-hidden="true" />}
                   {savingNotice ? "Registrando..." : "Marcar cobrança como avisada"}
                 </Button>

@@ -404,7 +404,7 @@ export function CreateDriverModal({ onUserCreated }: CreateDriverModalProps) {
           <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button type="submit" form="create-driver-form" disabled={isLoading}>
+          <Button type="submit" form="create-driver-form" aria-disabled={isLoading || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
             {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
             {isLoading ? "Salvando..." : "Salvar motorista"}
           </Button>

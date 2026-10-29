@@ -96,6 +96,8 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
 
   const handleCreate = async (event?: FormEvent) => {
     event?.preventDefault();
+    // O botao continua focavel enquanto cria (aria-disabled): evita criar duas vezes.
+    if (isLoading) return;
     if (!canAddUser) {
       toast.error(
         `O plano ${planLabels[plan] || plan} permite até ${limits.max_users} ${limits.max_users === 1 ? "usuário" : "usuários"}. Fale com a equipe para mudar de plano.`,
@@ -311,7 +313,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
                 Cancelar
               </Button>
-              <Button type="submit" form="create-user-form" disabled={isLoading}>
+              <Button type="submit" form="create-user-form" aria-disabled={isLoading || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
                 {isLoading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
                 {isLoading ? "Criando..." : "Criar usuário"}
               </Button>

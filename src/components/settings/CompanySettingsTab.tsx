@@ -89,6 +89,7 @@ export function CompanySettingsTab() {
   }, [cnpj]);
 
   const handleGeocode = async () => {
+    if (isGeocoding) return;
     const fullAddress = `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${uf}, ${cep}`;
     if (!logradouro || !cidade || !uf) {
       toast({
@@ -141,6 +142,8 @@ export function CompanySettingsTab() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
+    // O botao continua focavel enquanto salva (aria-disabled): evita salvar duas vezes.
+    if (isSaving) return;
     if (!razaoSocial.trim()) {
       setRazaoError("Digite a razão social da empresa.");
       razaoRef.current?.focus();
@@ -193,7 +196,7 @@ export function CompanySettingsTab() {
       footerHint={canEdit ? "O endereço da base é o ponto de partida de todas as rotas." : undefined}
       footer={
         canEdit ? (
-          <Button type="submit" disabled={isSaving}>
+          <Button type="submit" aria-disabled={isSaving || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
             {isSaving ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
             {isSaving ? "Salvando..." : "Salvar dados da empresa"}
           </Button>
@@ -336,7 +339,7 @@ export function CompanySettingsTab() {
               </div>
             </div>
             {canEdit && (
-              <Button type="button" variant="outline" onClick={handleGeocode} disabled={isGeocoding} className="shrink-0">
+              <Button type="button" variant="outline" onClick={handleGeocode} aria-disabled={isGeocoding || undefined} className="shrink-0 aria-disabled:pointer-events-none aria-disabled:opacity-60">
                 {isGeocoding ? <Loader2 className="animate-spin" aria-hidden="true" /> : <MapPin aria-hidden="true" />}
                 {isGeocoding ? "Buscando..." : hasLocation ? "Buscar de novo" : "Buscar no mapa"}
               </Button>

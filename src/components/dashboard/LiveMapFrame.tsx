@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/patterns";
 import { cn } from "@/lib/utils";
+import { useOnline } from "@/components/layout/useOnline";
 import { VEHICLE_STATUS, type MapStatusCounts, type VehicleMapStatus } from "./mapStatus";
 import { plural } from "./status";
 
@@ -27,6 +28,7 @@ const ORDER: VehicleMapStatus[] = ["onTime", "atRisk", "delayed", "stale"];
  * situacao (que tambem e a legenda das cores) e os botoes do mapa.
  */
 export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, onFitAll, children, state = "ready", error, onRetry }: LiveMapFrameProps) {
+  const online = useOnline();
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -55,7 +57,8 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
               </Button>
             )}
             {onRefresh && (
-              <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing}>
+              // Sem internet nao ha o que atualizar: o mapa fica na ultima posicao.
+              <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing || !online}>
                 <RefreshCw className={cn(isRefreshing && "animate-spin")} aria-hidden="true" />
                 {isRefreshing ? "Atualizando…" : "Atualizar"}
               </Button>

@@ -1729,7 +1729,7 @@ export function FreightDialog({
         </div>
 
         {/* Rodape preso embaixo: "Continuar" sempre a vista, mesmo com muitas paradas. */}
-        <DialogFooter className="sticky bottom-0 z-10 -mx-6 -mb-6 border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+        <DialogFooter className="sticky bottom-[calc(max(1.5rem,env(safe-area-inset-bottom))*-1)] z-10 -mx-6 mb-[calc(max(1.5rem,env(safe-area-inset-bottom))*-1)] border-t bg-popover px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
           {step === "fleet_type" ? (
             <Button
               type="button"

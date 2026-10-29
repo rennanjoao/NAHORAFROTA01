@@ -475,7 +475,9 @@ export default function ReportsPage() {
     }
   };
 
+  // aria-disabled no botao: o foco fica nele enquanto atualiza.
   const handleRefresh = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     await Promise.all([refetchInvoices(), fetchManifests()]);
     setIsLoading(false);
@@ -502,7 +504,7 @@ export default function ReportsPage() {
         description="SLA, custos, eficiência e ocorrências do período. Escolha o período e todos os gráficos acompanham."
         actions={
           <>
-            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <Button variant="outline" onClick={handleRefresh} aria-disabled={isLoading || undefined} className="aria-disabled:pointer-events-none aria-disabled:opacity-60">
               <RefreshCw className={isLoading ? "animate-spin" : undefined} aria-hidden="true" />
               {isLoading ? "Atualizando" : "Atualizar"}
             </Button>
