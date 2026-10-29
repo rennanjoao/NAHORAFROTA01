@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { uniqueChannelName } from "@/lib/realtime";
 import { toast } from "@/hooks/use-toast";
 import { getCurrentTenantId, requireCurrentTenantId } from "@/lib/tenant";
+import { friendlyError } from "@/lib/errors";
 
 export interface DBDriver {
   id: string;
@@ -226,7 +227,7 @@ export function useDriversDB() {
         title: "Erro ao atualizar",
         description: isPermissionError
           ? DRIVER_ADMIN_PERMISSION_MESSAGE
-          : err.message || "Não foi possível atualizar o motorista.",
+          : friendlyError(err, "Não foi possível atualizar o motorista."),
         variant: "destructive",
       });
       return null;
@@ -252,7 +253,7 @@ export function useDriversDB() {
       console.error("Error deleting driver:", err);
       toast({
         title: "Erro ao remover",
-        description: err.message || "Não foi possível remover o motorista.",
+        description: friendlyError(err, "Não foi possível remover o motorista."),
         variant: "destructive",
       });
       return false;

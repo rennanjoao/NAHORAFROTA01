@@ -4,6 +4,7 @@
 import { uniqueChannelName } from "@/lib/realtime";
  import { toast } from "@/hooks/use-toast";
  import { getCurrentTenantId, requireCurrentTenantId } from "@/lib/tenant";
+import { friendlyError } from "@/lib/errors";
  
  export interface DBSettlement {
    id: string;
@@ -167,7 +168,7 @@ import { uniqueChannelName } from "@/lib/realtime";
      } catch (err: any) {
        toast({
          title: "Erro ao finalizar acerto",
-         description: err.message,
+         description: friendlyError(err),
          variant: "destructive",
        });
        return false;
@@ -218,7 +219,7 @@ import { uniqueChannelName } from "@/lib/realtime";
      } catch (err: any) {
        toast({
          title: "Erro ao adicionar lançamento",
-         description: err.message,
+         description: friendlyError(err),
          variant: "destructive",
        });
        return false;
@@ -254,7 +255,7 @@ import { uniqueChannelName } from "@/lib/realtime";
     } catch (err: any) {
       toast({
         title: "Erro ao estornar",
-        description: err.message,
+        description: friendlyError(err),
         variant: "destructive",
       });
       return false;

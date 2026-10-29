@@ -7,6 +7,7 @@ import { recalculateManifestTotals } from "@/lib/manifestTotals";
  import { toast } from "@/hooks/use-toast";
  import { getTodayBrazil } from "@/lib/timezone";
  import { getCurrentTenantId } from "@/lib/tenant";
+import { friendlyError } from "@/lib/errors";
  
 export interface DBManifest {
   id: string;
@@ -190,7 +191,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
     } catch (err: any) {
       toast({
         title: "Erro ao criar romaneio",
-        description: err.message || "As notas não foram alteradas. Tente novamente.",
+        description: friendlyError(err, "As notas não foram alteradas. Tente novamente."),
         variant: "destructive",
       });
       return null;
@@ -348,7 +349,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
     } catch (err: any) {
       toast({
         title: "Erro ao remover NF",
-        description: err.message,
+        description: friendlyError(err),
         variant: "destructive",
       });
       return false;
@@ -478,7 +479,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
     } catch (err: any) {
       toast({
         title: "Erro ao adicionar NF",
-        description: err.message,
+        description: friendlyError(err),
         variant: "destructive",
       });
       return false;

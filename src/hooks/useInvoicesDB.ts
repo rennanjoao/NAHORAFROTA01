@@ -4,6 +4,7 @@ import { uniqueChannelName } from "@/lib/realtime";
 import { toast } from '@/hooks/use-toast';
 import { getCurrentTenantId } from '@/lib/tenant';
 import { fetchAllPages } from '@/lib/supabasePaging';
+import { friendlyError } from "@/lib/errors";
 
 // Storage bucket name for invoice attachments (if any)
 const INVOICE_ATTACHMENTS_BUCKET = 'invoice-attachments';
@@ -179,7 +180,7 @@ export function useInvoicesDB() {
       setInvoices(transformedData);
     } catch (err: any) {
       console.error('Error fetching invoices:', err);
-      setError(err.message || 'Erro ao carregar notas fiscais');
+      setError(friendlyError(err, 'Erro ao carregar notas fiscais'));
     } finally {
       setIsLoading(false);
     }
@@ -233,7 +234,7 @@ export function useInvoicesDB() {
       console.error('Error updating invoice:', err);
       toast({
         title: 'Erro ao atualizar',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
       return false;
@@ -266,7 +267,7 @@ export function useInvoicesDB() {
       console.error('Error updating status:', err);
       toast({
         title: 'Erro ao atualizar status',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
       return false;
@@ -295,7 +296,7 @@ export function useInvoicesDB() {
       console.error('Error assigning invoices:', err);
       toast({
         title: 'Erro ao atribuir',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
     }
@@ -324,7 +325,7 @@ export function useInvoicesDB() {
       console.error('Error removing from manifest:', err);
       toast({
         title: 'Erro ao remover',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
     }
@@ -375,7 +376,7 @@ export function useInvoicesDB() {
       console.error('Error deleting invoice:', err);
       toast({
         title: 'Erro ao excluir',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
       return false;

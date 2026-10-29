@@ -1,17 +1,32 @@
+import { useEffect } from "react";
 import { Toaster as Sonner, toast } from "sonner";
 import { usePreferences } from "@/components/theme/PreferencesProvider";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
+// O Sonner 1.7 nao deixa traduzir o rotulo do botao de fechar ("Close toast").
+const CLOSE_LABEL = "Fechar aviso";
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const { resolvedTheme } = usePreferences();
+
+  useEffect(() => {
+    const label = () =>
+      document
+        .querySelectorAll<HTMLButtonElement>("[data-sonner-toast] [data-close-button]")
+        .forEach((button) => button.getAttribute("aria-label") !== CLOSE_LABEL && button.setAttribute("aria-label", CLOSE_LABEL));
+    const observer = new MutationObserver(label);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <Sonner
       theme={resolvedTheme}
       position="top-center"
-      duration={3000}
+      duration={3500}
       closeButton
+      containerAriaLabel="Notificações"
       className="toaster group"
       toastOptions={{
         classNames: {

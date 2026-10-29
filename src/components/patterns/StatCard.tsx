@@ -55,14 +55,19 @@ export function StatCard({
   const body = (
     <>
       {/* Altura fixa (a do icone): rotulo em 2 linhas nao desalinha os numeros da fileira. */}
-      <div className="flex min-h-9 items-start justify-between gap-3">
-        <p className="text-sm font-medium leading-tight text-muted-foreground">{label}</p>
+      <div className="flex min-h-9 items-start justify-between gap-2 min-[400px]:gap-3">
+        <p className="min-w-0 hyphens-auto text-sm font-medium leading-tight text-muted-foreground">{label}</p>
         {Icon && (
           <span
             aria-hidden="true"
-            className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", toneSoftBg[tone], toneText[tone])}
+            className={cn(
+              // Menor no celular estreito: rotulo de uma palavra longa ("Disponiveis") cabe ao lado.
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md min-[400px]:h-9 min-[400px]:w-9 min-[400px]:rounded-lg",
+              toneSoftBg[tone],
+              toneText[tone],
+            )}
           >
-            <Icon className="h-[1.125rem] w-[1.125rem]" />
+            <Icon className="h-4 w-4 min-[400px]:h-[1.125rem] min-[400px]:w-[1.125rem]" />
           </span>
         )}
       </div>
@@ -102,7 +107,7 @@ export function StatCard({
   );
 
   const classes = cn(
-    "group relative flex h-full min-h-[8.5rem] flex-col gap-3 rounded-lg border bg-card p-5 text-left text-card-foreground shadow-sm",
+    "group relative flex h-full min-h-[8.5rem] flex-col gap-3 rounded-lg border bg-card p-4 text-left text-card-foreground shadow-sm min-[400px]:p-5",
     interactive && "card-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     className,
   );

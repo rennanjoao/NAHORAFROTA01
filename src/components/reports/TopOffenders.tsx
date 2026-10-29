@@ -140,7 +140,8 @@ export function TopOffenders({ data, loading, onRouteClick, onClientClick }: Top
       title="Pontos de atenção"
       description="Regiões, clientes e motivos que mais pesaram no período. Escolha uma região ou um cliente para filtrar a tela."
     >
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* grid-cols-1 (minmax 0): nome longo cortado nao alarga a coluna no celular. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <OffenderCard icon={MapPin} title="Regiões com mais atrasos" hint="As 5 regiões de entrega com mais atrasos e ocorrências">
           {loading ? (
             skeletonRows

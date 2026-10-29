@@ -97,25 +97,14 @@ export function ManifestStatusBadge({ status, live, className }: BadgeProps) {
 }
 
 /** Nomes do tipo de veiculo e de frete em portugues simples. */
-export const VEHICLE_TYPE_LABELS: Record<string, string> = {
-  truck: "Caminhão",
-  van: "Van/VUC",
-  moto: "Moto",
-  fiorino: "Fiorino",
-  vuc: "VUC",
-  toco: "Toco",
-  carreta: "Carreta",
-};
+// Nomes dos tipos de veiculo moram em src/lib/vehicles (usados tambem pela busca).
+export { VEHICLE_TYPE_LABELS, vehicleTypeLabel } from "@/lib/vehicles";
 
 /** Placa para mostrar; "PENDENTE" (cadastro sem placa) e vazio viram null. */
 export function plateText(plate?: string | null) {
   return !plate || plate.toUpperCase() === PENDING_PLATE ? null : plate;
 }
 
-export function vehicleTypeLabel(type?: string | null) {
-  if (!type) return "Veículo";
-  return VEHICLE_TYPE_LABELS[type.toLowerCase()] || type;
-}
 
 export const FREIGHT_TYPE_LABELS: Record<string, string> = {
   fixed: "Frete fixo (por entrega)",

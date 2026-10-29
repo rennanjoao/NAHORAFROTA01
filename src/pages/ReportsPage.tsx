@@ -141,7 +141,7 @@ export default function ReportsPage() {
 
     return {
       clients: Array.from(clientCounts.entries())
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
         .slice(0, MAX_CLIENT_OPTIONS)
         .map(([name]) => ({ id: name, name })),
       routes: Array.from(regions).sort((a, b) => a.localeCompare(b, 'pt-BR')).map(name => ({ id: name, name })),
@@ -318,7 +318,7 @@ export default function ReportsPage() {
         trend: offenderTrend(r.delays, previousDelays.get(r.region) || 0, hasPrevious),
       })),
       clients: Array.from(currentReturns.entries())
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR', { numeric: true }))
         .slice(0, 5)
         .map(([name, returns], i) => ({
           rank: i + 1,

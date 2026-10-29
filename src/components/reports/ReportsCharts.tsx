@@ -59,7 +59,7 @@ export function ReportsCharts({ slaData, issuesData, isLoading }: ReportsChartsP
     : "Sem ocorrências no período.";
 
   return (
-    <div className={cn("grid gap-6", slaData.length > 0 && "lg:grid-cols-2")}>
+    <div className={cn("grid grid-cols-1 gap-6", slaData.length > 0 && "lg:grid-cols-2")}>
       {/* Tendencia mensal do SLA (so quando a tela passa os dados) */}
       {slaData.length > 0 && (
         <ReportCard

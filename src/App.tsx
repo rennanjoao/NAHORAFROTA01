@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { PWAUpdatePrompt } from "@/components/layout/PWAUpdatePrompt";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,7 +36,6 @@ const App = () => (
       <AuthProvider>
         <LogisticsProvider>
           <TooltipProvider delayDuration={300}>
-            <Toaster />
             <Sonner />
             <PWAUpdatePrompt />
             <BrowserRouter>

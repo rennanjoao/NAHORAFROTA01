@@ -251,7 +251,7 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
         />
       ) : (
         <>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <ReportCard
               icon={BarChart3}
               title="Entregas e ocorrências por região"

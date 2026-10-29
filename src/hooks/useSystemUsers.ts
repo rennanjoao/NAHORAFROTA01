@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { friendlyError } from "@/lib/errors";
 
 export interface SystemUser {
   id: string;
@@ -142,7 +143,7 @@ export function useSystemUsers() {
       setUsers(combinedUsers);
     } catch (err: any) {
       console.error('Error fetching users:', err);
-      setError(err.message || 'Erro ao carregar usuários');
+      setError(friendlyError(err, 'Erro ao carregar usuários'));
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +203,7 @@ export function useSystemUsers() {
       console.error('Error updating role:', err);
       toast({
         title: 'Erro ao atualizar permissão',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
       await fetchUsers();
@@ -236,7 +237,7 @@ export function useSystemUsers() {
       console.error('Error deleting user:', err);
       toast({
         title: 'Erro ao deletar usuário',
-        description: err.message,
+        description: friendlyError(err),
         variant: 'destructive',
       });
       return false;

@@ -54,7 +54,7 @@ export function FleetUsageReport({ dateRange }: FleetUsageReportProps) {
       <div role="status" aria-label="Carregando" className="space-y-6">
         <Skeleton className="h-5 w-96 max-w-full" />
         <CardsSkeleton count={4} />
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Skeleton className="h-[320px] rounded-lg" />
           <Skeleton className="h-[320px] rounded-lg" />
         </div>
@@ -111,7 +111,7 @@ export function FleetUsageReport({ dateRange }: FleetUsageReportProps) {
           description="Escolha outro período no topo da tela para comparar frota própria e agregados."
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ReportCard
             icon={BarChart3}
             title="Frota própria e agregados"
