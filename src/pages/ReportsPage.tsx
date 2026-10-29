@@ -107,17 +107,14 @@ export default function ReportsPage() {
   const { manifests, fetchManifests } = useManifestsDB();
   const { tenant } = useTenantData();
 
-  // Handle filter changes with simulated loading
+  // Os filtros sao aplicados na hora (sobre os dados ja carregados); antes havia
+  // um "carregando" artificial de meio segundo a cada mudanca.
   const handleFiltersChange = (newFilters: FilterState) => {
-    setIsLoading(true);
     setFilters(newFilters);
-    setTimeout(() => setIsLoading(false), 500);
   };
 
   const handleClearFilters = () => {
-    setIsLoading(true);
     setFilters(defaultFilters);
-    setTimeout(() => setIsLoading(false), 500);
   };
 
   // ========== FILTERED DATA ==========
