@@ -33,6 +33,30 @@ Importante:
 - Use apenas a chave publica/anon do Supabase no frontend.
 - Nunca coloque `service_role` no `.env` do Vite.
 
+## Deploy na Vercel
+
+O `vercel.json` ja define o build (`npm run build`, pasta `dist`) e manda todas as rotas
+para o `index.html` (sem isso, abrir ou recarregar `/deliveries` daria 404).
+
+1. Importe este repositorio na Vercel (o que tem a pasta `src/`). Root Directory: vazio.
+2. Em Settings > Environment Variables (marque Production e Preview):
+
+   | Variavel | Valor | Obrigatoria |
+   |---|---|---|
+   | `VITE_SUPABASE_URL` | Supabase > Project Settings > API > Project URL | sim |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase > Project Settings > API Keys > `anon` `public` | sim |
+   | `VITE_MAPBOX_TOKEN` | token publico do Mapbox | nao (sem ele o mapa usa OpenStreetMap) |
+
+   `VITE_SUPABASE_PROJECT_ID` nao e usada pelo codigo. As variaveis `VITE_*` entram no
+   build: depois de criar ou mudar uma, faca Redeploy.
+3. No Supabase:
+   - Edge Functions > Secrets: `ALLOWED_ORIGINS` com o endereco da Vercel (ex.:
+     `https://nahorafrota-app.vercel.app`; varios separados por virgula). Sem isso o
+     cadastro de empresa, de usuarios e de motoristas falha pelo endereco `.vercel.app`.
+     `nahorafrota.tech` e `www.nahorafrota.tech` ja sao aceitos.
+   - Authentication > URL Configuration: Site URL com o endereco final e, em Redirect URLs,
+     `https://SEU-ENDERECO/reset-password` (recuperacao de senha).
+
 ## Banco e Edge Functions (Supabase)
 
 Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o frontend.
