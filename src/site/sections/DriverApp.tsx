@@ -7,7 +7,7 @@ import { PhoneMockup } from "../components/mockups/PhoneMockup";
 
 const POINTS = [
   { icon: Smartphone, title: "Instala em um minuto", text: "Abre no navegador do celular e vira app na tela inicial. Android e iPhone, sem loja." },
-  { icon: Satellite, title: "Posição a cada 30 segundos", text: "Enquanto o romaneio está em rota, o GPS do celular alimenta o mapa do gestor." },
+  { icon: Satellite, title: "GPS do próprio celular", text: "Enquanto o romaneio está em rota, o celular alimenta o mapa do gestor: em tempo real no Premium, a cada 30 minutos no Standard." },
   { icon: Camera, title: "Canhoto com foto e assinatura", text: "Confirmação na porta do cliente, com hora e nota fiscal ligadas ao comprovante." },
   { icon: UserCheck, title: "Login próprio, só o romaneio dele", text: "Cada motorista vê a rota do dia. Nada de painel do gestor." },
 ];

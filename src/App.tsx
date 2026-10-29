@@ -102,7 +102,7 @@ const App = () => (
                       <Route
                         path="/settlement"
                         element={
-                          <PlanProtectedRoute feature="financial_dashboard">
+                          <PlanProtectedRoute feature="settlement">
                             <SettlementPage />
                           </PlanProtectedRoute>
                         }

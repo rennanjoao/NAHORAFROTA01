@@ -132,7 +132,7 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Quanto pagar a cada motorista, o que já foi pago e o que está pendente.",
     icon: Wallet,
     group: "financeiro",
-    feature: "financial_dashboard",
+    feature: "settlement",
     keywords: ["financeiro", "pagamento", "acerto", "frete", "pagar", "pix"],
     shortcut: "a",
     tips: [

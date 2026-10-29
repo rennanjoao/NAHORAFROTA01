@@ -5,12 +5,13 @@ import { Reveal } from "../components/Reveal";
 
 const QA = [
   ["Preciso instalar algum programa?", "Não. O painel roda no navegador (Chrome, Edge, Safari). No celular do motorista, o app instala pela tela inicial em um minuto, sem loja de aplicativos."],
-  ["Preciso de rastreador no veículo?", "Não. A posição vem do GPS do celular do motorista, a cada 30 segundos, enquanto o romaneio está em rota."],
+  ["Preciso de rastreador no veículo?", "Não. A posição vem do GPS do celular do motorista enquanto o romaneio está em rota. No Premium o mapa é em tempo real; no Standard, atualiza a cada 30 minutos."],
   ["Como recebo o acesso depois de pagar?", "Na hora. Assim que o pagamento é confirmado, criamos a sua empresa e o seu usuário administrador e enviamos login e senha temporária por e-mail. A tela de confirmação também mostra o acesso, e você troca a senha no primeiro login."],
   ["Posso testar antes de assinar?", "Sim. O cadastro em “Testar grátis” libera 7 dias com todos os módulos, sem cartão. Quando quiser continuar, assine por aqui com o mesmo CNPJ e o mesmo e-mail: a empresa, os motoristas e as entregas ficam onde estão."],
   ["Como o motorista recebe o romaneio?", "O despachante monta o romaneio no painel e envia. O motorista abre o app, vê as entregas em ordem, navega até a próxima parada e registra o canhoto em cada uma."],
-  ["Funciona com agregados e frota própria?", "Sim. Cada romaneio define o tipo de frota. Frota própria não gera acerto; agregado gera frete, adiantamento e desconto, e o acerto fecha sozinho no Controle Total."],
+  ["Funciona com agregados e frota própria?", "Sim. Cada romaneio define o tipo de frota, e o painel separa frota própria e de terceiros em todos os planos. O acerto financeiro em lote, com recibo, também vem em todos; o relatório de pagamento por motorista é do Premium."],
   ["Posso trocar de plano depois?", "Sim. O upgrade libera os módulos na hora. O downgrade vale a partir do próximo ciclo de cobrança."],
+  ["E se eu tiver mais motoristas do que o plano inclui?", "O Basic inclui 3 motoristas, o Standard 15 e o Premium 50. Cada motorista além disso custa R$ 10 por mês. Fale com a gente para liberar."],
   ["Tem fidelidade ou multa?", "Não. A cobrança é mensal. Cancele quando quiser e o acesso continua até o fim do período já pago."],
 ];
 

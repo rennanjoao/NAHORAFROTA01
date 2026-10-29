@@ -2,7 +2,7 @@ import { useId } from "react";
 import { Link } from "react-router-dom";
 import { Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PLAN_BY_ID, formatLimit, formatPriceShort } from "@/config/plans";
+import { EXTRA_DRIVER_CENTS, PLAN_BY_ID, formatBRL, formatLimit, formatPriceShort } from "@/config/plans";
 import { recommend, type FinderState } from "./planFinderLogic";
 import { Cta } from "./Cta";
 
@@ -45,7 +45,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 
 /** Recomendador: a pessoa diz o tamanho da operacao e o que precisa; o site indica o plano. */
 export function PlanFinder({ state, onChange }: { state: FinderState; onChange: (s: FinderState) => void }) {
-  const { plan, reasons } = recommend(state);
+  const { plan, reasons, extraDrivers, monthlyCents } = recommend(state);
   const p = PLAN_BY_ID[plan];
   const set = <K extends keyof FinderState>(k: K, v: FinderState[K]) => onChange({ ...state, [k]: v });
   return (
@@ -55,16 +55,15 @@ export function PlanFinder({ state, onChange }: { state: FinderState; onChange: 
           <p className="label-caps text-brand">Qual plano é o seu?</p>
           <h3 className="mt-2 font-heading text-2xl font-semibold tracking-tight">Conte o tamanho da operação.</h3>
         </div>
-        <Range label="Motoristas" suffix="motoristas" value={state.drivers} min={1} max={300} onChange={(v) => set("drivers", v)} />
-        <Range label="Veículos" suffix="veículos" value={state.vehicles} min={1} max={150} onChange={(v) => set("vehicles", v)} />
+        <Range label="Motoristas" suffix="motoristas" value={state.drivers} min={1} max={100} onChange={(v) => set("drivers", v)} />
         <Range label="Pessoas no painel" suffix="usuários" value={state.users} min={1} max={40} onChange={(v) => set("users", v)} />
         <fieldset>
           <legend className="text-sm font-semibold">O que você precisa</legend>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Toggle label="Importar notas em lote (XML)" checked={state.xml} onChange={(v) => set("xml", v)} />
-            <Toggle label="SLA por motorista e região" checked={state.sla} onChange={(v) => set("sla", v)} />
-            <Toggle label="Acerto automático de agregados" checked={state.acerto} onChange={(v) => set("acerto", v)} />
-            <Toggle label="Relatórios financeiros por rota" checked={state.financeiro} onChange={(v) => set("financeiro", v)} />
+            <Toggle label="Ver a frota no mapa" checked={state.mapa} onChange={(v) => set("mapa", v)} />
+            <Toggle label="SLA e custo do frete no painel" checked={state.sla} onChange={(v) => set("sla", v)} />
+            <Toggle label="Mapa e alertas em tempo real" checked={state.tempoReal} onChange={(v) => set("tempoReal", v)} />
+            <Toggle label="Rentabilidade e relatórios exportados" checked={state.analise} onChange={(v) => set("analise", v)} />
           </div>
         </fieldset>
       </div>
@@ -77,9 +76,14 @@ export function PlanFinder({ state, onChange }: { state: FinderState; onChange: 
           </p>
           <p className="mt-3 font-heading text-4xl font-semibold tracking-tight">{p.name}</p>
           <p className="mt-1 flex items-baseline gap-1.5">
-            <span className="font-data text-3xl font-bold">{formatPriceShort(p.amountCents)}</span>
+            <span className="font-data text-3xl font-bold">{formatPriceShort(monthlyCents)}</span>
             <span className="text-sm text-white/60">/mês</span>
           </p>
+          {extraDrivers > 0 && (
+            <p className="mt-1 font-data text-xs text-white/60">
+              {formatPriceShort(p.amountCents)} + {extraDrivers} × {formatBRL(EXTRA_DRIVER_CENTS)} por motorista adicional
+            </p>
+          )}
           <ul className="mt-5 space-y-2.5">
             {reasons.map((r) => (
               <li key={r} className="flex items-start gap-2.5 text-sm leading-relaxed text-white/85">
@@ -89,9 +93,7 @@ export function PlanFinder({ state, onChange }: { state: FinderState; onChange: 
             ))}
           </ul>
           <p className="mt-5 text-xs text-white/60">
-            {p.limits.drivers === -1
-              ? "Usuários, motoristas e veículos ilimitados."
-              : `Cabe até ${formatLimit(p.limits.drivers)} motoristas, ${formatLimit(p.limits.vehicles)} veículos e ${formatLimit(p.limits.users)} usuários.`}
+            {`Inclui ${formatLimit(p.limits.drivers)} motoristas e veículos e ${p.limits.users === -1 ? "usuários ilimitados" : `${p.limits.users} usuários`}. Motorista além disso: ${formatBRL(EXTRA_DRIVER_CENTS)} por mês.`}
           </p>
         </div>
         <div className="relative flex flex-col gap-3">

@@ -74,7 +74,7 @@ const PAGE_DESCRIPTION = "Quanto pagar a cada motorista, o que já foi pago e o 
 
 export default function SettlementPage() {
   const { checkFeatureAccess } = useFeatureAccess();
-  const financialAccess = checkFeatureAccess('financial_dashboard');
+  const financialAccess = checkFeatureAccess('settlement');
 
   // Database hooks
   const { drivers, isLoading: driversLoading } = useDBDrivers();

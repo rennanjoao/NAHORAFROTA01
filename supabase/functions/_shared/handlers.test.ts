@@ -285,7 +285,7 @@ Deno.test("modo Stripe: cria a sessão com o preço do servidor e redireciona", 
   assertEquals(stripeCalls.length, 1);
   const form = new URLSearchParams(stripeCalls[0].body);
   assertEquals(form.get("mode"), "subscription");
-  assertEquals(form.get("line_items[0][price_data][unit_amount]"), "55000");
+  assertEquals(form.get("line_items[0][price_data][unit_amount]"), "59900");
   assertEquals(form.get("line_items[0][price_data][currency]"), "brl");
   assertEquals(form.get("client_reference_id"), j.order_id);
   assert(form.get("success_url")!.includes(`order=${j.order_id}&t=${j.access_token}`));

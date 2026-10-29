@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PLANS, formatPriceShort } from "@/config/plans";
+import { EXTRA_DRIVER_CENTS, PLANS, formatBRL, formatPriceShort } from "@/config/plans";
 import { SectionHeader } from "../components/SectionHeader";
 import { Reveal, Stagger, StaggerItem } from "../components/Reveal";
 import { Cta } from "../components/Cta";
@@ -97,6 +97,7 @@ export function Pricing() {
 
         <Reveal delay={0.1} className="mx-auto mt-10 max-w-3xl text-center text-sm text-muted-foreground">
           <p>Valores mensais em reais, cobrados no cartão de crédito. Cancele quando quiser: o acesso continua até o fim do período pago.</p>
+          <p className="mt-2">Precisa de mais motoristas do que o plano inclui? Cada motorista adicional custa {formatBRL(EXTRA_DRIVER_CENTS)} por mês.</p>
           <p className="mt-2">
             Prefere testar antes? <Link to="/register" className="font-semibold text-brand underline-offset-4 hover:underline">7 dias grátis, sem cartão</Link>. Depois, assine por aqui com o mesmo CNPJ: tudo fica onde está.
           </p>
