@@ -834,6 +834,45 @@
     box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
   }
   .range-brand:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+
+  /* Slider do "dia de operacao": o trilho e desenhado por fora; o nativo mostra so o botao. */
+  .range-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    height: 24px;
+    margin: 0;
+    cursor: pointer;
+  }
+  .range-thumb::-webkit-slider-runnable-track { background: transparent; height: 24px; }
+  .range-thumb::-moz-range-track { background: transparent; }
+  .range-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: hsl(var(--card));
+    border: 3px solid hsl(var(--brand));
+    box-shadow: 0 0 0 6px hsl(var(--brand) / 0.16), 0 2px 8px rgb(0 0 0 / 0.2);
+    transition: box-shadow 0.25s ease;
+  }
+  .range-thumb:active::-webkit-slider-thumb { box-shadow: 0 0 0 10px hsl(var(--brand) / 0.2), 0 2px 8px rgb(0 0 0 / 0.2); }
+  .range-thumb::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    background: hsl(var(--card));
+    border: 3px solid hsl(var(--brand));
+    box-shadow: 0 0 0 6px hsl(var(--brand) / 0.16), 0 2px 8px rgb(0 0 0 / 0.2);
+  }
+  .range-thumb:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 9999px; }
+
+  /* Marcas dos momentos e paradas do mapa: crescem com um pequeno quique ao serem alcancadas. */
+  .sim-tick { transition: background-color 0.3s ease, scale 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .sim-tick[data-passed="true"] { scale: 1.25; }
+  .sim-stop { transform: scale(0.82); transform-box: fill-box; transform-origin: center; transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .sim-stop[data-done="true"] { transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
