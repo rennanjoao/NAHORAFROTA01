@@ -84,6 +84,12 @@ Teste no navegador:
 
 Se uma rota interna abrir em branco ou der `404`, normalmente o problema e o `.htaccess` fora da raiz publicada.
 
-## 7. Ponto de atencao
+## 7. Checkout (Supabase + Stripe + Resend)
 
-O build atual funciona, mas gera bundles JS grandes. Isso nao bloqueia o deploy, apenas pode deixar o primeiro carregamento mais pesado. Pode ser otimizado depois.
+O site vende os planos sozinho. Antes de publicar, aplique a migration, publique as Edge Functions e configure os segredos conforme [docs/CHECKOUT.md](docs/CHECKOUT.md). Sem isso, o botão "Ir para o pagamento" responde "Pagamento ainda não configurado".
+
+Teste depois de publicar: `https://nahorafrota.tech/comprar/control` → pagamento de teste do Stripe → `/comprar/sucesso` mostra o acesso → login → `/primeiro-acesso`.
+
+## 8. Ponto de atencao
+
+As páginas do painel carregam sob demanda; o site público baixa só o próprio código (a cena 3D do topo é um pacote separado, carregado depois). O painel ainda tem bundles grandes (mapas, gráficos), o que não bloqueia o deploy.

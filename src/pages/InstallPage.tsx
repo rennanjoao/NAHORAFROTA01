@@ -114,7 +114,7 @@ export default function InstallPage() {
             O Na Hora Frota já está no seu celular. Abra pelo ícone na tela inicial.
           </p>
           <Button asChild size="lg" className="mt-2 w-full">
-            <Link to="/">
+            <Link to="/dashboard">
               Abrir o app
               <ArrowRight aria-hidden="true" />
             </Link>
@@ -181,7 +181,7 @@ export default function InstallPage() {
         )}
 
         <Button asChild variant="outline" size="lg" className="w-full">
-          <Link to="/">
+          <Link to="/dashboard">
             Continuar no navegador
             <ArrowRight aria-hidden="true" />
           </Link>

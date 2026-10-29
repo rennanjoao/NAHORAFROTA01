@@ -143,29 +143,6 @@ def truck_svg(dark=False):
             + wheel(215, 448) + wheel(905, 448) + wheel(1015, 448) + logo +
             f'<text x="390" y="408" font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="15" letter-spacing="2.5" fill="{url_fill}">SEMPRE NA HORA · NAHORAFROTA.COM.BR</text></svg>')
 
-def van_svg():
-    sym, h = use_in_svg('sym', 118, 184, 250, GREEN, GREEN, GREEN)
-    wm, h2 = use_in_svg('wm1', 118, 348, 236, GREEN, WHITE, GREEN)
-    return (f'<svg viewBox="0 0 900 460" role="img" aria-label="Van com a identidade Na Hora Frota">'
-            f'<ellipse cx="450" cy="416" rx="400" ry="14" fill="#000" opacity=".45"/>'
-            f'<path d="M60,392 V210 Q60,160 110,158 H560 L700,166 Q760,172 792,236 L838,336 Q846,356 846,376 V392 Z" fill="#0E1012"/>'
-            f'<path d="M612,180 H702 Q742,186 764,240 L792,300 H612 Z" fill="#2A2D30"/><rect x="500" y="180" width="100" height="112" rx="4" fill="#2A2D30"/>'
-            f'<line x1="490" y1="178" x2="490" y2="380" stroke="#2A2D30" stroke-width="2"/>'
-            f'<path d="M802,304 L840,344 V362 H822 Z" fill="#F2F4F5" opacity=".85"/>'
-            f'<rect x="60" y="392" width="786" height="10" fill="#1C1F22"/>'
-            + wheel(210, 398, 46) + wheel(690, 398, 46) + sym + wm +
-            f'<text x="520" y="372" font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="11" letter-spacing="2" fill="#8A9199">NAHORAFROTA.COM.BR</text></svg>')
-
-def tee_svg():
-    shape = 'M60,60 L185,22 Q230,70 275,22 L400,60 L455,150 L395,195 L355,165 L355,600 L105,600 L105,165 L65,195 L5,150 Z'
-    collar = 'M185,22 Q230,70 275,22 Q230,46 185,22 Z'
-    front_sym, _ = use_in_svg('sym', 262, 118, 72, GREEN, GREEN, GREEN)
-    back_wm, bh = use_in_svg('wm2', 130, 150, 200, GREEN, WHITE, GREEN)
-    mono = 'font-family="Space Grotesk, Inter, sans-serif" font-weight="500" font-size="12" letter-spacing="3" fill="#8A9199"'
-    return (f'<svg viewBox="0 0 1000 640" role="img" aria-label="Camiseta com a identidade Na Hora Frota">'
-            f'<g><path d="{shape}" fill="#0E1012"/><path d="{collar}" fill="#1C1F22"/>{front_sym}<text x="230" y="628" text-anchor="middle" {mono}>FRENTE</text></g>'
-            f'<g transform="translate(540,0)"><path d="{shape}" fill="#0E1012"/><path d="M185,22 Q230,40 275,22 Q230,36 185,22 Z" fill="#1C1F22"/>{back_wm}<text x="230" y="{_f(150 + bh + 30)}" text-anchor="middle" {mono}>SEMPRE NA HORA</text><text x="230" y="628" text-anchor="middle" {mono}>COSTAS</text></g></svg>')
-
 def pattern_chevron_inline(fg=GREEN, opacity=.16, tw=820, th=300):
     cells = []; sc = .32; sw = SYMBOL_W * sc; sh = SYMBOL_H * sc; row = 0; y = -sh/2
     while y < th + sh:
@@ -205,7 +182,7 @@ def rep_use(m):
 body = re.sub(r'\{\{USE ([^}]+)\}\}', rep_use, body)
 repl = {
     '{{DEFS}}': DEFS, '{{GRID_SVG}}': grid_svg(), '{{CLEAR_SVG}}': clear_svg(),
-    '{{TRUCK_SVG}}': truck_svg(False), '{{TRUCK_DARK_SVG}}': truck_svg(True), '{{VAN_SVG}}': van_svg(), '{{TEE_SVG}}': tee_svg(),
+    '{{TRUCK_DARK_SVG}}': truck_svg(True),
     '{{PATTERN_CHEVRON}}': pattern_chevron_inline(), '{{PATTERN_ROUTES}}': pattern_routes_inline(),
     '{{ROUTES_HERO}}': pattern_routes_inline(tw=1400, th=620, hero=True),
 }

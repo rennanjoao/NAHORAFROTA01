@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BillingDialog } from "@/components/master/BillingDialog";
 import { getDueSoonCount, getOverdueCount, isOverdue } from "@/components/master/dueDates";
 import { PlatformAdminsCard } from "@/components/master/PlatformAdminsCard";
+import { OrdersCard } from "@/components/master/OrdersCard";
 import { TenantsList } from "@/components/master/TenantsList";
 import { TENANT_STATUS, planLabel, tenantStatusKey } from "@/components/master/tenantStatus";
 import { isTrialExpired } from "@/lib/billingStatus";
@@ -114,7 +115,7 @@ export default function MasterAdminPage() {
   }
 
   if (!isPlatformAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   const activeTenants = tenants.filter(t => t.status === 'active').length;
@@ -375,6 +376,9 @@ export default function MasterAdminPage() {
             <FunnelAnalytics tenants={tenants} onExtendTrial={handleExtendTrial} extendingTenantId={extendingTenantId} />
           </TabsContent>
         </Tabs>
+
+        {/* Pedidos do checkout do site (compra self-service). */}
+        <OrdersCard />
 
         <PlatformAdminsCard />
       </div>

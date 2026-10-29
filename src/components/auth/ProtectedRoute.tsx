@@ -15,7 +15,7 @@ interface ProtectedRouteProps {
 
 // Routes that drivers should NEVER access (admin/dashboard routes)
 const ADMIN_ROUTES = [
-  "/",
+  "/dashboard",
   "/drivers",
   "/routes",
   "/vehicles",
@@ -72,6 +72,12 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // PHASE 2.5: contas criadas pelo checkout entram com senha temporaria e precisam
+  // trocar antes de qualquer tela (a flag some quando a pessoa salva a senha nova).
+  if (user?.user_metadata?.must_change_password && location.pathname !== "/primeiro-acesso") {
+    return <Navigate to="/primeiro-acesso" replace />;
+  }
+
   // PHASE 3: Wait for roles to load before making access decisions
   if (rolesLoading) {
     return <BrandedLoader label="Conferindo seu acesso" />;
@@ -98,7 +104,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
 
   if (isTrackerRoute) {
     console.log("[SECURITY] Non-driver email blocked from tracker:", userEmail);
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   // PHASE 5: Check user roles - admin/fleet_manager/dispatcher/viewer have full access
@@ -111,7 +117,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
   if (hasOperationalRole && isAdminRoute) {
     // Check specific role requirement if specified
     if (requiredRole && !hasRole(requiredRole) && !hasAdminRole) {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/dashboard" replace />;
     }
     
     // SUBSCRIPTION CHECK: block when the trial ended, the subscription expired or the
@@ -127,7 +133,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
   // PHASE 7: If user has operational roles but is on tracker route
   if (hasOperationalRole && isTrackerRoute && !allowDrivers) {
     console.log("[SECURITY] Operational user attempting tracker access, redirecting to home");
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   // PHASE 8: Non-driver emails without operational roles cannot access admin routes
@@ -159,7 +165,7 @@ export function ProtectedRoute({ children, requiredRole, allowDrivers = false }:
 
   // PHASE 9: Check specific role requirement if specified
   if (requiredRole && !hasRole(requiredRole) && !hasAdminRole) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   // PHASE 10: All security checks passed - render children

@@ -92,7 +92,7 @@ export default function UpgradeRequiredPage() {
             </div>
             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-center">
               <Button asChild variant="outline">
-                <Link to="/">
+                <Link to="/dashboard">
                   <ArrowLeft aria-hidden="true" />
                   Voltar para o início
                 </Link>
@@ -165,7 +165,7 @@ export default function UpgradeRequiredPage() {
 
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-center">
             <Button asChild variant="outline">
-              <Link to="/">
+              <Link to="/dashboard">
                 <ArrowLeft aria-hidden="true" />
                 Voltar para o início
               </Link>

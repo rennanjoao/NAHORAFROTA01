@@ -17,3 +17,20 @@ verify_jwt = false
 
 [functions.invite-user]
 verify_jwt = false
+
+# Checkout self-service (site): sem JWT do usuario; o acesso ao pedido e por token proprio.
+
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.get-order]
+verify_jwt = false
+
+[functions.confirm-sandbox-payment]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.resend-access]
+verify_jwt = false

@@ -680,3 +680,84 @@
   justify-content: center;
   width: 30px;
 }
+
+/* 6. SITE PUBLICO (src/site) ------------------------------------------------ */
+/* Tokens e utilitarios usados so pela landing, checkout e paginas legais.
+   O verde vivo (--brand) e preenchimento; como TEXTO usa --brand-text, que no
+   claro vira o verde escuro (#0B6B4F) e passa o contraste AA sobre branco. */
+@layer base {
+  :root,
+  .light {
+    --brand-text: 162 81% 23%;
+    --brand-soft: 162 70% 92%;
+    --late-text: 359 72% 42%;
+    --alert-text: 36 100% 29%;
+  }
+  .dark {
+    --brand-text: 162 97% 46%;
+    --brand-soft: 162 61% 15%;
+    --late-text: 359 100% 65%;
+    --alert-text: 42 100% 62%;
+  }
+}
+
+@layer utilities {
+  .label-caps {
+    @apply font-data text-xs uppercase tracking-[0.08em];
+  }
+  .text-brand { color: hsl(var(--brand-text)); }
+  .text-late { color: hsl(var(--late-text)); }
+  .text-alert { color: hsl(var(--alert-text)); }
+  .bg-brand { background-color: hsl(var(--brand)); }
+  .bg-brand-soft { background-color: hsl(var(--brand-soft)); }
+  .border-brand { border-color: hsl(var(--brand)); }
+
+  .nhf-chamfer-lg {
+    clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 0 100%);
+  }
+
+  /* Fundos: linhas de rota a 45 graus e grade fina. */
+  .bg-routes {
+    background-image:
+      repeating-linear-gradient(135deg, hsl(var(--brand) / 0.09) 0 1px, transparent 1px 160px),
+      repeating-linear-gradient(0deg, hsl(var(--brand) / 0.06) 0 1px, transparent 1px 120px);
+  }
+  .bg-grid-fine {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .mask-fade-b { -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent); mask-image: linear-gradient(to bottom, #000 60%, transparent); }
+  .mask-fade-x { -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
+
+  /* Brilho verde atras dos mockups. */
+  .glow-brand { box-shadow: 0 0 0 1px hsl(var(--brand) / 0.35), 0 20px 60px -20px hsl(var(--brand) / 0.45); }
+  .glow-brand-sm { box-shadow: 0 0 24px -6px hsl(var(--brand) / 0.5); }
+
+  /* 3D (mockups em perspectiva). */
+  .perspective-1000 { perspective: 1000px; }
+  .perspective-1600 { perspective: 1600px; }
+  .preserve-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; }
+
+  /* Faixa de eventos (ticker). */
+  .marquee-track { animation: marquee var(--marquee-duration, 40s) linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* Linha de rota desenhada (SVG). */
+  .draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 2.4s cubic-bezier(.65,0,.35,1) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* Ancoras do site param abaixo da barra fixa (72px). */
+  .scroll-mt-nav { scroll-margin-top: 88px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .draw-line {
+    animation: none;
+  }
+  .draw-line { stroke-dashoffset: 0; }
+}

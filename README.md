@@ -1,6 +1,11 @@
 # Na Hora Frota
 
-Aplicacao web em React + Vite com Supabase para autenticacao, banco, realtime e storage.
+Site público + painel de gestão de entregas e frota. React + Vite + Tailwind no frontend, Supabase (auth, banco, realtime, storage, Edge Functions) no backend, Stripe para a assinatura e Resend para o e-mail de acesso.
+
+- **Site** (`/`): landing com 11 seções, dark/light, planos (Básico R$ 197 · Controle R$ 370 · Controle Total R$ 550) e checkout self-service. Código em `src/site/`.
+- **Checkout → acesso na hora**: veja [docs/CHECKOUT.md](docs/CHECKOUT.md) (fluxo, deploy das funções, Stripe, Resend, testes).
+- **Identidade visual**: `brand/` (manual, logos, tokens). Tema em `src/index.css`.
+- **Painel** (`/dashboard`, `/deliveries`, `/drivers`, …): app autenticado. `/` é sempre o site; quem já está logado vê "Abrir painel" no topo. Cadastro com 7 dias grátis em `/register`; quem está em teste assina pelo site com o mesmo CNPJ (a empresa é convertida, nada se perde).
 
 ## Rodando localmente
 
@@ -17,6 +22,14 @@ npm install
 ```sh
 npm run dev
 ```
+
+4. Para o checkout sem Supabase/Stripe (funções em memória + caixa de e-mails):
+
+```sh
+deno run --allow-net --allow-env scripts/dev-backend/server.ts
+```
+
+Testes: `npm test` (frontend), `deno test --allow-env supabase/functions/_shared/handlers.test.ts` (funções) e `node scripts/e2e-checkout.cjs` (compra inteira no navegador, com os dois servidores no ar).
 
 ## Variaveis de ambiente
 
@@ -72,14 +85,18 @@ Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o fronte
    - `20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do app do motorista,
      fotos de comprovante para a equipe, RPCs com checagem de empresa, realtime, troca de
      nivel de acesso, ordem das paradas, finalizar/excluir romaneio, carteira do motorista,
-     bloqueio por atraso e limites do plano iguais aos da tela).
+     bloqueio por atraso e limites do plano iguais aos da tela);
+   - `20261029120000_checkout_orders.sql` (pedidos do checkout do site e dados da cobranca
+     recorrente em `tenants`).
 
    Quem usa a CLI pode rodar `supabase db push` no lugar. Ao criar uma migration nova,
    inclua o nome dela em `supabase/gerar_atualizacao.sh` e rode o script para gerar o
    arquivo de novo (os testes abaixo avisam se ele ficou desatualizado).
 2. Publique as edge functions alteradas/novas: `register-tenant`, `create-user`,
    `invite-user`, `create-driver`, `update-user-access` e `send-driver-credentials`
-   (todas usam a pasta `_shared`).
+   (todas usam a pasta `_shared`). Para o checkout do site, tambem `create-checkout`,
+   `get-order`, `confirm-sandbox-payment`, `stripe-webhook` e `resend-access`
+   (segredos e webhook do Stripe em [docs/CHECKOUT.md](docs/CHECKOUT.md)).
 3. Configure os segredos das functions (Supabase > Edge Functions > Secrets) para o e-mail
    de dados de acesso do motorista:
    - `RESEND_API_KEY`: chave da API do [Resend](https://resend.com)

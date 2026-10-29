@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { PageLoading } from "@/components/patterns";
 import { useNavigation } from "@/hooks/useNavigation";
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "./AppSidebar";
@@ -66,7 +67,10 @@ function ShellLayout() {
           className="min-w-0 flex-1 px-4 pt-5 outline-none sm:px-6 md:pb-12 md:pt-8 lg:px-8 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+1.5rem)]"
         >
           <div key={location.pathname} className="page-enter mx-auto w-full max-w-[1600px]">
-            <Outlet />
+            {/* Telas carregam sob demanda; o esqueleto fica dentro do shell (menu e topo nao piscam). */}
+            <Suspense fallback={<PageLoading />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

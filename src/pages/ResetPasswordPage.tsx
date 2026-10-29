@@ -100,7 +100,7 @@ export default function ResetPasswordPage() {
     }
 
     toast({ title: "Senha alterada", description: "Você já entrou com a senha nova." });
-    navigate("/", { replace: true });
+    navigate("/dashboard", { replace: true });
   };
 
   const rules = [

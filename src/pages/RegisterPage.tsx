@@ -198,7 +198,7 @@ export default function RegisterPage() {
           title: `Teste grátis de ${TRIAL_DAYS} dias liberado`,
           description: "Bem-vindo ao Na Hora Frota. Seu teste já começou.",
         });
-        navigate("/", { replace: true });
+        navigate("/dashboard", { replace: true });
         return;
       }
 

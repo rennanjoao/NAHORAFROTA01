@@ -14,6 +14,7 @@ Pasta oficial da marca. Tudo que está aqui segue o **Manual da Marca** (`manual
 | `padroes/` | Padrão chevron e linhas de rota (versões escura e clara). |
 | `tokens/` | `nhf-tokens.css`, `nhf-colors.json` e `tailwind.colors.js` para usar no código. |
 | `mockups/` | Artes em PNG 300 dpi no tamanho físico de cada aplicação e prompts para gerar mockups fotorrealistas (Higgsfield, Midjourney, Photoshop). |
+| `mockups/fotos/` | Mockups fotográficos usados no manual (camiseta, boné, baú, van, cartão, crachá, placa). Regenere com `python3 brand/build/fotos/build_fotos.py` a partir das cenas limpas de `mockups/cenas/`. |
 
 ## Qual logo usar
 

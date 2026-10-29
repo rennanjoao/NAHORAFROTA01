@@ -59,8 +59,11 @@ export default function LoginPage() {
   const [resetNotice, setResetNotice] = useState<{ tone: "info" | "destructive"; title: string; text: string } | null>(null);
   const resetEmailRef = useRef<HTMLInputElement>(null);
   
+  // Vindo do checkout (tela de sucesso): e-mail ja preenchido e aviso do que fazer.
+  const checkoutState = (location.state as { email?: string; fromCheckout?: boolean; existingUser?: boolean } | null) || null;
+
   // Login form state
-  const [loginEmail, setLoginEmail] = useState(readRememberedEmail);
+  const [loginEmail, setLoginEmail] = useState(() => checkoutState?.email || readRememberedEmail());
   const [loginPassword, setLoginPassword] = useState("");
   // Erros aparecem embaixo de cada campo; falhas do login, no topo do formulario.
   const [errors, setErrors] = useState<LoginErrors>({});
@@ -88,7 +91,7 @@ export default function LoginPage() {
         console.log("[LOGIN] Driver user detected, redirecting to /tracker");
         navigate("/tracker", { replace: true });
       } else {
-        const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/";
+        const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/dashboard";
         navigate(from, { replace: true });
       }
     }
@@ -254,6 +257,17 @@ export default function LoginPage() {
       </div>
 
       <form onSubmit={handleLogin} noValidate className="mt-8 space-y-5" aria-describedby={formError ? "login-erro" : undefined}>
+        {checkoutState?.fromCheckout && !formError && (
+          <Alert className="animate-fade-in border-primary/40 bg-primary/5">
+            <Info className="h-4 w-4 text-primary" aria-hidden="true" />
+            <p className="mb-1 font-semibold leading-snug text-foreground">{checkoutState.existingUser ? "Assinatura ativa." : "Conta criada."}</p>
+            <AlertDescription>
+              {checkoutState.existingUser
+                ? "Entre com a senha que você já usa. Se esqueceu, clique em “Esqueci minha senha”."
+                : "Use a senha temporária que mostramos na confirmação e enviamos por e-mail. No próximo passo você cria a sua senha definitiva."}
+            </AlertDescription>
+          </Alert>
+        )}
         {formError && (
           <Alert id="login-erro" ref={formErrorRef} tabIndex={-1} variant="destructive" className="animate-fade-in outline-none">
             <p className="mb-1 font-semibold leading-snug text-foreground">{formError.title}</p>

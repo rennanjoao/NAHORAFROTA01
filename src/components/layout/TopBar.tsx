@@ -20,7 +20,7 @@ export function TopBar() {
     <header className="surface-glass sticky top-0 z-30 flex h-topbar items-center gap-2 border-b px-3 sm:px-4 md:gap-3 md:px-6">
       {/* Celular: simbolo + nome da tela. Computador: caminho "Grupo > Tela". */}
       <NavLink
-        to="/"
+        to="/dashboard"
         className="-ml-1.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
         aria-label="Ir para o início"
       >

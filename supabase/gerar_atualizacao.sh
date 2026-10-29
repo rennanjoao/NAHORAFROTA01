@@ -15,6 +15,7 @@ MIGRATIONS=(
   20260527103000_plan_limits_status_rpc.sql
   20261028120000_trial_billing_funnel_and_ops.sql
   20261028130000_fix_driver_access_rpcs_and_realtime.sql
+  20261029120000_checkout_orders.sql
 )
 OUT=ATUALIZAR_BANCO.sql
 

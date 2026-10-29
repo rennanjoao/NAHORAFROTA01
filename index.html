@@ -2,39 +2,44 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
     <!-- Primary Meta Tags -->
-    <title>Na Hora Frota · Gestão de frota em tempo real</title>
-    <meta name="title" content="Na Hora Frota · Gestão de frota em tempo real" />
-    <meta name="description" content="Rastreamento, romaneios, SLA e acerto financeiro em uma tela só. Entrega sempre na hora.">
+    <title>Na Hora Frota — Sua frota em tempo real</title>
+    <meta name="title" content="Na Hora Frota — Sua frota em tempo real" />
+    <meta name="description" content="Romaneio na mão do motorista, cada placa no mapa, SLA medido e acerto fechado no mesmo dia. Gestão de entregas e frota para transportadoras e distribuidoras. Acesso liberado na hora." />
     <meta name="author" content="Na Hora Frota" />
-    <meta name="keywords" content="gestão de frota, rastreamento, entregas, logística, GPS, romaneio, motoristas">
-    
+    <meta name="keywords" content="gestão de frota, rastreamento de entregas, romaneio, SLA, acerto de frete, app do motorista, canhoto digital, logística" />
+    <link rel="canonical" href="https://nahorafrota.tech/" />
+
     <!-- iOS specific meta tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="NaHoraFrota" />
     <meta name="format-detection" content="telephone=no" />
-    
-    <!-- PWA Theme -->
+
+    <!-- PWA Theme (o script abaixo troca a cor conforme o tema salvo) -->
     <meta name="theme-color" content="#090A0B" />
     <meta name="msapplication-TileColor" content="#080808" />
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Na Hora Frota" />
     <meta property="og:url" content="https://nahorafrota.tech/" />
-    
-    
-    <meta property="og:image" content="https://nahorafrota.tech/og-image.png">
+    <meta property="og:title" content="Na Hora Frota — Sua frota em tempo real" />
+    <meta property="og:description" content="Romaneio na mão do motorista, cada placa no mapa, SLA medido e acerto fechado no mesmo dia. Acesso liberado na hora." />
+    <meta property="og:image" content="https://nahorafrota.tech/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://nahorafrota.tech/" />
-    
-    
-    <meta name="twitter:image" content="https://nahorafrota.tech/og-image.png">
-    
+    <meta name="twitter:title" content="Na Hora Frota — Sua frota em tempo real" />
+    <meta name="twitter:description" content="Romaneio na mão do motorista, cada placa no mapa, SLA medido e acerto fechado no mesmo dia." />
+    <meta name="twitter:image" content="https://nahorafrota.tech/og-image.png" />
+
     <!-- Tema e acessibilidade antes da primeira pintura (ver src/lib/preferences.ts). -->
     <script>
       (function () {
@@ -59,17 +64,31 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    
-    <!-- PWA Manifest -->
-    
-  
-  
-  
-  <meta property="og:title" content="Na Hora Frota · Gestão de frota em tempo real">
-  <meta name="twitter:title" content="Na Hora Frota · Gestão de frota em tempo real">
-  <meta property="og:description" content="Rastreamento, romaneios, SLA e acerto financeiro em uma tela só. Entrega sempre na hora.">
-  <meta name="twitter:description" content="Rastreamento, romaneios, SLA e acerto financeiro em uma tela só. Entrega sempre na hora.">
-</head>
+
+    <!-- Fontes (o CSS importa; aqui so a conexao antecipada) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Dados estruturados do site (planos vendidos em /comprar/:plano) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Na Hora Frota",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web, Android, iOS",
+      "url": "https://nahorafrota.tech/",
+      "description": "Painel de gestão de entregas e frota: romaneio digital, mapa ao vivo, SLA por entrega, canhoto com foto e assinatura e acerto financeiro.",
+      "inLanguage": "pt-BR",
+      "offers": [
+        { "@type": "Offer", "name": "Básico", "price": "197.00", "priceCurrency": "BRL", "url": "https://nahorafrota.tech/comprar/basic" },
+        { "@type": "Offer", "name": "Controle", "price": "370.00", "priceCurrency": "BRL", "url": "https://nahorafrota.tech/comprar/control" },
+        { "@type": "Offer", "name": "Controle Total", "price": "550.00", "priceCurrency": "BRL", "url": "https://nahorafrota.tech/comprar/total" }
+      ],
+      "provider": { "@type": "Organization", "name": "Na Hora Frota", "url": "https://nahorafrota.tech/", "email": "suporte@nahorafrota.com.br" }
+    }
+    </script>
+  </head>
 
   <body>
     <div id="root"></div>

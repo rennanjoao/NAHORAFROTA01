@@ -72,6 +72,22 @@ python3 brand/build/compose_mockup.py cena.png brand/mockups/artes/camiseta-peit
 - `--blend`: `multiply` em superfícies claras (baú branco, cartão branco), `screen` para arte clara em tecido escuro, `normal` para sobrepor sem mesclar.
 - Precisa de Python 3 com `pillow` e `numpy`.
 
+## Mockups fotográficos do manual (`cenas/` → `fotos/`)
+
+As fotos da seção Aplicações do manual saem de duas etapas:
+
+1. **Cena limpa** em `cenas/`: gerada no Higgsfield Soul 2.0 (2k, 0,12 crédito por imagem; a placa no Soul 2.0 em plano aberto, recortada em 3:1), sem logo e sem texto, seguindo os prompts acima. O Nano Banana Pro não foi usado: custa 2 créditos por imagem.
+2. **Arte aplicada** por `brand/build/fotos/build_fotos.py`: as artes desta pasta (e as faces de cartão, crachá, placa e lateral do baú, desenhadas em `brand/build/fotos/faces.html`) entram em perspectiva sobre a superfície medida na foto, com a luz, as dobras e a textura da cena. Bordado no peito e no boné, estampa nas costas, adesivo na van, tinta no baú e nos papéis. O script também apaga os textos falsos que o gerador deixa na cena.
+
+```bash
+node brand/build/fotos/render_faces.cjs      # só se mudar faces.html (nome, cargo, telefone, texto da placa)
+python3 brand/build/fotos/build_fotos.py     # todas as peças, ou só algumas: build_fotos.py cartao cracha
+python3 brand/build/build_manual.py          # manual HTML
+node brand/build/export_pdf.cjs brand/manual-da-marca.html brand/manual-da-marca.pdf
+```
+
+Para trocar uma cena, gere outra no mesmo enquadramento, salve em `cenas/` com o mesmo nome e ajuste os cantos da superfície na função da peça em `build_fotos.py`.
+
 ## Checklist antes de aprovar o mockup
 
 - Logo na versão certa para o fundo (branco + verde no preto; preto + verde no branco; nunca verde sobre branco).
