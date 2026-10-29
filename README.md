@@ -33,17 +33,50 @@ Importante:
 - Use apenas a chave publica/anon do Supabase no frontend.
 - Nunca coloque `service_role` no `.env` do Vite.
 
+## Deploy na Vercel
+
+O `vercel.json` ja define o build (`npm run build`, pasta `dist`) e manda todas as rotas
+para o `index.html` (sem isso, abrir ou recarregar `/deliveries` daria 404).
+
+1. Importe este repositorio na Vercel (o que tem a pasta `src/`). Root Directory: vazio.
+2. Em Settings > Environment Variables (marque Production e Preview):
+
+   | Variavel | Valor | Obrigatoria |
+   |---|---|---|
+   | `VITE_SUPABASE_URL` | Supabase > Project Settings > API > Project URL | sim |
+   | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase > Project Settings > API Keys > `anon` `public` | sim |
+   | `VITE_MAPBOX_TOKEN` | token publico do Mapbox | nao (sem ele o mapa usa OpenStreetMap) |
+
+   `VITE_SUPABASE_PROJECT_ID` nao e usada pelo codigo. As variaveis `VITE_*` entram no
+   build: depois de criar ou mudar uma, faca Redeploy.
+3. No Supabase:
+   - Edge Functions > Secrets: `ALLOWED_ORIGINS` com o endereco da Vercel (ex.:
+     `https://nahorafrota-app.vercel.app`; varios separados por virgula). Sem isso o
+     cadastro de empresa, de usuarios e de motoristas falha pelo endereco `.vercel.app`.
+     `nahorafrota.tech` e `www.nahorafrota.tech` ja sao aceitos.
+   - Authentication > URL Configuration: Site URL com o endereco final e, em Redirect URLs,
+     `https://SEU-ENDERECO/reset-password` (recuperacao de senha).
+
 ## Banco e Edge Functions (Supabase)
 
 Ordem de publicacao: primeiro o banco, depois as functions e por ultimo o frontend.
 
-1. Aplique as migrations, nesta ordem (as duas sao idempotentes):
-   - `supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql` (trial de 7 dias,
-     funil, avisos de cobranca, chegada por raio, auto-finalizacao de romaneio e permissoes);
-   - `supabase/migrations/20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do
-     app do motorista, fotos de comprovante para a equipe, RPCs com checagem de empresa,
-     realtime, troca de nivel de acesso, ordem das paradas, finalizar/excluir romaneio,
-     carteira do motorista, bloqueio por atraso e limites do plano iguais aos da tela).
+1. Atualize o banco com um arquivo so: no Supabase, abra SQL Editor > New query, cole
+   `supabase/ATUALIZAR_BANCO.sql` inteiro e clique em Run. Ele roda numa transacao (se algo
+   falhar, nada e gravado), pode ser rodado de novo sem duplicar nada e confere antes se o
+   banco tem a base do projeto. Junta, na ordem, as migrations que podem faltar:
+   - `20260526003000`, `20260527100000` e `20260527103000` (inicio do plano, isolamento entre
+     empresas e status do plano; provavelmente ja aplicadas, reaplicar nao muda nada);
+   - `20261028120000_trial_billing_funnel_and_ops.sql` (trial de 7 dias, funil, avisos de
+     cobranca, chegada por raio, auto-finalizacao de romaneio e permissoes);
+   - `20261028130000_fix_driver_access_rpcs_and_realtime.sql` (acesso do app do motorista,
+     fotos de comprovante para a equipe, RPCs com checagem de empresa, realtime, troca de
+     nivel de acesso, ordem das paradas, finalizar/excluir romaneio, carteira do motorista,
+     bloqueio por atraso e limites do plano iguais aos da tela).
+
+   Quem usa a CLI pode rodar `supabase db push` no lugar. Ao criar uma migration nova,
+   inclua o nome dela em `supabase/gerar_atualizacao.sh` e rode o script para gerar o
+   arquivo de novo (os testes abaixo avisam se ele ficou desatualizado).
 2. Publique as edge functions alteradas/novas: `register-tenant`, `create-user`,
    `invite-user`, `create-driver`, `update-user-access` e `send-driver-credentials`
    (todas usam a pasta `_shared`).

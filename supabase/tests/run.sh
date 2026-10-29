@@ -1,6 +1,6 @@
 #!/bin/bash
-# Testes de comportamento (RLS, triggers e RPCs) da migration
-# 20261028120000_trial_billing_funnel_and_ops.sql e 20261028130000_fix_driver_access_rpcs_and_realtime.sql
+# Testes de comportamento (RLS, triggers e RPCs) de supabase/ATUALIZAR_BANCO.sql (as
+# migrations novas juntas), aplicado duas vezes para provar que pode ser reaplicado,
 # em um Postgres local.
 #
 # Uso: PGURL=postgres://postgres@localhost:5432/postgres ./supabase/tests/run.sh
@@ -15,6 +15,8 @@ TESTS="$ROOT/supabase/tests"
 DB=nahora_rls_tests
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+"$ROOT/supabase/gerar_atualizacao.sh" --check
 
 psql "$PGURL" -q -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB" 2>/dev/null
 
@@ -33,10 +35,7 @@ sed -n '/^CREATE OR REPLACE FUNCTION public.has_role/,$p' \
   "$ROOT/supabase/migrations/20260427110000_bootstrap_mhn_app_schema.sql" > "$TMP/03_bootstrap_functions.sql"
 
 for f in "$TESTS/00_supabase_stubs.sql" "$TMP/01_schema.sql" "$TESTS/02_extras.sql" "$TMP/03_bootstrap_functions.sql" \
-  "$ROOT/supabase/migrations/20260527100000_enforce_tenant_isolation.sql" \
-  "$ROOT/supabase/migrations/20260527103000_plan_limits_status_rpc.sql" \
-  "$ROOT/supabase/migrations/20261028120000_trial_billing_funnel_and_ops.sql" \
-  "$ROOT/supabase/migrations/20261028130000_fix_driver_access_rpcs_and_realtime.sql"; do
+  "$ROOT/supabase/ATUALIZAR_BANCO.sql" "$ROOT/supabase/ATUALIZAR_BANCO.sql"; do
   psql "$PGURL" -q -v ON_ERROR_STOP=1 -c "\\connect $DB" -f "$f" > /dev/null 2>&1 || { echo "Falhou ao aplicar $f"; exit 1; }
 done
 
