@@ -30,6 +30,7 @@ import {
   normalizePlate,
   PENDING_PLATE,
   PHONE_ERROR,
+  plainError,
   PLATE_ERROR,
   type DriverDocumentKey,
 } from "./driverConfig";
@@ -238,7 +239,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
       console.error("Driver document upload error:", error);
       toast({
         title: "Não foi possível enviar o documento",
-        description: error.message || "Confira o arquivo e tente de novo.",
+        description: plainError(error, "Confira o arquivo e tente de novo."),
         variant: "destructive",
       });
     } finally {

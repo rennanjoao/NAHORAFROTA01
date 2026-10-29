@@ -136,12 +136,12 @@ export function SecuritySettings() {
     setIsSigningOutOthers(false);
     setConfirmSignOut(false);
     if (error) {
-      toast({ title: "Não foi possível encerrar as sessões", description: authErrorMessage(error.message), variant: "destructive" });
+      toast({ title: "Não foi possível desconectar os outros aparelhos", description: authErrorMessage(error.message), variant: "destructive" });
       return;
     }
     toast({
-      title: "Sessões encerradas",
-      description: "Os outros aparelhos conectados a esta conta foram desconectados.",
+      title: "Outros aparelhos desconectados",
+      description: "Quem estava com a sua conta aberta em outro aparelho vai precisar entrar de novo.",
       variant: "success",
     });
   };
@@ -226,23 +226,23 @@ export function SecuritySettings() {
           <Button
             type="button"
             variant="outline"
-            className="text-destructive hover:text-destructive"
+            className="h-auto min-h-10 whitespace-normal py-2 text-center text-destructive hover:text-destructive"
             onClick={() => setConfirmSignOut(true)}
             disabled={isSigningOutOthers}
           >
             <LogOut aria-hidden="true" />
-            Encerrar sessões em outros aparelhos
+            Desconectar outros aparelhos
           </Button>
         }
       >
-        <div className="flex items-center gap-3 rounded-lg border p-4">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border p-4">
           <span
             aria-hidden="true"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
           >
             <DeviceIcon className="h-5 w-5" />
           </span>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[8rem] flex-1">
             <p className="font-medium text-foreground">Este aparelho</p>
             <p className="truncate text-sm text-muted-foreground">{device.label}</p>
           </div>
@@ -253,9 +253,9 @@ export function SecuritySettings() {
       <ConfirmDialog
         open={confirmSignOut}
         onOpenChange={(open) => !isSigningOutOthers && setConfirmSignOut(open)}
-        title="Encerrar sessões em outros aparelhos?"
+        title="Desconectar os outros aparelhos?"
         description="Quem estiver com a sua conta aberta em outro computador ou celular vai precisar entrar de novo. Este aparelho continua conectado."
-        confirmLabel="Encerrar sessões"
+        confirmLabel="Desconectar"
         tone="danger"
         loading={isSigningOutOthers}
         onConfirm={handleSignOutOthers}

@@ -1,5 +1,6 @@
 import { ClipboardList, FileText, Truck, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { vehicleTypeLabel } from "@/lib/vehicles";
 
 /**
  * Busca geral (motoristas, veiculos, notas e romaneios) usada pela paleta de
@@ -19,7 +20,7 @@ export interface SearchResult {
 export const KIND_META: Record<ResultKind, { label: string; icon: typeof User }> = {
   driver: { label: "Motoristas", icon: User },
   vehicle: { label: "Veículos", icon: Truck },
-  invoice: { label: "Notas Fiscais", icon: FileText },
+  invoice: { label: "Notas fiscais", icon: FileText },
   manifest: { label: "Romaneios", icon: ClipboardList },
 };
 
@@ -63,7 +64,7 @@ export async function searchAll(term: string): Promise<SearchResult[]> {
       kind: "driver",
       id: d.id,
       title: d.name,
-      subtitle: [d.vehicle_type, d.vehicle_plate].filter(Boolean).join(" • "),
+      subtitle: [d.vehicle_type ? vehicleTypeLabel(d.vehicle_type) : null, d.vehicle_plate].filter(Boolean).join(" • "),
       href: `/drivers?q=${q(d.name)}`,
     });
   }

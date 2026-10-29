@@ -267,13 +267,13 @@ export function TenantsList(props: TenantsListProps) {
 
   return (
     <>
-      {/* Computador */}
-      <Card className="hidden overflow-hidden lg:block">
+      {/* Computador grande (de 1280px): abaixo disso as acoes da linha nao cabiam e eram cortadas */}
+      <Card className="hidden overflow-hidden xl:block">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Empresa</TableHead>
-              <TableHead className="w-[11.5rem]">Situação e plano</TableHead>
+              <TableHead className="w-[10.5rem]">Situação e plano</TableHead>
               <TableHead>Licenças</TableHead>
               <TableHead>Cobrança</TableHead>
               <TableHead className="text-right">
@@ -286,12 +286,12 @@ export function TenantsList(props: TenantsListProps) {
               const status = tenantStatus(tenant);
               return (
                 <TableRow key={tenant.id}>
-                  <TableCell className="max-w-[18rem] px-3 first:pl-4">
+                  <TableCell className="max-w-[15rem] px-3 first:pl-4">
                     <p className="truncate font-medium text-foreground" title={companyName(tenant)}>
                       {companyName(tenant)}
                     </p>
                     <p className="font-data text-xs text-muted-foreground">
-                      {cnpjText(tenant)} · desde {formatDate(tenant.created_at)}
+                      {cnpjText(tenant)} <span className="whitespace-nowrap">· desde {formatDate(tenant.created_at)}</span>
                     </p>
                     <p className="truncate text-xs text-muted-foreground" title={adminText(tenant)}>
                       {adminText(tenant)}
@@ -300,7 +300,7 @@ export function TenantsList(props: TenantsListProps) {
                   <TableCell className="px-3">
                     <div className="flex flex-col items-start gap-1.5">
                       <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-                      <PlanSelect tenant={tenant} onPlanChange={onPlanChange} className="h-9 w-[10.5rem]" />
+                      <PlanSelect tenant={tenant} onPlanChange={onPlanChange} className="h-9 w-[9.5rem]" />
                     </div>
                   </TableCell>
                   <TableCell className="px-3">
@@ -326,8 +326,8 @@ export function TenantsList(props: TenantsListProps) {
         </Table>
       </Card>
 
-      {/* Celular e tablet */}
-      <ul className="stagger grid gap-3 md:grid-cols-2 lg:hidden">
+      {/* Celular, tablet e notebook */}
+      <ul className="stagger grid gap-3 md:grid-cols-2 xl:hidden">
         {tenants.map((tenant) => {
           const status = tenantStatus(tenant);
           return (
@@ -370,12 +370,15 @@ export function TenantsList(props: TenantsListProps) {
                 </div>
               </dl>
 
-              <div className="mt-4 flex flex-wrap gap-2 border-t pt-4 [&>*]:flex-1">
-                <Button variant="outline" onClick={() => onOpenBilling(tenant)}>
-                  <DollarSign aria-hidden="true" />
-                  Financeiro<span className="sr-only"> de {companyName(tenant)}</span>
-                </Button>
-                <TenantActions {...props} tenant={tenant} size="default" />
+              {/* mt-auto: botoes alinhados no rodape dos cartoes lado a lado. */}
+              <div className="mt-auto pt-4">
+                <div className="flex flex-wrap gap-2 border-t pt-4 [&>*]:flex-1">
+                  <Button variant="outline" onClick={() => onOpenBilling(tenant)}>
+                    <DollarSign aria-hidden="true" />
+                    Financeiro<span className="sr-only"> de {companyName(tenant)}</span>
+                  </Button>
+                  <TenantActions {...props} tenant={tenant} size="default" />
+                </div>
               </div>
               <p className="mt-3 text-xs text-muted-foreground">Cliente desde {formatDate(tenant.created_at)}</p>
             </li>

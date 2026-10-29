@@ -63,7 +63,7 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
       </Card>
 
       {/* Celular e tablet */}
-      <ul className="stagger grid gap-3 sm:grid-cols-2 lg:hidden">
+      <ul className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
         {drivers.map((driver) => (
           <li key={driver.driverId}>
             <Card className="flex h-full flex-col gap-4 p-4">

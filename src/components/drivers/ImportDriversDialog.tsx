@@ -24,7 +24,7 @@ import {
   parseDriverRows,
 } from "@/lib/driverImport";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
-import { DRIVER_VEHICLE_TYPES, PENDING_PLATE } from "./driverConfig";
+import { DRIVER_VEHICLE_TYPES, PENDING_PLATE, plainError } from "./driverConfig";
 
 interface ImportDriversDialogProps {
   open: boolean;
@@ -178,7 +178,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
           tenant_id: tenantId,
         });
         if (error) {
-          result.failed.push({ line: row.line, name: data.name, message: error.message });
+          result.failed.push({ line: row.line, name: data.name, message: plainError(error, "Não foi possível gravar esta linha. Confira os dados.") });
           // Limite do plano atingido no banco: as proximas linhas falhariam igual.
           if (/limite/i.test(error.message)) break;
         } else {
@@ -187,7 +187,7 @@ export function ImportDriversDialog({ open, onOpenChange, existingCpfs, remainin
         setProgress(index + 1);
       }
     } catch (error) {
-      result.failed.push({ line: 0, name: "", message: error instanceof Error ? error.message : "Erro ao importar" });
+      result.failed.push({ line: 0, name: "", message: plainError(error, "Não foi possível importar. Tente de novo em instantes.") });
     } finally {
       setIsImporting(false);
     }

@@ -94,8 +94,8 @@ export const NAV_ITEMS: NavItem[] = [
     keywords: ["mapa", "risco", "zona", "alerta", "região", "segurança", "roubo", "carga"],
     shortcut: "r",
     tips: [
-      "Quanto maior e mais vermelho o círculo, mais roubos de carga a região teve.",
-      "Toque em uma região para ver as rodovias perigosas e o que fazer.",
+      "Quanto maior e mais vermelho o círculo, mais roubos de carga a área teve.",
+      "Toque em uma área para ver as rodovias perigosas e o que fazer.",
       "Use “Quando o risco é maior” para escolher horários mais seguros.",
     ],
   },

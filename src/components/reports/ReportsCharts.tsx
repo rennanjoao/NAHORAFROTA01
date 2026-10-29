@@ -16,7 +16,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { axisLine, axisTick, BAD, fmtNumber, fmtPercent, GOOD, gridProps, tooltipCursor, tooltipItemStyle, tooltipLabelStyle, tooltipStyle } from "./chartTheme";
+import { axisLine, axisTick, BAD, chartScale, fmtNumber, fmtPercent, GOOD, gridProps, tooltipCursor, tooltipItemStyle, tooltipLabelStyle, tooltipStyle } from "./chartTheme";
 import { ChartFrame, ReportCard, WrappedTick } from "./ReportCard";
 
 interface SLADataPoint {
@@ -124,7 +124,7 @@ export function ReportsCharts({ slaData, issuesData, isLoading }: ReportsChartsP
                 <YAxis
                   type="category"
                   dataKey="label"
-                  width={128}
+                  width={Math.round(128 * chartScale())}
                   tick={<WrappedTick maxChars={18} />}
                   interval={0}
                   axisLine={false}

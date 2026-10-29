@@ -65,6 +65,10 @@ const normalizeVehicleTypeForDisplay = (value?: string | null): VehicleType => {
   return vehicleTypeToDisplayMap[normalized] || "Van";
 };
 
+// Celular estreito (ate 419px): o icone decorativo sai do cartao para o rotulo
+// ("Disponíveis", "Em manutenção") caber sem o icone vazar da borda.
+const narrowStat = "max-[419px]:[&>div:first-child>span]:hidden";
+
 export default function DriversPage() {
   const { driverStats: slaDriverStats } = useSLADB();
   const performanceByDriver = useMemo(
@@ -109,6 +113,7 @@ export default function DriversPage() {
   // Ctrl K > "Cadastrar motorista" abre /drivers?action=new. O foco passa antes
   // pelo botao da tela: ao fechar a janela, ele volta para la (e nao para o topo).
   const newButtonRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLElement>(null);
   useQueryAction("new", () => {
     newButtonRef.current?.focus();
     openNewDriver();
@@ -362,16 +367,19 @@ export default function DriversPage() {
         {/* Indicadores que tambem filtram a lista por situacao */}
         <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <FilterStatCard
+            className={narrowStat}
             label="Total"
             value={stats.total}
             icon={Users}
             tone="brand"
             loading={isFirstLoad}
-            hint={`${driverTypeStats.ownFleet} CLT · ${driverTypeStats.thirdParty} agregados`}
+            // Carregando: sem "0 CLT · 0 agregados" (o numero ainda nao chegou).
+            hint={isFirstLoad ? undefined : `${driverTypeStats.ownFleet} CLT · ${driverTypeStats.thirdParty} agregados`}
             pressed={filterStatus === "all"}
             onPressedChange={() => changeStatus("all")}
           />
           <FilterStatCard
+            className={narrowStat}
             label="Disponíveis"
             value={stats.available}
             icon={CheckCircle2}
@@ -382,6 +390,7 @@ export default function DriversPage() {
             onPressedChange={(on) => changeStatus(on ? "active" : "all")}
           />
           <FilterStatCard
+            className={narrowStat}
             label="Em rota agora"
             value={stats.onRoute}
             icon={Route}
@@ -392,6 +401,7 @@ export default function DriversPage() {
             onPressedChange={(on) => changeStatus(on ? "in_route" : "all")}
           />
           <FilterStatCard
+            className={narrowStat}
             label="Inativos"
             value={stats.inactive}
             icon={UserX}
@@ -403,7 +413,7 @@ export default function DriversPage() {
           />
         </div>
 
-        <section aria-labelledby="lista-motoristas" className="space-y-4">
+        <section ref={listRef} aria-labelledby="lista-motoristas" className="space-y-4">
           <h2 id="lista-motoristas" className="sr-only">
             Lista de motoristas
           </h2>
@@ -428,10 +438,11 @@ export default function DriversPage() {
                 label="Tipo de motorista"
                 value={filterDriverType}
                 onChange={changeDriverType}
+                // Contagens so depois de carregar (antes mostrava "Todos 0").
                 options={[
-                  { value: "all", label: "Todos", count: driverTypeStats.total, icon: Users },
-                  { value: "own_fleet", label: "CLT", count: driverTypeStats.ownFleet, icon: Building2 },
-                  { value: "third_party", label: "Agregados", count: driverTypeStats.thirdParty, icon: Truck },
+                  { value: "all", label: "Todos", count: isFirstLoad ? undefined : driverTypeStats.total, icon: Users },
+                  { value: "own_fleet", label: "CLT", count: isFirstLoad ? undefined : driverTypeStats.ownFleet, icon: Building2 },
+                  { value: "third_party", label: "Agregados", count: isFirstLoad ? undefined : driverTypeStats.thirdParty, icon: Truck },
                 ]}
               />
               <Select value={filterVehicleType} onValueChange={changeVehicleType}>
@@ -491,7 +502,15 @@ export default function DriversPage() {
                 onWhatsApp={callOnWhatsApp}
                 onShowOnMap={showOnMap}
               />
-              <ListPagination page={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+              <ListPagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={(page) => {
+                  setCurrentPage(page);
+                  // A nova pagina comeca no alto da lista (antes ficava rolada no fim).
+                  listRef.current?.scrollIntoView({ block: "start" });
+                }}
+              />
             </>
           )}
         </section>

@@ -174,11 +174,11 @@ export default function AdminPage() {
 
         <Tabs value={tab} onValueChange={changeTab}>
           <TabsList className="grid w-full grid-cols-2 sm:inline-flex sm:w-auto">
-            <TabsTrigger value="users">
+            <TabsTrigger value="users" className="min-h-[2.5rem] whitespace-normal px-2 text-center leading-tight sm:min-h-0 sm:whitespace-nowrap sm:px-3">
               <Users aria-hidden="true" />
               Usuários
             </TabsTrigger>
-            <TabsTrigger value="plans">
+            <TabsTrigger value="plans" className="min-h-[2.5rem] whitespace-normal px-2 text-center leading-tight sm:min-h-0 sm:whitespace-nowrap sm:px-3">
               <CreditCard aria-hidden="true" />
               Plano e cobrança
             </TabsTrigger>

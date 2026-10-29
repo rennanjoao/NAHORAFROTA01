@@ -545,7 +545,7 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
                         disabled={nonDuplicateCount === 0}
                         onCheckedChange={(checked) => toggleSelectAll(checked === true)}
                         aria-label="Marcar todas as notas novas"
-                        className="h-6 w-6 rounded-[0.375rem] [&_svg]:h-4 [&_svg]:w-4"
+                        className="flex h-6 w-6 items-center justify-center rounded-[0.375rem] [&_svg]:h-4 [&_svg]:w-4 [&[data-state=indeterminate]_svg]:hidden data-[state=indeterminate]:after:h-0.5 data-[state=indeterminate]:after:w-3 data-[state=indeterminate]:after:rounded-full data-[state=indeterminate]:after:bg-current data-[state=indeterminate]:after:content-['']"
                       />
                     </TableHead>
                     <TableHead className="px-2 sm:px-4">Nota</TableHead>

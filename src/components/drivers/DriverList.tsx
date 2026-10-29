@@ -184,7 +184,8 @@ export function DriverList(props: DriverListProps) {
       </Card>
 
       {/* Celular e tablet */}
-      <ul className="stagger grid gap-3 sm:grid-cols-2 lg:hidden" aria-label="Motoristas">
+      {/* grid-cols-1 (minmax 0): sem ele, um nome longo alargava o cartao alem da tela. */}
+      <ul className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden" aria-label="Motoristas">
         {drivers.map((driver) => (
           <li
             key={driver._dbId || driver.id}
@@ -193,7 +194,7 @@ export function DriverList(props: DriverListProps) {
             <div className="flex flex-1 items-start gap-3">
               <DriverAvatar photo={driver.photo} className="h-11 w-11" />
               <div className="min-w-0 flex-1">
-                <button type="button" data-driver-open={driver._dbId} onClick={() => onOpen(driver)} className={cn(stretchedButton, "block max-w-full truncate leading-snug after:rounded-lg")}>
+                <button type="button" data-driver-open={driver._dbId} onClick={() => onOpen(driver)} className={cn(stretchedButton, "block max-w-full truncate leading-snug after:rounded-lg")} title={driver.name}>
                   {driver.name}
                 </button>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">

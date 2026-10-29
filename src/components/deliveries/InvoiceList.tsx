@@ -43,7 +43,8 @@ function SelectBox({
       disabled={disabled}
       onCheckedChange={(value) => onCheckedChange(value === true)}
       aria-label={label}
-      className="h-6 w-6 rounded-[0.375rem] [&_svg]:h-4 [&_svg]:w-4"
+      // "Algumas marcadas" mostra um tracinho (o componente base desenha o visto nos dois casos).
+      className="flex h-6 w-6 items-center justify-center rounded-[0.375rem] [&_svg]:h-4 [&_svg]:w-4 [&[data-state=indeterminate]_svg]:hidden data-[state=indeterminate]:after:h-0.5 data-[state=indeterminate]:after:w-3 data-[state=indeterminate]:after:rounded-full data-[state=indeterminate]:after:bg-current data-[state=indeterminate]:after:content-['']"
     />
   );
   if (!hitArea) return box;

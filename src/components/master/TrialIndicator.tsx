@@ -70,7 +70,8 @@ export function BillingNoticeBadge({ notice, className }: { notice: BillingNotic
   return (
     <span className={cn("inline-flex max-w-full items-center gap-1.5 text-xs text-muted-foreground", className)} title={details}>
       <BellRing className={cn("h-3.5 w-3.5 shrink-0", confirmed ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
-      <span className="truncate">
+      {/* relative: o texto do leitor de tela (sr-only) fica dentro da caixa e nao cria rolagem lateral. */}
+      <span className="relative truncate">
         {confirmed ? "Avisado" : "Aviso exibido"} em {when.toLocaleDateString("pt-BR")}
         <span className="sr-only">: {details}</span>
       </span>

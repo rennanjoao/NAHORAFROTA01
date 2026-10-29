@@ -54,8 +54,9 @@ export function StatCard({
 
   const body = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      {/* Altura fixa (a do icone): rotulo em 2 linhas nao desalinha os numeros da fileira. */}
+      <div className="flex min-h-9 items-start justify-between gap-3">
+        <p className="text-sm font-medium leading-tight text-muted-foreground">{label}</p>
         {Icon && (
           <span
             aria-hidden="true"

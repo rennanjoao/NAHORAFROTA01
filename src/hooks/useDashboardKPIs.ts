@@ -253,7 +253,10 @@ export function useDashboardKPIs() {
   const finishedDrivers = useMemo((): FinishedDriverData[] => {
     const todayCompletedManifests = manifests
       .filter(
-        (m) => ["completed", "paid"].includes(m.status) && isOnBrazilDate(m.completed_at || m.updated_at, today)
+        // completed_at e gravado ao concluir; romaneio pago sem ter sido concluido nao "finalizou hoje".
+        (m) =>
+          ["completed", "paid"].includes(m.status) &&
+          isOnBrazilDate(m.completed_at ?? (m.status === "completed" ? m.updated_at : null), today)
       )
       .sort(
         (a, b) =>

@@ -34,6 +34,7 @@ import { useSLADB } from "@/hooks/useSLADB";
 import { useDBDrivers, DBDriver } from "@/hooks/useDBDrivers";
 import { supabase } from "@/integrations/supabase/client";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { plainError } from "@/components/drivers/driverConfig";
 import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
 
 interface WalletAdjustmentRow {
@@ -218,7 +219,7 @@ export default function SettlementPage() {
       .order("created_at", { ascending: false });
     if (error) {
       console.error("Error loading adjustments:", error);
-      toast({ title: "Não foi possível carregar os lançamentos", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível carregar os lançamentos", description: plainError(error), variant: "destructive" });
       return;
     }
     setLocalAdjustments(((data || []) as WalletAdjustmentRow[]).map(toAdjustment));
@@ -288,13 +289,13 @@ export default function SettlementPage() {
         status: "pending",
       }));
     } catch (err) {
-      error = { message: err instanceof Error ? err.message : "Tente de novo em instantes." };
+      error = { message: plainError(err) };
     } finally {
       setIsSavingAdjustment(false);
     }
 
     if (error) {
-      toast({ title: "Não foi possível registrar o lançamento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível registrar o lançamento", description: plainError(error), variant: "destructive" });
       return false;
     }
 
@@ -314,7 +315,7 @@ export default function SettlementPage() {
     if (error || !removed?.length) {
       toast({
         title: "Não foi possível excluir o lançamento",
-        description: error?.message || "Você não tem permissão para esta tarefa.",
+        description: error ? plainError(error) : "Você não tem permissão para esta tarefa.",
         variant: "destructive",
       });
       return;
@@ -344,7 +345,7 @@ export default function SettlementPage() {
       })
       .eq("id", updatedAdjustment.id);
     if (error) {
-      toast({ title: "Não foi possível salvar o lançamento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível salvar o lançamento", description: plainError(error), variant: "destructive" });
       return false;
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
@@ -357,7 +358,7 @@ export default function SettlementPage() {
       .update({ status: paid ? "paid" : "pending", updated_at: new Date().toISOString() })
       .eq("id", adjustment.id);
     if (error) {
-      toast({ title: "Não foi possível atualizar o lançamento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível atualizar o lançamento", description: plainError(error), variant: "destructive" });
       return;
     }
     if (selectedDriver) await fetchAdjustments(selectedDriver.id);
@@ -392,7 +393,7 @@ export default function SettlementPage() {
     if (error) {
       toast({
         title: "Não foi possível marcar como pago",
-        description: error.message,
+        description: plainError(error),
         variant: "destructive",
       });
       return;
@@ -423,7 +424,7 @@ export default function SettlementPage() {
     if (error) {
       toast({
         title: "Não foi possível salvar o romaneio",
-        description: error.message,
+        description: plainError(error),
         variant: "destructive",
       });
       return false;
@@ -451,7 +452,7 @@ export default function SettlementPage() {
     if (error) {
       toast({
         title: "Não foi possível estornar",
-        description: error.message,
+        description: plainError(error),
         variant: "destructive",
       });
       return false;
@@ -511,7 +512,7 @@ export default function SettlementPage() {
 
       <div className="space-y-6 md:space-y-8">
         {/* Resumo do periodo (so agregados; frota propria nao recebe frete) */}
-        <div className="stagger grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+        <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           <StatCard
             label="Total pago"
             value={globalStats.totalPaid}

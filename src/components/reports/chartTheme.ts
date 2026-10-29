@@ -20,7 +20,18 @@ export const MUTED = "hsl(var(--muted-foreground))";
 /** Grade em linha fina e solida, um tom acima do fundo. */
 export const gridProps = { stroke: "hsl(var(--border))", strokeDasharray: undefined } as const;
 
-export const axisTick = { fill: "hsl(var(--muted-foreground))", fontSize: 12 } as const;
+// Fontes em rem: acompanham o "Tamanho do texto" de Configuracoes > Aparencia.
+export const CHART_FONT = "0.75rem";
+export const CHART_FONT_SMALL = "0.6875rem";
+
+export const axisTick = { fill: "hsl(var(--muted-foreground))", fontSize: CHART_FONT } as const;
+export const legendStyle = { fontSize: CHART_FONT, paddingTop: 8 } as const;
+
+/** Quanto o texto da tela esta ampliado (1 = normal), para larguras de eixo em px. */
+export function chartScale(): number {
+  if (typeof window === "undefined") return 1;
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) / 16 || 1;
+}
 export const axisLine = { stroke: "hsl(var(--border))" } as const;
 
 export const tooltipStyle: CSSProperties = {
@@ -28,7 +39,7 @@ export const tooltipStyle: CSSProperties = {
   border: "1px solid hsl(var(--border))",
   borderRadius: 8,
   color: "hsl(var(--popover-foreground))",
-  fontSize: 12,
+  fontSize: CHART_FONT,
   boxShadow: "var(--shadow-md)",
 };
 

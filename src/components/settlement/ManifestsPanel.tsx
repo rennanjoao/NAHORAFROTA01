@@ -190,7 +190,7 @@ export function ManifestsPanel({
 
         {/* Celular e tablet */}
         <div className="space-y-3 lg:hidden">
-          <ul className="stagger grid gap-3 sm:grid-cols-2">
+          <ul className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2">
             {manifests.map((manifest) => (
               <li key={manifest.id}>
                 <Card className="flex h-full flex-col gap-3 p-4">

@@ -61,7 +61,8 @@ export function AppearanceSettings() {
           label="Tema"
           hint="Claro, escuro ou automático, que segue o tema do seu aparelho."
         >
-          <ThemeSegmented className="w-full sm:w-[22rem] [&>button]:min-h-10 [&>button]:gap-1 [&>button]:px-1 [&>button]:text-[0.8125rem] [&_svg]:shrink-0" />
+          {/* Em telas de 320px o icone sai para "Automático" caber. */}
+          <ThemeSegmented className="w-full sm:w-[22rem] [&>button]:min-h-10 [&>button]:gap-1 [&>button]:px-1 [&>button]:text-[0.8125rem] [&_svg]:shrink-0 max-[359px]:[&_svg]:hidden" />
         </SettingsRow>
 
         <div className="space-y-4 py-5 first:pt-0 last:pb-0">

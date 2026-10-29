@@ -6,16 +6,13 @@ export function roleLabel(roles: readonly string[]): string {
   return "Visualizador";
 }
 
-/** Ate duas iniciais ("Ana Admin" -> "AA"). */
+/** Iniciais do primeiro e do ultimo nome ("Joao Angelo da Silva" -> "JS"). */
 export function initials(name: string | null | undefined): string {
-  if (!name?.trim()) return "U";
-  return name
-    .trim()
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
+  const first = parts[0][0];
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : parts[0][1] ?? "";
+  return `${first}${last}`.toUpperCase();
 }
 
 /** Primeiro nome, para saudacoes. */

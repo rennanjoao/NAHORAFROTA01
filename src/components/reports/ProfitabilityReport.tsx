@@ -8,6 +8,8 @@ import { CardsSkeleton, EmptyState, StatCard, StatusBadge, type Tone } from "@/c
 import {
   axisLine,
   axisTick,
+  CHART_FONT_SMALL,
+  chartScale,
   fmtPercent,
   GOOD,
   gridProps,
@@ -280,7 +282,15 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
             <LineChart data={evolutionData} margin={{ top: 12, right: 12, left: -8, bottom: 0 }}>
               <CartesianGrid {...gridProps} vertical={false} />
               <XAxis dataKey="label" tick={axisTick} axisLine={axisLine} tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} domain={[0, "auto"]} width={48} />
+              {/* Topo de pelo menos 25%: a linha da meta (20%) aparece sempre. */}
+              <YAxis
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${v}%`}
+                domain={[0, (dataMax: number) => Math.max(25, Math.ceil(dataMax / 5) * 5)]}
+                width={Math.round(48 * chartScale())}
+              />
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={tooltipLabelStyle}
@@ -292,7 +302,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
                 y={20}
                 stroke={GOOD}
                 strokeDasharray="5 5"
-                label={{ value: "Meta 20%", fontSize: 11, fill: GOOD, position: "insideTopLeft" }}
+                label={{ value: "Meta 20%", fontSize: CHART_FONT_SMALL, fill: GOOD, position: "insideTopLeft" }}
               />
               <Line
                 type="monotone"
@@ -322,7 +332,8 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
           />
         ) : (
           <>
-            <div className="-mx-5 hidden max-h-[420px] overflow-auto border-t md:block sm:-mx-6">
+            {/* Tabela so do computador grande; no tablet as 6 colunas nao cabiam e a ultima sumia. */}
+            <div className="-mx-5 hidden max-h-[420px] overflow-auto border-t sm:-mx-6 lg:block">
               <Table>
                 <TableHeader className="sticky top-0 z-[1] bg-muted">
                   <TableRow>
@@ -339,7 +350,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
                     const pct = (m.total_value || 0) > 0 ? ((m.freight_value || 0) / (m.total_value || 1)) * 100 : 0;
                     return (
                       <TableRow key={m.id}>
-                        <TableCell className="pl-5 font-data text-xs sm:pl-6">{m.manifest_code}</TableCell>
+                        <TableCell className="whitespace-nowrap pl-5 font-data text-xs sm:pl-6">{m.manifest_code}</TableCell>
                         <TableCell className="max-w-[180px] truncate" title={m.driver_name}>
                           {m.driver_name}
                         </TableCell>
@@ -370,7 +381,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
               </Table>
             </div>
 
-            <ul className="space-y-3 md:hidden">
+            <ul className="grid gap-3 md:grid-cols-2 lg:hidden">
               {thirdPartyManifests.map((m) => {
                 const pct = (m.total_value || 0) > 0 ? ((m.freight_value || 0) / (m.total_value || 1)) * 100 : 0;
                 return (
@@ -403,7 +414,7 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
                   </li>
                 );
               })}
-              <li className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <li className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3 text-sm md:col-span-2">
                 <span className="font-semibold">Total dos agregados</span>
                 <span className="font-data font-semibold">
                   {formatCurrency(thirdPartyFreight)} de {formatCurrency(thirdPartyCargo)}

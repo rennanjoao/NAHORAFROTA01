@@ -14,14 +14,17 @@ export function ListPagination({ page, totalPages, onPageChange }: ListPaginatio
     <nav aria-label="Paginação" className="flex items-center justify-between gap-3 pt-1">
       <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
         <ChevronLeft aria-hidden="true" />
-        Anterior
+        {/* Celular bem estreito: so a seta (o nome continua para o leitor de tela). */}
+        <span className="max-[379px]:sr-only">Anterior</span>
       </Button>
-      <p className="text-sm text-muted-foreground" aria-live="polite">
-        Página <span className="font-data font-medium text-foreground">{page}</span> de{" "}
+      {/* No celular so "1 de 2" (com texto "Maior" o botao Proxima saia da tela); o leitor ouve "Pagina". */}
+      <p className="whitespace-nowrap text-sm text-muted-foreground" aria-live="polite">
+        <span className="sr-only sm:not-sr-only">Página </span>
+        <span className="font-data font-medium text-foreground">{page}</span> de{" "}
         <span className="font-data font-medium text-foreground">{totalPages}</span>
       </p>
       <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>
-        Próxima
+        <span className="max-[379px]:sr-only">Próxima</span>
         <ChevronRight aria-hidden="true" />
       </Button>
     </nav>

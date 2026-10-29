@@ -38,6 +38,10 @@ const activeTone: Record<Tone, string> = {
   info: "border-info/50 ring-info/15",
 };
 
+// Celular: 3 em cima e 2 embaixo; abaixo de 360px, 2 por linha (o nome nao corta).
+const tileSpan = (index: number) =>
+  index < 3 ? "col-span-3 min-[360px]:col-span-2" : index === 3 ? "col-span-3" : "col-span-6 min-[360px]:col-span-3";
+
 function Count({ value }: { value: number }) {
   const display = useCountUp(value);
   return <>{Math.round(display).toLocaleString("pt-BR")}</>;
@@ -49,7 +53,7 @@ export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: Delive
     <div
       role="group"
       aria-label="Filtrar notas por status"
-      // Celular: 3 em cima e 2 embaixo, sem buraco no fim da grade.
+      // Grade de 6 colunas no celular: as linhas fecham sem buraco (tileSpan).
       className="stagger grid grid-cols-6 gap-2 sm:gap-3 lg:grid-cols-5"
     >
       {TILES.map((tile, index) => {
@@ -66,7 +70,7 @@ export function DeliveryKPICards({ stats, activeFilter, onFilterChange }: Delive
             onClick={() => onFilterChange(active ? "all" : tile.key)}
             className={cn(
               "card-interactive group relative flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 text-left text-card-foreground shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4 lg:col-span-1",
-              index < 3 ? "col-span-2" : "col-span-3",
+              tileSpan(index),
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
               active && cn("ring-4", activeTone[meta.tone]),
             )}
@@ -112,7 +116,7 @@ export function DeliveryKPICardsSkeleton() {
           key={tile.key}
           className={cn(
             "flex min-h-[5rem] flex-col justify-between gap-2 rounded-lg border bg-card px-2.5 py-3 shadow-sm sm:min-h-[6.5rem] sm:gap-3 sm:p-4 lg:col-span-1",
-            index < 3 ? "col-span-2" : "col-span-3",
+            tileSpan(index),
           )}
         >
           <Skeleton className="h-3.5 w-16 sm:w-20" />

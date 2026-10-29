@@ -67,7 +67,8 @@ export function AdminDriversList({ drivers, isLoading, emptyAction, onEdit }: Ad
           <TableBody>
             {drivers.map((driver) => (
               <TableRow key={driver.id}>
-                <TableCell>
+                {/* Largura maxima: nome muito longo nao empurra as outras colunas para fora. */}
+                <TableCell className="max-w-[18rem]">
                   <div className="flex min-w-0 items-center gap-3">
                     <PersonAvatar name={driver.name} src={driver.avatar || driver.photo} />
                     <div className="min-w-0">

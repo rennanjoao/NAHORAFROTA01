@@ -535,7 +535,8 @@ export default function ReportsPage() {
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
-                <TabsTrigger key={tab.value} value={tab.value} className="min-h-[2.5rem] sm:min-h-0">
+                // No celular (2 colunas) o nome quebra em vez de vazar.
+                <TabsTrigger key={tab.value} value={tab.value} className="min-h-[2.5rem] whitespace-normal px-2 text-center leading-tight sm:min-h-0 sm:whitespace-nowrap sm:px-3">
                   <Icon aria-hidden="true" />
                   {tab.label}
                 </TabsTrigger>

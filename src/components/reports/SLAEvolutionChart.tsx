@@ -20,7 +20,7 @@ import {
   ReferenceLine,
   type TooltipProps,
 } from "recharts";
-import { axisLine, axisTick, gridProps, MUTED, SERIES, BAD, tooltipStyle } from "./chartTheme";
+import { axisLine, axisTick, CHART_FONT_SMALL, chartScale, gridProps, legendStyle, MUTED, SERIES, BAD, tooltipStyle } from "./chartTheme";
 import { ChartFrame, ReportCard } from "./ReportCard";
 import {
   startOfMonth,
@@ -447,14 +447,14 @@ export function SLAEvolutionChart({
                   domain={yAxis.domain}
                   ticks={yAxis.ticks}
                   allowDataOverflow
-                  width={48}
+                  width={Math.round(48 * chartScale())}
                   tick={axisTick}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: "hsl(var(--border))" }} />
-                {hasPreviousData && <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />}
+                {hasPreviousData && <Legend wrapperStyle={legendStyle} />}
 
                 {/* Linhas de referencia: meta e critico */}
                 <ReferenceLine
@@ -462,14 +462,14 @@ export function SLAEvolutionChart({
                   stroke={MUTED}
                   strokeDasharray="4 4"
                   strokeOpacity={0.7}
-                  label={{ value: "Meta 97%", position: "insideTopLeft", fill: MUTED, fontSize: 11 }}
+                  label={{ value: "Meta 97%", position: "insideTopLeft", fill: MUTED, fontSize: CHART_FONT_SMALL }}
                 />
                 <ReferenceLine
                   y={75}
                   stroke={BAD}
                   strokeDasharray="4 4"
                   strokeOpacity={0.6}
-                  label={{ value: "Crítico 75%", position: "insideBottomLeft", fill: BAD, fontSize: 11 }}
+                  label={{ value: "Crítico 75%", position: "insideBottomLeft", fill: BAD, fontSize: CHART_FONT_SMALL }}
                 />
 
                 {hasPreviousData && (

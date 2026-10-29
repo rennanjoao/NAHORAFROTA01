@@ -23,14 +23,16 @@ export function SelectionBar({ count, onGenerate, onDelete, onClear }: Selection
       <div
         role="region"
         aria-label="Ações das notas selecionadas"
-        className="pointer-events-auto flex w-full max-w-xl animate-fade-in items-center gap-2 rounded-xl border bg-popover p-2 pl-4 text-popover-foreground shadow-xl"
+        className="pointer-events-auto flex w-full max-w-xl animate-fade-in items-center gap-1.5 rounded-xl border bg-popover p-2 pl-3 text-popover-foreground shadow-xl sm:gap-2 sm:pl-4"
       >
+        {/* Em telas de 320px fica so o numero visivel (antes o texto sumia atras dos botoes). */}
         <p className="min-w-0 flex-1 truncate text-sm font-semibold" aria-live="polite">
-          <span className="font-data">{count.toLocaleString("pt-BR")}</span> {noun}
+          <span className="font-data">{count.toLocaleString("pt-BR")}</span>
+          <span className="max-[359px]:sr-only"> {noun}</span>
           <span className="sr-only sm:not-sr-only"> {done}</span>
         </p>
-        <Button size="sm" onClick={onGenerate} className="h-10 sm:h-9">
-          <Route aria-hidden="true" />
+        <Button size="sm" onClick={onGenerate} className="h-10 shrink-0 sm:h-9">
+          <Route aria-hidden="true" className="max-[359px]:hidden" />
           Gerar romaneio
         </Button>
         <Button
@@ -38,7 +40,7 @@ export function SelectionBar({ count, onGenerate, onDelete, onClear }: Selection
           variant="ghost"
           onClick={onDelete}
           aria-label="Excluir notas selecionadas"
-          className="h-10 w-10 px-0 text-destructive hover:bg-destructive/10 hover:text-destructive sm:h-9 sm:w-auto sm:px-3"
+          className="h-10 w-10 shrink-0 px-0 text-destructive hover:bg-destructive/10 hover:text-destructive sm:h-9 sm:w-auto sm:px-3"
         >
           <Trash2 aria-hidden="true" />
           <span className="hidden sm:inline">Excluir</span>
@@ -48,7 +50,7 @@ export function SelectionBar({ count, onGenerate, onDelete, onClear }: Selection
           variant="ghost"
           onClick={onClear}
           aria-label="Limpar seleção"
-          className="h-10 w-10 text-muted-foreground sm:h-9 sm:w-9"
+          className="h-10 w-10 shrink-0 text-muted-foreground sm:h-9 sm:w-9"
         >
           <X aria-hidden="true" />
         </Button>

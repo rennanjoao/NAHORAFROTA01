@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/formatCurrency";
 import {
   axisLine,
   axisTick,
+  legendStyle,
   fmtNumber,
   fmtPercent,
   gridProps,
@@ -123,7 +124,7 @@ export function FleetUsageReport({ dateRange }: FleetUsageReportProps) {
                   <XAxis dataKey="name" tick={axisTick} axisLine={axisLine} tickLine={false} />
                   <YAxis allowDecimals={false} tick={axisTick} axisLine={false} tickLine={false} />
                   <Tooltip cursor={tooltipCursor} contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                  <Legend wrapperStyle={legendStyle} />
                   <Bar dataKey="own" name="Frota própria" fill={COLORS.ownFleet} radius={[4, 4, 0, 0]} maxBarSize={32} />
                   <Bar dataKey="third" name="Agregados" fill={COLORS.thirdParty} radius={[4, 4, 0, 0]} maxBarSize={32} />
                 </BarChart>

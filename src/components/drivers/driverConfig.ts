@@ -74,6 +74,27 @@ export const normalizePlate = (value: string) => value.toUpperCase().replace(/[^
 /** Placa antiga (ABC1234) ou Mercosul (ABC1D23). */
 export const isValidPlate = (value: string) => PLATE_REGEX.test(normalizePlate(value));
 
+export const OFFLINE_MESSAGE = "Sem conexão com a internet. Confira a conexão e tente de novo.";
+
+/**
+ * Erro em linguagem simples para a tela. Sem internet, sem permissao ou mensagem
+ * tecnica do banco (em ingles) viram frases curtas; mensagens ja em portugues
+ * (ex.: "Limite de 5 motoristas atingido...") passam como estao.
+ */
+export function plainError(error: unknown, fallback = "Tente de novo em instantes."): string {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return OFFLINE_MESSAGE;
+  const message =
+    typeof error === "string" ? error : error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? "");
+  if (/failed to fetch|networkerror|load failed|fetch failed/i.test(message)) return OFFLINE_MESSAGE;
+  if (/row-level security|permission denied|not authorized|jwt|policy/i.test(message)) {
+    return "Você não tem permissão para esta tarefa. Fale com o administrador.";
+  }
+  if (!message || /violates|constraint|null value|column|relation|syntax|invalid input|duplicate key|json|schema|function|non-2xx|edge function/i.test(message)) {
+    return fallback;
+  }
+  return message;
+}
+
 export const PHONE_ERROR = "Telefone inválido. Informe DDD e número, como (11) 99999-0000.";
 export const PLATE_ERROR = "Placa inválida. Use ABC1234 ou ABC1D23.";
 

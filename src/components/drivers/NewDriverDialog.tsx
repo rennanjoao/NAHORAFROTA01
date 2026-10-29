@@ -32,6 +32,7 @@ import {
   isValidPlate,
   normalizePlate,
   PHONE_ERROR,
+  plainError,
   PLATE_ERROR,
 } from "./driverConfig";
 import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
@@ -77,7 +78,7 @@ const getVehicleTypeConstraintMessage = () =>
 
 const getDriverSaveErrorMessage = (message?: string | null) => {
   if (isVehicleTypeConstraintError(message)) return getVehicleTypeConstraintMessage();
-  return message || "Confira os dados e tente de novo.";
+  return plainError(message || "", "Confira os dados e tente de novo.");
 };
 
 const emptyForm = () => ({

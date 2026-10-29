@@ -270,11 +270,11 @@ export default function MasterAdminPage() {
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="grid w-full grid-cols-2 sm:inline-flex sm:w-auto">
-            <TabsTrigger value="clients">
+            <TabsTrigger value="clients" className="min-h-[2.5rem] whitespace-normal px-2 text-center leading-tight sm:min-h-0 sm:whitespace-nowrap sm:px-3">
               <Building2 aria-hidden="true" />
               Clientes
             </TabsTrigger>
-            <TabsTrigger value="funnel">
+            <TabsTrigger value="funnel" className="min-h-[2.5rem] whitespace-normal px-2 text-center leading-tight sm:min-h-0 sm:whitespace-nowrap sm:px-3">
               <Filter aria-hidden="true" />
               Funil de aquisição
             </TabsTrigger>

@@ -7,6 +7,7 @@ import { FilterStatCard } from "@/components/patterns/FilterStatCard";
 import { VehicleCard } from "@/components/vehicles/VehicleCard";
 import { VehicleFormDialog } from "@/components/vehicles/VehicleFormDialog";
 import { COMPANY_VEHICLE_TYPES, emptyVehicleForm, type VehicleFormValues } from "@/components/vehicles/vehicleConfig";
+import { OFFLINE_MESSAGE, plainError } from "@/components/drivers/driverConfig";
 import { useReturnFocusOnClose } from "@/hooks/useReturnFocus";
 import { PlanLimitBanner } from "@/components/plan/PlanLimitBanner";
 import { toast } from "@/hooks/use-toast";
@@ -27,15 +28,21 @@ const capacityByType = vehicleCapacityByType;
 type StatusFilter = "all" | VehicleStatus;
 
 // Erro do banco em linguagem simples (placa repetida vinha como "duplicate key value...").
+// Sem internet o store acusava "Sessão inválida. Faça login novamente." (enganoso): plainError trata.
 function friendlyVehicleError(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : "";
-  if (/duplicate key|unique|já existe/i.test(message)) return "Já existe um veículo com esta placa. Confira a placa e tente de novo.";
-  if (/permission|permiss|row-level|policy/i.test(message)) return "Você não tem permissão para esta tarefa. Fale com o administrador.";
-  return message || fallback;
+  if (navigator.onLine && /duplicate key|unique|já existe/i.test(message)) {
+    return "Já existe um veículo com esta placa. Confira a placa e tente de novo.";
+  }
+  return plainError(error, fallback);
 }
 
 // Busca sem acento, sem caixa e sem traco na placa ("abc-1d23" acha ABC1D23).
 const fold = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// Celular estreito (ate 419px): o icone decorativo sai do cartao para o rotulo
+// ("Disponíveis", "Em manutenção") caber sem o icone vazar da borda.
+const narrowStat = "max-[419px]:[&>div:first-child>span]:hidden";
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<CompanyVehicle[]>([]);
@@ -94,7 +101,12 @@ export default function VehiclesPage() {
       setVehicles(data);
     } catch (error) {
       console.error("Error loading vehicles:", error);
-      setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os veículos.");
+      // Mensagem simples na tela; o detalhe tecnico fica no console.
+      setLoadError(
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? OFFLINE_MESSAGE
+          : "Tente de novo em instantes. Se continuar, fale com o suporte.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -321,6 +333,7 @@ export default function VehiclesPage() {
         {/* Indicadores que tambem filtram a lista por situacao */}
         <div className="stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <FilterStatCard
+            className={narrowStat}
             label="Total"
             value={stats.total}
             icon={Truck}
@@ -331,6 +344,7 @@ export default function VehiclesPage() {
             onPressedChange={() => setFilterStatus("all")}
           />
           <FilterStatCard
+            className={narrowStat}
             label="Disponíveis"
             value={stats.available}
             icon={CheckCircle2}
@@ -341,6 +355,7 @@ export default function VehiclesPage() {
             onPressedChange={toggleStatus("available")}
           />
           <FilterStatCard
+            className={narrowStat}
             label="Em uso"
             value={stats.inUse}
             icon={Route}
@@ -351,6 +366,7 @@ export default function VehiclesPage() {
             onPressedChange={toggleStatus("in_use")}
           />
           <FilterStatCard
+            className={narrowStat}
             label="Em manutenção"
             value={stats.maintenance}
             icon={Wrench}
@@ -438,7 +454,7 @@ export default function VehiclesPage() {
               }
             />
           ) : (
-            <ul className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Veículos">
+            <ul className="stagger grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Veículos">
               {filteredVehicles.map((vehicle) => (
                 <VehicleCard
                   key={vehicle.id}

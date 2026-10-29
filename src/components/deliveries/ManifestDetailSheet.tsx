@@ -579,7 +579,7 @@ export function ManifestDetailSheet({
 
   const statTiles = [
     { label: "Notas", value: String(stats.total), tone: "text-foreground" },
-    { label: "Entregues", value: String(stats.delivered), tone: "text-success" },
+    { label: "Entregues", value: String(stats.delivered), tone: stats.delivered > 0 ? "text-success" : "text-foreground" },
     { label: "Ocorrências", value: String(stats.occurrence), tone: stats.occurrence > 0 ? "text-destructive" : "text-foreground" },
     { label: "Valor", value: formatCurrency(stats.totalValue), tone: "text-foreground" },
   ];

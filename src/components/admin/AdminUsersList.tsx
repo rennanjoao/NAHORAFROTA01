@@ -140,7 +140,8 @@ export function AdminUsersList({
               const locked = lockReason(systemUser);
               return (
                 <TableRow key={systemUser.id}>
-                  <TableCell>
+                  {/* Largura maxima: nome ou e-mail longo nao empurra as outras colunas. */}
+                  <TableCell className="max-w-[20rem]">
                     <div className="flex min-w-0 items-center gap-3">
                       <PersonAvatar name={systemUser.name} src={systemUser.avatar_url} />
                       <div className="min-w-0">

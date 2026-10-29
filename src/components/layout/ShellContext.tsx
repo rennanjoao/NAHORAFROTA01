@@ -113,7 +113,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      // Janela aberta bloqueia os atalhos; a que esta fechando (animacao de saida) nao.
+      if (document.querySelector(':is([role="dialog"], [role="alertdialog"]):not([data-state="closed"])')) return;
 
       if (pendingGo.current !== null) {
         window.clearTimeout(pendingGo.current);

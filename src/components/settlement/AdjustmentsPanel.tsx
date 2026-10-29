@@ -174,7 +174,7 @@ export function AdjustmentsPanel({ adjustments, canAdd, onAdd, onEdit, onRemove,
           </Card>
 
           {/* Celular e tablet */}
-          <ul className="stagger grid gap-3 sm:grid-cols-2 lg:hidden">
+          <ul className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
             {adjustments.map((adj) => (
               <li key={adj.id}>
                 <Card className="flex h-full flex-col gap-3 p-4">

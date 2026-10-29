@@ -1,10 +1,10 @@
 /**
  * Cores com significado fixo (manual da marca). Use sempre por estes nomes:
  * - success: no prazo, entregue, ativo, pago
- * - warning: atencao, pendente, vencendo
+ * - warning: atencao, vencendo, a pagar (pendencia que pede acao)
  * - danger: atraso, ocorrencia, erro, bloqueado
  * - info: em rota, em transito, informacao
- * - neutral: inativo, finalizado, sem dado
+ * - neutral: aguardando (nota pendente de romaneio), inativo, finalizado, sem dado
  * - brand: destaque da marca (sem significado de status)
  */
 export type Tone = "neutral" | "brand" | "success" | "warning" | "danger" | "info";

@@ -99,6 +99,8 @@ export function InteractiveKPIs({ data, onKPIClick, loading }: InteractiveKPIsPr
         value={data.totalVolume}
         icon={Package}
         tone="info"
+        // Com 2 colunas, o terceiro cartao ocupa a linha toda (antes ficava sozinho pela metade).
+        className="sm:col-span-2 xl:col-span-1"
         {...(loading ? {} : trendProps(data.volumeTrend, true))}
         loading={loading}
         onClick={() => onKPIClick("volume")}

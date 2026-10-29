@@ -93,11 +93,11 @@ export function WrappedTick({
   maxChars?: number;
 }) {
   const lines = wrapLabel(String(payload?.value ?? ""), maxChars);
-  const offset = lines.length > 1 ? -7 : 0;
+  // Em "em": a quebra acompanha o tamanho do texto escolhido em Aparencia.
   return (
-    <text x={x} y={y} dy={4 + offset} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize={12}>
+    <text x={x} y={y} textAnchor="end" fill="hsl(var(--muted-foreground))" fontSize="0.75rem">
       {lines.map((line, index) => (
-        <tspan key={index} x={x} dx={-4} dy={index === 0 ? 0 : 14}>
+        <tspan key={index} x={x} dx={-4} dy={index === 0 ? (lines.length > 1 ? "-0.25em" : "0.35em") : "1.2em"}>
           {line}
         </tspan>
       ))}

@@ -207,7 +207,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
       }}
       aria-label={`Ver romaneio ${formatManifestNumber(manifest)}`}
       className={cn(
-        "rounded-sm font-data font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline",
+        "inline-flex min-h-6 items-center rounded-sm font-data font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
         className,
       )}

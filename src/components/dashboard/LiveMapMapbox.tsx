@@ -56,8 +56,8 @@ const MAP_STYLE = {
   light: "mapbox://styles/mapbox/light-v11",
 } as const;
 
-function batteryTone(level?: number): Tone {
-  if (level === undefined) return "neutral";
+function batteryTone(level?: number | null): Tone {
+  if (level == null) return "neutral";
   if (level > 50) return "success";
   if (level > 20) return "warning";
   return "danger";
@@ -66,16 +66,17 @@ function batteryTone(level?: number): Tone {
 /** Detalhe do motorista que abre ao tocar no marcador. */
 function DriverPopup({ position, onClose }: { position: FleetPosition; onClose: () => void }) {
   const status = VEHICLE_STATUS[vehicleStatus(position)];
-  const sla = position.individual_sla !== undefined ? Number(position.individual_sla) : undefined;
+  // O banco manda null onde o tipo diz undefined: "!= null" cobre os dois (antes virava "0,0%" ou "null%").
+  const sla = position.individual_sla != null ? Number(position.individual_sla) : undefined;
   const battery = batteryTone(position.battery_level);
   const progress =
-    position.deliveries_completed !== undefined && position.total_deliveries ? (position.deliveries_completed / position.total_deliveries) * 100 : null;
+    position.deliveries_completed != null && position.total_deliveries ? (position.deliveries_completed / position.total_deliveries) * 100 : null;
 
   const stats = [
     { icon: Gauge, label: "Velocidade", value: `${Number(position.speed || 0).toFixed(0)} km/h`, tone: "neutral" as Tone },
     { icon: Gauge, label: "SLA", value: sla !== undefined ? `${sla.toFixed(1).replace(".", ",")}%` : "—", tone: sla !== undefined ? slaStatus(sla).tone : ("neutral" as Tone) },
-    { icon: Battery, label: "Bateria", value: position.battery_level !== undefined ? `${position.battery_level}%` : "—", tone: battery },
-    { icon: MapPin, label: "Precisão", value: position.accuracy !== undefined ? `±${Number(position.accuracy).toFixed(0)} m` : "—", tone: "neutral" as Tone },
+    { icon: Battery, label: "Bateria", value: position.battery_level != null ? `${position.battery_level}%` : "—", tone: battery },
+    { icon: MapPin, label: "Precisão", value: position.accuracy != null ? `±${Number(position.accuracy).toFixed(0)} m` : "—", tone: "neutral" as Tone },
   ];
 
   return (
@@ -115,7 +116,7 @@ function DriverPopup({ position, onClose }: { position: FleetPosition; onClose: 
         ))}
       </dl>
 
-      {position.current_delay !== undefined && position.current_delay > 0 && (
+      {position.current_delay != null && position.current_delay > 0 && (
         <p className="mb-3 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm font-medium text-destructive">
           <Clock className="h-4 w-4" aria-hidden="true" />
           Atraso de {position.current_delay} min

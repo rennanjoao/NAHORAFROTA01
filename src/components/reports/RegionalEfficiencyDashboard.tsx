@@ -22,6 +22,8 @@ import {
 import {
   axisLine,
   axisTick,
+  chartScale,
+  legendStyle,
   BAD,
   fmtNumber,
   fmtPercent,
@@ -259,7 +261,7 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
                   <BarChart data={barChartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barGap={2}>
                     <CartesianGrid {...gridProps} horizontal={false} />
                     <XAxis type="number" allowDecimals={false} tick={axisTick} axisLine={axisLine} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={112} tick={<WrappedTick maxChars={15} />} interval={0} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={Math.round(112 * chartScale())} tick={<WrappedTick maxChars={15} />} interval={0} axisLine={false} tickLine={false} />
                     <Tooltip
                       cursor={tooltipCursor}
                       contentStyle={tooltipStyle}
@@ -267,7 +269,7 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
                       itemStyle={tooltipItemStyle}
                       labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullName ?? _label}
                     />
-                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                    <Legend wrapperStyle={legendStyle} />
                     <Bar dataKey="entregues" name="Entregues" fill={GOOD} radius={[0, 4, 4, 0]} maxBarSize={14} />
                     <Bar dataKey="ocorrencias" name="Ocorrências" fill={BAD} radius={[0, 4, 4, 0]} maxBarSize={14} />
                   </BarChart>

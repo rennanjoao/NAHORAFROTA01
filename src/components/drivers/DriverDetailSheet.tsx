@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
-import { ACCOUNT_TYPES, DRIVER_DOCUMENT_LABELS, PENDING_PLATE, slaTone, type DriverDocumentKey } from "./driverConfig";
+import { ACCOUNT_TYPES, DRIVER_DOCUMENT_LABELS, PENDING_PLATE, plainError, slaTone, type DriverDocumentKey } from "./driverConfig";
 import { DataList, DataRow, DriverAvatar, DriverStatusBadge, IconAction, PlateTag } from "./DriverBits";
 import { driverDbId, useDriverQuickActions, type DriverRecord } from "./useDriverQuickActions";
 import { useReturnFocus, useReturnFocusOnClose } from "@/hooks/useReturnFocus";
@@ -235,7 +235,7 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
       console.error("Error toggling driver status:", err);
       toast({
         title: "Não foi possível alterar a situação",
-        description: err.message || "Tente de novo em instantes.",
+        description: plainError(err),
         variant: "destructive",
       });
     } finally {
@@ -257,7 +257,7 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
         console.error("RPC delete_driver_complete error:", error);
         toast({
           title: "Não foi possível excluir",
-          description: error.message || "Tente de novo em instantes.",
+          description: plainError(error),
           variant: "destructive",
         });
         return;
@@ -267,7 +267,7 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
       if (!result.success) {
         toast({
           title: "Não foi possível excluir",
-          description: result.error || "Tente de novo em instantes.",
+          description: plainError(result.error || ""),
           variant: "destructive",
         });
         return;
@@ -285,7 +285,7 @@ export function DriverDetailSheet({ driver: baseDriver, open, onOpenChange, onEd
       console.error("Error deleting driver:", err);
       toast({
         title: "Não foi possível excluir",
-        description: err.message || "Tente de novo em instantes.",
+        description: plainError(err),
         variant: "destructive",
       });
     } finally {
