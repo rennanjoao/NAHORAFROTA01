@@ -48,7 +48,7 @@ export function BrazilMap({ className }: { className?: string }) {
         const my = (y + HUB[1]) / 2 - Math.hypot(x - HUB[0], y - HUB[1]) * 0.25;
         return (
           <g key={c.name}>
-            <path d={`M${HUB[0]} ${HUB[1]} Q${mx} ${my} ${x} ${y}`} fill="none" stroke="#04E8A4" strokeOpacity="0.7" strokeWidth="1.4" strokeDasharray="3 4" />
+            <path d={`M${HUB[0]} ${HUB[1]} Q${mx} ${my} ${x} ${y}`} fill="none" stroke="#04E8A4" strokeOpacity="0.85" strokeWidth="1.6" className="route-flow" style={{ strokeDasharray: "4 6" }} />
             <circle cx={x} cy={y} r="3.5" fill="#04E8A4" />
           </g>
         );

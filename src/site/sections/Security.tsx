@@ -23,21 +23,31 @@ function Shield() {
       {[110, 86, 62].map((r, i) => (
         <circle key={r} cx="160" cy="130" r={r} fill="none" stroke="hsl(var(--brand))" strokeOpacity={0.15 + i * 0.12} strokeDasharray={i === 0 ? "3 7" : undefined} />
       ))}
-      {[[50, 130], [270, 130], [160, 20], [86, 52], [236, 210]].map(([x, y], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r="5" fill="hsl(var(--brand))" />
-          <circle cx={x} cy={y} r="5" fill="hsl(var(--brand))" className="ping-ring" style={{ animationDelay: `${i * 0.5}s` }} />
-        </g>
-      ))}
-      <path d="M160 72 l44 16 v34 c0 30 -20 52 -44 62 c-24 -10 -44 -32 -44 -62 v-34 z" fill="#080808" stroke="hsl(var(--brand))" strokeWidth="3" />
-      <path d="M142 128 l12 12 l24 -26" fill="none" stroke="#04E8A4" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+      {/* pontos girando em duas orbitas (cada um e um acesso conferido) */}
+      <g className="orbit" style={{ transformOrigin: "160px 130px", transformBox: "view-box" }}>
+        {[[50, 130], [270, 130], [160, 20]].map(([x, y], i) => (
+          <g key={i}>
+            <circle cx={x} cy={y} r="5" fill="hsl(var(--brand))" />
+            <circle cx={x} cy={y} r="5" fill="hsl(var(--brand))" className="ping-ring" style={{ animationDelay: `${i * 0.6}s` }} />
+          </g>
+        ))}
+      </g>
+      <g className="orbit orbit-rev" style={{ transformOrigin: "160px 130px", transformBox: "view-box" }}>
+        {[[100, 72], [220, 188]].map(([x, y], i) => (
+          <circle key={i} cx={x} cy={y} r="4" fill="hsl(var(--brand))" fillOpacity="0.7" />
+        ))}
+      </g>
+      <g className="bob-slow" style={{ transformBox: "fill-box" }}>
+        <path d="M160 72 l44 16 v34 c0 30 -20 52 -44 62 c-24 -10 -44 -32 -44 -62 v-34 z" fill="#080808" stroke="hsl(var(--brand))" strokeWidth="3" />
+        <path d="M142 128 l12 12 l24 -26" fill="none" stroke="#04E8A4" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
     </svg>
   );
 }
 
 export function Security() {
   return (
-    <section id="seguranca" className="scroll-mt-nav border-y border-foreground/10 bg-card py-20 lg:py-28" aria-labelledby="seguranca-title">
+    <section id="seguranca" className="scroll-mt-nav border-y border-foreground/10 bg-card py-24 lg:py-32" aria-labelledby="seguranca-title">
       <div className="container grid items-center gap-12 lg:grid-cols-[1fr_1fr] lg:gap-16">
         <div>
           <SectionHeader eyebrow="Confiança" title="Seus dados, só da sua empresa." accent="só da sua empresa." lead="Operação é informação sensível: cliente, endereço, valor de frete. Tratamos como tal." />

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { SectionHeader } from "../components/SectionHeader";
 import { Reveal } from "../components/Reveal";
 import { MapPanel, ManifestPanel, ProofPanel, SettlementPanel, SlaPanel, ReportsPanel } from "../components/mockups/Panels";
+import { Tilt } from "../motion/Tilt";
 
 const TABS = [
   { id: "mapa", icon: MapPin, label: "Mapa ao vivo", plan: "Em todos os planos", title: "Cada placa, um ponto no mapa.", text: "A posição vem do celular do motorista, a cada 30 segundos. Em rota, parado ou atrasado: a cor diz na hora.", bullets: ["GPS do celular, sem rastreador", "Cor por status: no prazo, atenção, atrasado", "Aviso quando o GPS do motorista fica sem sinal"], Panel: MapPanel, alt: "Mapa ao vivo com veículos em rota, filtros e detalhe do motorista selecionado" },
@@ -33,11 +34,11 @@ export function Product() {
   };
 
   return (
-    <section id="produto" className="scroll-mt-nav border-y border-foreground/10 bg-card py-20 lg:py-28" aria-labelledby="produto-title">
+    <section id="produto" className="scroll-mt-nav border-y border-foreground/10 bg-card py-24 lg:py-32" aria-labelledby="produto-title">
       <div className="container">
         <SectionHeader align="center" eyebrow="O produto" title="O pátio inteiro numa tela." accent="numa tela." lead="Seis módulos que falam a língua da operação. Escolha um para ver como ele aparece no painel." />
 
-        <Reveal className="mt-10">
+        <Reveal className="mt-12 lg:mt-16">
           <div ref={ref} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocusCapture={() => setHover(true)} onBlurCapture={() => setHover(false)}>
             <div role="tablist" aria-label="Módulos do painel" className="mx-auto flex max-w-4xl flex-wrap justify-center gap-2">
               {TABS.map((t, i) => (
@@ -76,7 +77,7 @@ export function Product() {
 
             <div id={`${base}-panel`} role="tabpanel" aria-labelledby={`${base}-tab-${tab.id}`} className="mx-auto mt-10 grid max-w-6xl items-center gap-10 lg:grid-cols-[0.85fr_1.4fr]">
               <AnimatePresence mode="wait" initial={false}>
-                <motion.div key={tab.id} initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25 }}>
+                <motion.div key={tab.id} initial={reduce ? false : { opacity: 0, y: 14, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
                   <p className="label-caps text-brand">{tab.plan}</p>
                   <h3 className="mt-3 font-heading text-2xl font-semibold tracking-tight sm:text-3xl">{tab.title}</h3>
                   <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">{tab.text}</p>
@@ -98,8 +99,10 @@ export function Product() {
               <div role="img" aria-label={tab.alt} className="relative">
                 <div aria-hidden="true" className="absolute -inset-4 -z-10 rounded-[28px] bg-brand/10 blur-2xl" />
                 <AnimatePresence mode="wait" initial={false}>
-                  <motion.div key={tab.id} aria-hidden="true" initial={reduce ? false : { opacity: 0, y: 12, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }} className="shadow-xl">
-                    <tab.Panel />
+                  <motion.div key={tab.id} aria-hidden="true" initial={reduce ? false : { opacity: 0, y: 16, scale: 0.98, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, y: -10, filter: "blur(4px)" }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
+                    <Tilt max={3} glare={false} className="rounded-lg shadow-xl">
+                      <tab.Panel />
+                    </Tilt>
                   </motion.div>
                 </AnimatePresence>
               </div>

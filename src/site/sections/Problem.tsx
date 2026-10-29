@@ -12,10 +12,10 @@ const FEED = [
 export function Problem() {
   const reduce = useReducedMotion();
   return (
-    <section id="problema" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="problema-title">
+    <section id="problema" className="scroll-mt-nav py-24 lg:py-32" aria-labelledby="problema-title">
       <div className="container">
         <SectionHeader eyebrow="O problema" title="Planilha e grupo de WhatsApp não mostram onde a entrega está." accent="onde a entrega está." />
-        <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
+        <div className="mt-12 grid gap-10 lg:mt-16 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
           <Reveal className="space-y-5 text-pretty text-lg leading-relaxed text-muted-foreground">
             <p>Toda operação começa assim. Funciona até o dia em que o cliente liga antes de você saber que a entrega atrasou.</p>
             <p>Cada ponto cego vira ligação, retrabalho e desconto no frete. <strong className="font-semibold text-foreground">O Na Hora Frota coloca romaneio, posição, canhoto e acerto na mesma tela</strong>, para a sua equipe responder antes de o telefone tocar.</p>

@@ -15,11 +15,11 @@ const STEPS = [
 export function Onboarding() {
   const reduce = useReducedMotion();
   return (
-    <section id="comecar" className="scroll-mt-nav border-y border-foreground/10 bg-card py-20 lg:py-24" aria-labelledby="comecar-title">
+    <section id="comecar" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="comecar-title">
       <div className="container">
         <SectionHeader eyebrow="Começar" title="Do pagamento à primeira entrega no mesmo dia." accent="no mesmo dia." lead="Sem reunião de implantação e sem esperar alguém liberar o acesso. Este é o caminho de quem assina hoje." />
 
-        <div className="relative mt-14">
+        <div className="relative mt-12 lg:mt-16">
           <div aria-hidden="true" className="absolute left-0 right-0 top-[7px] hidden h-0.5 bg-foreground/10 lg:block">
             <motion.div className="h-full origin-left bg-brand" initial={reduce ? false : { scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: "-80px 0px" }} transition={{ duration: 1.6, ease: "easeInOut" }} />
           </div>

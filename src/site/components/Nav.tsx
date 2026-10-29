@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import { Cta } from "./Cta";
 import { useAnchor } from "./useAnchor";
+import { NavLinks } from "./NavLinks";
+import { motion, useScroll, useSpring } from "framer-motion";
 
 const LINKS = [
   { id: "produto", label: "Produto" },
@@ -27,6 +29,8 @@ export function Nav() {
   const [open, setOpen] = useState(false);
   const anchor = useAnchor();
   const location = useLocation();
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, { stiffness: 140, damping: 30, mass: 0.3 });
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -49,20 +53,13 @@ export function Nav() {
 
   return (
     <header className={cn("fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow] duration-200", (scrolled || open) && "bg-background/90 shadow-[0_1px_0_0_hsl(var(--foreground)/0.08)] backdrop-blur-md")}>
+      <motion.div aria-hidden="true" style={{ scaleX: progress }} className="absolute inset-x-0 top-0 h-[2px] origin-left bg-brand" />
       <nav aria-label="Principal" className="container flex h-[72px] items-center justify-between gap-4">
         <Link to="/" className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Na Hora Frota — início">
           <Logo variant="linha" className="h-7 w-auto" />
         </Link>
 
-        <ul className="hidden items-center gap-1 rounded-full border border-foreground/10 bg-card/80 p-1 lg:flex">
-          {LINKS.map((l) => (
-            <li key={l.id}>
-              <a href={anchor(l.id)} className="block whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium text-foreground/75 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {l.label}
-              </a>
-            </li>
-          ))}
-        </ul>
+        <NavLinks links={LINKS} anchor={anchor} />
 
         <div className="hidden items-center gap-2 lg:flex">
           <ThemeToggle />
