@@ -682,14 +682,13 @@
 }
 
 /* 6. SITE PUBLICO (src/site) ------------------------------------------------ */
-/* Tokens e utilitarios usados so pela landing, checkout e paginas legais.
-   O verde vivo (--brand) e preenchimento; como TEXTO usa --brand-text, que no
-   claro vira o verde escuro (#0B6B4F) e passa o contraste AA sobre branco. */
+/* Poucas regras: tokens de texto com contraste certo nos dois temas e tres
+   utilitarios. O site e claro por padrao (index.html decide antes da pintura). */
 @layer base {
   :root,
   .light {
     --brand-text: 162 81% 23%;
-    --brand-soft: 162 70% 92%;
+    --brand-soft: 160 60% 94%;
     --late-text: 359 72% 42%;
     --alert-text: 36 100% 29%;
   }
@@ -712,195 +711,31 @@
   .bg-brand-soft { background-color: hsl(var(--brand-soft)); }
   .border-brand { border-color: hsl(var(--brand)); }
 
-  .nhf-chamfer-lg {
-    clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 0 100%);
+  /* Cartao do site: branco, borda fina, sombra suave. */
+  .site-card {
+    @apply rounded-2xl border bg-card shadow-sm;
+    border-color: hsl(var(--foreground) / 0.08);
   }
 
-  /* Fundos: linhas de rota a 45 graus e grade fina. */
-  .bg-routes {
-    background-image:
-      repeating-linear-gradient(135deg, hsl(var(--brand) / 0.09) 0 1px, transparent 1px 160px),
-      repeating-linear-gradient(0deg, hsl(var(--brand) / 0.06) 0 1px, transparent 1px 120px);
+  /* Badge flutuando devagar (so transform; barato). */
+  .float-slow { animation: float-slow 7s ease-in-out infinite; }
+  .float-slower { animation: float-slow 9s ease-in-out infinite reverse; }
+  @keyframes float-slow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
   }
-  .bg-grid-fine {
-    background-image:
-      linear-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
-    background-size: 40px 40px;
+
+  /* Fundo da capa: brilho verde suave no canto. */
+  .hero-glow {
+    background:
+      radial-gradient(60% 50% at 85% 20%, hsl(var(--brand) / 0.16), transparent 70%),
+      radial-gradient(40% 40% at 10% 90%, hsl(var(--brand) / 0.08), transparent 70%);
   }
-  .mask-fade-b { -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent); mask-image: linear-gradient(to bottom, #000 60%, transparent); }
-  .mask-fade-x { -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent); }
 
-  /* Brilho verde atras dos mockups. */
-  .glow-brand { box-shadow: 0 0 0 1px hsl(var(--brand) / 0.35), 0 20px 60px -20px hsl(var(--brand) / 0.45); }
-  .glow-brand-sm { box-shadow: 0 0 24px -6px hsl(var(--brand) / 0.5); }
-
-  /* 3D (mockups em perspectiva). */
-  .perspective-1000 { perspective: 1000px; }
-  .perspective-1600 { perspective: 1600px; }
-  .preserve-3d { transform-style: preserve-3d; }
-  .backface-hidden { backface-visibility: hidden; }
-
-  /* Faixa de eventos (ticker). */
-  .marquee-track { animation: marquee var(--marquee-duration, 40s) linear infinite; }
-  .marquee:hover .marquee-track { animation-play-state: paused; }
-  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-
-  /* Linha de rota desenhada (SVG). */
-  .draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 2.4s cubic-bezier(.65,0,.35,1) forwards; }
-  @keyframes draw { to { stroke-dashoffset: 0; } }
-
-  /* Ancoras do site param abaixo da barra fixa (72px). */
-  .scroll-mt-nav { scroll-margin-top: 88px; }
+  /* Ancoras param abaixo da barra fixa. */
+  .scroll-mt-nav { scroll-margin-top: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track,
-  .draw-line {
-    animation: none;
-  }
-  .draw-line { stroke-dashoffset: 0; }
-}
-
-/* 7. SITE 2026: superficies, foco de luz, bordas de luz, grao ------------------ */
-@layer utilities {
-  /* Tipografia de capa: bem grande, apertada, linhas justas. */
-  .display {
-    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.035em;
-    line-height: 0.94;
-  }
-  .display-md {
-    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1;
-  }
-  /* Numero vazado (contorno) para indices e marcas d'agua. */
-  .text-outline {
-    color: transparent;
-    -webkit-text-stroke: 1px hsl(var(--foreground) / 0.25);
-  }
-
-  /* Linha fina do sistema (1px, baixa opacidade). */
-  .hairline { border-color: hsl(var(--foreground) / 0.1); }
-  .hairline-b { border-bottom: 1px solid hsl(var(--foreground) / 0.1); }
-
-  /* Vidro para barras e chips flutuantes. */
-  .glass {
-    background: hsl(var(--background) / 0.6);
-    -webkit-backdrop-filter: saturate(1.4) blur(16px);
-    backdrop-filter: saturate(1.4) blur(16px);
-  }
-
-  /* Foco de luz que segue o ponteiro (ver Spotlight.tsx). */
-  .spot {
-    position: relative;
-    --spot-x: 50%;
-    --spot-y: 50%;
-    --spot-r: 320px;
-  }
-  .spot::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: radial-gradient(var(--spot-r) circle at var(--spot-x) var(--spot-y), hsl(var(--brand) / 0.12), transparent 60%);
-    opacity: 0;
-    transition: opacity 0.35s var(--ease-out);
-  }
-  .spot:hover::before { opacity: 1; }
-  /* Borda que acende perto do ponteiro: um "anel" por mascara. */
-  .spot-border::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    padding: 1px;
-    background: radial-gradient(calc(var(--spot-r) * 0.9) circle at var(--spot-x) var(--spot-y), hsl(var(--brand) / 0.7), transparent 60%);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.35s var(--ease-out);
-  }
-  .spot-border:hover::after { opacity: 1; }
-
-  /* Borda de luz girando (plano em destaque). */
-  .beam {
-    position: relative;
-    isolation: isolate;
-  }
-  .beam::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: conic-gradient(from var(--beam-angle, 0deg), transparent 0 60%, hsl(var(--brand)) 78%, hsl(var(--brand) / 0.2) 90%, transparent 100%);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    animation: beam-spin 6s linear infinite;
-    z-index: 1;
-    pointer-events: none;
-  }
-  @property --beam-angle {
-    syntax: '<angle>';
-    inherits: false;
-    initial-value: 0deg;
-  }
-  @keyframes beam-spin { to { --beam-angle: 360deg; } }
-
-  /* Grao de filme. */
-  .grain {
-    opacity: 0.05;
-    mix-blend-mode: soft-light;
-  }
-  .light .grain { opacity: 0.035; mix-blend-mode: multiply; }
-
-  /* Indicador de rolagem (linha que desce). */
-  .scroll-cue::after {
-    content: "";
-    display: block;
-    width: 1px;
-    height: 100%;
-    background: linear-gradient(to bottom, hsl(var(--brand)), transparent);
-    animation: scroll-cue 2s var(--ease-in-out) infinite;
-    transform-origin: top;
-  }
-  @keyframes scroll-cue {
-    0% { transform: scaleY(0); opacity: 0; }
-    30% { opacity: 1; }
-    100% { transform: scaleY(1); opacity: 0; }
-  }
-
-  /* Luz de fundo (orbs) com blur, sem custo de layout. */
-  .orb {
-    position: absolute;
-    border-radius: 9999px;
-    filter: blur(80px);
-    pointer-events: none;
-  }
-
-  /* Texto preenchido por imagem (CTA final). */
-  .text-fill-image {
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    background-size: cover;
-    background-position: center;
-  }
-
-  /* Secoes abaixo da dobra so renderizam quando se aproximam. */
-  .cv-auto { content-visibility: auto; contain-intrinsic-size: auto 800px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .beam::before, .scroll-cue::after { animation: none; }
+  .float-slow, .float-slower { animation: none; }
 }

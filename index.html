@@ -46,7 +46,9 @@
         var root = document.documentElement;
         try {
           var p = JSON.parse(localStorage.getItem("nhf-prefs") || "{}");
-          var theme = p.theme || "dark";
+          // Sem escolha salva: o site publico abre claro; o painel abre escuro (manual da marca).
+          var site = /^\/($|comprar|checkout|termos|privacidade|site|planos)/.test(location.pathname);
+          var theme = p.theme || (site ? "light" : "dark");
           if (theme === "system") theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
           root.classList.add(theme);
           if (p.textSize && p.textSize !== "normal") root.dataset.textSize = p.textSize;

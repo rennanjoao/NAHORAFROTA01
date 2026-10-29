@@ -3,51 +3,40 @@ import type { ReactNode } from "react";
 
 const EASE = [0.2, 0.8, 0.2, 1] as const;
 
-type RevealProps = {
-  children: ReactNode;
-  className?: string;
-  delay?: number;
-  y?: number;
-  once?: boolean;
-};
-
-/** Entra em cena ao rolar. Sem movimento quando o sistema pede menos animação. */
-export function Reveal({ children, className, delay = 0, y = 24, once = true }: RevealProps) {
+/** Entra uma vez, rapido (sobe 12px e aparece). Sem movimento com reduced-motion. */
+export function Reveal({ children, className, delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
   const reduce = useReducedMotion();
   return (
     <motion.div
       className={className}
-      initial={reduce ? false : { opacity: 0, y }}
+      initial={reduce ? false : { opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once, margin: "-60px 0px" }}
-      transition={{ duration: 0.7, delay, ease: EASE }}
+      viewport={{ once: true, margin: "-40px 0px" }}
+      transition={{ duration: 0.45, delay, ease: EASE }}
     >
       {children}
     </motion.div>
   );
 }
 
-export function Stagger({ children, className, delay = 0, gap = 0.08 }: { children: ReactNode; className?: string; delay?: number; gap?: number }) {
+export function Stagger({ children, className, gap = 0.06 }: { children: ReactNode; className?: string; gap?: number }) {
   const reduce = useReducedMotion();
   return (
     <motion.div
       className={className}
       initial={reduce ? false : "hidden"}
       whileInView="show"
-      viewport={{ once: true, margin: "-60px 0px" }}
-      variants={{ hidden: {}, show: { transition: { staggerChildren: gap, delayChildren: delay } } }}
+      viewport={{ once: true, margin: "-40px 0px" }}
+      variants={{ hidden: {}, show: { transition: { staggerChildren: gap } } }}
     >
       {children}
     </motion.div>
   );
 }
 
-export function StaggerItem({ children, className, y = 20 }: { children: ReactNode; className?: string; y?: number }) {
+export function StaggerItem({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <motion.div
-      className={className}
-      variants={{ hidden: { opacity: 0, y }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } } }}
-    >
+    <motion.div className={className} variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } } }}>
       {children}
     </motion.div>
   );
