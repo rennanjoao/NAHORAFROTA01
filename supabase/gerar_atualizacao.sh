@@ -18,6 +18,7 @@ MIGRATIONS=(
   20261028130000_fix_driver_access_rpcs_and_realtime.sql
   20261029120000_checkout_orders.sql
   20261029160000_plans_basic_standard_premium.sql
+  20261029170000_fixed_freight_pays_kept_invoices.sql
 )
 OUT=ATUALIZAR_BANCO.sql
 

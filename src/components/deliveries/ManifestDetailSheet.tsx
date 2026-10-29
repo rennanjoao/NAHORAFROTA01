@@ -491,6 +491,7 @@ export function ManifestDetailSheet({
         already_completed?: boolean;
         delivered_count?: number;
         returned_count?: number;
+        freight_value?: number;
       } | null;
 
       if (!result?.success) {
@@ -514,12 +515,18 @@ export function ManifestDetailSheet({
           { delivered_count: delivered, occurrence_count: returned },
           `finalizou o romaneio - ${plural(delivered, "entrega", "entregas")}, ${plural(returned, "ocorrência", "ocorrências")}`
         );
+        // Frete por entrega: o banco paga so as NFs que ficaram (avisa o novo valor).
+        const freightChanged =
+          returned > 0 &&
+          typeof result.freight_value === "number" &&
+          Math.abs(result.freight_value - (Number(manifest.freight_value) || 0)) > 0.004;
         toast({
           title: "Romaneio finalizado",
           description:
-            returned > 0
+            (returned > 0
               ? `${plural(delivered, "entrega concluída", "entregas concluídas")}; ${returned === 1 ? "1 nota voltou" : `${returned} notas voltaram`} para a fila de romaneio.`
-              : `${plural(delivered, "entrega concluída", "entregas concluídas")}.`,
+              : `${plural(delivered, "entrega concluída", "entregas concluídas")}.`) +
+            (freightChanged ? ` Frete por entrega ajustado para ${formatCurrency(result.freight_value ?? 0)}.` : ""),
           variant: "success",
         });
       }
