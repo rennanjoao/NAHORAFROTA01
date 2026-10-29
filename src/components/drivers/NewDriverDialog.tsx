@@ -26,6 +26,7 @@ import {
   DRIVER_DOCUMENT_KEYS,
   DRIVER_DOCUMENT_LABELS,
   DRIVER_VEHICLE_TYPES,
+  focusField,
   formatPhone,
   isCpfTaken,
   isValidPhone,
@@ -211,7 +212,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     if (!first) return;
     setActiveTab(first.tab);
     // Espera a aba aparecer para levar o foco ao primeiro campo com erro.
-    window.setTimeout(() => document.getElementById(first.id)?.focus(), 60);
+    window.setTimeout(() => focusField(first.id), 60);
   };
 
   const resetForm = () => {

@@ -8,7 +8,8 @@ import { DrilldownType } from "./KPIDrilldownSheet";
 
 /** Tendencias: null quando o periodo anterior nao tem dados para comparar. */
 interface KPIData {
-  sla: number;
+  /** null: nenhuma entrega finalizada no periodo. */
+  sla: number | null;
   slaTrend: number | null;
   onTime: number;
   onTimeTrend: number | null;
@@ -16,7 +17,8 @@ interface KPIData {
   delayedTrend: number | null;
   returns: number;
   returnsTrend: number | null;
-  avgCost: number;
+  /** null: nenhuma entrega no periodo. */
+  avgCost: number | null;
   avgCostTrend: number | null;
   totalVolume: number;
   volumeTrend: number | null;
@@ -66,29 +68,29 @@ const trendProps = (value: number | null, upIsGood: boolean) =>
 
 /** Indicadores do periodo. Clique abre a lista de notas que formam o numero. */
 export function InteractiveKPIs({ data, onKPIClick, loading }: InteractiveKPIsProps) {
-  const scheme = getSLAColorScheme(data.sla);
+  const scheme = data.sla === null ? null : getSLAColorScheme(data.sla);
 
   return (
     <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <StatCard
         label="SLA geral"
-        value={data.sla}
+        value={data.sla ?? "—"}
         format={(v) => `${formatSLA(v)}%`}
         icon={Target}
-        tone={slaTone[scheme.level] ?? "brand"}
-        hint={loading ? undefined : <PointsTrend value={data.slaTrend} />}
+        tone={scheme ? slaTone[scheme.level] ?? "brand" : "neutral"}
+        hint={loading ? undefined : scheme ? <PointsTrend value={data.slaTrend} /> : "Sem entregas finalizadas no período"}
         loading={loading}
         onClick={() => onKPIClick("sla")}
       >
-        <span className="sr-only">Situação: {scheme.labelPt}. Abrir detalhes.</span>
+        <span className="sr-only">{scheme ? `Situação: ${scheme.labelPt}. ` : ""}Abrir detalhes.</span>
       </StatCard>
       <StatCard
         label="Custo médio por entrega"
-        value={data.avgCost}
+        value={data.avgCost ?? "—"}
         format={formatCurrency}
         icon={Wallet}
         tone="brand"
-        {...(loading ? {} : trendProps(data.avgCostTrend, false))}
+        {...(loading ? {} : data.avgCost === null ? { hint: "Sem entregas no período" } : trendProps(data.avgCostTrend, false))}
         loading={loading}
         onClick={() => onKPIClick("cost")}
       >

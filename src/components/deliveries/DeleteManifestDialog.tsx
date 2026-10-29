@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,8 @@ interface DeleteManifestDialogProps {
   completedCount?: number;
   /** Bloqueio que nem o supervisor libera (ex.: romaneio pago). */
   hardBlocked?: boolean;
+  /** Onde o foco fica depois de excluir (a linha e o botao que abriu somem). */
+  focusFallback?: () => HTMLElement | null;
 }
 
 export function DeleteManifestDialog({
@@ -42,7 +44,9 @@ export function DeleteManifestDialog({
   blockReason,
   completedCount,
   hardBlocked = false,
+  focusFallback,
 }: DeleteManifestDialogProps) {
+  const openerRef = useRef<HTMLElement | null>(null);
   const [supervisorPassword, setSupervisorPassword] = useState("");
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [passwordError, setPasswordError] = useState("");
@@ -136,7 +140,21 @@ export function DeleteManifestDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleClose}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent
+        className="max-w-md"
+        onOpenAutoFocus={() => {
+          const active = document.activeElement;
+          openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          if (openerRef.current?.isConnected) return;
+          const target = focusFallback?.();
+          if (target) {
+            event.preventDefault();
+            target.focus({ preventScroll: true });
+          }
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             {!canDelete && <Lock className="h-5 w-5 text-warning" aria-hidden="true" />}

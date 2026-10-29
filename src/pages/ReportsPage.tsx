@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useCallback, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, FileDown, MapPin, RefreshCw, Truck, Wallet } from "lucide-react";
@@ -212,11 +212,32 @@ export default function ReportsPage() {
       .slice(0, 5);
   }, [filteredInvoices]);
 
-  // Custo medio = fretes de agregados (nao frota propria) no periodo / entregas realizadas no periodo
-  const avgCostOf = (list: typeof filteredManifests, delivered: number) => {
-    const totalFreight = list
+  // Com filtro de cliente ou regiao, cada romaneio entra so com a parte do frete das notas
+  // filtradas (antes o frete de todos os romaneios era dividido so pelas entregas do cliente).
+  const entityScoped = filters.client !== 'all' || filters.route !== 'all';
+  const invoicesPerManifest = useMemo(() => {
+    const counts = new Map<string, number>();
+    invoices.forEach(inv => { if (inv.manifest_id) counts.set(inv.manifest_id, (counts.get(inv.manifest_id) || 0) + 1); });
+    return counts;
+  }, [invoices]);
+  /** Frete de agregados de cada romaneio que conta para as notas da lista. */
+  const freightShares = useCallback((list: typeof filteredManifests, scopedInvoices: typeof filteredInvoices) => {
+    const inView = new Map<string, number>();
+    scopedInvoices.forEach(inv => { if (inv.manifest_id) inView.set(inv.manifest_id, (inView.get(inv.manifest_id) || 0) + 1); });
+    return list
       .filter(m => !m.is_own_fleet && m.status !== 'cancelled')
-      .reduce((sum, m) => sum + (m.freight_value || 0), 0);
+      .map(m => ({
+        manifest: m,
+        freight: entityScoped
+          ? (m.freight_value || 0) * ((inView.get(m.id) || 0) / (invoicesPerManifest.get(m.id) || 1))
+          : m.freight_value || 0,
+      }))
+      .filter(share => !entityScoped || share.freight > 0);
+  }, [entityScoped, invoicesPerManifest]);
+
+  // Custo medio = fretes de agregados (nao frota propria) no periodo / entregas realizadas no periodo
+  const avgCostOf = (list: typeof filteredManifests, scopedInvoices: typeof filteredInvoices, delivered: number) => {
+    const totalFreight = freightShares(list, scopedInvoices).reduce((sum, share) => sum + share.freight, 0);
     return delivered > 0 ? totalFreight / delivered : 0;
   };
 
@@ -224,26 +245,28 @@ export default function ReportsPage() {
   // Sem dados no periodo anterior a tendencia fica null ("Sem dados do periodo anterior"),
   // em vez de "Igual ao periodo anterior".
   const kpiData = useMemo(() => {
-    const avgCost = avgCostOf(filteredManifests, deliveryData.entregue);
-    const previousAvgCost = avgCostOf(previousManifests, previousDeliveryData.entregue);
+    const avgCost = avgCostOf(filteredManifests, filteredInvoices, deliveryData.entregue);
+    const previousAvgCost = avgCostOf(previousManifests, previousInvoices, previousDeliveryData.entregue);
     const hasPrevious = previousDeliveryData.total > 0;
     const relative = (current: number, previous: number) => (previous > 0 ? percentChange(current, previous) : null);
 
+    // Sem entrega finalizada nao ha SLA (antes mostrava 100%); sem entrega, nao ha custo medio.
+    const hasFinalized = filteredInvoices.some((inv) => isFinalized(inv.status));
     return {
-      sla: periodSLA,
-      slaTrend: previousInvoices.some((inv) => isFinalized(inv.status)) ? periodSLA - previousPeriodSLA : null,
+      sla: hasFinalized ? periodSLA : null,
+      slaTrend: hasFinalized && previousInvoices.some((inv) => isFinalized(inv.status)) ? periodSLA - previousPeriodSLA : null,
       onTime: deliveryData.entregue,
       onTimeTrend: relative(deliveryData.entregue, previousDeliveryData.entregue),
       delayed: deliveryData.atrasado,
       delayedTrend: relative(deliveryData.atrasado, previousDeliveryData.atrasado),
       returns: deliveryData.devolvido,
       returnsTrend: relative(deliveryData.devolvido, previousDeliveryData.devolvido),
-      avgCost,
-      avgCostTrend: relative(avgCost, previousAvgCost),
+      avgCost: deliveryData.entregue > 0 ? avgCost : null,
+      avgCostTrend: deliveryData.entregue > 0 ? relative(avgCost, previousAvgCost) : null,
       totalVolume: deliveryData.total,
       volumeTrend: hasPrevious ? percentChange(deliveryData.total, previousDeliveryData.total) : null,
     };
-  }, [periodSLA, previousPeriodSLA, previousInvoices, deliveryData, previousDeliveryData, filteredManifests, previousManifests]);
+  }, [periodSLA, previousPeriodSLA, filteredInvoices, previousInvoices, deliveryData, previousDeliveryData, filteredManifests, previousManifests]);
 
   // Impacto financeiro e insights: calculados, ainda nao exibidos (valores de exemplo).
   const financialImpactData = useMemo(() => ({
@@ -317,22 +340,23 @@ export default function ReportsPage() {
 
   // Custo medio por entrega: a conta e os romaneios de agregados que entram nela
   const costBreakdown = useMemo(() => {
-    const thirdParty = filteredManifests.filter((m) => !m.is_own_fleet && m.status !== "cancelled");
+    const shares = freightShares(filteredManifests, filteredInvoices);
     return {
-      manifests: thirdParty
-        .map((m) => ({
+      manifests: shares
+        .map(({ manifest: m, freight }) => ({
           id: m.id,
           code: formatManifestNumber(m),
           driver: m.driver_name,
           date: m.scheduled_date,
-          freight: m.freight_value || 0,
+          freight,
         }))
         .sort((a, b) => b.date.localeCompare(a.date)),
-      totalFreight: thirdParty.reduce((sum, m) => sum + (m.freight_value || 0), 0),
+      totalFreight: shares.reduce((sum, share) => sum + share.freight, 0),
       delivered: deliveryData.entregue,
-      avgCost: kpiData.avgCost,
+      avgCost: kpiData.avgCost ?? 0,
+      scoped: entityScoped,
     };
-  }, [filteredManifests, deliveryData.entregue, kpiData.avgCost]);
+  }, [filteredManifests, filteredInvoices, deliveryData.entregue, kpiData.avgCost, entityScoped, freightShares]);
 
   // Filtros da tela em texto (PDF e janela de exportar)
   const filtersLabel = useMemo(() => {
@@ -372,19 +396,19 @@ export default function ReportsPage() {
       const sections: ReportPdfSection[] = [];
       const activeManifests = filteredManifests.filter(m => m.status !== 'cancelled');
       const thirdParty = activeManifests.filter(m => !m.is_own_fleet);
-      const totalFreight = thirdParty.reduce((sum, m) => sum + (m.freight_value || 0), 0);
+      const totalFreight = freightShares(filteredManifests, filteredInvoices).reduce((sum, share) => sum + share.freight, 0);
       const totalCargo = filteredInvoices.reduce((sum, inv) => sum + (inv.total_value || 0), 0);
 
       if (options.tabs.desempenho) {
         sections.push({
           title: 'Desempenho',
           summary: [
-            ['SLA do período', pdfPercent(kpiData.sla)],
+            ['SLA do período', kpiData.sla === null ? 'Sem entregas finalizadas' : pdfPercent(kpiData.sla)],
             ['Notas no período', String(deliveryData.total)],
             ['Entregues', String(deliveryData.entregue)],
             ['Atrasadas', String(deliveryData.atrasado)],
             ['Devolvidas', String(deliveryData.devolvido)],
-            ['Custo médio por entrega', pdfCurrency(kpiData.avgCost)],
+            ['Custo médio por entrega', (kpiData.avgCost === null ? 'Sem entregas' : pdfCurrency(kpiData.avgCost))],
           ],
         });
       }
@@ -419,7 +443,7 @@ export default function ReportsPage() {
             ['Frete de agregados', pdfCurrency(totalFreight)],
             ['Valor das mercadorias', pdfCurrency(totalCargo)],
             ['Frete / valor das mercadorias', pdfPercent(totalCargo > 0 ? (totalFreight / totalCargo) * 100 : 0)],
-            ['Custo médio por entrega', pdfCurrency(kpiData.avgCost)],
+            ['Custo médio por entrega', (kpiData.avgCost === null ? 'Sem entregas' : pdfCurrency(kpiData.avgCost))],
           ],
         });
       }
@@ -478,6 +502,15 @@ export default function ReportsPage() {
   // aria-disabled no botao: o foco fica nele enquanto atualiza.
   const handleRefresh = async () => {
     if (isLoading) return;
+    // Sem internet a busca falha e esvaziava os graficos; os numeros atuais ficam.
+    if (!navigator.onLine) {
+      toast({
+        title: "Sem conexão com a internet",
+        description: "Os números continuam os da última atualização. Tente de novo quando a internet voltar.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsLoading(true);
     await Promise.all([refetchInvoices(), fetchManifests()]);
     setIsLoading(false);

@@ -95,6 +95,22 @@ export function plainError(error: unknown, fallback = "Tente de novo em instante
   return message;
 }
 
+/**
+ * Leva o foco ao campo com erro rolando so a area do formulario. O focus() comum
+ * rolava tambem a janela (durante a animacao de abrir, no celular, o titulo e o X sumiam).
+ */
+export function focusField(id: string) {
+  const field = document.getElementById(id);
+  if (!field) return;
+  field.focus({ preventScroll: true });
+  const scroller = field.closest("form");
+  if (!scroller) return;
+  const fieldBox = field.getBoundingClientRect();
+  const box = scroller.getBoundingClientRect();
+  // 64px: espaco das abas fixas no topo do formulario.
+  if (fieldBox.top < box.top + 64 || fieldBox.bottom > box.bottom) scroller.scrollTop += fieldBox.top - box.top - 64;
+}
+
 export const PHONE_ERROR = "Telefone inválido. Informe DDD e número, como (11) 99999-0000.";
 export const PLATE_ERROR = "Placa inválida. Use ABC1234 ou ABC1D23.";
 

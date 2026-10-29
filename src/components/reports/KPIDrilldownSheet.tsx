@@ -41,7 +41,7 @@ interface KPIDrilldownSheetProps {
   /** NFs ja filtradas pelos filtros da tela de Relatorios. */
   invoices: DBInvoice[];
   /** Custo medio: romaneios de agregados do periodo e a conta do indicador. */
-  cost?: { manifests: CostManifestRow[]; totalFreight: number; delivered: number; avgCost: number };
+  cost?: { manifests: CostManifestRow[]; totalFreight: number; delivered: number; avgCost: number; scoped?: boolean };
 }
 
 const configs: Record<DrilldownType, { title: string; description: string }> = {
@@ -108,6 +108,11 @@ function CostBreakdown({ cost }: { cost: NonNullable<KPIDrilldownSheetProps["cos
           <dd className="font-data text-lg font-semibold text-foreground">{formatCurrency(cost.avgCost)}</dd>
         </div>
       </dl>
+      {cost.scoped && (
+        <p className="text-xs text-muted-foreground">
+          Com filtro de cliente ou região, cada romaneio entra só com a parte do frete das notas filtradas.
+        </p>
+      )}
       {cost.manifests.length === 0 ? (
         <EmptyState
           compact

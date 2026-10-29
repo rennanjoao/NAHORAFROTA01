@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { formatDateOnly, getTodayBrazil, parseDateOnly } from "@/lib/timezone";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isPrintOpen, setIsPrintOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const resultRef = useRef<HTMLParagraphElement>(null);
 
   // "7 dias" = hoje e os 6 dias antes (igual a lista de notas; antes contava 8 dias).
   const { todayStr, weekStartStr } = useMemo(() => {
@@ -269,7 +270,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <p className="text-sm text-muted-foreground" aria-live="polite">
+          <p ref={resultRef} tabIndex={-1} className="text-sm text-muted-foreground outline-none" aria-live="polite">
             <span className="font-semibold text-foreground">{resultLabel}</span>
             {search.trim() && " · buscando em todos os períodos"}
           </p>
@@ -429,6 +430,7 @@ export function ManifestsTabDB({ externalSearch, onCreateManifest }: ManifestsTa
             : null
         }
         displayNumber={selectedManifest ? formatManifestNumber(selectedManifest) : undefined}
+        focusFallback={() => resultRef.current}
         onConfirm={() => (selectedManifest ? handleDelete(selectedManifest.id) : undefined)}
         canDelete={
           selectedManifest?.status !== "completed" &&

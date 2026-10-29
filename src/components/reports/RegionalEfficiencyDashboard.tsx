@@ -234,11 +234,12 @@ export function RegionalEfficiencyDashboard({ invoices, isLoading }: RegionalEff
         <StatCard label="Ocorrências" value={totalOccurrences} icon={AlertTriangle} tone="danger" hint="Entregas com problema" />
         <StatCard
           label="Taxa de sucesso"
-          value={overallSuccessRate}
+          // Sem nota finalizada nao ha taxa (nao e 0%).
+          value={(totalDelivered + totalOccurrences) > 0 ? overallSuccessRate : "—"}
           format={(v) => fmtPercent(v)}
           icon={Percent}
           tone={(totalDelivered + totalOccurrences) > 0 ? rateTone(overallSuccessRate) : "neutral"}
-          hint="Entregues entre as finalizadas"
+          hint={(totalDelivered + totalOccurrences) > 0 ? "Entregues entre as finalizadas" : "Nenhuma nota finalizada"}
         />
       </div>
 

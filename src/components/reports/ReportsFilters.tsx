@@ -169,11 +169,14 @@ export function ReportsFilters({ filters, options, onFiltersChange, onClearFilte
                 >
                   <SelectTrigger
                     aria-label={filter.label}
+                    // Nome longo aparece cortado: o nome inteiro fica no title.
+                    title={filter.items.find((item) => item.id === filters[filter.key])?.name}
                     className={cn("w-full lg:w-[11.5rem]", filters[filter.key] !== "all" && "border-primary/50 bg-primary/5")}
                   >
                     <SelectValue placeholder={filter.label} />
                   </SelectTrigger>
-                  <SelectContent>
+                  {/* Largura limitada a tela: nomes longos quebram em vez de sair pela lateral. */}
+                  <SelectContent className="max-w-[min(26rem,calc(100vw-2rem))]">
                     {filter.items.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
                         {item.name}

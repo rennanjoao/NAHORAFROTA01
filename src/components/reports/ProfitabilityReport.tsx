@@ -206,6 +206,11 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
   const TrendIcon = trendValue > 0.5 ? ArrowUpRight : trendValue < -0.5 ? ArrowDownRight : Minus;
   const trendClass =
     trendValue > 0.5 ? "bg-destructive/10 text-destructive" : trendValue < -0.5 ? "bg-success/10 text-success" : "bg-muted text-muted-foreground";
+  // Eixo de 0 ate pelo menos 25%, em passos redondos: a meta (20%) aparece sempre.
+  const maxShare = Math.max(0, ...evolutionData.map((p) => p.percentage ?? 0));
+  const yMax = Math.max(25, Math.ceil(maxShare / 5) * 5);
+  const yStep = yMax <= 50 ? 5 : 10;
+  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, i) => i * yStep);
   const last = evolutionData[evolutionData.length - 1];
   const monthsWithData = evolutionData.filter((p) => p.percentage !== null);
   const evolutionSummary = `Gráfico de linha do custo com agregados sobre o valor das cargas nos últimos 12 meses. ${
@@ -229,7 +234,9 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
           <div className="flex items-center gap-4">
             <EfficiencyGauge percentage={percentage} />
             <div className="space-y-1.5">
-              <p className="font-data text-[2rem] font-semibold leading-none tracking-tight text-foreground">{fmtPercent(percentage)}</p>
+              <p className="font-data text-[2rem] font-semibold leading-none tracking-tight text-foreground">
+                {totalCargo > 0 ? fmtPercent(percentage) : "—"}
+              </p>
               {totalCargo > 0 ? (
                 <StatusBadge tone={shareTone(percentage)}>
                   {percentage <= 20 ? "Dentro da meta" : percentage <= 40 ? "Atenção" : "Acima do ideal"}
@@ -288,7 +295,8 @@ export function ProfitabilityReport({ allowed, upgradePlanLabel, dateRange }: Pr
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `${v}%`}
-                domain={[0, (dataMax: number) => Math.max(25, Math.ceil(dataMax / 5) * 5)]}
+                domain={[0, yMax]}
+                ticks={yTicks}
                 width={Math.round(48 * chartScale())}
               />
               <Tooltip

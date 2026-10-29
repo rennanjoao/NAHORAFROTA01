@@ -23,6 +23,7 @@ import {
   DRIVER_DOCUMENT_LABELS,
   DRIVER_STATUS,
   DRIVER_VEHICLE_TYPES,
+  focusField,
   formatPhone,
   isCpfTaken,
   isValidPhone,
@@ -306,7 +307,7 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
     if (!first) return;
     setActiveTab(first.tab);
     // Espera a aba aparecer para levar o foco ao primeiro campo com erro.
-    window.setTimeout(() => document.getElementById(first.id)?.focus(), 60);
+    window.setTimeout(() => focusField(first.id), 60);
   };
 
   const handleSave = async () => {

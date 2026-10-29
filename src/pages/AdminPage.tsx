@@ -204,7 +204,15 @@ export default function AdminPage() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => !isLoading && refetch()}
+                        onClick={() => {
+                          if (isLoading) return;
+                          // Sem internet a busca falha e esvaziava a lista: avisa e mantem o que esta na tela.
+                          if (!navigator.onLine) {
+                            toast({ title: "Sem conexão com a internet", description: "Tente de novo quando a internet voltar.", variant: "destructive" });
+                            return;
+                          }
+                          refetch();
+                        }}
                         aria-disabled={isLoading || undefined}
                         aria-label="Atualizar lista de usuários"
                         className="max-sm:hidden aria-disabled:pointer-events-none aria-disabled:opacity-60"
@@ -232,7 +240,12 @@ export default function AdminPage() {
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription className="flex flex-col gap-3 text-foreground sm:flex-row sm:items-center sm:justify-between">
-                    <span>Não foi possível carregar os usuários: {error}</span>
+                    {/* Sem internet o hook devolve "acesso restrito": a tela diz o motivo real. */}
+                    <span>
+                      {typeof navigator !== "undefined" && !navigator.onLine
+                        ? "Sem conexão com a internet. Confira a conexão e tente de novo."
+                        : `Não foi possível carregar os usuários: ${error}`}
+                    </span>
                     <Button variant="outline" size="sm" onClick={refetch} className="shrink-0">
                       Tentar de novo
                     </Button>
@@ -287,7 +300,11 @@ export default function AdminPage() {
               {driversError && (
                 <Alert variant="destructive">
                   <AlertDescription className="flex flex-col gap-3 text-foreground sm:flex-row sm:items-center sm:justify-between">
-                    <span>Não foi possível carregar os motoristas: {driversError}</span>
+                    <span>
+                      {typeof navigator !== "undefined" && !navigator.onLine
+                        ? "Sem conexão com a internet. Confira a conexão e tente de novo."
+                        : `Não foi possível carregar os motoristas: ${driversError}`}
+                    </span>
                     <Button variant="outline" size="sm" onClick={fetchDrivers} className="shrink-0">
                       Tentar de novo
                     </Button>

@@ -179,7 +179,15 @@ export default function MasterAdminPage() {
         actions={
           <Button
             variant="outline"
-            onClick={() => !isLoading && fetchTenants()}
+            onClick={() => {
+              if (isLoading) return;
+              // Sem internet a busca falha: avisa e mantem a lista que esta na tela.
+              if (!navigator.onLine) {
+                toast({ title: "Sem conexão com a internet", description: "Tente de novo quando a internet voltar.", variant: "destructive" });
+                return;
+              }
+              fetchTenants();
+            }}
             aria-disabled={isLoading || undefined}
             className="aria-disabled:pointer-events-none aria-disabled:opacity-60"
           >

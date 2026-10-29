@@ -65,9 +65,11 @@ const normalizeVehicleTypeForDisplay = (value?: string | null): VehicleType => {
   return vehicleTypeToDisplayMap[normalized] || "Van";
 };
 
-// Celular estreito (ate 419px): o icone decorativo sai do cartao para o rotulo
-// ("Disponíveis", "Em manutenção") caber sem o icone vazar da borda.
-const narrowStat = "max-[419px]:[&>div:first-child>span]:hidden";
+// Celular estreito: o icone decorativo sai do cartao para o rotulo ("Disponíveis",
+// "Em manutenção") caber sem o icone vazar da borda. Ate 359px sempre; ate 419px
+// so com texto ampliado (Configuracoes > Aparencia).
+const narrowStat =
+  "max-[359px]:[&>div:first-child>span]:hidden [html[data-text-size]_&]:max-[419px]:[&>div:first-child>span]:hidden";
 
 export default function DriversPage() {
   const { driverStats: slaDriverStats } = useSLADB();

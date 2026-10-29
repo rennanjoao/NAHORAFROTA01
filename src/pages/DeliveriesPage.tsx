@@ -40,7 +40,7 @@ import { AddToManifestDialog } from "@/components/deliveries/AddToManifestDialog
 import { ManifestsTabDB } from "@/components/deliveries/ManifestsTabDB";
 import { DeliveryDetailSheet } from "@/components/deliveries/DeliveryDetailSheet";
 import { XMLImportDialog } from "@/components/deliveries/XMLImportDialog";
-import { DeleteInvoiceDialog } from "@/components/deliveries/DeleteInvoiceDialog";
+import { DangerConfirm, DeleteInvoiceDialog } from "@/components/deliveries/DeleteInvoiceDialog";
 import { ConfirmDeliveryDialog } from "@/components/deliveries/ConfirmDeliveryDialog";
 import { DeliveryKPICards, DeliveryKPICardsSkeleton, KPIStatusFilter } from "@/components/deliveries/DeliveryKPICards";
 import { DeliveriesToolbar, ActiveFilterChips, describePeriod, type FilterChip } from "@/components/deliveries/DeliveriesToolbar";
@@ -81,6 +81,8 @@ export default function DeliveriesPage() {
   const [isFreightDialogOpen, setIsFreightDialogOpen] = useState(false);
   const generateButtonRef = useRef<HTMLButtonElement>(null);
   const importButtonRef = useRef<HTMLButtonElement>(null);
+  // Resumo "N notas": recebe o foco quando o botao que abriu a janela some (ex.: nota excluida).
+  const resultRef = useRef<HTMLParagraphElement>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("daily");
   const [periodFilter, setPeriodFilter] = useState<{ from?: Date; to?: Date }>({});
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -482,9 +484,13 @@ export default function DeliveriesPage() {
 
   const handleGenerateRomaneio = () => {
     if (selectedCount === 0) {
+      // Marcou so notas ja entregues/em ocorrencia: explica em vez de dizer "nenhuma selecionada".
+      const onlyFinished = selectedDeletableDbIds.length > 0;
       toast({
-        title: "Nenhuma nota selecionada",
-        description: "Marque as notas na lista e depois toque em Gerar romaneio.",
+        title: onlyFinished ? "Essas notas não entram em romaneio" : "Nenhuma nota selecionada",
+        description: onlyFinished
+          ? "Só notas pendentes ou devolvidas entram em um romaneio novo."
+          : "Marque as notas na lista e depois toque em Gerar romaneio.",
         variant: "destructive",
       });
       return;
@@ -532,7 +538,11 @@ export default function DeliveriesPage() {
 
       toast({
         title: "Notas excluídas",
-        description: `${selectedDeletableDbIds.length} nota(s) fiscal(is) excluída(s).`,
+        description:
+          selectedDeletableDbIds.length === 1
+            ? "1 nota fiscal excluída."
+            : `${selectedDeletableDbIds.length} notas fiscais excluídas.`,
+        variant: "success",
       });
 
       setIsBulkDeleteDialogOpen(false);
@@ -1183,7 +1193,7 @@ export default function DeliveriesPage() {
 
               <div className="space-y-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                  <p ref={resultRef} tabIndex={-1} className="text-sm text-muted-foreground outline-none" aria-live="polite">
                     <span className="font-semibold text-foreground">{resultLabel}</span>
                     {searching && !hasPeriodRange && " · buscando em todos os períodos"}
                   </p>
@@ -1396,6 +1406,7 @@ export default function DeliveriesPage() {
         isLinkedToManifest={!!deliveryForDelete?.manifestId}
         onConfirm={handleConfirmDeleteInvoice}
         isDeleting={isDeleting}
+        focusFallback={() => resultRef.current}
       />
 
       {/* Confirm Delivery Dialog */}
@@ -1408,10 +1419,10 @@ export default function DeliveriesPage() {
       />
 
       {/* Excluir notas selecionadas */}
-      <ConfirmDialog
+      <DangerConfirm
         open={isBulkDeleteDialogOpen}
         onOpenChange={setIsBulkDeleteDialogOpen}
-        tone="danger"
+        focusFallback={() => resultRef.current}
         title={
           selectedDeletableDbIds.length === 1
             ? "Excluir 1 nota fiscal?"
