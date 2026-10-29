@@ -23,20 +23,31 @@ type Props = {
  */
 export function Cta({ children, to, href, onClick, variant = "primary", size = "md", className, arrow, type = "button", disabled, ariaLabel }: Props) {
   const base = "group relative inline-flex shrink-0 select-none items-center justify-center font-heading font-semibold tracking-tight transition-transform duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60";
+  const pad = size === "lg" ? "px-7" : "px-5";
   const inner = cn(
     "nhf-chamfer inline-flex w-full items-center justify-center gap-2 transition-colors duration-200",
-    size === "lg" ? "h-14 px-7 text-base" : "h-12 px-5 text-[15px]",
+    size === "lg" ? "h-14 text-base" : "h-12 text-[15px]",
+    variant !== "outline" && pad,
     variant === "primary" && "bg-brand text-brand-foreground group-hover:bg-nhf-green-dark",
     variant === "dark" && "bg-nhf-ink text-white group-hover:bg-nhf-graphite dark:bg-white dark:text-nhf-ink dark:group-hover:bg-nhf-mist",
-    variant === "outline" && "border border-foreground/20 bg-transparent text-foreground group-hover:border-brand group-hover:text-brand",
+    variant === "outline" && "bg-foreground/20 p-px text-foreground group-hover:bg-brand",
     variant === "ghost" && "bg-transparent text-foreground group-hover:bg-accent",
   );
-  const content = (
-    <span className={inner}>
+  const label = (
+    <>
       {children}
       {arrow && <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />}
-    </span>
+    </>
   );
+  // Contorno chanfrado: o "aro" e a camada de fora (1px) e o miolo repete o chanfro por dentro.
+  const content =
+    variant === "outline" ? (
+      <span className={inner}>
+        <span className={cn("nhf-chamfer-in inline-flex h-full w-full items-center justify-center gap-2 bg-background", pad)}>{label}</span>
+      </span>
+    ) : (
+      <span className={inner}>{label}</span>
+    );
   const cls = cn(base, className);
 
   if (to) {

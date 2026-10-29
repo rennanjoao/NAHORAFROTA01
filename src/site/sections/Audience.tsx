@@ -1,12 +1,12 @@
-import { Truck, Warehouse, Handshake, PackageCheck } from "lucide-react";
+import { ArrowRight, Truck, Warehouse, Handshake, PackageCheck } from "lucide-react";
 import { SectionHeader } from "../components/SectionHeader";
 import { Stagger, StaggerItem } from "../components/Reveal";
 
 const WHO = [
-  { icon: Truck, title: "Transportadoras regionais", text: "Vários romaneios por dia, frota mista e cliente cobrando prazo. O mapa e o SLA respondem antes do telefone tocar." },
-  { icon: Warehouse, title: "Distribuidoras com frota própria", text: "Entregas recorrentes para os mesmos pontos. Rota otimizada, canhoto digital e relatório por região." },
-  { icon: Handshake, title: "Operações com agregados", text: "Frete por romaneio, adiantamento e desconto. O acerto fecha sozinho e o histórico fica guardado." },
-  { icon: PackageCheck, title: "Last mile e e-commerce", text: "Muitas notas pequenas e prazo curto. Importação em lote do XML e prova de entrega com hora." },
+  { icon: Truck, title: "Transportadoras regionais", text: "Vários romaneios por dia, frota mista e cliente cobrando prazo. O mapa e o SLA respondem antes do telefone tocar.", plan: "Controle" },
+  { icon: Warehouse, title: "Distribuidoras com frota própria", text: "Entregas recorrentes para os mesmos pontos. Rota otimizada, canhoto digital e relatório por região.", plan: "Básico ou Controle" },
+  { icon: Handshake, title: "Operações com agregados", text: "Frete por romaneio, adiantamento e desconto. O acerto fecha sozinho e o histórico fica guardado.", plan: "Controle Total" },
+  { icon: PackageCheck, title: "Last mile e e-commerce", text: "Muitas notas pequenas e prazo curto. Importação em lote do XML e prova de entrega com hora.", plan: "Controle" },
 ];
 
 export function Audience() {
@@ -15,14 +15,17 @@ export function Audience() {
       <div className="container">
         <SectionHeader eyebrow="Para quem é" title="Feito para quem tem placa na rua e prazo para cumprir." accent="prazo para cumprir." />
         <Stagger className="mt-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-4" gap={0.06}>
-          {WHO.map((w) => (
+          {WHO.map((w, i) => (
             <StaggerItem key={w.title}>
-              <article className="site-card h-full p-6">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand">
+              <article className="site-card flex h-full flex-col p-6">
+                <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${i % 2 === 0 ? "bg-brand text-nhf-ink" : "bg-nhf-ink text-nhf-green dark:bg-white dark:text-nhf-ink"}`}>
                   <w.icon aria-hidden="true" className="h-5 w-5" />
                 </span>
                 <h3 className="mt-5 font-heading text-lg font-semibold leading-tight tracking-tight">{w.title}</h3>
                 <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">{w.text}</p>
+                <a href="#planos" className="mt-auto inline-flex items-center gap-1.5 pt-5 text-sm font-semibold underline decoration-brand decoration-2 underline-offset-[6px] hover:text-brand">
+                  Costuma usar: {w.plan} <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+                </a>
               </article>
             </StaggerItem>
           ))}

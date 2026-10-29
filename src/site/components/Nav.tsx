@@ -10,7 +10,7 @@ import { useAnchor } from "./useAnchor";
 
 const LINKS = [
   { id: "produto", label: "Produto" },
-  { id: "como-funciona", label: "Como funciona" },
+  { id: "na-pratica", label: "Na prática" },
   { id: "motorista", label: "Motorista" },
   { id: "planos", label: "Planos" },
   { id: "duvidas", label: "Dúvidas" },

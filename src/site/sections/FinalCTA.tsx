@@ -1,26 +1,32 @@
 import { Link } from "react-router-dom";
 import { Cta } from "../components/Cta";
 import { Reveal } from "../components/Reveal";
+import { BrazilMap } from "../components/BrazilMap";
 
 export function FinalCTA() {
   return (
-    <section className="pb-20 lg:pb-28" aria-labelledby="cta-title">
+    <section className="pb-20 pt-4 lg:pb-28" aria-labelledby="cta-title">
       <div className="container">
         <Reveal>
-          <div className="relative overflow-hidden rounded-3xl bg-nhf-ink px-6 py-14 text-center text-white sm:px-12 lg:py-20">
-            <div aria-hidden="true" className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand/25 blur-3xl" />
-            <div aria-hidden="true" className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-brand/15 blur-3xl" />
-            <h2 id="cta-title" className="relative text-balance font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">
-              Monte a sua operação hoje. <span className="text-nhf-green">Acesso em minutos.</span>
-            </h2>
-            <p className="relative mx-auto mt-4 max-w-xl text-pretty text-white/70 sm:text-lg">Sem fidelidade, sem implantação. Pague, receba o acesso por e-mail e entre no mesmo minuto.</p>
-            <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Cta href="#planos" size="lg" arrow>
-                Ver planos
-              </Cta>
-              <Link to="/register" className="inline-flex h-14 items-center justify-center rounded-full border border-white/20 px-6 font-heading font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nhf-green">
-                Testar grátis por 7 dias
-              </Link>
+          <div className="relative grid items-center gap-8 overflow-hidden rounded-3xl border border-nhf-green/30 bg-nhf-ink px-6 py-12 text-white shadow-[0_30px_80px_-40px_hsl(var(--brand)/0.7)] sm:px-12 lg:grid-cols-[1.2fr_1fr] lg:py-16">
+            <div aria-hidden="true" className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-brand/20 blur-3xl" />
+            <div className="relative">
+              <h2 id="cta-title" className="text-balance font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-[2.75rem]">
+                Pare de descobrir o atraso pelo cliente. <span className="text-nhf-green">Veja a rota inteira hoje.</span>
+              </h2>
+              <p className="mt-4 max-w-lg text-pretty text-white/70 sm:text-lg">Sem fidelidade, sem implantação. Pague, receba o acesso por e-mail e despache o primeiro romaneio no mesmo dia.</p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Cta href="#planos" size="lg" arrow>
+                  Ver planos
+                </Cta>
+                <Link to="/register" className="inline-flex h-14 items-center justify-center rounded-full border border-white/20 px-6 font-heading font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nhf-green">
+                  Testar grátis por 7 dias
+                </Link>
+              </div>
+              <p className="mt-5 text-xs text-white/60">Cancele quando quiser. O acesso continua até o fim do período pago.</p>
+            </div>
+            <div className="relative mx-auto w-full max-w-[380px]">
+              <BrazilMap className="h-auto w-full" />
             </div>
           </div>
         </Reveal>
