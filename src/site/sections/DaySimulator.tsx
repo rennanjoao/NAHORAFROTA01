@@ -101,7 +101,7 @@ export function DaySimulator() {
   };
 
   return (
-    <section id="na-pratica" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="na-pratica-title">
+    <section id="na-pratica" className="scroll-mt-nav py-24 lg:py-32" aria-labelledby="na-pratica-title">
       <div className="container">
         <SectionHeader
           eyebrow="Na prática"
@@ -110,7 +110,7 @@ export function DaySimulator() {
           lead="Do romaneio saindo do pátio ao acerto do agregado. À esquerda, como é sem painel. À direita, o que a sua equipe vê com o Na Hora Frota."
         />
 
-        <Reveal className="mt-12">
+        <Reveal className="mt-12 lg:mt-16">
           <div ref={ref} className="site-card p-5 sm:p-7 lg:p-8">
             {/* relogio + controle */}
             <div className="flex flex-wrap items-center justify-between gap-4">

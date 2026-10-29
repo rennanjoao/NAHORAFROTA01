@@ -13,7 +13,7 @@ const STEPS = [
 export function HowItWorks() {
   const reduce = useReducedMotion();
   return (
-    <section id="como-funciona" className="scroll-mt-nav border-y border-foreground/10 bg-card py-20 lg:py-28" aria-labelledby="como-funciona-title">
+    <section id="como-funciona" className="scroll-mt-nav border-y border-foreground/10 bg-card py-24 lg:py-32" aria-labelledby="como-funciona-title">
       <div className="container">
         <SectionHeader eyebrow="Como funciona" title="Três passos. O primeiro leva dois minutos." accent="dois minutos." lead="Não tem implantação nem treinamento. A equipe entra no painel e o motorista abre o app no celular." />
 

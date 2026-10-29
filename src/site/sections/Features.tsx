@@ -1,6 +1,7 @@
 import { MapPin, FileCode2, FileText, Route, Smartphone, Camera, AlertTriangle, Gauge, Wallet, FileDown, ShieldAlert, Users } from "lucide-react";
 import { SectionHeader } from "../components/SectionHeader";
 import { Stagger, StaggerItem } from "../components/Reveal";
+import { Tilt } from "../motion/Tilt";
 
 const ITEMS = [
   { icon: MapPin, title: "Mapa ao vivo", text: "Posição de cada motorista pelo GPS do celular." },
@@ -19,13 +20,13 @@ const ITEMS = [
 
 export function Features() {
   return (
-    <section id="recursos" className="scroll-mt-nav border-y border-foreground/10 bg-card py-20 lg:py-24" aria-labelledby="recursos-title">
+    <section id="recursos" className="scroll-mt-nav border-y border-foreground/10 bg-card py-20 lg:py-28" aria-labelledby="recursos-title">
       <div className="container">
         <SectionHeader align="center" eyebrow="Recursos" title="Tudo o que vem no painel." accent="no painel." lead="Do primeiro romaneio ao fechamento do mês. Alguns recursos dependem do plano: veja a tabela completa em Planos." />
-        <Stagger className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" gap={0.03}>
+        <Stagger className="mt-12 lg:mt-16 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" gap={0.03}>
           {ITEMS.map((i) => (
             <StaggerItem key={i.title}>
-              <div className="group flex h-full gap-3 rounded-2xl border border-foreground/10 bg-background p-4 transition-colors hover:border-brand/50">
+              <Tilt max={4} className="group flex h-full gap-3 rounded-2xl border border-foreground/10 bg-background p-4 hover:border-brand/50">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand transition-colors group-hover:bg-brand group-hover:text-nhf-ink">
                   <i.icon aria-hidden="true" className="h-5 w-5" />
                 </span>
@@ -33,7 +34,7 @@ export function Features() {
                   <h3 className="font-heading text-[0.95rem] font-semibold">{i.title}</h3>
                   <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{i.text}</p>
                 </div>
-              </div>
+              </Tilt>
             </StaggerItem>
           ))}
         </Stagger>

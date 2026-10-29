@@ -824,3 +824,116 @@
   .marquee-track, .ping-ring { animation: none; }
   .tab-progress { animation: none; transform: scaleX(1); }
 }
+
+/* 8. SITE: movimento 3D (cena da capa, inclinacao, moedas, brilho) ----------- */
+@layer utilities {
+  /* Camada de parallax: --depth em px por unidade de ponteiro. */
+  .plx {
+    transform: translate3d(calc(var(--px, 0) * var(--depth, 12px)), calc(var(--py, 0) * var(--depth, 12px) * 0.7), 0);
+    will-change: transform;
+  }
+
+  /* Cartao com inclinacao 3D (Tilt.tsx). */
+  .tilt {
+    transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0);
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.3s ease;
+    transform-style: preserve-3d;
+    position: relative;
+  }
+  .tilt[data-active="true"] {
+    transition: transform 0.12s linear, box-shadow 0.4s ease, border-color 0.3s ease;
+    box-shadow: 0 24px 48px -24px rgb(0 0 0 / 0.25);
+  }
+  .tilt-glare::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 0%), rgb(255 255 255 / 0.18), transparent 45%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .dark .tilt-glare::after { background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 0%), hsl(var(--brand) / 0.12), transparent 45%); }
+  .tilt-glare[data-active="true"]::after { opacity: 1; }
+
+  /* Moeda 3D (selo redondo com espessura). */
+  .coin {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 32% 28%, #8dffd9 0%, #04e8a4 42%, #02b47f 100%);
+    color: #080808;
+    box-shadow:
+      inset 0 -4px 0 rgb(0 0 0 / 0.18),
+      inset 0 2px 0 rgb(255 255 255 / 0.55),
+      0 6px 0 #02936a,
+      0 18px 30px -8px hsl(var(--brand) / 0.65);
+  }
+  .coin::before {
+    content: "";
+    position: absolute;
+    inset: 12%;
+    border-radius: inherit;
+    border: 1.5px solid rgb(255 255 255 / 0.55);
+  }
+  .coin-dark {
+    background: radial-gradient(circle at 32% 28%, #3a3f44 0%, #141617 55%, #080808 100%);
+    color: #04e8a4;
+    box-shadow:
+      inset 0 -4px 0 rgb(0 0 0 / 0.4),
+      inset 0 2px 0 rgb(255 255 255 / 0.15),
+      0 6px 0 #000,
+      0 18px 30px -10px rgb(0 0 0 / 0.55);
+  }
+  .coin-dark::before { border-color: hsl(var(--brand) / 0.45); }
+
+  /* Flutuar (com leve giro de moeda). */
+  .bob { animation: bob 6s ease-in-out infinite; }
+  .bob-slow { animation: bob 8s ease-in-out infinite; }
+  .bob-delay { animation-delay: -3s; }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  .wobble { animation: wobble 7s ease-in-out infinite; transform-style: preserve-3d; }
+  @keyframes wobble {
+    0%, 100% { transform: rotateY(-22deg) rotateX(8deg); }
+    50% { transform: rotateY(22deg) rotateX(-4deg); }
+  }
+
+  /* Rotas correndo (tracejado em movimento). */
+  .route-flow { stroke-dasharray: 6 8; animation: route-flow 1.6s linear infinite; }
+  @keyframes route-flow { to { stroke-dashoffset: -28; } }
+
+  /* Brilho que atravessa o botao principal no hover. */
+  .shine { position: relative; overflow: hidden; }
+  .shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.55) 50%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .group:hover .shine::after { transform: translateX(120%); }
+
+  /* Orbita (pontos girando em volta do escudo). */
+  .orbit { animation: orbit 24s linear infinite; transform-origin: center; transform-box: fill-box; }
+  .orbit-rev { animation-direction: reverse; animation-duration: 36s; }
+  @keyframes orbit { to { transform: rotate(360deg); } }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bob, .bob-slow, .wobble, .route-flow, .orbit { animation: none; }
+  .tilt, .tilt[data-active="true"] { transform: none; }
+  .plx { transform: none; }
+}
+:root[data-motion="reduce"] .bob,
+:root[data-motion="reduce"] .bob-slow,
+:root[data-motion="reduce"] .wobble,
+:root[data-motion="reduce"] .route-flow,
+:root[data-motion="reduce"] .orbit { animation: none; }

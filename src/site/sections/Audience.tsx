@@ -1,6 +1,7 @@
 import { ArrowRight, Truck, Warehouse, Handshake, PackageCheck } from "lucide-react";
 import { SectionHeader } from "../components/SectionHeader";
 import { Stagger, StaggerItem } from "../components/Reveal";
+import { Tilt } from "../motion/Tilt";
 
 const WHO = [
   { icon: Truck, title: "Transportadoras regionais", text: "Vários romaneios por dia, frota mista e cliente cobrando prazo. O mapa e o SLA respondem antes do telefone tocar.", plan: "Controle" },
@@ -11,13 +12,13 @@ const WHO = [
 
 export function Audience() {
   return (
-    <section id="para-quem" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="para-quem-title">
+    <section id="para-quem" className="scroll-mt-nav py-24 lg:py-32" aria-labelledby="para-quem-title">
       <div className="container">
         <SectionHeader eyebrow="Para quem é" title="Feito para quem tem placa na rua e prazo para cumprir." accent="prazo para cumprir." />
-        <Stagger className="mt-12 grid gap-5 sm:grid-cols-2 xl:grid-cols-4" gap={0.06}>
+        <Stagger className="mt-12 lg:mt-16 grid gap-5 sm:grid-cols-2 xl:grid-cols-4" gap={0.06}>
           {WHO.map((w, i) => (
             <StaggerItem key={w.title}>
-              <article className="site-card flex h-full flex-col p-6">
+              <Tilt as="article" max={6} className="site-card flex h-full flex-col p-6">
                 <span className={`flex h-12 w-12 items-center justify-center rounded-xl ${i % 2 === 0 ? "bg-brand text-nhf-ink" : "bg-nhf-ink text-nhf-green dark:bg-white dark:text-nhf-ink"}`}>
                   <w.icon aria-hidden="true" className="h-5 w-5" />
                 </span>
@@ -26,7 +27,7 @@ export function Audience() {
                 <a href="#planos" className="mt-auto inline-flex items-center gap-1.5 pt-5 text-sm font-semibold underline decoration-brand decoration-2 underline-offset-[6px] hover:text-brand">
                   Costuma usar: {w.plan} <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
                 </a>
-              </article>
+              </Tilt>
             </StaggerItem>
           ))}
         </Stagger>

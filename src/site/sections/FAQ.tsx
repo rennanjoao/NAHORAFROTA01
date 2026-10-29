@@ -16,10 +16,10 @@ const QA = [
 
 export function FAQ() {
   return (
-    <section id="duvidas" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="duvidas-title">
+    <section id="duvidas" className="scroll-mt-nav py-24 lg:py-32" aria-labelledby="duvidas-title">
       <div className="container">
         <SectionHeader align="center" eyebrow="Dúvidas" title="O que perguntam antes de assinar." accent="antes de assinar." lead="Se a sua não está aqui, escreva para suporte@nahorafrota.com.br. Respondemos no mesmo dia útil." />
-        <Reveal className="mx-auto mt-10 max-w-3xl">
+        <Reveal className="mx-auto mt-12 max-w-3xl lg:mt-16">
           <AccordionPrimitive.Root type="single" collapsible defaultValue="q0" className="space-y-3">
             {QA.map(([q, a], i) => (
               <AccordionPrimitive.Item key={q} value={`q${i}`} className="group rounded-2xl border border-foreground/10 bg-card shadow-sm transition-colors data-[state=open]:border-brand/50">

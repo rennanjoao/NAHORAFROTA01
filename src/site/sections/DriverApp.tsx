@@ -1,4 +1,6 @@
-import { Smartphone, Satellite, Camera, UserCheck, Mail, SquarePlus, LogIn } from "lucide-react";
+import { useRef } from "react";
+import { Smartphone, Satellite, Camera, UserCheck, Mail, SquarePlus, LogIn, Navigation, CheckCircle2 } from "lucide-react";
+import { useParallax } from "../motion/useParallax";
 import { SectionHeader } from "../components/SectionHeader";
 import { Reveal, Stagger, StaggerItem } from "../components/Reveal";
 import { PhoneMockup } from "../components/mockups/PhoneMockup";
@@ -17,16 +19,51 @@ const INSTALL = [
 ];
 
 export function DriverApp() {
+  const section = useRef<HTMLElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  useParallax(stage, section);
   return (
-    <section id="motorista" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="motorista-title">
+    <section ref={section} id="motorista" className="scroll-mt-nav overflow-x-clip border-y border-foreground/10 bg-card py-24 lg:py-32" aria-labelledby="motorista-title">
       <div className="container grid items-center gap-14 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
         <Reveal className="order-2 flex justify-center lg:order-1">
-          <div className="relative">
+          <div ref={stage} className="relative px-10 py-6" style={{ perspective: "1400px" }}>
             <div aria-hidden="true" className="absolute inset-0 -z-10 scale-110 rounded-full bg-brand/20 blur-3xl" />
-            <div aria-hidden="true" className="absolute -left-10 top-16 hidden rounded-2xl border border-foreground/10 bg-card px-3.5 py-2.5 text-sm font-semibold shadow-lg sm:block">
-              <span className="mr-2 inline-block h-2 w-2 rounded-full bg-brand" />GPS ativo
+            {/* celular inclinado, acompanha o mouse */}
+            <div className="plx" style={{ ["--depth" as string]: "10px" }}>
+              <div className="bob-slow" style={{ transformStyle: "preserve-3d" }}>
+                <div style={{ transform: "rotateY(calc(14deg + var(--px, 0) * 10deg)) rotateX(calc(4deg - var(--py, 0) * 6deg))", transformStyle: "preserve-3d", transition: "transform 0.1s linear" }}>
+                  <PhoneMockup className="w-[270px] shadow-[0_50px_90px_-30px_rgba(0,0,0,0.55)] sm:w-[290px]" />
+                </div>
+              </div>
             </div>
-            <PhoneMockup className="w-[270px] drop-shadow-2xl sm:w-[290px]" />
+            {/* cartoes flutuando em profundidades diferentes */}
+            <div aria-hidden="true" className="plx absolute -left-12 top-2 hidden sm:block" style={{ ["--depth" as string]: "30px" }}>
+              <div className="bob flex items-center gap-2.5 rounded-2xl border border-foreground/10 bg-card px-3.5 py-2.5 shadow-[0_16px_36px_-14px_rgba(0,0,0,0.35)]">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="ping-ring absolute inset-0 rounded-full bg-brand" />
+                  <span className="relative h-2.5 w-2.5 rounded-full bg-brand" />
+                </span>
+                <span className="text-sm font-semibold">GPS ativo</span>
+              </div>
+            </div>
+            <div aria-hidden="true" className="plx absolute -right-24 top-[42%] hidden sm:block" style={{ ["--depth" as string]: "40px" }}>
+              <div className="bob-slow bob-delay flex items-center gap-2.5 rounded-2xl border border-foreground/10 bg-card px-3.5 py-2.5 shadow-[0_16px_36px_-14px_rgba(0,0,0,0.35)]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nhf-ink text-nhf-green"><Navigation className="h-4 w-4" /></span>
+                <span>
+                  <span className="block text-sm font-semibold">Próxima: 1,2 km</span>
+                  <span className="block text-xs text-muted-foreground">Mercado Bom Preço</span>
+                </span>
+              </div>
+            </div>
+            <div aria-hidden="true" className="plx absolute -left-20 bottom-[22%] hidden sm:block" style={{ ["--depth" as string]: "24px" }}>
+              <div className="bob flex items-center gap-2.5 rounded-2xl border border-foreground/10 bg-card px-3.5 py-2.5 shadow-[0_16px_36px_-14px_rgba(0,0,0,0.35)]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-nhf-ink"><CheckCircle2 className="h-4 w-4" strokeWidth={2.5} /></span>
+                <span>
+                  <span className="block text-sm font-semibold">Foto e assinatura</span>
+                  <span className="block text-xs text-muted-foreground">enviadas ao painel</span>
+                </span>
+              </div>
+            </div>
           </div>
         </Reveal>
         <div className="order-1 lg:order-2">

@@ -10,6 +10,7 @@ import { Cta } from "../components/Cta";
 import { PlanFinder } from "../components/PlanFinder";
 import { FINDER_DEFAULT, recommend, type FinderState } from "../components/planFinderLogic";
 import { PlanTable } from "../components/PlanTable";
+import { Tilt } from "../motion/Tilt";
 
 const SUPPORT_EMAIL = "suporte@nahorafrota.com.br";
 
@@ -21,11 +22,11 @@ export function Pricing() {
   const indicated = recommend(finder).plan;
 
   return (
-    <section id="planos" className="scroll-mt-nav py-20 lg:py-28" aria-labelledby="planos-title">
+    <section id="planos" className="scroll-mt-nav py-24 lg:py-32" aria-labelledby="planos-title">
       <div className="container">
         <SectionHeader align="center" eyebrow="Planos" title="Um preço por mês. Acesso liberado na hora." accent="na hora." lead="Sem fidelidade, sem taxa de implantação. Pague com cartão, receba o acesso por e-mail e entre no mesmo minuto." />
 
-        <Reveal className="mt-12">
+        <Reveal className="mt-12 lg:mt-16">
           <PlanFinder state={finder} onChange={(s) => { setFinder(s); setTouched(true); }} />
         </Reveal>
 
@@ -34,12 +35,14 @@ export function Pricing() {
             const isIndicated = touched && p.id === indicated;
             return (
               <StaggerItem key={p.id} className="h-full">
-                <article
+                <Tilt
+                  as="article"
+                  max={4}
+                  aria-labelledby={`plano-${p.id}`}
                   className={cn(
-                    "relative flex h-full flex-col rounded-2xl border bg-card p-7 transition-[border-color,box-shadow] duration-300 lg:p-8",
+                    "flex h-full flex-col rounded-2xl border bg-card p-7 lg:p-8",
                     isIndicated || (!touched && p.highlight) ? "border-brand shadow-[0_16px_48px_-20px_hsl(var(--brand)/0.6)]" : "border-foreground/10 shadow-sm",
                   )}
-                  aria-labelledby={`plano-${p.id}`}
                 >
                   {(isIndicated || (!touched && p.badge)) && (
                     <span className="absolute -top-3 left-7 inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1 text-xs font-bold text-nhf-ink">
@@ -66,7 +69,7 @@ export function Pricing() {
                       </li>
                     ))}
                   </ul>
-                </article>
+                </Tilt>
               </StaggerItem>
             );
           })}

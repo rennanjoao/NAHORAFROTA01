@@ -1,5 +1,6 @@
 import { Counter } from "../motion/Counter";
 import { Stagger, StaggerItem } from "../components/Reveal";
+import { Tilt } from "../motion/Tilt";
 
 const STATS = [
   { value: 30, suffix: " s", label: "entre uma posição e a próxima no mapa", line: "M0 24 C 20 22, 30 14, 50 16 S 80 6, 100 4" },
@@ -14,14 +15,15 @@ export function Stats() {
       <div className="container">
         <Stagger className="grid gap-4 md:grid-cols-[1.3fr_1fr_1fr_1fr]" gap={0.07}>
           <StaggerItem>
-            <div className="flex h-full flex-col justify-between rounded-2xl bg-brand p-7 text-nhf-ink shadow-[0_20px_50px_-24px_hsl(var(--brand)/0.9)]">
+            <Tilt max={5} className="flex h-full flex-col justify-between overflow-hidden rounded-2xl bg-brand p-7 text-nhf-ink shadow-[0_20px_50px_-24px_hsl(var(--brand)/0.9)]">
               <p className="label-caps text-nhf-ink/70">Sempre na hora</p>
               <p className="mt-6 text-balance font-heading text-2xl font-semibold leading-tight tracking-tight">Cada entrega com hora, foto e posição. Na mesma tela.</p>
-            </div>
+              <svg aria-hidden="true" viewBox="0 0 365 212" className="pointer-events-none absolute -bottom-6 -right-6 h-28 w-auto fill-nhf-ink/[0.07]"><path d="M0,161 L129.22,27.78 A11,11 0 0 1 144.78,27.78 L216.96,99.96 L181.6,135.31 L137,90.71 L70.71,161 Z" /><path d="M117.64,212 L297.64,32 L203,32 L235,0 L365,0 L365,98 L333,130 L333,67.36 L188.36,212 Z" /></svg>
+            </Tilt>
           </StaggerItem>
           {STATS.map((s) => (
             <StaggerItem key={s.label}>
-              <div className="site-card flex h-full flex-col p-6">
+              <Tilt max={6} className="site-card flex h-full flex-col p-6">
                 <p className="font-data text-4xl font-bold tracking-tight text-foreground">
                   <Counter to={s.value} prefix={s.prefix} suffix={s.suffix} />
                 </p>
@@ -36,7 +38,7 @@ export function Stats() {
                   <path d={`${s.line} V28 H0 Z`} fill={`url(#fade-${s.value})`} />
                   <path d={s.line} fill="none" stroke="hsl(var(--brand))" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round" />
                 </svg>
-              </div>
+              </Tilt>
             </StaggerItem>
           ))}
         </Stagger>
