@@ -362,8 +362,10 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
         title: "Notas importadas",
         description:
           skippedNow > 0
-            ? `${importedNow} nota(s) importada(s); ${skippedNow} já existia(m) e ficou(aram) de fora.`
-            : `${importedNow} nota(s) fiscal(is) importada(s).`,
+            ? `${importedNow} importada(s); ${skippedNow} já existia(m) no sistema.`
+            : importedNow === 1
+              ? "1 nota fiscal importada."
+              : `${importedNow} notas fiscais importadas.`,
         variant: "success",
       });
 
@@ -478,9 +480,15 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
 
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={nonDuplicateCount > 0 ? "success" : "neutral"}>{notesLabel(nonDuplicateCount)} para importar</StatusBadge>
-              {duplicateCount > 0 && <StatusBadge tone="neutral">{notesLabel(duplicateCount)} já importada(s)</StatusBadge>}
+              {duplicateCount > 0 && (
+                <StatusBadge tone="neutral">
+                  {notesLabel(duplicateCount)} {duplicateCount === 1 ? "já importada" : "já importadas"}
+                </StatusBadge>
+              )}
               {notGeocodedCount > 0 && <StatusBadge tone="warning">{notesLabel(notGeocodedCount)} sem local no mapa</StatusBadge>}
-              {errorCount > 0 && <StatusBadge tone="danger">{errorCount} arquivo(s) com erro</StatusBadge>}
+              {errorCount > 0 && (
+                <StatusBadge tone="danger">{errorCount === 1 ? "1 arquivo com erro" : `${errorCount} arquivos com erro`}</StatusBadge>
+              )}
             </div>
 
             {nonDuplicateCount === 0 && processedInvoices.length > 0 && (
@@ -602,7 +610,9 @@ export function XMLImportDialog({ open, onOpenChange, onImportComplete }: XMLImp
             </p>
             {duplicateCount > 0 && (
               <p className="text-sm text-muted-foreground">
-                {notesLabel(duplicateCount)} já existia(m) e ficou(aram) de fora.
+                {duplicateCount === 1
+                  ? "1 nota já existia e ficou de fora."
+                  : `${duplicateCount} notas já existiam e ficaram de fora.`}
               </p>
             )}
             <p className="max-w-sm text-sm text-muted-foreground">

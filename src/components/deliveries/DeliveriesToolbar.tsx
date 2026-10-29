@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, startOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarDays, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ function DateRangeButton({ value, onChange, isMobile }: DateRangeButtonProps) {
           <span className="font-data">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent aria-label="Escolher período" align="start" className="w-auto max-w-[calc(100vw-2rem)] p-0">
+      <PopoverContent aria-label="Escolher período" align="end" collisionPadding={16} className="w-auto max-w-[calc(100vw-2rem)] p-0">
         <div className="border-b px-4 py-3">
           <p className="text-sm font-semibold text-foreground">Escolha o período</p>
           <p className="text-xs text-muted-foreground">Toque no dia inicial e depois no dia final.</p>
@@ -70,10 +70,13 @@ function DateRangeButton({ value, onChange, isMobile }: DateRangeButtonProps) {
         <Calendar
           mode="range"
           numberOfMonths={isMobile ? 1 : 2}
+          showOutsideDays={false}
           selected={{ from: value.from, to: value.to }}
           onSelect={(range) => onChange({ from: range?.from, to: range?.to })}
           disabled={{ after: new Date() }}
-          defaultMonth={value.from}
+          toMonth={new Date()}
+          // Com dois meses, o mes atual fica a direita.
+          defaultMonth={value.from ?? (isMobile ? new Date() : startOfMonth(subMonths(new Date(), 1)))}
           locale={ptBR}
           initialFocus
         />

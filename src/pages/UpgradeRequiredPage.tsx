@@ -5,7 +5,8 @@ import { useFeatureAccess, type Feature } from "@/hooks/useFeatureAccess";
 
 const SUPPORT_EMAIL = "suporte@nahorafrota.com.br";
 
-const FEATURE_INFO: Record<Feature, { title: string; description: string }> = {
+// plural: concordancia do verbo ("Os relatorios fazem parte...").
+const FEATURE_INFO: Record<Feature, { title: string; description: string; plural?: boolean }> = {
   financial_dashboard: {
     title: "O acerto financeiro",
     description: "Calcule quanto pagar a cada motorista, registre os pagamentos e veja a rentabilidade de cada rota.",
@@ -13,10 +14,12 @@ const FEATURE_INFO: Record<Feature, { title: string; description: string }> = {
   financial_reports: {
     title: "Os relatórios financeiros",
     description: "Custos, fretes e rentabilidade por período, prontos para exportar.",
+    plural: true,
   },
   reports: {
     title: "Os relatórios",
     description: "SLA, custos, eficiência e ocorrências por período, prontos para exportar em PDF.",
+    plural: true,
   },
   sla_weekly: { title: "O SLA semanal", description: "Acompanhe a pontualidade da semana e o histórico de cada período." },
   sla_drilldown: { title: "O SLA por motorista", description: "Veja a pontualidade de cada motorista, entrega por entrega." },
@@ -46,7 +49,7 @@ export default function UpgradeRequiredPage() {
   const currentPlan = planLabels[plan] || plan;
 
   const title = info
-    ? `${info.title} faz parte do plano ${requiredPlan ?? "superior"}`
+    ? `${info.title} ${info.plural ? "fazem" : "faz"} parte do plano ${requiredPlan ?? "superior"}`
     : requiredPlan
       ? `Este recurso faz parte do plano ${requiredPlan}`
       : "Este recurso faz parte de outro plano";
