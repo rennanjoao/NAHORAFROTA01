@@ -20,9 +20,11 @@
  * - Crítico (Vermelho): <75% - Alto risco operacional
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTableChanges } from "@/lib/sharedRealtime";
 import { supabase } from "@/integrations/supabase/client";
-import { uniqueChannelName } from "@/lib/realtime";
 import { formatSLA } from "@/lib/formatSLA";
 import { getSLAColorScheme, isSLAHealthy, isSLACritical, isSLAAttention, isSLAGood, SLA_THRESHOLDS } from "@/lib/slaThresholds";
 import { getDayBoundsUTC, getTodayBrazil } from "@/lib/timezone";
@@ -303,229 +305,217 @@ function mapInvoiceItem(inv: InvoiceForSLA): SLAInvoiceItem {
   };
 }
 
-export function useSLADB() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [driverStats, setDriverStats] = useState<DriverSLAStats[]>([]);
-  const [orphanInvoices, setOrphanInvoices] = useState<OrphanInvoice[]>([]);
-  const [fleetSLA, setFleetSLA] = useState({ 
-    today: 100, 
-    weekly: 100, 
-    previousWeekly: 100,
-    yesterday: 100,
-  });
-  const [fleetPeriodSLA, setFleetPeriodSLA] = useState<Record<SLAPeriodDays, PeriodSLA> | null>(null);
+export interface SLAData {
+  driverStats: DriverSLAStats[];
+  orphanInvoices: OrphanInvoice[];
+  fleetSLA: { today: number; weekly: number; previousWeekly: number; yesterday: number };
+  fleetPeriodSLA: Record<SLAPeriodDays, PeriodSLA> | null;
+}
 
-  // Fetch all data needed for SLA calculations
-  const fetchSLAData = useCallback(async () => {
-    setIsLoading(true);
-    
-    try {
-      // Calculate date ranges using Brazil timezone
-      const todayStr = getTodayBrazil();
-      const { start: todayStart, end: todayEnd } = getDayBoundsUTC(todayStr);
-      
-      // Yesterday in Brazil timezone
-      const yesterdayDate = new Date(todayStr + 'T12:00:00-03:00');
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
-      const { start: yesterdayStartStr, end: yesterdayEndStr } = getDayBoundsUTC(yesterdayStr);
-      const yesterdayStart = { toISOString: () => yesterdayStartStr };
-      const yesterdayEnd = { toISOString: () => yesterdayEndStr };
-      
-      const today = new Date();
-      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
-      const sixMonthsAgo = new Date(today.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+const DEFAULT_FLEET_SLA: SLAData["fleetSLA"] = { today: 100, weekly: 100, previousWeekly: 100, yesterday: 100 };
+const NO_DRIVER_STATS: DriverSLAStats[] = [];
+const NO_ORPHANS: OrphanInvoice[] = [];
 
-      const invoiceColumns = "id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document";
+/** Busca e calcula o SLA (6 meses de NFs). Chamado uma vez so, pelo cache compartilhado. */
+async function loadSLAData(): Promise<SLAData> {
+  // Calculate date ranges using Brazil timezone
+  const todayStr = getTodayBrazil();
+  const { start: todayStart, end: todayEnd } = getDayBoundsUTC(todayStr);
 
-      // Uma unica busca paginada dos ultimos 6 meses; hoje, ontem, semana e as
-      // janelas de historico sao recortes em memoria (antes eram 5 consultas,
-      // todas limitadas a 1000 linhas pelo Supabase).
-      const [driversResult, historicalInvoices, manifestsResult] = await Promise.all([
-        // All drivers
-        supabase.from("drivers").select("id, name, photo_url, phone, vehicle_plate, status"),
+  // Yesterday in Brazil timezone
+  const yesterdayDate = new Date(todayStr + 'T12:00:00-03:00');
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+  const { start: yesterdayStartStr, end: yesterdayEndStr } = getDayBoundsUTC(yesterdayStr);
+  const yesterdayStart = { toISOString: () => yesterdayStartStr };
+  const yesterdayEnd = { toISOString: () => yesterdayEndStr };
 
-        fetchAllPages<InvoiceForSLA>((from, to) =>
-          supabase
-            .from("invoices")
-            .select(invoiceColumns)
-            .gte("updated_at", sixMonthsAgo)
-            .in("status", ["delivered", "occurrence", "returned"])
-            // Ordem por id (imutavel): NFs atualizadas durante a leitura nao
-            // trocam de pagina, entao nada e pulado nem contado duas vezes.
-            .order("id", { ascending: true })
-            .range(from, to)
-        ),
+  const today = new Date();
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const sixMonthsAgo = new Date(today.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
-        // Recent manifests used to recover driver links when invoices only have manifest_id
-        supabase
-          .from("manifests")
-          .select("id, driver_id, driver_name, scheduled_date, status")
-          .gte("scheduled_date", sixMonthsAgo.slice(0, 10)),
-      ]);
+  const invoiceColumns = "id, nfe_number, recipient_name, recipient_phone, address_full, address_street, address_city, address_state, address_zip, status, occurrence_type, driver_id, manifest_id, total_value, total_weight, observation, imported_at, delivered_at, updated_at, receiver_name, receiver_document";
 
-      const updatedMs = (inv: InvoiceForSLA) => Date.parse(inv.updated_at);
-      const updatedBetween = (inv: InvoiceForSLA, fromIso: string, toIso?: string) =>
-        updatedMs(inv) >= Date.parse(fromIso) && (!toIso || updatedMs(inv) < Date.parse(toIso));
+  // Uma unica busca paginada dos ultimos 6 meses; hoje, ontem, semana e as
+  // janelas de historico sao recortes em memoria (antes eram 5 consultas,
+  // todas limitadas a 1000 linhas pelo Supabase).
+  const [driversResult, historicalInvoices, manifestsResult] = await Promise.all([
+    // All drivers
+    supabase.from("drivers").select("id, name, photo_url, phone, vehicle_plate, status"),
 
-      const drivers = (driversResult.data || []) as DriverInfo[];
-      const todayInvoices = historicalInvoices.filter(inv => updatedBetween(inv, todayStart));
-      const yesterdayInvoices = historicalInvoices.filter(inv => updatedBetween(inv, yesterdayStart.toISOString(), yesterdayEnd.toISOString()));
-      const weeklyInvoices = historicalInvoices.filter(inv => updatedBetween(inv, weekAgo));
-      const previousWeekInvoices = historicalInvoices.filter(inv => updatedBetween(inv, twoWeeksAgo, weekAgo));
-      const manifests = (manifestsResult.data || []) as ManifestForSLA[];
-      const periodStarts = SLA_PERIODS.map(days => [days, Date.parse(periodStart(days, today))] as const);
-      const manifestDriverMap = new Map(manifests.map(manifest => [manifest.id, manifest.driver_id]));
-      const getEffectiveDriverId = (invoice: InvoiceForSLA) =>
-        invoice.driver_id || (invoice.manifest_id ? manifestDriverMap.get(invoice.manifest_id) || null : null);
+    fetchAllPages<InvoiceForSLA>((from, to) =>
+      supabase
+        .from("invoices")
+        .select(invoiceColumns)
+        .gte("updated_at", sixMonthsAgo)
+        .in("status", ["delivered", "occurrence", "returned"])
+        // Ordem por id (imutavel): NFs atualizadas durante a leitura nao
+        // trocam de pagina, entao nada e pulado nem contado duas vezes.
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
 
-      // Calculate stats per driver
-      const stats: DriverSLAStats[] = drivers.map(driver => {
-        // Filter invoices for this driver
-        const driverTodayInvoices = todayInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
-        const driverWeeklyInvoices = weeklyInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
-        const driverPreviousWeekInvoices = previousWeekInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
-        const driverHistoricalInvoices = historicalInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
+    // Recent manifests used to recover driver links when invoices only have manifest_id
+    supabase
+      .from("manifests")
+      .select("id, driver_id, driver_name, scheduled_date, status")
+      .gte("scheduled_date", sixMonthsAgo.slice(0, 10)),
+  ]);
 
-        // Calculate SLAs
-        const todayCalc = calculateSLAFromInvoices(driverTodayInvoices);
-        const weeklyCalc = calculateSLAFromInvoices(driverWeeklyInvoices);
-        const previousWeekCalc = calculateSLAFromInvoices(driverPreviousWeekInvoices);
-        const historicalCalc = calculateSLAFromInvoices(driverHistoricalInvoices);
-        const periodStats = Object.fromEntries(
-          periodStarts.map(([days, startMs]) => {
-            const calc = calculateSLAFromInvoices(driverHistoricalInvoices.filter(inv => updatedMs(inv) >= startMs));
-            return [days, { sla: calc.sla, total: calc.total, delivered: calc.delivered, occurrences: calc.occurrences }];
-          })
-        ) as Record<SLAPeriodDays, PeriodSLA>;
+  const updatedMs = (inv: InvoiceForSLA) => Date.parse(inv.updated_at);
+  const updatedBetween = (inv: InvoiceForSLA, fromIso: string, toIso?: string) =>
+    updatedMs(inv) >= Date.parse(fromIso) && (!toIso || updatedMs(inv) < Date.parse(toIso));
 
-        // Get today's occurrences for detail view
-        const todayOccurrences: InvoiceOccurrence[] = driverTodayInvoices
-          .filter(inv => inv.status === "occurrence" || inv.status === "returned")
-          .map(inv => ({
-            invoiceId: inv.id,
-            nfeNumber: inv.nfe_number || inv.id.slice(0, 8),
-            occurrenceType: inv.occurrence_type || "outros",
-            weight: getOccurrenceWeight(inv.occurrence_type, inv.status),
-            recipientName: inv.recipient_name,
-            status: inv.status,
-          }));
-        const todayInvoiceItems = driverTodayInvoices
-          .filter(inv => inv.status === "delivered" || inv.status === "occurrence" || inv.status === "returned")
-          .map(mapInvoiceItem);
+  const drivers = (driversResult.data || []) as DriverInfo[];
+  const todayInvoices = historicalInvoices.filter(inv => updatedBetween(inv, todayStart));
+  const yesterdayInvoices = historicalInvoices.filter(inv => updatedBetween(inv, yesterdayStart.toISOString(), yesterdayEnd.toISOString()));
+  const weeklyInvoices = historicalInvoices.filter(inv => updatedBetween(inv, weekAgo));
+  const previousWeekInvoices = historicalInvoices.filter(inv => updatedBetween(inv, twoWeeksAgo, weekAgo));
+  const manifests = (manifestsResult.data || []) as ManifestForSLA[];
+  const periodStarts = SLA_PERIODS.map(days => [days, Date.parse(periodStart(days, today))] as const);
+  const manifestDriverMap = new Map(manifests.map(manifest => [manifest.id, manifest.driver_id]));
+  const getEffectiveDriverId = (invoice: InvoiceForSLA) =>
+    invoice.driver_id || (invoice.manifest_id ? manifestDriverMap.get(invoice.manifest_id) || null : null);
 
-        // Get weekly occurrences for detail view
-        const weeklyOccurrences: InvoiceOccurrence[] = driverWeeklyInvoices
-          .filter(inv => inv.status === "occurrence" || inv.status === "returned")
-          .map(inv => ({
-            invoiceId: inv.id,
-            nfeNumber: inv.nfe_number || inv.id.slice(0, 8),
-            occurrenceType: inv.occurrence_type || "outros",
-            weight: getOccurrenceWeight(inv.occurrence_type, inv.status),
-            recipientName: inv.recipient_name,
-            status: inv.status,
-          }));
-        const weeklyInvoiceItems = driverWeeklyInvoices
-          .filter(inv => inv.status === "delivered" || inv.status === "occurrence" || inv.status === "returned")
-          .map(mapInvoiceItem);
+  // Calculate stats per driver
+  const stats: DriverSLAStats[] = drivers.map(driver => {
+    // Filter invoices for this driver
+    const driverTodayInvoices = todayInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
+    const driverWeeklyInvoices = weeklyInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
+    const driverPreviousWeekInvoices = previousWeekInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
+    const driverHistoricalInvoices = historicalInvoices.filter(inv => getEffectiveDriverId(inv) === driver.id);
 
-        return {
-          driver_id: driver.id,
-          driver_name: driver.name || "Sem nome",
-          photo_url: driver.photo_url,
-          phone: driver.phone,
-          vehicle_plate: driver.vehicle_plate,
-          status: driver.status,
-          
-          todayTotalInvoices: todayCalc.total,
-          todayDeliveredCount: todayCalc.delivered,
-          todayOccurrenceCount: todayCalc.occurrences,
-          todaySLA: todayCalc.sla,
-          todayOccurrences,
-          todayInvoices: todayInvoiceItems,
-          
-          weeklySLA: weeklyCalc.sla,
-          weeklyTotalInvoices: weeklyCalc.total,
-          weeklyDeliveredCount: weeklyCalc.delivered,
-          weeklyOccurrenceCount: weeklyCalc.occurrences,
-          weeklyOccurrences,
-          weeklyInvoices: weeklyInvoiceItems,
-          
-          previousWeeklySLA: previousWeekCalc.sla,
-          previousWeeklyTotalInvoices: previousWeekCalc.total,
-          
-          historicalSLA: historicalCalc.sla,
-          historicalTotalInvoices: historicalCalc.total,
+    // Calculate SLAs
+    const todayCalc = calculateSLAFromInvoices(driverTodayInvoices);
+    const weeklyCalc = calculateSLAFromInvoices(driverWeeklyInvoices);
+    const previousWeekCalc = calculateSLAFromInvoices(driverPreviousWeekInvoices);
+    const historicalCalc = calculateSLAFromInvoices(driverHistoricalInvoices);
+    const periodStats = Object.fromEntries(
+      periodStarts.map(([days, startMs]) => {
+        const calc = calculateSLAFromInvoices(driverHistoricalInvoices.filter(inv => updatedMs(inv) >= startMs));
+        return [days, { sla: calc.sla, total: calc.total, delivered: calc.delivered, occurrences: calc.occurrences }];
+      })
+    ) as Record<SLAPeriodDays, PeriodSLA>;
 
-          periodStats,
-        };
-      });
+    // Get today's occurrences for detail view
+    const todayOccurrences: InvoiceOccurrence[] = driverTodayInvoices
+      .filter(inv => inv.status === "occurrence" || inv.status === "returned")
+      .map(inv => ({
+        invoiceId: inv.id,
+        nfeNumber: inv.nfe_number || inv.id.slice(0, 8),
+        occurrenceType: inv.occurrence_type || "outros",
+        weight: getOccurrenceWeight(inv.occurrence_type, inv.status),
+        recipientName: inv.recipient_name,
+        status: inv.status,
+      }));
+    const todayInvoiceItems = driverTodayInvoices
+      .filter(inv => inv.status === "delivered" || inv.status === "occurrence" || inv.status === "returned")
+      .map(mapInvoiceItem);
 
-      // Calculate fleet-wide SLAs
-      const todayFleetCalc = calculateSLAFromInvoices(todayInvoices);
-      const yesterdayFleetCalc = calculateSLAFromInvoices(yesterdayInvoices);
-      const weeklyFleetCalc = calculateSLAFromInvoices(weeklyInvoices);
-      const previousWeekFleetCalc = calculateSLAFromInvoices(previousWeekInvoices);
+    // Get weekly occurrences for detail view
+    const weeklyOccurrences: InvoiceOccurrence[] = driverWeeklyInvoices
+      .filter(inv => inv.status === "occurrence" || inv.status === "returned")
+      .map(inv => ({
+        invoiceId: inv.id,
+        nfeNumber: inv.nfe_number || inv.id.slice(0, 8),
+        occurrenceType: inv.occurrence_type || "outros",
+        weight: getOccurrenceWeight(inv.occurrence_type, inv.status),
+        recipientName: inv.recipient_name,
+        status: inv.status,
+      }));
+    const weeklyInvoiceItems = driverWeeklyInvoices
+      .filter(inv => inv.status === "delivered" || inv.status === "occurrence" || inv.status === "returned")
+      .map(mapInvoiceItem);
 
-      // Track orphan invoices (no driver_id) that affect SLA
-      const weeklyOrphans: OrphanInvoice[] = weeklyInvoices
-        .filter(inv => !getEffectiveDriverId(inv) && (inv.status === "occurrence" || inv.status === "returned"))
-        .map(inv => ({
-          id: inv.id,
-          nfeNumber: inv.nfe_number || inv.id.slice(0, 8),
-          recipientName: inv.recipient_name,
-          occurrenceType: inv.occurrence_type || "outros",
-          weight: getOccurrenceWeight(inv.occurrence_type, inv.status),
-          status: inv.status,
-          updatedAt: inv.updated_at,
-        }));
+    return {
+      driver_id: driver.id,
+      driver_name: driver.name || "Sem nome",
+      photo_url: driver.photo_url,
+      phone: driver.phone,
+      vehicle_plate: driver.vehicle_plate,
+      status: driver.status,
 
-      setDriverStats(stats);
-      setOrphanInvoices(weeklyOrphans);
-      setFleetPeriodSLA(Object.fromEntries(
-        periodStarts.map(([days, startMs]) => {
-          const calc = calculateSLAFromInvoices(historicalInvoices.filter(inv => updatedMs(inv) >= startMs));
-          return [days, { sla: calc.sla, total: calc.total, delivered: calc.delivered, occurrences: calc.occurrences }];
-        })
-      ) as Record<SLAPeriodDays, PeriodSLA>);
-      setFleetSLA({
-        today: todayFleetCalc.sla,
-        yesterday: yesterdayFleetCalc.sla,
-        weekly: weeklyFleetCalc.sla,
-        previousWeekly: previousWeekFleetCalc.sla,
-      });
-      
-    } catch (error) {
-      console.error("Error fetching SLA data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      todayTotalInvoices: todayCalc.total,
+      todayDeliveredCount: todayCalc.delivered,
+      todayOccurrenceCount: todayCalc.occurrences,
+      todaySLA: todayCalc.sla,
+      todayOccurrences,
+      todayInvoices: todayInvoiceItems,
 
-  // Initial fetch
-  useEffect(() => {
-    fetchSLAData();
-  }, [fetchSLAData]);
+      weeklySLA: weeklyCalc.sla,
+      weeklyTotalInvoices: weeklyCalc.total,
+      weeklyDeliveredCount: weeklyCalc.delivered,
+      weeklyOccurrenceCount: weeklyCalc.occurrences,
+      weeklyOccurrences,
+      weeklyInvoices: weeklyInvoiceItems,
 
-  // Subscribe to realtime changes on invoices
-  useEffect(() => {
-    const channel = supabase
-      .channel(uniqueChannelName("sla-invoices-changes"))
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "invoices" },
-        () => {
-          // Refetch when invoices change
-          fetchSLAData();
-        }
-      )
-      .subscribe();
+      previousWeeklySLA: previousWeekCalc.sla,
+      previousWeeklyTotalInvoices: previousWeekCalc.total,
 
-    return () => {
-      supabase.removeChannel(channel);
+      historicalSLA: historicalCalc.sla,
+      historicalTotalInvoices: historicalCalc.total,
+
+      periodStats,
     };
-  }, [fetchSLAData]);
+  });
+
+  // Calculate fleet-wide SLAs
+  const todayFleetCalc = calculateSLAFromInvoices(todayInvoices);
+  const yesterdayFleetCalc = calculateSLAFromInvoices(yesterdayInvoices);
+  const weeklyFleetCalc = calculateSLAFromInvoices(weeklyInvoices);
+  const previousWeekFleetCalc = calculateSLAFromInvoices(previousWeekInvoices);
+
+  // Track orphan invoices (no driver_id) that affect SLA
+  const weeklyOrphans: OrphanInvoice[] = weeklyInvoices
+    .filter(inv => !getEffectiveDriverId(inv) && (inv.status === "occurrence" || inv.status === "returned"))
+    .map(inv => ({
+      id: inv.id,
+      nfeNumber: inv.nfe_number || inv.id.slice(0, 8),
+      recipientName: inv.recipient_name,
+      occurrenceType: inv.occurrence_type || "outros",
+      weight: getOccurrenceWeight(inv.occurrence_type, inv.status),
+      status: inv.status,
+      updatedAt: inv.updated_at,
+    }));
+
+  return {
+    driverStats: stats,
+    orphanInvoices: weeklyOrphans,
+    fleetPeriodSLA: Object.fromEntries(
+      periodStarts.map(([days, startMs]) => {
+        const calc = calculateSLAFromInvoices(historicalInvoices.filter(inv => updatedMs(inv) >= startMs));
+        return [days, { sla: calc.sla, total: calc.total, delivered: calc.delivered, occurrences: calc.occurrences }];
+      })
+    ) as Record<SLAPeriodDays, PeriodSLA>,
+    fleetSLA: {
+      today: todayFleetCalc.sla,
+      yesterday: yesterdayFleetCalc.sla,
+      weekly: weeklyFleetCalc.sla,
+      previousWeekly: previousWeekFleetCalc.sla,
+    },
+  };
+}
+
+export const SLA_QUERY_KEY = "sla-db";
+
+/**
+ * SLA do painel. Antes cada bloco que usava o hook baixava os 6 meses de NFs (tres vezes
+ * no Inicio) e recarregava tudo a cada mudanca de NF. Agora a busca e compartilhada e
+ * guardada entre telas; mudancas de NF reagendam uma recarga so.
+ */
+export function useSLADB() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: [SLA_QUERY_KEY, user?.id], queryFn: loadSLAData, enabled: !!user, staleTime: 60 * 1000 });
+  const isLoading = query.isLoading;
+  const driverStats = query.data?.driverStats ?? NO_DRIVER_STATS;
+  const orphanInvoices = query.data?.orphanInvoices ?? NO_ORPHANS;
+  const fleetSLA = query.data?.fleetSLA ?? DEFAULT_FLEET_SLA;
+  const fleetPeriodSLA = query.data?.fleetPeriodSLA ?? null;
+
+  const fetchSLAData = useCallback(() => queryClient.invalidateQueries({ queryKey: [SLA_QUERY_KEY] }), [queryClient]);
+  useTableChanges(["invoices"], fetchSLAData);
 
   // Derived data
 

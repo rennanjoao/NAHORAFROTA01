@@ -207,7 +207,7 @@ export function ManifestDetailSheet({
   // Get current user's full name from profiles
   const getCurrentUserFullName = async (): Promise<string> => {
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
       if (!userData.user?.id) return "Sistema";
 
       const { data: profile } = await supabase
@@ -230,7 +230,7 @@ export function ManifestDetailSheet({
   ) => {
     if (!manifest) return;
 
-    const { data: userData } = await supabase.auth.getUser();
+    const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
     const userFullName = await getCurrentUserFullName();
     const manifestDisplayNumber = formatManifestNumber(manifest);
 
@@ -384,7 +384,7 @@ export function ManifestDetailSheet({
     if (!manifest) return;
     const reason = removeReason.trim() || "Remoção manual do romaneio";
     const userFullName = await getCurrentUserFullName();
-    const { data: userData } = await supabase.auth.getUser();
+    const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
     const manifestDisplayNumber = formatManifestNumber(manifest);
 
     const { error } = await supabase

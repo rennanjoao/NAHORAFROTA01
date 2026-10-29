@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { getCurrentTenantId } from '@/lib/tenant';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -20,59 +22,38 @@ export interface TenantData {
   next_due_date: string | null;
 }
 
+async function fetchTenantRow(): Promise<TenantData | null> {
+  const tenantId = await getCurrentTenantId();
+  if (!tenantId) return null;
+  const { data, error } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
+  if (error) throw error;
+  return {
+    id: data.id,
+    razao_social: data.razao_social,
+    cnpj: data.cnpj,
+    telefone: data.telefone ?? null,
+    logradouro: data.logradouro ?? null,
+    numero: data.numero ?? null,
+    bairro: data.bairro ?? null,
+    cidade: data.cidade ?? null,
+    uf: data.uf ?? null,
+    cep: data.cep ?? null,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    plan: data.plan,
+    status: data.status,
+    next_due_date: data.next_due_date ?? null,
+  };
+}
+
+/** Dados da empresa: uma busca so, compartilhada por todas as telas (antes cada uma buscava a sua). */
 export function useTenantData() {
-  const [tenant, setTenant] = useState<TenantData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchTenant = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) return;
-
-      const { data: membership } = await supabase
-        .from('tenant_memberships')
-        .select('tenant_id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (!membership?.tenant_id) return;
-
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('id', membership.tenant_id)
-        .single();
-
-      if (error) throw error;
-
-      setTenant({
-        id: data.id,
-        razao_social: data.razao_social,
-        cnpj: data.cnpj,
-        telefone: (data as any).telefone ?? null,
-        logradouro: (data as any).logradouro ?? null,
-        numero: (data as any).numero ?? null,
-        bairro: (data as any).bairro ?? null,
-        cidade: (data as any).cidade ?? null,
-        uf: (data as any).uf ?? null,
-        cep: (data as any).cep ?? null,
-        latitude: (data as any).latitude ?? null,
-        longitude: (data as any).longitude ?? null,
-        plan: data.plan,
-        status: data.status,
-        next_due_date: data.next_due_date ?? null,
-      });
-    } catch (err: any) {
-      console.error('Error fetching tenant:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTenant();
-  }, [fetchTenant]);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const key = ['tenant-data', user?.id];
+  const query = useQuery({ queryKey: key, queryFn: fetchTenantRow, enabled: !!user, staleTime: 5 * 60 * 1000 });
+  const tenant = query.data ?? null;
+  const setTenant = (fn: (prev: TenantData | null) => TenantData | null) => queryClient.setQueryData<TenantData | null>(key, (prev) => fn(prev ?? null));
 
   const updateTenant = async (updates: Partial<Omit<TenantData, 'id' | 'plan' | 'status'>>) => {
     if (!tenant) return;
@@ -80,7 +61,7 @@ export function useTenantData() {
     try {
       const { error } = await supabase
         .from('tenants')
-        .update(updates as any)
+        .update(updates)
         .eq('id', tenant.id);
 
       if (error) throw error;
@@ -91,15 +72,15 @@ export function useTenantData() {
         title: 'Dados da empresa salvos',
         description: 'As informações foram atualizadas com sucesso.',
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error updating tenant:', err);
       toast({
         title: 'Erro ao salvar',
-        description: err.message || 'Não foi possível salvar os dados.',
+        description: err instanceof Error ? err.message : 'Não foi possível salvar os dados.',
         variant: 'destructive',
       });
     }
   };
 
-  return { tenant, isLoading, updateTenant, refetch: fetchTenant };
+  return { tenant, isLoading: query.isLoading, updateTenant, refetch: query.refetch };
 }

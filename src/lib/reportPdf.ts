@@ -1,20 +1,8 @@
 import { jsPDF } from "jspdf";
-import { formatCurrency } from "@/lib/formatCurrency";
 
-export interface ReportPdfSection {
-  title: string;
-  /** Pares rotulo/valor exibidos como resumo. */
-  summary?: Array<[string, string]>;
-  table?: { headers: string[]; rows: string[][]; widths?: number[] };
-  emptyText?: string;
-}
-
-export interface ReportPdfInput {
-  companyName: string;
-  periodLabel: string;
-  filtersLabel: string;
-  sections: ReportPdfSection[];
-}
+export type { ReportPdfSection, ReportPdfInput } from "./reportPdfFormat";
+export { pdfCurrency, pdfPercent } from "./reportPdfFormat";
+import type { ReportPdfInput } from "./reportPdfFormat";
 
 const MARGIN = 14;
 const LINE = 6;
@@ -154,5 +142,3 @@ export function downloadReportPdf(input: ReportPdfInput, fileName: string): stri
   return fileName;
 }
 
-export const pdfCurrency = (value: number) => formatCurrency(value || 0);
-export const pdfPercent = (value: number) => `${(value || 0).toFixed(1).replace(".", ",")}%`;

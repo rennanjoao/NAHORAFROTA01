@@ -1,4 +1,6 @@
-import { Lock, Route, Truck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Lock, Route, Truck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -117,6 +119,38 @@ function cityLine(delivery: Delivery) {
   return [delivery.address, city].filter(Boolean).join(" · ");
 }
 
+/*
+ * A lista mostra 50 notas por pagina. Antes desenhava todas de uma vez (mil notas viravam
+ * uma pagina de 7.500 px e cada clique redesenhava tudo). "Selecionar todas" continua
+ * valendo para todas as notas filtradas, nao so para a pagina.
+ */
+const PAGE_SIZE = 50;
+
+function Pager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (p: number) => void }) {
+  if (pages <= 1) return null;
+  const from = page * PAGE_SIZE + 1;
+  const to = Math.min(total, (page + 1) * PAGE_SIZE);
+  return (
+    <nav aria-label="Páginas da lista de notas" className="flex flex-wrap items-center justify-between gap-3 px-1 pt-4 text-sm">
+      <p className="text-muted-foreground">
+        Mostrando <span className="font-data font-semibold text-foreground">{from.toLocaleString("pt-BR")}–{to.toLocaleString("pt-BR")}</span> de{" "}
+        <span className="font-data font-semibold text-foreground">{total.toLocaleString("pt-BR")}</span>
+      </p>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => onPage(page - 1)} disabled={page === 0}>
+          <ChevronLeft aria-hidden="true" /> Anterior
+        </Button>
+        <span className="min-w-[6.5rem] text-center font-data text-xs text-muted-foreground" aria-live="polite">
+          Página {page + 1} de {pages}
+        </span>
+        <Button variant="outline" size="sm" onClick={() => onPage(page + 1)} disabled={page >= pages - 1}>
+          Próxima <ChevronRight aria-hidden="true" />
+        </Button>
+      </div>
+    </nav>
+  );
+}
+
 export function InvoiceList({
   deliveries,
   isMobile,
@@ -126,9 +160,23 @@ export function InvoiceList({
   onSelect,
   actions,
 }: InvoiceListProps) {
+  const [page, setPage] = useState(0);
+  const topRef = useRef<HTMLDivElement>(null);
+  const pages = Math.max(1, Math.ceil(deliveries.length / PAGE_SIZE));
+  // Filtro ou busca muda a lista: volta para a primeira pagina.
+  useEffect(() => setPage(0), [deliveries.length]);
+  const current = Math.min(page, pages - 1);
+  const visible = deliveries.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
+  const goTo = (p: number) => {
+    setPage(Math.max(0, Math.min(pages - 1, p)));
+    const el = topRef.current;
+    if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+  const pager = <Pager page={current} pages={pages} total={deliveries.length} onPage={goTo} />;
+
   if (isMobile) {
     return (
-      <div className="space-y-3">
+      <div ref={topRef} className="scroll-mt-24 space-y-3">
         <label
           className={cn(
             "flex min-h-11 items-center gap-3 rounded-lg border bg-card px-4 text-sm font-medium shadow-xs",
@@ -145,7 +193,7 @@ export function InvoiceList({
           Selecionar todas sem romaneio
         </label>
         <ul className="space-y-3" aria-label="Notas fiscais">
-          {deliveries.map((delivery) => (
+          {visible.map((delivery) => (
             <li
               key={delivery.id}
               className={cn(
@@ -195,11 +243,13 @@ export function InvoiceList({
             </li>
           ))}
         </ul>
+        {pager}
       </div>
     );
   }
 
   return (
+    <div ref={topRef} className="scroll-mt-24">
     <Card className="overflow-hidden">
       <Table>
         <TableHeader>
@@ -208,7 +258,7 @@ export function InvoiceList({
               <SelectBox
                 checked={headerCheckboxState}
                 onCheckedChange={onSelectAll}
-                label="Selecionar todas as notas visíveis sem romaneio"
+                label="Selecionar todas as notas filtradas sem romaneio"
                 disabled={!canSelectAny}
               />
             </TableHead>
@@ -223,7 +273,7 @@ export function InvoiceList({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {deliveries.map((delivery) => (
+          {visible.map((delivery) => (
             <TableRow
               key={delivery.id}
               data-state={delivery.selected ? "selected" : undefined}
@@ -277,5 +327,7 @@ export function InvoiceList({
         </TableBody>
       </Table>
     </Card>
+    {pager}
+    </div>
   );
 }

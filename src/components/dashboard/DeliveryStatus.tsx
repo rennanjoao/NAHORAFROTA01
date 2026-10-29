@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { onTableChange } from "@/lib/sharedRealtime";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle2, ChevronRight, FileText, Package, RotateCcw, Truck, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, toneDot, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { supabase } from "@/integrations/supabase/client";
-import { uniqueChannelName } from "@/lib/realtime";
 import { getDayBoundsUTC, getTodayBrazil, toDateStringBrazil } from "@/lib/timezone";
 import { getInvoiceEventDate } from "@/lib/reportFilters";
 import { getCurrentTenantId } from "@/lib/tenant";
@@ -116,16 +116,8 @@ export function DeliveryStatus() {
     };
 
     fetchInvoices();
-
-    // Atualiza em tempo real
-    const channel = supabase
-      .channel(uniqueChannelName("delivery-status"))
-      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, () => fetchInvoices())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Atualiza em tempo real (canal compartilhado; rajadas viram uma recarga so)
+    return onTableChange("invoices", () => void fetchInvoices());
   }, []);
 
   const handleStatusClick = (item: StatusItem) => {

@@ -41,7 +41,11 @@ const CheckoutSandboxPage = lazy(() => import("./site/pages/CheckoutSandboxPage"
 const CheckoutSuccessPage = lazy(() => import("./site/pages/CheckoutSuccessPage"));
 const LegalPage = lazy(() => import("./site/pages/LegalPage"));
 
-const queryClient = new QueryClient();
+// Dados guardados entre telas (voltar a uma tela mostra na hora e atualiza por tras).
+// O tempo real ja avisa das mudancas, entao nao precisa recarregar ao voltar para a aba.
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30 * 1000, gcTime: 10 * 60 * 1000, refetchOnWindowFocus: false, retry: 1 } },
+});
 
 /** Fundo neutro enquanto o site carrega (sem logo piscando na capa). */
 function SiteFallback() {
