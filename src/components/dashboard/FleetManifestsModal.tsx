@@ -1,22 +1,15 @@
 /**
- * Modal showing fleet manifests (own fleet or third-party)
+ * Romaneios de hoje da frota propria ou de terceiros (agregados).
  */
 
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Building2, UserCheck, Truck, Package, User, Clock } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Building2, Clock, Package, Truck, UserCheck } from "lucide-react";
+import { EmptyState, StatusBadge } from "@/components/patterns";
 import { DashboardManifest } from "@/hooks/useDashboardKPIs";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { cn } from "@/lib/utils";
+import { DetailSheet } from "./DetailPanel";
+import { manifestStatus, plural } from "./status";
 
 interface FleetManifestsModalProps {
   open: boolean;
@@ -29,118 +22,70 @@ export function FleetManifestsModal({ open, onOpenChange, data, type }: FleetMan
   const isOwnFleet = type === "own";
   const totalFreight = data.reduce((sum, m) => sum + (m.freight_value || 0), 0);
   const totalDeliveries = data.reduce((sum, m) => sum + (m.deliveries_count || 0), 0);
+  const Icon = isOwnFleet ? Building2 : UserCheck;
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "Pendente";
-      case "in_progress":
-        return "Em Andamento";
-      case "completed":
-        return "Concluído";
-      case "paid":
-        return "Pago";
-      default:
-        return status;
-    }
-  };
+  const description = [
+    plural(data.length, "romaneio", "romaneios"),
+    plural(totalDeliveries, "nota", "notas"),
+    !isOwnFleet ? `Frete ${formatCurrency(totalFreight)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            {isOwnFleet ? (
-              <>
-                <Building2 className="h-5 w-5 text-primary" />
-                Frota Própria Hoje
-              </>
-            ) : (
-              <>
-                <UserCheck className="h-5 w-5 text-warning" />
-                Terceiros/Agregados Hoje
-              </>
-            )}
-          </SheetTitle>
-          <SheetDescription>
-            {data.length} romaneio(s) • {totalDeliveries} NF(s) 
-            {!isOwnFleet && ` • Frete: ${formatCurrency(totalFreight)}`}
-          </SheetDescription>
-        </SheetHeader>
-
-        <ScrollArea className="h-[calc(100vh-120px)] mt-4 pr-4">
-          {data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              {isOwnFleet ? (
-                <Building2 className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              ) : (
-                <UserCheck className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              )}
-              <p className="text-muted-foreground">
-                Nenhum romaneio de {isOwnFleet ? "frota própria" : "terceiros"} hoje
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {data.map((manifest) => (
-                <div
-                  key={manifest.id}
-                  className="p-4 rounded-lg border border-border bg-card"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-medium">
-                          {manifest.manifest_code}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs",
-                            manifest.status === "completed" || manifest.status === "paid"
-                              ? "bg-success/10 text-success border-success/30"
-                              : "bg-info/10 text-info border-info/30"
-                          )}
-                        >
-                          {getStatusLabel(manifest.status)}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-1 mt-2 text-sm text-foreground">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        {manifest.driver_name}
-                      </div>
-
-                      <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Truck className="h-3 w-3" />
-                          {manifest.vehicle_plate}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Package className="h-3 w-3" />
-                          {manifest.deliveries_count} NF(s)
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {format(new Date(manifest.created_at), "HH:mm", { locale: ptBR })}
-                        </span>
-                      </div>
-                    </div>
-
-                    {!isOwnFleet && (
-                      <div className="text-right">
-                        <span className="font-mono text-base font-bold text-warning">
-                          {formatCurrency(manifest.freight_value)}
-                        </span>
-                      </div>
-                    )}
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      icon={Icon}
+      tone="neutral"
+      title={isOwnFleet ? "Frota própria hoje" : "Terceiros e agregados hoje"}
+      description={description}
+      bodyLabel="Romaneios"
+    >
+      {data.length === 0 ? (
+        <EmptyState
+          compact
+          icon={Icon}
+          title={`Nenhum romaneio de ${isOwnFleet ? "frota própria" : "terceiros"} hoje`}
+          description="Os romaneios criados hoje aparecem aqui."
+        />
+      ) : (
+        <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+          {data.map((manifest) => {
+            const status = manifestStatus(manifest.status);
+            return (
+              <li key={manifest.id} className="flex items-start gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-data text-sm font-semibold text-foreground">{manifest.manifest_code}</span>
+                    <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                   </div>
+                  <p className="truncate text-sm text-foreground">{manifest.driver_name}</p>
+                  <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Truck className="h-3 w-3" aria-hidden="true" />
+                      {manifest.vehicle_plate || "Sem placa"}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Package className="h-3 w-3" aria-hidden="true" />
+                      {plural(manifest.deliveries_count, "nota", "notas")}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3 w-3" aria-hidden="true" />
+                      {format(new Date(manifest.created_at), "HH:mm", { locale: ptBR })}
+                    </span>
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+                {!isOwnFleet && (
+                  <span className="shrink-0 whitespace-nowrap font-data text-sm font-semibold text-foreground">
+                    {formatCurrency(manifest.freight_value)}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </DetailSheet>
   );
 }

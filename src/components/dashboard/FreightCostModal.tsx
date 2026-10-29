@@ -1,22 +1,16 @@
 /**
- * Modal showing today's freight costs (manifests)
+ * Custo de frete dos romaneios de hoje.
  */
 
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DollarSign, Truck, Package, User, Building2, UserCheck } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Building2, Package, Truck, UserCheck, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { EmptyState } from "@/components/patterns";
 import { DashboardManifest, DashboardDriver } from "@/hooks/useDashboardKPIs";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { cn } from "@/lib/utils";
+import { DetailSheet } from "./DetailPanel";
+import { plural } from "./status";
 
 interface ManifestWithDriver extends DashboardManifest {
   driver?: DashboardDriver | null;
@@ -29,140 +23,75 @@ interface FreightCostModalProps {
   totalCost: number;
 }
 
+const FREIGHT_TYPE_LABEL: Record<string, string> = {
+  fixed: "Valor fixo",
+  lumpsum: "Frete fechado",
+  per_km: "Por km",
+};
+
 export function FreightCostModal({ open, onOpenChange, data, totalCost }: FreightCostModalProps) {
-  const ownFleetCost = data
-    .filter((m) => m.is_own_fleet)
-    .reduce((sum, m) => sum + (m.freight_value || 0), 0);
-
-  const thirdPartyCost = data
-    .filter((m) => !m.is_own_fleet)
-    .reduce((sum, m) => sum + (m.freight_value || 0), 0);
-
-  const getFreightTypeLabel = (type: string) => {
-    switch (type) {
-      case "fixed":
-        return "Fixo";
-      case "lumpsum":
-        return "Fechada";
-      case "per_km":
-        return "Por KM";
-      default:
-        return type;
-    }
-  };
+  const ownFleetCost = data.filter((m) => m.is_own_fleet).reduce((sum, m) => sum + (m.freight_value || 0), 0);
+  const thirdPartyCost = data.filter((m) => !m.is_own_fleet).reduce((sum, m) => sum + (m.freight_value || 0), 0);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-warning" />
-            Custo de Frete do Dia
-          </SheetTitle>
-          <SheetDescription>
-            {data.length} romaneio(s) • Total: {formatCurrency(totalCost)}
-          </SheetDescription>
-        </SheetHeader>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <div className="flex items-center gap-2 text-sm text-primary mb-1">
-              <Building2 className="h-4 w-4" />
-              Frota Própria
-            </div>
-            <span className="font-mono text-lg font-bold text-primary">
-              {formatCurrency(ownFleetCost)}
-            </span>
+    <DetailSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      icon={Wallet}
+      title="Custo de frete de hoje"
+      description={`${plural(data.length, "romaneio", "romaneios")} · ${formatCurrency(totalCost)} no total`}
+      bodyLabel="Romaneios e frete"
+      summary={
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg border bg-card p-3">
+            <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Frota própria
+            </dt>
+            <dd className="mt-1 font-data text-lg font-semibold text-foreground">{formatCurrency(ownFleetCost)}</dd>
           </div>
-          <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-            <div className="flex items-center gap-2 text-sm text-warning mb-1">
-              <UserCheck className="h-4 w-4" />
+          <div className="rounded-lg border bg-card p-3">
+            <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
               Terceiros
-            </div>
-            <span className="font-mono text-lg font-bold text-warning">
-              {formatCurrency(thirdPartyCost)}
-            </span>
+            </dt>
+            <dd className="mt-1 font-data text-lg font-semibold text-foreground">{formatCurrency(thirdPartyCost)}</dd>
           </div>
-        </div>
-
-        <ScrollArea className="h-[calc(100vh-220px)] mt-4 pr-4">
-          {data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <DollarSign className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <p className="text-muted-foreground">Nenhum romaneio criado hoje</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {data.map((manifest) => (
-                <div
-                  key={manifest.id}
-                  className="p-4 rounded-lg border border-border bg-card"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm font-medium">
-                          {manifest.manifest_code}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs",
-                            manifest.is_own_fleet
-                              ? "bg-primary/10 text-primary border-primary/30"
-                              : "bg-warning/10 text-warning border-warning/30"
-                          )}
-                        >
-                          {manifest.is_own_fleet ? (
-                            <>
-                              <Building2 className="h-3 w-3 mr-1" />
-                              CLT
-                            </>
-                          ) : (
-                            <>
-                              <UserCheck className="h-3 w-3 mr-1" />
-                              Terceiro
-                            </>
-                          )}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-1 mt-2 text-sm text-foreground">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        {manifest.driver_name}
-                      </div>
-
-                      <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Truck className="h-3 w-3" />
-                          {manifest.vehicle_plate}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Package className="h-3 w-3" />
-                          {manifest.deliveries_count} NF(s)
-                        </span>
-                        <Badge variant="secondary" className="text-xs">
-                          {getFreightTypeLabel(manifest.freight_type)}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="font-mono text-base font-bold">
-                        {formatCurrency(manifest.freight_value)}
-                      </span>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(manifest.created_at), "HH:mm", { locale: ptBR })}
-                      </p>
-                    </div>
-                  </div>
+        </dl>
+      }
+    >
+      {data.length === 0 ? (
+        <EmptyState compact icon={Wallet} title="Nenhum romaneio criado hoje" description="O frete de cada romaneio aparece aqui." />
+      ) : (
+        <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+          {data.map((manifest) => (
+            <li key={manifest.id} className="flex items-start gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-data text-sm font-semibold text-foreground">{manifest.manifest_code}</span>
+                  <Badge variant="secondary">{manifest.is_own_fleet ? "Frota própria" : "Terceiro"}</Badge>
                 </div>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
+                <p className="truncate text-sm text-foreground">{manifest.driver_name}</p>
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Truck className="h-3 w-3" aria-hidden="true" />
+                    {manifest.vehicle_plate || "Sem placa"}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Package className="h-3 w-3" aria-hidden="true" />
+                    {plural(manifest.deliveries_count, "nota", "notas")}
+                  </span>
+                  <span>{FREIGHT_TYPE_LABEL[manifest.freight_type] ?? manifest.freight_type}</span>
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="whitespace-nowrap font-data text-sm font-semibold text-foreground">{formatCurrency(manifest.freight_value)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{format(new Date(manifest.created_at), "HH:mm", { locale: ptBR })}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </DetailSheet>
   );
 }

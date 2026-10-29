@@ -19,12 +19,13 @@ export function HelperTooltip({ term, explanation }: HelperTooltipProps) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          // Area de toque de 40px sem aumentar o icone (pseudo-elemento).
+          className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-fast after:absolute after:-inset-2 after:content-[''] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`Ajuda sobre ${term}`}
           // Nao deixa o clique chegar ao card clicavel em volta.
           onClick={(event) => event.stopPropagation()}
         >
-          <HelpCircle className="h-4 w-4" />
+          <HelpCircle className="h-4 w-4" aria-hidden="true" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -32,7 +33,7 @@ export function HelperTooltip({ term, explanation }: HelperTooltipProps) {
         className="w-auto max-w-[280px] p-3 text-sm"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <p className="font-medium text-foreground mb-1">{term}</p>
+        <p className="mb-1 font-semibold text-foreground">{term}</p>
         <p className="text-muted-foreground">{explanation}</p>
       </PopoverContent>
     </Popover>

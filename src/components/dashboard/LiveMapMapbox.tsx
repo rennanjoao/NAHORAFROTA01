@@ -1,11 +1,18 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { brandAvatar } from "@/lib/avatar";
-import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
-import Map, { Marker, NavigationControl, FullscreenControl } from 'react-map-gl';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import Map, { Marker, NavigationControl, FullscreenControl, type MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Navigation, Radio, RefreshCw, Truck as TruckIcon, MessageCircle, Gauge, Battery, MapPin, Clock } from 'lucide-react';
+import { Battery, Clock, Gauge, MapPin, MessageCircle, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { StatusBadge, toneText, type Tone } from '@/components/patterns';
+import { useResolvedTheme } from '@/components/theme/PreferencesProvider';
+import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
+import { prefersReducedMotion, readPreferences } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
 import { openWhatsApp } from "@/lib/whatsapp";
+import { DriverAvatar } from './DriverAvatar';
+import { LiveMapFrame } from './LiveMapFrame';
+import { VEHICLE_STATUS, countByStatus, vehicleStatus } from './mapStatus';
+import { slaStatus } from './status';
 
 interface FleetPosition {
   id: string;
@@ -42,7 +49,108 @@ interface LiveMapMapboxProps {
   isRefreshing?: boolean;
 }
 
-const MAP_STYLE = "mapbox://styles/mapbox/dark-v11";
+// Estilo do mapa acompanha o tema da tela.
+const MAP_STYLE = {
+  dark: "mapbox://styles/mapbox/dark-v11",
+  light: "mapbox://styles/mapbox/light-v11",
+} as const;
+
+function batteryTone(level?: number): Tone {
+  if (level === undefined) return "neutral";
+  if (level > 50) return "success";
+  if (level > 20) return "warning";
+  return "danger";
+}
+
+/** Detalhe do motorista que abre ao tocar no marcador. */
+function DriverPopup({ position, onClose }: { position: FleetPosition; onClose: () => void }) {
+  const status = VEHICLE_STATUS[vehicleStatus(position)];
+  const sla = position.individual_sla !== undefined ? Number(position.individual_sla) : undefined;
+  const battery = batteryTone(position.battery_level);
+  const progress =
+    position.deliveries_completed !== undefined && position.total_deliveries ? (position.deliveries_completed / position.total_deliveries) * 100 : null;
+
+  const stats = [
+    { icon: Gauge, label: "Velocidade", value: `${Number(position.speed || 0).toFixed(0)} km/h`, tone: "neutral" as Tone },
+    { icon: Gauge, label: "SLA", value: sla !== undefined ? `${sla.toFixed(1).replace(".", ",")}%` : "—", tone: sla !== undefined ? slaStatus(sla).tone : ("neutral" as Tone) },
+    { icon: Battery, label: "Bateria", value: position.battery_level !== undefined ? `${position.battery_level}%` : "—", tone: battery },
+    { icon: MapPin, label: "Precisão", value: position.accuracy !== undefined ? `±${Number(position.accuracy).toFixed(0)} m` : "—", tone: "neutral" as Tone },
+  ];
+
+  return (
+    <div
+      role="dialog"
+      aria-label={`Detalhes de ${position.driver_name || "motorista"}`}
+      className="absolute bottom-14 left-1/2 z-50 w-[17.5rem] -translate-x-1/2 animate-scale-in rounded-lg border bg-popover p-4 text-popover-foreground shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="mb-3 flex items-center gap-3 border-b pb-3">
+        <DriverAvatar name={position.driver_name} photo={position.driver_photo} tone={status.tone} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{position.driver_name || "Motorista"}</p>
+          <p className="truncate font-data text-xs text-muted-foreground">
+            {position.vehicle_plate || "Placa pendente"}
+            {position.vehicle_type && ` · ${position.vehicle_type}`}
+          </p>
+        </div>
+        <Button size="icon-sm" variant="ghost" onClick={onClose} aria-label="Fechar detalhes">
+          <X aria-hidden="true" />
+        </Button>
+      </div>
+
+      <StatusBadge tone={status.tone} className="mb-3">
+        {status.label}
+      </StatusBadge>
+
+      <dl className="mb-3 grid grid-cols-2 gap-2">
+        {stats.map((stat) => (
+          <div key={stat.label} className="rounded-md bg-muted/60 p-2">
+            <dt className="flex items-center gap-1 text-xs text-muted-foreground">
+              <stat.icon className="h-3 w-3" aria-hidden="true" />
+              {stat.label}
+            </dt>
+            <dd className={cn("font-data text-sm font-semibold", stat.tone === "neutral" ? "text-foreground" : toneText[stat.tone])}>{stat.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {position.current_delay !== undefined && position.current_delay > 0 && (
+        <p className="mb-3 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-sm font-medium text-destructive">
+          <Clock className="h-4 w-4" aria-hidden="true" />
+          Atraso de {position.current_delay} min
+        </p>
+      )}
+
+      {progress !== null && (
+        <div className="mb-3 space-y-1.5">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Entregas</span>
+            <span className="font-data font-semibold">
+              {position.deliveries_completed} de {position.total_deliveries}
+            </span>
+          </div>
+          <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-[width] duration-slow ease-out" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+
+      <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Clock className="h-3 w-3" aria-hidden="true" />
+        Atualizado às {position.last_update ? new Date(position.last_update).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}
+      </p>
+
+      {position.phone ? (
+        <Button size="sm" className="w-full" onClick={() => openWhatsApp(position.phone)}>
+          <MessageCircle aria-hidden="true" />
+          Chamar no WhatsApp
+        </Button>
+      ) : (
+        <p className="py-1 text-center text-xs text-muted-foreground">Telefone não cadastrado</p>
+      )}
+    </div>
+  );
+}
 
 export default function LiveMapMapbox({
   positions,
@@ -54,24 +162,18 @@ export default function LiveMapMapbox({
   onRefresh,
   isRefreshing = false,
 }: LiveMapMapboxProps) {
+  const theme = useResolvedTheme();
   const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
   const [viewState, setViewState] = useState({
     longitude: center.longitude,
     latitude: center.latitude,
     zoom: 11,
   });
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<MapRef | null>(null);
 
-  // Calculate marker color based on GPS stale / SLA / delay
-  const getMarkerColor = (position: FleetPosition) => {
-    // Cores funcionais do manual da marca.
-    if (position.gpsStale) return STATUS_HEX.idle; // sem sinal
-    if (position.current_delay && position.current_delay > 0) return STATUS_HEX.late; // atrasado
-    if (position.individual_sla && position.individual_sla < 90) return STATUS_HEX.alert; // em risco
-    return STATUS_HEX.ok; // no prazo
-  };
+  const counts = useMemo(() => countByStatus(positions), [positions]);
 
-  // Fit bounds to show all vehicles
+  // Enquadra todos os veiculos
   const fitBounds = useCallback(() => {
     if (!mapRef.current || positions.length === 0) return;
 
@@ -87,7 +189,7 @@ export default function LiveMapMapbox({
         maxLng: Number(positions[0].longitude),
         minLat: Number(positions[0].latitude),
         maxLat: Number(positions[0].latitude),
-      }
+      },
     );
 
     mapRef.current?.fitBounds(
@@ -97,8 +199,8 @@ export default function LiveMapMapbox({
       ],
       {
         padding: 50,
-        duration: 1000,
-      }
+        duration: prefersReducedMotion(readPreferences()) ? 0 : 1000,
+      },
     );
   }, [positions]);
 
@@ -119,389 +221,91 @@ export default function LiveMapMapbox({
     mapRef.current.flyTo({
       center: [Number(focusedPosition.longitude), Number(focusedPosition.latitude)],
       zoom: 14,
-      duration: 1200,
+      duration: prefersReducedMotion(readPreferences()) ? 0 : 1200,
       essential: true,
     });
 
     onFocusHandled?.();
   }, [focusDriverId, onFocusHandled, positions]);
 
-  const handleWhatsApp = (phone?: string) => {
-    if (!phone) return;
-    openWhatsApp(phone);
-  };
-
-  const onTimeCount = positions.filter(p => !p.gpsStale && (!p.current_delay || p.current_delay === 0)).length;
-  const delayedCount = positions.filter(p => !p.gpsStale && p.current_delay && p.current_delay > 0).length;
-  const staleCount = positions.filter(p => p.gpsStale).length;
-
-  // If no Mapbox token, show a message
   if (!mapboxToken) {
-    return (
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border p-4 bg-card">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Navigation className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">Mapa em Tempo Real</h3>
-              <p className="text-sm text-muted-foreground">Configure o token do Mapbox</p>
-            </div>
-          </div>
-        </div>
-        <div className="h-[500px] flex items-center justify-center bg-nhf-ink">
-          <p className="text-muted-foreground">Token do Mapbox não configurado.</p>
-        </div>
-      </div>
-    );
+    return <LiveMapFrame state="error" vehicleCount={positions.length} error="Token do Mapbox não configurado." />;
   }
 
   return (
-    <div className="glass-card rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between border-b border-border p-4 bg-card gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Navigation className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-foreground font-heading">Mapa em Tempo Real - Mapbox</h3>
-            <p className="text-sm text-muted-foreground">
-              {positions.length === 1 ? "1 veículo ativo" : `${positions.length} veículos ativos`} • São Paulo
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-1 justify-start lg:justify-center">
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={!onRefresh || isRefreshing}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Atualizar mapa
-          </button>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-success" />
-            <span className="text-xs text-muted-foreground">No Prazo</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs text-muted-foreground">Atrasado</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
-            <span className="text-xs text-muted-foreground">Sem Sinal</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-success">
-            <Radio className="h-4 w-4 animate-pulse" />
-            <span className="text-xs font-medium">AO VIVO</span>
-          </div>
-          <button
-            onClick={fitBounds}
-            className="text-xs text-primary hover:underline"
-          >
-            Ver todos
-          </button>
-        </div>
-      </div>
+    <LiveMapFrame
+      vehicleCount={onlineCount ?? positions.length}
+      counts={counts}
+      onRefresh={onRefresh}
+      isRefreshing={isRefreshing}
+      onFitAll={fitBounds}
+    >
+      <Map
+        ref={mapRef}
+        {...viewState}
+        onMove={(evt) => setViewState(evt.viewState)}
+        mapStyle={MAP_STYLE[theme]}
+        mapboxAccessToken={mapboxToken}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <NavigationControl position="top-left" />
+        <FullscreenControl position="top-left" />
 
-      {/* Map */}
-      <div className="relative h-[500px]">
-        <Map
-          ref={mapRef}
-          {...viewState}
-          onMove={(evt) => setViewState(evt.viewState)}
-          mapStyle={MAP_STYLE}
-          mapboxAccessToken={mapboxToken}
-          style={{ width: '100%', height: '100%' }}
-        >
-          <NavigationControl position="top-left" />
-          <FullscreenControl position="top-left" />
+        {positions.map((position) => {
+          const status = VEHICLE_STATUS[vehicleStatus(position)];
+          const isSelected = selectedDriver === position.driver_id;
 
-          {/* Driver markers */}
-          {positions.map((position) => {
-            const markerColor = getMarkerColor(position);
-            const isSelected = selectedDriver === position.driver_id;
-
-            return (
-              <Marker
-                key={position.id}
-                longitude={Number(position.longitude)}
-                latitude={Number(position.latitude)}
-                anchor="center"
-              >
-                {/* Container separates rotating marker from static popup */}
-                <div className="relative">
-                  {/* Rotating truck marker */}
-                  <div
-                    className="relative cursor-pointer transition-transform hover:scale-110"
-                    style={{ transform: `rotate(${position.heading || 0}deg)` }}
-                    onClick={() => setSelectedDriver(isSelected ? null : position.driver_id)}
-                  >
-                    {/* Speed badge - counter-rotate to stay horizontal */}
-                    {position.speed > 0 && !position.gpsStale && (
-                      <div
-                        className="absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-sm text-[10px] font-bold whitespace-nowrap font-data"
-                        style={{
-                          backgroundColor: markerColor,
-                          color: STATUS_HEX.ink,
-                          transform: `rotate(${-(position.heading || 0)}deg)`
-                        }}
-                      >
-                        {Number(position.speed).toFixed(0).replace(".", ",")} km/h
-                      </div>
-                    )}
-
-                    {/* GPS Stale badge - "Sem Sinal" */}
-                    {position.gpsStale && (
-                      <div
-                        className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-sm text-[10px] font-bold whitespace-nowrap"
-                        style={{
-                          backgroundColor: STATUS_HEX.idle,
-                          color: STATUS_HEX.ink,
-                          transform: `rotate(${-(position.heading || 0)}deg)`
-                        }}
-                      >
-                        SEM SINAL
-                      </div>
-                    )}
-
-                    {/* Veiculo = simbolo da marca sobre circulo preto, anel na cor do status */}
-                    <div dangerouslySetInnerHTML={{ __html: vehicleMarkerHtml(markerColor, 0, 40) }} />
-                  </div>
-
-                  {/* Static popup - NOT inside rotating container */}
-                  {isSelected && (
-                    <div
-                      className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-card border border-border rounded-xl p-4 min-w-[280px] z-50 shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200"
-                      onClick={(e) => e.stopPropagation()}
+          return (
+            <Marker key={position.id} longitude={Number(position.longitude)} latitude={Number(position.latitude)} anchor="center">
+              {/* O detalhe fica fora do bloco que gira com o veiculo */}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label={`${position.driver_name || "Motorista"}, ${status.label.toLowerCase()}. Ver detalhes`}
+                  aria-expanded={isSelected}
+                  className="relative block rounded-full transition-transform duration-fast hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  style={{ transform: `rotate(${position.heading || 0}deg)` }}
+                  onClick={() => setSelectedDriver(isSelected ? null : position.driver_id)}
+                >
+                  {/* Velocidade: gira ao contrario para ficar na horizontal */}
+                  {position.speed > 0 && !position.gpsStale && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-sm px-1.5 py-0.5 font-data text-[0.6875rem] font-bold"
+                      style={{
+                        backgroundColor: status.hex,
+                        color: STATUS_HEX.ink,
+                        transform: `rotate(${-(position.heading || 0)}deg)`,
+                      }}
                     >
-                      {/* Header with driver info */}
-                      <div className="flex items-center gap-3 mb-3 pb-3 border-b border-border">
-                        <div className="relative flex-shrink-0">
-                          {position.driver_photo ? (
-                            <img
-                              src={brandAvatar(position.driver_photo)}
-                              alt={position.driver_name}
-                              className="w-11 h-11 rounded-full object-cover border-2 border-primary"
-                            />
-                          ) : (
-                            <div className="w-11 h-11 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary">
-                              <TruckIcon className="h-5 w-5 text-primary" />
-                            </div>
-                          )}
-                          {/* Status indicator */}
-                          <div 
-                            className={cn(
-                              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-card",
-                              position.is_active ? "bg-success" : "bg-muted"
-                            )}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-foreground text-sm truncate">
-                            {position.driver_name || 'Motorista'}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            {position.vehicle_plate && (
-                              <span className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px] font-medium">
-                                {position.vehicle_plate}
-                              </span>
-                            )}
-                            {position.vehicle_type && (
-                              <span className="capitalize">{position.vehicle_type}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        {/* Speed */}
-                        <div className="bg-muted/50 rounded-lg p-2 flex items-center gap-2">
-                          <div className="p-1.5 rounded-md bg-primary/10">
-                            <Gauge className="h-4 w-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Velocidade</p>
-                            <p className="text-sm font-bold text-foreground font-heading">
-                              {position.speed !== undefined ? `${Number(position.speed).toFixed(0).replace(".", ",")} km/h` : '0 km/h'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* SLA */}
-                        <div className="bg-muted/50 rounded-lg p-2 flex items-center gap-2">
-                          <div className={cn(
-                            "p-1.5 rounded-md",
-                            position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
-                              ? "bg-success/10" 
-                              : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
-                                ? "bg-warning/10" 
-                                : "bg-primary/10"
-                          )}>
-                            <div className={cn(
-                              "h-4 w-4 rounded-full",
-                              position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
-                                ? "bg-success" 
-                                : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
-                                  ? "bg-warning" 
-                                  : "bg-primary"
-                            )} />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">SLA</p>
-                            <p className={cn(
-                              "text-sm font-bold font-heading",
-                              position.individual_sla !== undefined && Number(position.individual_sla) >= 95 
-                                ? "text-success" 
-                                : position.individual_sla !== undefined && Number(position.individual_sla) >= 90 
-                                  ? "text-warning" 
-                                  : "text-primary"
-                            )}>
-                              {position.individual_sla !== undefined 
-                                ? `${Number(position.individual_sla).toFixed(1).replace(".", ",")}%` 
-                                : '—'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Battery */}
-                        <div className="bg-muted/50 rounded-lg p-2 flex items-center gap-2">
-                          <div className={cn(
-                            "p-1.5 rounded-md",
-                            position.battery_level !== undefined && position.battery_level > 50 
-                              ? "bg-success/10" 
-                              : position.battery_level !== undefined && position.battery_level > 20 
-                                ? "bg-warning/10" 
-                                : "bg-destructive/10"
-                          )}>
-                            <Battery className={cn(
-                              "h-4 w-4",
-                              position.battery_level !== undefined && position.battery_level > 50 
-                                ? "text-success" 
-                                : position.battery_level !== undefined && position.battery_level > 20 
-                                  ? "text-warning" 
-                                  : "text-destructive"
-                            )} />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Bateria</p>
-                            <p className="text-sm font-bold text-foreground font-heading">
-                              {position.battery_level !== undefined ? `${position.battery_level}%` : '—'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Accuracy */}
-                        <div className="bg-muted/50 rounded-lg p-2 flex items-center gap-2">
-                          <div className="p-1.5 rounded-md bg-primary/10">
-                            <MapPin className="h-4 w-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Precisão</p>
-                            <p className="text-sm font-bold text-foreground font-heading">
-                              {position.accuracy !== undefined ? `±${Number(position.accuracy).toFixed(0)}m` : '—'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Delay Warning */}
-                      {position.current_delay !== undefined && position.current_delay > 0 && (
-                        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-2 mb-3 flex items-center gap-2">
-                          <div className="p-1.5 rounded-md bg-destructive/20">
-                            <Clock className="h-4 w-4 text-destructive" />
-                          </div>
-                          <span className="text-sm text-destructive font-semibold">
-                            Atraso de {position.current_delay} min
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Deliveries progress */}
-                      {position.deliveries_completed !== undefined && position.total_deliveries !== undefined && position.total_deliveries > 0 && (
-                        <div className="mb-3 border-t border-border pt-3">
-                          <div className="flex justify-between text-xs mb-1.5">
-                            <span className="text-muted-foreground">Entregas</span>
-                            <span className="text-foreground font-bold font-heading">
-                              {position.deliveries_completed}/{position.total_deliveries}
-                            </span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-primary transition-all"
-                              style={{ width: `${(position.deliveries_completed / position.total_deliveries) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Last update */}
-                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 mb-3 border-t border-border pt-2">
-                        <Clock className="h-3 w-3" />
-                        <span>Atualizado: {position.last_update 
-                          ? new Date(position.last_update).toLocaleTimeString('pt-BR') 
-                          : 'Desconhecido'}</span>
-                      </div>
-
-                      {/* WhatsApp Button */}
-                      {position.phone ? (
-                        <button
-                          onClick={() => handleWhatsApp(position.phone)}
-                          className="w-full bg-success hover:bg-success/90 text-success-foreground py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-colors shadow-md"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                          Abrir WhatsApp
-                        </button>
-                      ) : (
-                        <div className="text-xs text-center text-muted-foreground py-1">
-                          Telefone não cadastrado
-                        </div>
-                      )}
-                    </div>
+                      {Number(position.speed).toFixed(0)} km/h
+                    </span>
                   )}
-                </div>
-              </Marker>
-            );
-          })}
-        </Map>
 
-        {/* Stats Overlay */}
-        <div className="absolute top-4 right-4 z-10 bg-nhf-ink/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-success font-heading">{onTimeCount}</p>
-              <p className="text-xs text-muted-foreground">No Prazo</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-destructive font-data">{delayedCount}</p>
-              <p className="text-xs text-muted-foreground">Atrasados</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-destructive font-heading">{staleCount}</p>
-              <p className="text-xs text-muted-foreground">Sem Sinal</p>
-            </div>
-          </div>
-        </div>
+                  {position.gpsStale && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-sm px-2 py-0.5 text-[0.6875rem] font-bold"
+                      style={{
+                        backgroundColor: STATUS_HEX.idle,
+                        color: STATUS_HEX.ink,
+                        transform: `rotate(${-(position.heading || 0)}deg)`,
+                      }}
+                    >
+                      Sem sinal
+                    </span>
+                  )}
 
-        {/* Empty state */}
-        {positions.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-nhf-ink/80 backdrop-blur-sm">
-            <div className="text-center p-6">
-              <TruckIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-foreground font-medium mb-1">Nenhum veículo ativo</p>
-              <p className="text-sm text-muted-foreground">
-                Aguardando motoristas iniciarem o rastreamento GPS
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+                  {/* Veiculo = simbolo da marca sobre circulo preto, anel na cor do status */}
+                  <span aria-hidden="true" className="block" dangerouslySetInnerHTML={{ __html: vehicleMarkerHtml(status.hex, 0, 40) }} />
+                </button>
+
+                {isSelected && <DriverPopup position={position} onClose={() => setSelectedDriver(null)} />}
+              </div>
+            </Marker>
+          );
+        })}
+      </Map>
+    </LiveMapFrame>
   );
 }

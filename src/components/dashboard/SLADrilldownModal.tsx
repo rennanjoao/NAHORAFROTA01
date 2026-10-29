@@ -1,44 +1,33 @@
 /**
- * SLA DRILL-DOWN MODAL
- * Two-level hierarchy: Drivers → Invoices
- * Level 1: List of drivers sorted by SLA (worst first)
- * Level 2: Click driver to see invoices causing SLA drop
+ * DETALHE DO SLA
+ * Dois niveis: motoristas (pior primeiro) e, ao tocar em um, as notas que
+ * mexeram no SLA dele. Cada nota abre o detalhe da entrega.
  */
 
-import { useState } from "react";
-import { 
-  AlertTriangle, 
-  AlertCircle, 
-  ChevronRight, 
-  ChevronLeft,
-  CheckCircle2, 
-  MessageCircle,
-  FileText,
-  Package,
-  ArrowLeft
-} from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { useState, type ReactNode } from "react";
+import { ArrowLeft, ChevronRight, MessageCircle, Package, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { EmptyState, StatusBadge, toneDot, toneText, type Tone } from "@/components/patterns";
 import { formatSLA } from "@/lib/formatSLA";
-import { 
-  DriverSLAStats, 
+import {
+  DriverSLAStats,
   OrphanInvoice,
-  InvoiceOccurrence,
-  OCCURRENCE_LABELS, 
-  getSLAColorScheme, 
-  isSLACritical, 
-  isSLAAttention, 
+  isSLACritical,
+  isSLAAttention,
   SLA_THRESHOLDS,
-  SLA_OCCURRENCE_WEIGHTS,
-  SLAInvoiceItem, getOccurrenceLabel } from "@/hooks/useSLADB";
+  SLAInvoiceItem,
+  getOccurrenceLabel,
+} from "@/hooks/useSLADB";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatCurrency";
-import { DeliveryDetailSheet, DeliveryWithHistory } from "@/components/deliveries/DeliveryDetailSheet";
 import { openWhatsApp } from "@/lib/whatsapp";
+import { DeliveryDetailSheet, DeliveryWithHistory } from "@/components/deliveries/DeliveryDetailSheet";
+import { DetailDialog } from "./DetailPanel";
+import { DriverAvatar } from "./DriverAvatar";
+import { InvoiceList, type InvoiceRowData } from "./InvoiceList";
+import { SLABar } from "./SLAParts";
+import { plural, slaStatus, pct } from "./status";
 
 interface SLADrilldownModalProps {
   open: boolean;
@@ -51,73 +40,55 @@ interface SLADrilldownModalProps {
   mode: "weekly" | "today";
 }
 
-export function SLADrilldownModal({
-  open,
-  onOpenChange,
-  title,
-  subtitle,
-  drivers,
-  orphanInvoices = [],
-  fleetSLA,
-  mode,
-}: SLADrilldownModalProps) {
+type Mode = SLADrilldownModalProps["mode"];
+
+const driverSLA = (d: DriverSLAStats, mode: Mode) => (mode === "weekly" ? d.weeklySLA : d.todaySLA);
+const driverTotal = (d: DriverSLAStats, mode: Mode) => (mode === "weekly" ? d.weeklyTotalInvoices : d.todayTotalInvoices);
+const driverDelivered = (d: DriverSLAStats, mode: Mode) => (mode === "weekly" ? d.weeklyDeliveredCount : d.todayDeliveredCount);
+const driverOccurrences = (d: DriverSLAStats, mode: Mode) => (mode === "weekly" ? d.weeklyOccurrenceCount : d.todayOccurrenceCount);
+
+/** Quanto a nota conta no SLA (1 = entrega cheia, 0 = perda total). */
+function weightTone(weight: number, delivered = false): string {
+  if (delivered || weight >= 0.8) return "text-foreground";
+  return weight === 0 ? "text-destructive" : "text-warning";
+}
+
+function WeightAside({ weight, delivered }: { weight: number; delivered?: boolean }) {
+  return (
+    <>
+      <p className={cn("font-data text-sm font-semibold", weightTone(weight, delivered))}>{(weight * 100).toFixed(0)}%</p>
+      <p className="text-xs text-muted-foreground">conta no SLA</p>
+    </>
+  );
+}
+
+export function SLADrilldownModal({ open, onOpenChange, title, subtitle, drivers, orphanInvoices = [], fleetSLA, mode }: SLADrilldownModalProps) {
   const [selectedDriver, setSelectedDriver] = useState<DriverSLAStats | null>(null);
-  const [view, setView] = useState<"drivers" | "invoices">("drivers");
   const [selectedInvoice, setSelectedInvoice] = useState<DeliveryWithHistory | null>(null);
   const [isInvoiceDetailOpen, setIsInvoiceDetailOpen] = useState(false);
 
-  // Get the appropriate SLA based on mode
-  const getDriverSLA = (driver: DriverSLAStats) => 
-    mode === "weekly" ? driver.weeklySLA : driver.todaySLA;
-  
-  const getDriverTotal = (driver: DriverSLAStats) => 
-    mode === "weekly" ? driver.weeklyTotalInvoices : driver.todayTotalInvoices;
-  
-  const getDriverDelivered = (driver: DriverSLAStats) => 
-    mode === "weekly" ? driver.weeklyDeliveredCount : driver.todayDeliveredCount;
-  
-  const getDriverOccurrences = (driver: DriverSLAStats) => 
-    mode === "weekly" ? driver.weeklyOccurrenceCount : driver.todayOccurrenceCount;
+  // Pior SLA primeiro
+  const sortedDrivers = [...drivers].filter((d) => driverTotal(d, mode) > 0).sort((a, b) => driverSLA(a, mode) - driverSLA(b, mode));
 
-  // Sort drivers by SLA (worst first)
-  const sortedDrivers = [...drivers]
-    .filter(d => getDriverTotal(d) > 0)
-    .sort((a, b) => getDriverSLA(a) - getDriverSLA(b));
-  
-  // Group by severity
-  const criticalDrivers = sortedDrivers.filter(d => isSLACritical(getDriverSLA(d)));
-  const attentionDrivers = sortedDrivers.filter(d => isSLAAttention(getDriverSLA(d)));
-  const goodDrivers = sortedDrivers.filter(d => getDriverSLA(d) >= SLA_THRESHOLDS.GOOD && getDriverSLA(d) < SLA_THRESHOLDS.EXCELLENT);
-  const healthyDrivers = sortedDrivers.filter(d => getDriverSLA(d) >= SLA_THRESHOLDS.EXCELLENT);
+  // Faixas
+  const criticalDrivers = sortedDrivers.filter((d) => isSLACritical(driverSLA(d, mode)));
+  const attentionDrivers = sortedDrivers.filter((d) => isSLAAttention(driverSLA(d, mode)));
+  const nearGoalDrivers = sortedDrivers.filter((d) => driverSLA(d, mode) >= SLA_THRESHOLDS.GOOD && driverSLA(d, mode) < SLA_THRESHOLDS.EXCELLENT);
+  const healthyDrivers = sortedDrivers.filter((d) => driverSLA(d, mode) >= SLA_THRESHOLDS.EXCELLENT);
 
-  const fleetColorScheme = getSLAColorScheme(fleetSLA);
-  const hasProblems = criticalDrivers.length > 0 || attentionDrivers.length > 0 || goodDrivers.length > 0 || orphanInvoices.length > 0;
+  const fleetStatus = slaStatus(fleetSLA);
+  const hasProblems = criticalDrivers.length > 0 || attentionDrivers.length > 0 || nearGoalDrivers.length > 0 || orphanInvoices.length > 0;
 
-  const handleDriverSelect = (driver: DriverSLAStats) => {
-    setSelectedDriver(driver);
-    setView("invoices");
-  };
-
-  const handleBack = () => {
-    setSelectedDriver(null);
-    setView("drivers");
-  };
-
-  const handleWhatsApp = (e: React.MouseEvent, phone: string) => {
-    e.stopPropagation();
-    const cleanPhone = phone.replace(/\D/g, "");
-    openWhatsApp(cleanPhone);
-  };
-
-  const handleClose = () => {
-    onOpenChange(false);
-    // Reset state when closing
-    setTimeout(() => {
-      setSelectedDriver(null);
-      setView("drivers");
-      setSelectedInvoice(null);
-      setIsInvoiceDetailOpen(false);
-    }, 200);
+  const handleOpenChange = (next: boolean) => {
+    onOpenChange(next);
+    if (!next) {
+      // Volta para a lista depois que a janela fecha
+      setTimeout(() => {
+        setSelectedDriver(null);
+        setSelectedInvoice(null);
+        setIsInvoiceDetailOpen(false);
+      }, 200);
+    }
   };
 
   const openInvoiceDetail = (invoice: SLAInvoiceItem, driverName: string | null) => {
@@ -150,755 +121,224 @@ export function SLADrilldownModal({
     setIsInvoiceDetailOpen(true);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          {view === "drivers" ? (
-            <>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertTriangle className={cn("h-5 w-5", fleetColorScheme.textClass)} />
-                {title}
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground">{subtitle}</p>
-            </>
-          ) : (
-            <>
-              <DialogTitle className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 w-8 p-0 mr-2">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                Detalhes: {selectedDriver?.driver_name}
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground">
-                Notas fiscais e ocorrências que impactaram o SLA
-              </p>
-            </>
-          )}
-        </DialogHeader>
+  const invoiceSheet = <DeliveryDetailSheet delivery={selectedInvoice} open={isInvoiceDetailOpen} onOpenChange={setIsInvoiceDetailOpen} />;
 
-        {/* Fleet Summary */}
-        {view === "drivers" && (
-          <div className={cn(
-            "rounded-lg p-4 border-2 mb-4",
-            fleetColorScheme.borderClass,
-            fleetColorScheme.bgClass
-          )}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">SLA da Frota</p>
-                <p className={cn("text-3xl font-bold font-mono", fleetColorScheme.textClass)}>
-                  {formatSLA(fleetSLA)}%
-                </p>
-              </div>
-              <div className="text-right">
-                <Badge className={cn(
-                  "font-bold",
-                  fleetColorScheme.badgeBgClass
-                )}>
-                  {fleetColorScheme.labelPt}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Meta: {SLA_THRESHOLDS.EXCELLENT}%
-                </p>
-              </div>
-            </div>
-            <Progress value={fleetSLA} className={cn("h-2 mt-3", fleetColorScheme.progressClass)} />
+  // Nivel 2: notas de um motorista
+  if (selectedDriver) {
+    const sla = driverSLA(selectedDriver, mode);
+    const status = slaStatus(sla);
+    return (
+      <DetailDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        leading={
+          <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={() => setSelectedDriver(null)}>
+            <ArrowLeft aria-hidden="true" />
+            Voltar para os motoristas
+          </Button>
+        }
+        title={selectedDriver.driver_name}
+        description="Notas e ocorrências que mexeram no SLA deste motorista."
+        bodyLabel={`Notas de ${selectedDriver.driver_name}`}
+        summary={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className={cn("font-data text-3xl font-semibold leading-none", toneText[status.tone])}>{formatSLA(sla)}%</span>
+            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+            {selectedDriver.vehicle_plate && <Badge variant="outline">{selectedDriver.vehicle_plate}</Badge>}
           </div>
-        )}
-
-        <ScrollArea className="flex-1 pr-2">
-          {view === "drivers" ? (
-            <DriversListView
-              criticalDrivers={criticalDrivers}
-              attentionDrivers={attentionDrivers}
-              goodDrivers={goodDrivers}
-              healthyDrivers={healthyDrivers}
-              orphanInvoices={orphanInvoices}
-              hasProblems={hasProblems}
-              mode={mode}
-              getDriverSLA={getDriverSLA}
-              getDriverTotal={getDriverTotal}
-              getDriverDelivered={getDriverDelivered}
-              getDriverOccurrences={getDriverOccurrences}
-              onDriverSelect={handleDriverSelect}
-              onWhatsApp={handleWhatsApp}
-            />
-          ) : selectedDriver ? (
-            <DriverInvoicesView
-              driver={selectedDriver}
-              mode={mode}
-              onInvoiceOpen={(invoice) => openInvoiceDetail(invoice, selectedDriver.driver_name)}
-            />
-          ) : null}
-        </ScrollArea>
-        <DeliveryDetailSheet
-          delivery={selectedInvoice}
-          open={isInvoiceDetailOpen}
-          onOpenChange={setIsInvoiceDetailOpen}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Level 1: Drivers List View
-function DriversListView({
-  criticalDrivers,
-  attentionDrivers,
-  goodDrivers,
-  healthyDrivers,
-  orphanInvoices,
-  hasProblems,
-  mode,
-  getDriverSLA,
-  getDriverTotal,
-  getDriverDelivered,
-  getDriverOccurrences,
-  onDriverSelect,
-  onWhatsApp,
-}: {
-  criticalDrivers: DriverSLAStats[];
-  attentionDrivers: DriverSLAStats[];
-  goodDrivers: DriverSLAStats[];
-  healthyDrivers: DriverSLAStats[];
-  orphanInvoices: OrphanInvoice[];
-  hasProblems: boolean;
-  mode: "weekly" | "today";
-  getDriverSLA: (d: DriverSLAStats) => number;
-  getDriverTotal: (d: DriverSLAStats) => number;
-  getDriverDelivered: (d: DriverSLAStats) => number;
-  getDriverOccurrences: (d: DriverSLAStats) => number;
-  onDriverSelect: (driver: DriverSLAStats) => void;
-  onWhatsApp: (e: React.MouseEvent, phone: string) => void;
-}) {
-  if (!hasProblems && healthyDrivers.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-        <p className="text-muted-foreground">Nenhuma entrega finalizada no período</p>
-      </div>
-    );
-  }
-
-  if (!hasProblems && healthyDrivers.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-success" />
-        <p className="text-lg font-semibold text-success mb-2">
-          Operação Saudável! 
-        </p>
-        <p className="text-muted-foreground">
-          Todos os motoristas estão acima da meta de {SLA_THRESHOLDS.EXCELLENT}%
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {!hasProblems && (
-        <div className="text-center py-4">
-          <CheckCircle2 className="h-14 w-14 mx-auto mb-3 text-success" />
-          <p className="text-lg font-semibold text-success mb-2">
-            Operação Saudável.
-          </p>
-          <p className="text-muted-foreground">
-            Todos os motoristas estão acima da meta de {SLA_THRESHOLDS.EXCELLENT}%
-          </p>
-        </div>
-      )}
-
-      {/* Orphan Invoices */}
-      {orphanInvoices.length > 0 && (
-        <DriverSection
-          title="NFs Sem Motorista Associado"
-          icon={<AlertTriangle className="h-4 w-4 text-warning" />}
-          count={orphanInvoices.length}
-          colorClass="text-warning"
-          bgClass="bg-warning/10"
-          borderClass="border-warning/30"
-        >
-          {orphanInvoices.map((invoice) => (
-            <OrphanInvoiceRow key={invoice.id} invoice={invoice} />
-          ))}
-        </DriverSection>
-      )}
-
-      {/* Critical Drivers (<75%) */}
-      {criticalDrivers.length > 0 && (
-        <DriverSection
-          title={`Estado Crítico (<${SLA_THRESHOLDS.ATTENTION}%)`}
-          subtitle="Mudança imediata necessária"
-          icon={<AlertTriangle className="h-4 w-4 text-destructive" />}
-          count={criticalDrivers.length}
-          colorClass="text-destructive"
-          bgClass="bg-destructive/10"
-          borderClass="border-destructive/30"
-        >
-          {criticalDrivers.map((driver, index) => (
-            <DriverRow
-              key={driver.driver_id}
-              driver={driver}
-              index={index}
-              type="critical"
-              sla={getDriverSLA(driver)}
-              total={getDriverTotal(driver)}
-              delivered={getDriverDelivered(driver)}
-              occurrences={getDriverOccurrences(driver)}
-              onClick={() => onDriverSelect(driver)}
-              onWhatsApp={(e) => onWhatsApp(e, driver.phone)}
-            />
-          ))}
-        </DriverSection>
-      )}
-
-      {/* Attention Drivers (75-89%) */}
-      {attentionDrivers.length > 0 && (
-        <DriverSection
-          title={`Atenção (${SLA_THRESHOLDS.ATTENTION}-${SLA_THRESHOLDS.GOOD - 0.1}%)`}
-          subtitle="Requer orientação"
-          icon={<AlertCircle className="h-4 w-4 text-warning" />}
-          count={attentionDrivers.length}
-          colorClass="text-warning"
-          bgClass="bg-warning/10"
-          borderClass="border-warning/30"
-        >
-          {attentionDrivers.map((driver, index) => (
-            <DriverRow
-              key={driver.driver_id}
-              driver={driver}
-              index={criticalDrivers.length + index}
-              type="attention"
-              sla={getDriverSLA(driver)}
-              total={getDriverTotal(driver)}
-              delivered={getDriverDelivered(driver)}
-              occurrences={getDriverOccurrences(driver)}
-              onClick={() => onDriverSelect(driver)}
-              onWhatsApp={(e) => onWhatsApp(e, driver.phone)}
-            />
-          ))}
-        </DriverSection>
-      )}
-
-      {goodDrivers.length > 0 && (
-        <DriverSection
-          title={`Bom, abaixo da meta (${SLA_THRESHOLDS.GOOD}-${SLA_THRESHOLDS.EXCELLENT - 0.1}%)`}
-          subtitle="Clique para ver as NFs"
-          icon={<AlertCircle className="h-4 w-4 text-info" />}
-          count={goodDrivers.length}
-          colorClass="text-info"
-          bgClass="bg-info/10"
-          borderClass="border-info/30"
-        >
-          {goodDrivers.map((driver, index) => (
-            <DriverRow
-              key={driver.driver_id}
-              driver={driver}
-              index={criticalDrivers.length + attentionDrivers.length + index}
-              type="good"
-              sla={getDriverSLA(driver)}
-              total={getDriverTotal(driver)}
-              delivered={getDriverDelivered(driver)}
-              occurrences={getDriverOccurrences(driver)}
-              onClick={() => onDriverSelect(driver)}
-              onWhatsApp={(e) => onWhatsApp(e, driver.phone)}
-            />
-          ))}
-        </DriverSection>
-      )}
-
-      {healthyDrivers.length > 0 && (
-        <DriverSection
-          title={hasProblems ? "Motoristas acima da meta" : "Motoristas no período"}
-          icon={<CheckCircle2 className="h-4 w-4 text-success" />}
-          count={healthyDrivers.length}
-          colorClass="text-success"
-          bgClass="bg-success/10"
-          borderClass="border-success/30"
-        >
-          {healthyDrivers.map((driver, index) => (
-            <DriverRow
-              key={driver.driver_id}
-              driver={driver}
-              index={criticalDrivers.length + attentionDrivers.length + goodDrivers.length + index}
-              type="healthy"
-              sla={getDriverSLA(driver)}
-              total={getDriverTotal(driver)}
-              delivered={getDriverDelivered(driver)}
-              occurrences={getDriverOccurrences(driver)}
-              onClick={() => onDriverSelect(driver)}
-              onWhatsApp={(e) => onWhatsApp(e, driver.phone)}
-            />
-          ))}
-        </DriverSection>
-      )}
-    </div>
-  );
-}
-
-function DriverSection({
-  title,
-  subtitle,
-  icon,
-  count,
-  colorClass,
-  bgClass,
-  borderClass,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  icon: React.ReactNode;
-  count: number;
-  colorClass: string;
-  bgClass: string;
-  borderClass: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className={cn("flex items-center gap-2 mb-3 p-2 rounded-lg", bgClass)}>
-        {icon}
-        <div className="flex-1">
-          <span className={cn("font-semibold", colorClass)}>{title}</span>
-          {subtitle && <span className="text-xs text-muted-foreground ml-2">• {subtitle}</span>}
-        </div>
-        <Badge variant="outline" className={cn(bgClass, colorClass, borderClass)}>
-          {count}
-        </Badge>
-      </div>
-      <div className="space-y-2">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function DriverRow({
-  driver,
-  index,
-  type,
-  sla,
-  total,
-  delivered,
-  occurrences,
-  onClick,
-  onWhatsApp,
-}: {
-  driver: DriverSLAStats;
-  index: number;
-  type: "critical" | "attention" | "good" | "healthy";
-  sla: number;
-  total: number;
-  delivered: number;
-  occurrences: number;
-  onClick: () => void;
-  onWhatsApp: (e: React.MouseEvent) => void;
-}) {
-  const colorScheme = getSLAColorScheme(sla);
-  const isCritical = type === "critical";
-  const isHealthy = type === "healthy";
-  const isGood = type === "good";
-
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all group",
-        "hover:shadow-md",
-        isCritical
-          ? "border-destructive/30 bg-destructive/5 hover:bg-destructive/10"
-          : isHealthy
-          ? "border-success/30 bg-success/5 hover:bg-success/10"
-          : "border-warning/30 bg-warning/5 hover:bg-warning/10"
-      )}
-    >
-      {/* Rank */}
-      <div className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-nhf-ink shrink-0",
-        isCritical ? "bg-destructive" : isHealthy ? "bg-success" : "bg-warning"
-      )}>
-        {index + 1}
-      </div>
-
-      {/* Avatar */}
-      {driver.photo_url ? (
-        <img
-          src={driver.photo_url}
-          alt={driver.driver_name}
-          className={cn(
-            "h-10 w-10 rounded-full object-cover border-2 shrink-0",
-            isCritical ? "border-destructive" : isHealthy ? "border-success" : "border-warning"
-          )}
-        />
-      ) : (
-        <div className={cn(
-          "h-10 w-10 rounded-full flex items-center justify-center border-2 shrink-0 text-sm font-bold",
-          isCritical
-            ? "bg-destructive/10 border-destructive"
-            : isHealthy
-            ? "bg-success/10 border-success"
-            : isGood
-            ? "bg-info/10 border-info"
-            : "bg-warning/10 border-warning"
-        )}>
-          {driver.driver_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-        </div>
-      )}
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">{driver.driver_name}</p>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span>{delivered} entregas</span>
-          <span>{total} NFs</span>
-          <span className={isCritical ? "text-destructive" : isHealthy ? "text-success" : "text-warning"}>
-            {occurrences} ocorrências
-          </span>
-        </div>
-      </div>
-
-      {/* SLA */}
-      <div className="text-right shrink-0">
-        <span className={cn("text-xl font-bold font-mono", colorScheme.textClass)}>
-          {formatSLA(sla)}%
-        </span>
-      </div>
-
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-8 w-8 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-success hover:text-success shrink-0"
-        onClick={onWhatsApp}
+        }
       >
-        <MessageCircle className="h-4 w-4" />
-      </Button>
+        <DriverInvoicesView driver={selectedDriver} mode={mode} onInvoiceOpen={(invoice) => openInvoiceDetail(invoice, selectedDriver.driver_name)} />
+        {invoiceSheet}
+      </DetailDialog>
+    );
+  }
 
-      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-    </div>
-  );
-}
-
-function OrphanInvoiceRow({ invoice }: { invoice: OrphanInvoice }) {
-  const isZeroWeight = invoice.weight === 0;
+  // Nivel 1: motoristas
+  const groups: { key: string; title: string; hint?: string; tone: Tone; drivers: DriverSLAStats[] }[] = [
+    { key: "critical", title: `Estado crítico (abaixo de ${pct(SLA_THRESHOLDS.ATTENTION)})`, hint: "Converse com o motorista hoje", tone: "danger", drivers: criticalDrivers },
+    { key: "attention", title: `Atenção (${pct(SLA_THRESHOLDS.ATTENTION)} a ${pct(SLA_THRESHOLDS.GOOD - 0.1)})`, hint: "Precisa de orientação", tone: "warning", drivers: attentionDrivers },
+    { key: "near", title: `Perto da meta (${pct(SLA_THRESHOLDS.GOOD)} a ${pct(SLA_THRESHOLDS.EXCELLENT - 0.1)})`, tone: "warning", drivers: nearGoalDrivers },
+    { key: "healthy", title: hasProblems ? "Acima da meta" : "Motoristas no período", tone: "success", drivers: healthyDrivers },
+  ];
 
   return (
-    <div className={cn(
-      "flex items-center gap-3 p-3 rounded-lg border",
-      isZeroWeight
-        ? "border-destructive/30 bg-destructive/5"
-        : "border-warning/30 bg-warning/5"
-    )}>
-      <div className={cn(
-        "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-        isZeroWeight ? "bg-destructive/10" : "bg-warning/10"
-      )}>
-        <FileText className={cn("h-5 w-5", isZeroWeight ? "text-destructive" : "text-warning")} />
-      </div>
+    <DetailDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      icon={TrendingUp}
+      tone={fleetStatus.tone}
+      title={title}
+      description={subtitle}
+      bodyLabel="Motoristas"
+      summary={
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">SLA da frota</p>
+              <p className="font-data text-3xl font-semibold leading-tight text-foreground">{formatSLA(fleetSLA)}%</p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <StatusBadge tone={fleetStatus.tone}>{fleetStatus.label}</StatusBadge>
+              <span className="text-xs text-muted-foreground">Meta {pct(SLA_THRESHOLDS.EXCELLENT)}</span>
+            </div>
+          </div>
+          <SLABar value={fleetSLA} tone={fleetStatus.tone} goal={SLA_THRESHOLDS.EXCELLENT} className="mt-3" />
+        </div>
+      }
+    >
+      {sortedDrivers.length === 0 && orphanInvoices.length === 0 ? (
+        <EmptyState compact icon={Package} title="Nenhuma entrega finalizada no período" description="O SLA aparece assim que os motoristas baixarem as entregas." />
+      ) : (
+        <>
+          {!hasProblems && (
+            <p className="flex items-start gap-2.5 rounded-lg border border-success/30 bg-success/5 p-3 text-sm text-foreground">
+              <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-success" />
+              Operação saudável. Todos os motoristas estão acima da meta de {pct(SLA_THRESHOLDS.EXCELLENT)}.
+            </p>
+          )}
 
-      <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">NF {invoice.nfeNumber}</p>
-        <p className="text-xs text-muted-foreground truncate">{invoice.recipientName}</p>
-      </div>
+          {orphanInvoices.length > 0 && (
+            <DriverGroup title="Notas com ocorrência sem motorista" tone="warning" count={orphanInvoices.length}>
+              <InvoiceList
+                items={orphanInvoices.map((invoice) => ({
+                  id: invoice.id,
+                  number: `NF ${invoice.nfeNumber}`,
+                  recipient: invoice.recipientName,
+                  status: { tone: "danger", label: getOccurrenceLabel(invoice.occurrenceType) },
+                  aside: <WeightAside weight={invoice.weight} />,
+                }))}
+              />
+            </DriverGroup>
+          )}
 
-      <div className="text-right shrink-0">
-        <Badge variant="outline" className={cn(
-          "text-xs",
-          isZeroWeight ? "bg-destructive/10 text-destructive border-destructive/30" : "bg-warning/10 text-warning border-warning/30"
-        )}>
-          {getOccurrenceLabel(invoice.occurrenceType)}
-        </Badge>
-        <p className="text-xs text-muted-foreground mt-1">
-          Peso: {(invoice.weight * 100).toFixed(0).replace(".", ",")}%
-        </p>
-      </div>
-    </div>
+          {groups
+            .filter((group) => group.drivers.length > 0)
+            .map((group) => (
+              <DriverGroup key={group.key} title={group.title} hint={group.hint} tone={group.tone} count={group.drivers.length}>
+                <ul className="divide-y overflow-hidden rounded-lg border bg-card">
+                  {group.drivers.map((driver) => (
+                    <DriverRow key={driver.driver_id} driver={driver} mode={mode} onClick={() => setSelectedDriver(driver)} />
+                  ))}
+                </ul>
+              </DriverGroup>
+            ))}
+        </>
+      )}
+      {invoiceSheet}
+    </DetailDialog>
   );
 }
 
-// Level 2: Driver Invoices View
-function DriverInvoicesView({
-  driver,
-  mode,
-  onInvoiceOpen,
-}: {
-  driver: DriverSLAStats;
-  mode: "weekly" | "today";
-  onInvoiceOpen: (invoice: SLAInvoiceItem) => void;
-}) {
-  const sla = mode === "weekly" ? driver.weeklySLA : driver.todaySLA;
-  const total = mode === "weekly" ? driver.weeklyTotalInvoices : driver.todayTotalInvoices;
-  const delivered = mode === "weekly" ? driver.weeklyDeliveredCount : driver.todayDeliveredCount;
-  const occurrenceCount = mode === "weekly" ? driver.weeklyOccurrenceCount : driver.todayOccurrenceCount;
+function DriverGroup({ title, hint, tone, count, children }: { title: string; hint?: string; tone: Tone; count: number; children: ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold text-foreground">
+        <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", toneDot[tone])} />
+        {title}
+        <span className="font-data font-medium text-muted-foreground">({count})</span>
+        {hint && <span className="text-xs font-normal text-muted-foreground">· {hint}</span>}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function DriverRow({ driver, mode, onClick }: { driver: DriverSLAStats; mode: Mode; onClick: () => void }) {
+  const sla = driverSLA(driver, mode);
+  const status = slaStatus(sla);
+  const phone = driver.phone?.replace(/\D/g, "");
+
+  return (
+    <li className="flex items-center gap-1 pr-2">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        <DriverAvatar name={driver.driver_name} photo={driver.photo_url} tone={status.tone} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-foreground">{driver.driver_name}</span>
+          <span className="block text-xs text-muted-foreground">
+            {plural(driverDelivered(driver, mode), "entrega", "entregas")} · {plural(driverTotal(driver, mode), "nota", "notas")} ·{" "}
+            {plural(driverOccurrences(driver, mode), "ocorrência", "ocorrências")}
+          </span>
+        </span>
+        <span className={cn("shrink-0 font-data text-base font-semibold", toneText[status.tone])}>{formatSLA(sla)}%</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </button>
+      {phone && (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="shrink-0 text-muted-foreground hover:text-success"
+          onClick={() => openWhatsApp(phone)}
+          aria-label={`Chamar ${driver.driver_name} no WhatsApp`}
+          title={`Chamar ${driver.driver_name} no WhatsApp`}
+        >
+          <MessageCircle aria-hidden="true" />
+        </Button>
+      )}
+    </li>
+  );
+}
+
+function DriverInvoicesView({ driver, mode, onInvoiceOpen }: { driver: DriverSLAStats; mode: Mode; onInvoiceOpen: (invoice: SLAInvoiceItem) => void }) {
+  const total = driverTotal(driver, mode);
+  const delivered = driverDelivered(driver, mode);
+  const occurrenceCount = driverOccurrences(driver, mode);
   const occurrences = mode === "weekly" ? driver.weeklyOccurrences : driver.todayOccurrences;
   const invoices = mode === "weekly" ? driver.weeklyInvoices : driver.todayInvoices;
 
-  const colorScheme = getSLAColorScheme(sla);
-
-  // Hidden from the UI; kept here only to avoid changing the existing SLA math.
-  const deliveredWeight = delivered * 1.0;
-  const occurrenceWeight = occurrences.reduce((sum, occ) => sum + occ.weight, 0);
-  const totalWeight = deliveredWeight + occurrenceWeight;
+  const invoiceRows: InvoiceRowData[] = invoices.map((invoice) => {
+    const isDelivered = invoice.status === "delivered";
+    return {
+      id: invoice.invoiceId,
+      number: `NF ${invoice.nfeNumber}`,
+      recipient: invoice.recipientName,
+      status: isDelivered ? { tone: "success", label: "Entregue" } : { tone: "danger", label: getOccurrenceLabel(invoice.occurrenceType) },
+      aside: <WeightAside weight={invoice.weight} delivered={isDelivered} />,
+      onClick: () => onInvoiceOpen(invoice),
+    };
+  });
 
   return (
-    <div className="space-y-4">
-      {/* Driver Header */}
-      <div className={cn(
-        "rounded-lg p-4 border-2",
-        colorScheme.borderClass,
-        colorScheme.bgClass
-      )}>
-        <div className="flex items-center gap-4">
-          {driver.photo_url ? (
-            <img
-              src={driver.photo_url}
-              alt={driver.driver_name}
-              className="h-16 w-16 rounded-full object-cover border-2 border-muted"
-            />
-          ) : (
-            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-xl font-bold">
-              {driver.driver_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-            </div>
-          )}
-          <div className="flex-1">
-            <p className="text-lg font-semibold">{driver.driver_name}</p>
-            <Badge variant="outline" className="text-xs">{driver.vehicle_plate}</Badge>
+    <>
+      <dl className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Entregas", value: delivered },
+          { label: "Ocorrências", value: occurrenceCount },
+          { label: "Total de notas", value: total },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-lg border bg-card p-3">
+            <dt className="text-xs font-medium text-muted-foreground">{stat.label}</dt>
+            <dd className="mt-1 font-data text-2xl font-semibold leading-none text-foreground">{stat.value}</dd>
           </div>
-          <div className="text-right">
-            <p className={cn("text-3xl font-bold font-mono", colorScheme.textClass)}>
-              {formatSLA(sla)}%
-            </p>
-            <Badge className={cn(
-              "font-bold",
-              colorScheme.badgeBgClass
-            )}>
-              {colorScheme.labelPt}
-            </Badge>
-          </div>
-        </div>
-      </div>
+        ))}
+      </dl>
 
-      {/* Calculation Breakdown */}
-      <div className="hidden">
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <Package className="h-4 w-4" />
-          Cálculo do SLA (Média Ponderada)
-        </h4>
-        
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Entregas realizadas:</span>
-            <span className="font-mono">{delivered} × 1,0 = {deliveredWeight.toFixed(1).replace(".", ",")}</span>
-          </div>
-          {occurrences.map((occ, idx) => (
-            <div key={idx} className="flex justify-between text-muted-foreground">
-              <span className="truncate flex-1 mr-2">
-                {getOccurrenceLabel(occ.occurrenceType)} (NF {occ.nfeNumber}):
-              </span>
-              <span className={cn("font-mono", occ.weight === 0 ? "text-destructive" : "")}>
-                {occ.weight.toFixed(1).replace(".", ",")}
-              </span>
-            </div>
-          ))}
-          <Separator className="my-2" />
-          <div className="flex justify-between font-medium">
-            <span>Soma dos pesos:</span>
-            <span className="font-mono">{totalWeight.toFixed(1).replace(".", ",")}</span>
-          </div>
-          <div className="flex justify-between font-medium">
-            <span>Total de NFs:</span>
-            <span className="font-mono">{total}</span>
-          </div>
-          <div className="flex justify-between font-bold text-lg">
-            <span>SLA:</span>
-            <span className={cn("font-mono", colorScheme.textClass)}>
-              ({totalWeight.toFixed(1).replace(".", ",")} / {total}) × 100 = {formatSLA(sla)}%
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg bg-success/10 border border-success/20 p-3 text-center">
-          <p className="text-2xl font-bold text-success font-mono">{delivered}</p>
-          <p className="text-xs text-muted-foreground">Entregas</p>
-        </div>
-        <div className="rounded-lg bg-warning/10 border border-warning/20 p-3 text-center">
-          <p className="text-2xl font-bold text-warning font-mono">{occurrenceCount}</p>
-          <p className="text-xs text-muted-foreground">Ocorrências</p>
-        </div>
-        <div className={cn("rounded-lg p-3 text-center", colorScheme.bgClass, `border ${colorScheme.borderClass}`)}>
-          <p className={cn("text-2xl font-bold font-mono", colorScheme.textClass)}>{total}</p>
-          <p className="text-xs text-muted-foreground">Total NFs</p>
-        </div>
-      </div>
-
-      {invoices.length > 0 && (
-        <div>
-          <h4 className="font-medium mb-3 flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" />
-            Notas fiscais do período
-          </h4>
-          <div className="space-y-2">
-            {invoices.map((invoice) => (
-              <InvoiceItemCard
-                key={invoice.invoiceId}
-                invoice={invoice}
-                onClick={() => onInvoiceOpen(invoice)}
-              />
-            ))}
-          </div>
-        </div>
+      {invoiceRows.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">Notas do período</h3>
+          <p className="text-xs text-muted-foreground">Toque em uma nota para ver o comprovante e o histórico.</p>
+          <InvoiceList items={invoiceRows} />
+        </section>
       )}
 
-      {/* Occurrences List */}
       {occurrences.length > 0 && (
-        <div>
-          <h4 className="font-medium mb-3 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            Ocorrências que impactaram o SLA
-          </h4>
-          <div className="space-y-2">
-            {occurrences.map((occ, idx) => (
-              <InvoiceOccurrenceCard key={idx} occurrence={occ} />
-            ))}
-          </div>
-        </div>
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold text-foreground">Ocorrências que baixaram o SLA</h3>
+          <InvoiceList
+            items={occurrences.map((occ, idx) => ({
+              id: `${occ.invoiceId}-${idx}`,
+              number: `NF ${occ.nfeNumber}`,
+              recipient: occ.recipientName,
+              status: { tone: "danger", label: getOccurrenceLabel(occ.occurrenceType) },
+              aside: <WeightAside weight={occ.weight} />,
+            }))}
+          />
+        </section>
       )}
-
-      {/* Weight Reference Table */}
-      <div className="hidden">
-        <h4 className="font-medium mb-3">Tabela de Pesos por Tipo de Ocorrência</h4>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          {Object.entries(SLA_OCCURRENCE_WEIGHTS).map(([key, weight]) => (
-            <div key={key} className="flex justify-between p-1.5 rounded bg-muted/50">
-              <span className="text-muted-foreground">{getOccurrenceLabel(key)}:</span>
-              <span className={cn(
-                "font-mono font-medium",
-                weight === 0 ? "text-destructive" :
-                weight < 0.9 ? "text-warning" :
-                "text-success"
-              )}>
-                {weight.toFixed(1).replace(".", ",")}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InvoiceItemCard({ invoice, onClick }: { invoice: SLAInvoiceItem; onClick: () => void }) {
-  const isDelivered = invoice.status === "delivered";
-  const isZeroWeight = invoice.weight === 0;
-  const isCritical = invoice.weight < 0.8;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-3 p-3 rounded-lg border text-left transition-all hover:shadow-md",
-        isDelivered
-          ? "border-success/30 bg-success/5 hover:bg-success/10"
-          : isZeroWeight
-          ? "border-destructive/30 bg-destructive/5 hover:bg-destructive/10"
-          : isCritical
-          ? "border-warning/30 bg-warning/5 hover:bg-warning/10"
-          : "border-border bg-muted/30 hover:bg-muted/50"
-      )}
-    >
-      <div className={cn(
-        "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-        isDelivered ? "bg-success/10" : isZeroWeight ? "bg-destructive/10" : isCritical ? "bg-warning/10" : "bg-muted"
-      )}>
-        <FileText className={cn(
-          "h-5 w-5",
-          isDelivered ? "text-success" : isZeroWeight ? "text-destructive" : isCritical ? "text-warning" : "text-muted-foreground"
-        )} />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-medium">NF {invoice.nfeNumber}</span>
-          <Badge variant="outline" className={cn(
-            "text-xs",
-            isDelivered
-              ? "bg-success/10 text-success border-success/30"
-              : isZeroWeight
-              ? "bg-destructive/10 text-destructive border-destructive/30"
-              : "bg-warning/10 text-warning border-warning/30"
-          )}>
-            {isDelivered ? "Entregue" : getOccurrenceLabel(invoice.occurrenceType)}
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground truncate">{invoice.recipientName}</p>
-      </div>
-
-      <div className="text-right shrink-0">
-        <span className={cn(
-          "text-lg font-bold font-mono",
-          isDelivered ? "text-success" : isZeroWeight ? "text-destructive" : isCritical ? "text-warning" : "text-foreground"
-        )}>
-          {(invoice.weight * 100).toFixed(0).replace(".", ",")}%
-        </span>
-        <p className="text-xs text-muted-foreground">peso</p>
-      </div>
-      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-    </button>
-  );
-}
-
-function InvoiceOccurrenceCard({ occurrence }: { occurrence: DriverSLAStats["todayOccurrences"][0] }) {
-  const isZeroWeight = occurrence.weight === 0;
-  const isCritical = occurrence.weight < 0.8;
-
-  return (
-    <div className={cn(
-      "flex items-center gap-3 p-3 rounded-lg border",
-      isZeroWeight
-        ? "border-destructive/30 bg-destructive/5"
-        : isCritical
-        ? "border-warning/30 bg-warning/5"
-        : "border-border bg-muted/30"
-    )}>
-      <div className={cn(
-        "h-10 w-10 rounded-lg flex items-center justify-center shrink-0",
-        isZeroWeight ? "bg-destructive/10" : isCritical ? "bg-warning/10" : "bg-muted"
-      )}>
-        <FileText className={cn(
-          "h-5 w-5",
-          isZeroWeight ? "text-destructive" : isCritical ? "text-warning" : "text-muted-foreground"
-        )} />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-medium">NF {occurrence.nfeNumber}</span>
-          <Badge variant="outline" className={cn(
-            "text-xs",
-            isZeroWeight ? "bg-destructive/10 text-destructive border-destructive/30" :
-            isCritical ? "bg-warning/10 text-warning border-warning/30" :
-            "bg-muted"
-          )}>
-            {getOccurrenceLabel(occurrence.occurrenceType)}
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground truncate">{occurrence.recipientName}</p>
-      </div>
-
-      <div className="text-right shrink-0">
-        <span className={cn(
-          "text-lg font-bold font-mono",
-          isZeroWeight ? "text-destructive" : isCritical ? "text-warning" : "text-foreground"
-        )}>
-          {(occurrence.weight * 100).toFixed(0).replace(".", ",")}%
-        </span>
-        <p className="text-xs text-muted-foreground">impacto</p>
-      </div>
-    </div>
+    </>
   );
 }

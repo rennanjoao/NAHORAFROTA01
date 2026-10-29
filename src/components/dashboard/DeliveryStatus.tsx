@@ -1,24 +1,19 @@
 import { useState, useEffect } from "react";
-import { Package, CheckCircle2, Truck, RotateCcw, FileText, User, MapPin, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Link } from "react-router-dom";
+import { ArrowRight, CheckCircle2, ChevronRight, FileText, Package, RotateCcw, Truck, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState, toneDot, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { supabase } from "@/integrations/supabase/client";
 import { uniqueChannelName } from "@/lib/realtime";
 import { getDayBoundsUTC, getTodayBrazil, toDateStringBrazil } from "@/lib/timezone";
 import { getInvoiceEventDate } from "@/lib/reportFilters";
 import { getCurrentTenantId } from "@/lib/tenant";
+import { cn } from "@/lib/utils";
+import { DetailDialog } from "./DetailPanel";
+import { InvoiceList } from "./InvoiceList";
+import { plural } from "./status";
 
 interface Invoice {
   id: string;
@@ -31,21 +26,23 @@ interface Invoice {
 
 interface StatusItem {
   label: string;
+  /** Frase do que a situacao significa, para a janela de detalhe. */
+  hint: string;
   count: number;
-  icon: React.ElementType;
-  color: string;
-  bgColor: string;
+  icon: LucideIcon;
+  tone: Tone;
   percentage: number;
   invoices: Invoice[];
 }
 
+/** Notas do dia por situacao: barra empilhada + uma linha por situacao (abre a lista). */
 export function DeliveryStatus() {
   const [selectedStatus, setSelectedStatus] = useState<StatusItem | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusItems, setStatusItems] = useState<StatusItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch invoices from Supabase
+  // Busca as notas no Supabase
   useEffect(() => {
     const fetchInvoices = async () => {
       // NFs em operacao (pendentes/em rota) + as finalizadas hoje. Antes buscava
@@ -58,60 +55,59 @@ export function DeliveryStatus() {
         return;
       }
       const { data, error } = await supabase
-        .from('invoices')
-        .select('id, nfe_number, recipient_name, address_full, status, driver_id, delivered_at, updated_at, imported_at')
-        .eq('tenant_id', tenantId)
+        .from("invoices")
+        .select("id, nfe_number, recipient_name, address_full, status, driver_id, delivered_at, updated_at, imported_at")
+        .eq("tenant_id", tenantId)
         .or(`status.in.(pending,in_transit),updated_at.gte.${todayStart}`)
-        .order('imported_at', { ascending: false })
+        .order("imported_at", { ascending: false })
         .limit(1000);
 
       if (data && !error) {
-        const finishedToday = (inv: (typeof data)[number]) =>
-          toDateStringBrazil(getInvoiceEventDate(inv)) === getTodayBrazil();
-        // Group by status
-        const pending = data.filter(i => i.status === 'pending');
-        const inRoute = data.filter(i => i.status === 'in_transit');
-        const delivered = data.filter(i => i.status === 'delivered' && finishedToday(i));
-        const returned = data.filter(i => (i.status === 'returned' || i.status === 'occurrence') && finishedToday(i));
-        
+        const finishedToday = (inv: (typeof data)[number]) => toDateStringBrazil(getInvoiceEventDate(inv)) === getTodayBrazil();
+        // Agrupa por situacao
+        const pending = data.filter((i) => i.status === "pending");
+        const inRoute = data.filter((i) => i.status === "in_transit");
+        const delivered = data.filter((i) => i.status === "delivered" && finishedToday(i));
+        const returned = data.filter((i) => (i.status === "returned" || i.status === "occurrence") && finishedToday(i));
+
         const total = pending.length + inRoute.length + delivered.length + returned.length || 1;
-        
+
         setStatusItems([
-          { 
-            label: "Disponíveis", 
-            count: pending.length, 
-            icon: Package, 
-            color: "text-warning", 
-            bgColor: "bg-warning/20", 
+          {
+            label: "Pendentes",
+            hint: "Notas que ainda não saíram para entrega.",
+            count: pending.length,
+            icon: Package,
+            tone: "warning",
             percentage: Math.round((pending.length / total) * 100),
-            invoices: pending
+            invoices: pending,
           },
-          { 
-            label: "Em Rota", 
-            count: inRoute.length, 
-            icon: Truck, 
-            color: "text-primary", 
-            bgColor: "bg-primary/20", 
+          {
+            label: "Em rota",
+            hint: "Notas a caminho do cliente agora.",
+            count: inRoute.length,
+            icon: Truck,
+            tone: "info",
             percentage: Math.round((inRoute.length / total) * 100),
-            invoices: inRoute
+            invoices: inRoute,
           },
-          { 
-            label: "Entregues", 
-            count: delivered.length, 
-            icon: CheckCircle2, 
-            color: "text-success", 
-            bgColor: "bg-success/20", 
+          {
+            label: "Entregues",
+            hint: "Notas entregues hoje.",
+            count: delivered.length,
+            icon: CheckCircle2,
+            tone: "success",
             percentage: Math.round((delivered.length / total) * 100),
-            invoices: delivered
+            invoices: delivered,
           },
-          { 
-            label: "Ocorrência/Devolução", 
-            count: returned.length, 
-            icon: RotateCcw, 
-            color: "text-destructive", 
-            bgColor: "bg-destructive/20", 
+          {
+            label: "Ocorrência ou devolução",
+            hint: "Notas com problema na entrega hoje.",
+            count: returned.length,
+            icon: RotateCcw,
+            tone: "danger",
             percentage: Math.round((returned.length / total) * 100),
-            invoices: returned
+            invoices: returned,
           },
         ]);
       }
@@ -120,14 +116,10 @@ export function DeliveryStatus() {
 
     fetchInvoices();
 
-    // Subscribe to real-time updates
+    // Atualiza em tempo real
     const channel = supabase
       .channel(uniqueChannelName("delivery-status"))
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'invoices' },
-        () => fetchInvoices()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, () => fetchInvoices())
       .subscribe();
 
     return () => {
@@ -141,130 +133,113 @@ export function DeliveryStatus() {
   };
 
   const total = statusItems.reduce((sum, item) => sum + item.count, 0);
+  const barSummary = statusItems.map((item) => `${item.label}: ${item.count}`).join(", ");
 
   if (loading) {
     return (
-      <div className="glass-card rounded-xl p-5 animate-pulse">
-        <div className="h-6 w-48 bg-muted rounded mb-6" />
-        <div className="h-3 bg-muted rounded-full mb-6" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-24 bg-muted rounded-lg" />
+      <Card className="h-full p-6" aria-busy="true">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="mt-2 h-4 w-28" />
+        <Skeleton className="mt-6 h-2.5 w-full rounded-full" />
+        <div className="mt-6 space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-11 w-full" />
           ))}
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
     <>
-      <div className="glass-card rounded-xl p-5">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="font-semibold">Status das Notas Fiscais</h3>
-            <p className="text-sm text-muted-foreground">{total} notas em operação hoje</p>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="mb-6 h-3 flex rounded-full overflow-hidden bg-secondary">
-          {statusItems.map((item, index) => (
-            <HoverCard key={item.label} openDelay={100} closeDelay={50}>
-              <HoverCardTrigger asChild>
-                <div
+      <Card className="flex h-full flex-col">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base">Notas de hoje</CardTitle>
+          <CardDescription>{plural(total, "nota em operação", "notas em operação")}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-1 flex-col gap-5">
+          {/* Barra empilhada: so visual, os numeros estao na lista abaixo */}
+          <div
+            role="img"
+            aria-label={`Notas de hoje por situação. ${barSummary}`}
+            className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-muted"
+          >
+            {statusItems
+              .filter((item) => item.count > 0)
+              .map((item) => (
+                <span
+                  key={item.label}
+                  aria-hidden="true"
                   className={cn(
-                    "h-full transition-all duration-500 cursor-pointer hover:opacity-80",
-                    index === 0 && "rounded-l-full",
-                    index === statusItems.length - 1 && "rounded-r-full",
-                    item.color.replace("text-", "bg-")
+                    "h-full transition-[width] duration-slow ease-out first:rounded-l-full last:rounded-r-full",
+                    toneDot[item.tone],
                   )}
                   style={{ width: `${item.percentage}%` }}
-                  onClick={() => handleStatusClick(item)}
                 />
-              </HoverCardTrigger>
-              <HoverCardContent className="w-80" side="top">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("rounded-lg p-2", item.bgColor)}>
-                      <item.icon className={cn("h-4 w-4", item.color)} />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{item.label}</p>
-                      <p className="text-sm text-muted-foreground">{item.count} notas ({item.percentage}%)</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-primary">Clique para ver todos →</p>
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          ))}
-        </div>
+              ))}
+          </div>
 
-        {/* Status grid - 4 columns */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {statusItems.map((item) => (
-            <div
-              key={item.label}
-              onClick={() => handleStatusClick(item)}
-              className="rounded-lg bg-secondary/50 p-3 text-center transition-colors hover:bg-secondary cursor-pointer"
-            >
-              <div className={cn("mx-auto mb-2 w-fit rounded-lg p-2", item.bgColor)}>
-                <item.icon className={cn("h-5 w-5", item.color)} />
-              </div>
-              <p className="text-2xl font-bold">{item.count}</p>
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+          <ul className="-mx-2 space-y-0.5">
+            {statusItems.map((item) => (
+              <li key={item.label}>
+                <button
+                  type="button"
+                  onClick={() => handleStatusClick(item)}
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-fast hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                      toneSoftBg[item.tone],
+                      toneText[item.tone],
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.label}</span>
+                  <span className="font-data text-base font-semibold text-foreground">{item.count}</span>
+                  <span className="w-10 text-right font-data text-xs text-muted-foreground">{item.percentage}%</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
 
-      {/* Status Detail Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {selectedStatus && (
-                <>
-                  <div className={cn("rounded-lg p-2", selectedStatus.bgColor)}>
-                    <selectedStatus.icon className={cn("h-5 w-5", selectedStatus.color)} />
-                  </div>
-                  {selectedStatus.label}
-                  <Badge variant="outline" className="ml-2">
-                    {selectedStatus.count} notas
-                  </Badge>
-                </>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <ScrollArea className="max-h-[400px]">
-            <div className="space-y-3">
-              {selectedStatus && selectedStatus.invoices.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  Nenhuma nota neste status
-                </p>
-              ) : (
-                selectedStatus && selectedStatus.invoices.map((invoice) => (
-                  <div key={invoice.id} className="p-3 rounded-lg bg-muted/50 border border-border">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{invoice.nfe_number || "Sem número"}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                      <User className="h-3 w-3" />
-                      <span>{invoice.recipient_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                      <MapPin className="h-3 w-3" />
-                      <span>{invoice.address_full}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+          <Button asChild variant="outline" className="mt-auto w-full">
+            <Link to="/deliveries">
+              Abrir Entregas
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <DetailDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        icon={selectedStatus?.icon ?? FileText}
+        tone={selectedStatus?.tone}
+        title={selectedStatus ? `${selectedStatus.label} · ${plural(selectedStatus.count, "nota", "notas")}` : "Notas"}
+        description={selectedStatus?.hint}
+        bodyLabel={selectedStatus ? `Notas: ${selectedStatus.label}` : "Notas"}
+        className="sm:max-w-lg"
+      >
+        {selectedStatus && selectedStatus.invoices.length === 0 ? (
+          <EmptyState compact icon={FileText} title="Nenhuma nota nesta situação" />
+        ) : (
+          selectedStatus && (
+            <InvoiceList
+              items={selectedStatus.invoices.map((invoice) => ({
+                id: invoice.id,
+                number: `NF ${invoice.nfe_number || "sem número"}`,
+                recipient: invoice.recipient_name,
+                address: invoice.address_full,
+              }))}
+            />
+          )
+        )}
+      </DetailDialog>
     </>
   );
 }

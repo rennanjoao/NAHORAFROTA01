@@ -1,47 +1,53 @@
-import { AlertCircle, Clock, Gift, ShieldAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertCircle, Clock, Gift, Mail, ShieldAlert, type LucideIcon } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { SUPPORT_EMAIL } from "@/config/navigation";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { plural } from "./status";
 
+type BannerVariant = "info" | "warning" | "destructive";
+
+/** Aviso da assinatura (teste gratis, vencimento, atraso) no topo do painel. */
 export function NotificationBanner() {
   const { status, daysRemaining, isLoading, access } = useSubscriptionStatus();
 
   if (isLoading || !access || access.is_platform_admin) return null;
 
-  let icon = Clock;
+  let icon: LucideIcon = Clock;
+  let title = "";
   let message = "";
-  let style = "";
+  let variant: BannerVariant = "info";
 
   if (status === "trial") {
     // Teste gratis: contagem regressiva sempre visivel durante o periodo.
     icon = Gift;
     const until = access.trial_ends_at ? new Date(access.trial_ends_at).toLocaleDateString("pt-BR") : "";
-    const remaining =
-      daysRemaining <= 0 ? "termina hoje" : `${daysRemaining} dia${daysRemaining > 1 ? "s" : ""} restante${daysRemaining > 1 ? "s" : ""}`;
-    message = `Teste grátis: ${remaining}${until ? ` (até ${until})` : ""}. Fale com a equipe Na Hora Frota para contratar.`;
-    style =
-      daysRemaining <= 1
-        ? "bg-destructive/10 border-destructive/20 text-destructive"
-        : "bg-primary/10 border-primary/20 text-primary";
+    title = daysRemaining <= 0 ? "Seu teste grátis termina hoje" : `Teste grátis: ${plural(daysRemaining, "dia restante", "dias restantes")}`;
+    message = `${until ? `Vale até ${until}. ` : ""}Fale com a equipe Na Hora Frota para contratar e não perder o acesso.`;
+    variant = daysRemaining <= 1 ? "warning" : "info";
   } else if (status === "expired") {
-    // Post-expiration — should be blocked at ProtectedRoute level,
-    // but show banner as fallback
+    // Apos o vencimento o ProtectedRoute ja bloqueia; aqui fica de reserva.
     icon = ShieldAlert;
-    message = "Acesso Suspenso. Entre em contato com o suporte para renovação.";
-    style = "bg-destructive/15 border-destructive/30 text-destructive";
+    title = "Acesso suspenso";
+    message = "Fale com o suporte para renovar a assinatura.";
+    variant = "destructive";
   } else if (status === "overdue") {
     icon = AlertCircle;
     const late = Math.abs(daysRemaining);
-    message = `Pagamento em atraso há ${late} dia${late > 1 ? "s" : ""}. Regularize para evitar a suspensão do acesso.`;
-    style = "bg-destructive/10 border-destructive/20 text-destructive";
+    title = `Pagamento em atraso há ${plural(late, "dia", "dias")}`;
+    message = "Regularize para evitar a suspensão do acesso.";
+    variant = "destructive";
   } else if (status === "due_today") {
     icon = AlertCircle;
-    message = "Sua assinatura vence hoje. Regularize para evitar interrupções.";
-    style = "bg-destructive/10 border-destructive/20 text-destructive";
+    title = "Sua assinatura vence hoje";
+    message = "Regularize para evitar interrupções.";
+    variant = "warning";
   } else if (status === "warning") {
-    // 1-5 days remaining
+    // 1 a 5 dias para vencer
     icon = Clock;
-    message = `Sua assinatura vence em ${daysRemaining} dia${daysRemaining > 1 ? "s" : ""}. Regularize para evitar interrupções.`;
-    style = "bg-warning/10 border-warning/20 text-warning";
+    title = `Sua assinatura vence em ${plural(daysRemaining, "dia", "dias")}`;
+    message = "Regularize para evitar interrupções.";
+    variant = "warning";
   } else {
     return null;
   }
@@ -49,11 +55,20 @@ export function NotificationBanner() {
   const Icon = icon;
 
   return (
-    <div className="mb-6">
-      <div className={cn("flex items-center gap-3 px-4 py-3 rounded-lg border", style)}>
-        <Icon className="h-5 w-5 flex-shrink-0" />
-        <p className="flex-1 text-sm font-medium">{message}</p>
+    <Alert variant={variant} role="status" className="mb-6">
+      <Icon aria-hidden="true" />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-semibold leading-snug text-foreground">{title}</p>
+          <AlertDescription className="mt-0.5">{message}</AlertDescription>
+        </div>
+        <Button asChild variant="outline" size="sm" className="shrink-0 self-start sm:self-center">
+          <a href={`mailto:${SUPPORT_EMAIL}`}>
+            <Mail aria-hidden="true" />
+            Falar com a equipe
+          </a>
+        </Button>
       </div>
-    </div>
+    </Alert>
   );
 }

@@ -86,14 +86,15 @@ export const NAV_ITEMS: NavItem[] = [
   {
     path: "/routes",
     label: "Áreas de risco",
-    description: "Mapa das regiões com mais atrasos e ocorrências.",
+    description: "Onde mais acontecem roubos de carga, para planejar rotas e horários mais seguros.",
     icon: ShieldAlert,
     group: "operacao",
-    keywords: ["mapa", "risco", "zona", "alerta", "região", "segurança"],
+    keywords: ["mapa", "risco", "zona", "alerta", "região", "segurança", "roubo", "carga"],
     shortcut: "r",
     tips: [
-      "Quanto mais forte a cor da região, mais problemas ela teve no período.",
-      "Use o mapa para planejar horários e rotas mais seguras.",
+      "Quanto maior e mais vermelho o círculo, mais roubos de carga a região teve.",
+      "Toque em uma região para ver as rodovias perigosas e o que fazer.",
+      "Use “Quando o risco é maior” para escolher horários mais seguros.",
     ],
   },
   {

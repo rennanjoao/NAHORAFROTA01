@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { STATUS_HEX, vehicleMarkerHtml } from "@/lib/brandSymbol";
+import { vehicleMarkerHtml } from "@/lib/brandSymbol";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Navigation, Radio, RefreshCw, Truck as TruckIcon } from 'lucide-react';
+import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
 import { whatsappNumber } from "@/lib/whatsapp";
+import { LiveMapFrame } from "./LiveMapFrame";
+import { VEHICLE_STATUS, countByStatus, vehicleStatus } from "./mapStatus";
 
 interface FleetPosition {
   id: string;
@@ -35,13 +37,6 @@ interface LiveMapLeafletProps {
   isRefreshing?: boolean;
 }
 
-function getMarkerColor(position: FleetPosition) {
-  if (position.gpsStale) return STATUS_HEX.idle;
-  if (position.current_delay && position.current_delay > 0) return STATUS_HEX.late;
-  if (position.individual_sla && position.individual_sla < 90) return STATUS_HEX.alert;
-  return STATUS_HEX.ok;
-}
-
 function escapeHtml(value: unknown) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -51,27 +46,39 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, '&#39;');
 }
 
+/** Nome do marcador para leitor de tela: "Joao Silva, no prazo". */
+function markerLabel(position: FleetPosition) {
+  return `${position.driver_name || 'Motorista'}, ${VEHICLE_STATUS[vehicleStatus(position)].label.toLowerCase()}`;
+}
+
+// Popup com classes do tema (fica certo no claro e no escuro).
 function buildPopup(position: FleetPosition) {
   const phone = whatsappNumber(position.phone);
+  const status = VEHICLE_STATUS[vehicleStatus(position)];
   const updatedAt = position.last_update
-    ? new Date(position.last_update).toLocaleTimeString('pt-BR')
-    : 'Desconhecido';
+    ? new Date(position.last_update).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : 'desconhecido';
+  const sla = position.individual_sla !== undefined && position.individual_sla !== null
+    ? `${Number(position.individual_sla).toFixed(1).replace(".", ",")}%`
+    : '—';
 
   return `
-    <div style="min-width:220px;font-family:Inter,system-ui,sans-serif">
-      <strong>${escapeHtml(position.driver_name || 'Motorista')}</strong>
-      <div style="margin-top:6px;color:${STATUS_HEX.idle};font-size:12px;font-family:'Space Grotesk',Inter,sans-serif;letter-spacing:.04em">
-        ${escapeHtml(position.vehicle_plate || 'Placa pendente')}
-        ${position.vehicle_type ? ` - ${escapeHtml(position.vehicle_type)}` : ''}
-      </div>
-      <div style="margin-top:8px;font-size:12px">
-        Velocidade: <strong>${Number(position.speed || 0).toFixed(0).replace(".", ",")} km/h</strong><br />
-        SLA: <strong>${position.individual_sla !== undefined ? `${Number(position.individual_sla).toFixed(1).replace(".", ",")}%` : '-'}</strong><br />
-        Atualizado: <strong>${escapeHtml(updatedAt)}</strong>
-      </div>
+    <div class="min-w-[15rem] p-4 font-sans text-popover-foreground">
+      <p class="font-heading text-[0.9375rem] font-semibold leading-snug">${escapeHtml(position.driver_name || 'Motorista')}</p>
+      <p class="mt-0.5 font-data text-xs tracking-wide text-muted-foreground">
+        ${escapeHtml(position.vehicle_plate || 'Placa pendente')}${position.vehicle_type ? ` · ${escapeHtml(position.vehicle_type)}` : ''}
+      </p>
+      <p class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium">
+        <span class="h-2 w-2 rounded-full" style="background:${status.hex}"></span>${status.label}
+      </p>
+      <dl class="mt-3 grid grid-cols-3 gap-2 text-xs">
+        <div><dt class="text-muted-foreground">Velocidade</dt><dd class="font-data font-semibold">${Number(position.speed || 0).toFixed(0)} km/h</dd></div>
+        <div><dt class="text-muted-foreground">SLA</dt><dd class="font-data font-semibold">${sla}</dd></div>
+        <div><dt class="text-muted-foreground">Atualizado</dt><dd class="font-data font-semibold">${escapeHtml(updatedAt)}</dd></div>
+      </dl>
       ${
         phone
-          ? `<a href="https://wa.me/${phone}" target="_blank" rel="noreferrer" style="display:block;margin-top:10px;padding:8px 10px;border-radius:4px;background:${STATUS_HEX.ok};color:${STATUS_HEX.ink};text-align:center;text-decoration:none;font-weight:700">Chamar no WhatsApp</a>`
+          ? `<a href="https://wa.me/${phone}" target="_blank" rel="noreferrer" class="mt-3 flex h-10 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground no-underline hover:bg-primary-hover" style="color:hsl(var(--primary-foreground))">Chamar no WhatsApp</a>`
           : ''
       }
     </div>
@@ -92,14 +99,7 @@ export default function LiveMapLeaflet({
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
 
-  const counts = useMemo(
-    () => ({
-      onTime: positions.filter((p) => !p.gpsStale && (!p.current_delay || p.current_delay === 0)).length,
-      delayed: positions.filter((p) => !p.gpsStale && p.current_delay && p.current_delay > 0).length,
-      stale: positions.filter((p) => p.gpsStale).length,
-    }),
-    [positions],
-  );
+  const counts = useMemo(() => countByStatus(positions), [positions]);
 
   const fitBounds = useCallback(() => {
     if (!mapRef.current || positions.length === 0) return;
@@ -117,8 +117,10 @@ export default function LiveMapLeaflet({
     mapRef.current = L.map(containerRef.current, {
       center: [center.latitude, center.longitude],
       zoom: 11,
-      zoomControl: true,
+      zoomControl: false,
     });
+
+    L.control.zoom({ zoomInTitle: 'Aproximar', zoomOutTitle: 'Afastar' }).addTo(mapRef.current);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -143,19 +145,23 @@ export default function LiveMapLeaflet({
     markersRef.current.clear();
 
     positions.forEach((position) => {
-      const color = getMarkerColor(position);
+      const status = VEHICLE_STATUS[vehicleStatus(position)];
+      const label = markerLabel(position);
       const marker = L.marker([Number(position.latitude), Number(position.longitude)], {
         icon: L.divIcon({
           className: '',
-          html: `
-            ${vehicleMarkerHtml(color, Number(position.heading || 0))}
-          `,
+          html: vehicleMarkerHtml(status.hex, Number(position.heading || 0)),
           iconSize: [38, 38],
           iconAnchor: [19, 19],
         }),
+        title: label,
+        alt: label,
+        keyboard: true,
       }).bindPopup(buildPopup(position));
 
       marker.addTo(markerLayerRef.current!);
+      // O icone e um <div role="button">: o nome vem do aria-label.
+      marker.getElement()?.setAttribute('aria-label', `${label}. Ver detalhes`);
       markersRef.current.set(position.driver_id, marker);
     });
 
@@ -171,93 +177,24 @@ export default function LiveMapLeaflet({
     const focusedPosition = positions.find((position) => position.driver_id === focusDriverId);
     if (!marker || !focusedPosition) return;
 
-    mapRef.current.flyTo([Number(focusedPosition.latitude), Number(focusedPosition.longitude)], 14, {
-      duration: 1.2,
-    });
+    mapRef.current.flyTo(
+      [Number(focusedPosition.latitude), Number(focusedPosition.longitude)],
+      14,
+      prefersReducedMotion(readPreferences()) ? { animate: false } : { duration: 1.2 },
+    );
     marker.openPopup();
     onFocusHandled?.();
   }, [focusDriverId, onFocusHandled, positions]);
 
   return (
-    <div className="glass-card rounded-xl overflow-hidden">
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between border-b border-border p-4 bg-card gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Navigation className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-foreground font-heading">Mapa em Tempo Real</h3>
-            <p className="text-sm text-muted-foreground">
-              {(onlineCount ?? positions.length) === 1 ? "1 veículo ativo" : `${onlineCount ?? positions.length} veículos ativos`} - OpenStreetMap
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-1 justify-start lg:justify-center">
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={!onRefresh || isRefreshing}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Atualizar mapa
-          </button>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-success" />
-            <span className="text-xs text-muted-foreground">No Prazo</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs text-muted-foreground">Atrasado</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
-            <span className="text-xs text-muted-foreground">Sem Sinal</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-success">
-            <Radio className="h-4 w-4 animate-pulse" />
-            <span className="text-xs font-medium">AO VIVO</span>
-          </div>
-          <button onClick={fitBounds} className="text-xs text-primary hover:underline">
-            Ver todos
-          </button>
-        </div>
-      </div>
-
-      <div className="relative h-[500px]">
-        <div ref={containerRef} className="h-full w-full" />
-
-        <div className="absolute top-4 right-4 z-[400] bg-nhf-ink/95 backdrop-blur rounded-lg p-3 shadow-lg border border-border">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-success font-data">{counts.onTime}</p>
-              <p className="text-xs text-muted-foreground">No Prazo</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-destructive font-data">{counts.delayed}</p>
-              <p className="text-xs text-muted-foreground">Atrasados</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-idle font-data">{counts.stale}</p>
-              <p className="text-xs text-muted-foreground">Sem Sinal</p>
-            </div>
-          </div>
-        </div>
-
-        {positions.length === 0 && (
-          <div className="absolute inset-0 z-[350] flex items-center justify-center bg-nhf-ink/80 backdrop-blur-sm">
-            <div className="text-center p-6">
-              <TruckIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-foreground font-medium mb-1">Nenhum veículo ativo</p>
-              <p className="text-sm text-muted-foreground">
-                Aguardando motoristas iniciarem o rastreamento GPS
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <LiveMapFrame
+      vehicleCount={onlineCount ?? positions.length}
+      counts={counts}
+      onRefresh={onRefresh}
+      isRefreshing={isRefreshing}
+      onFitAll={fitBounds}
+    >
+      <div ref={containerRef} role="region" aria-label="Mapa com a posição dos veículos" className="h-full w-full" />
+    </LiveMapFrame>
   );
 }
