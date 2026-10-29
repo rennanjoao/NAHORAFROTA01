@@ -41,7 +41,19 @@ CREATE INDEX IF NOT EXISTS idx_payment_history_tenant ON public.payment_history 
 ALTER TABLE public.payment_history ENABLE ROW LEVEL SECURITY;
 -- As policies vêm de 20260527100000_enforce_tenant_isolation (roda logo depois).
 
--- 3) tenant_id nas tabelas operacionais, preenchido a partir da tabela "pai"
+-- 3) Carteira do motorista no formato que o app e o acerto gravam
+--    (neste banco a tabela foi criada à mão, sem data/situação do lançamento).
+ALTER TABLE IF EXISTS public.driver_wallet
+  ADD COLUMN IF NOT EXISTS driver_id uuid,
+  ADD COLUMN IF NOT EXISTS amount numeric NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS description text,
+  ADD COLUMN IF NOT EXISTS date date NOT NULL DEFAULT CURRENT_DATE,
+  ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS route_id uuid,
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+-- 4) tenant_id nas tabelas operacionais, preenchido a partir da tabela "pai"
 --    (entrega → nota/romaneio/motorista, comprovante → nota, carteira → motorista...).
 --    Linha a linha: registro duplicado de antes do isolamento (ex.: a mesma nota
 --    importada duas vezes, uma órfã) violaria a chave única por empresa; esse fica
