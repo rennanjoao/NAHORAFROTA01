@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { Camera, Check, Filter, MapPin, Route, Sparkles, Wallet, Copy, ArrowUpDown } from "lucide-react";
+import { Camera, Check, Filter, MapPin, Route, Sparkles, Wallet, Copy, ArrowUpDown, Gauge, BarChart3, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RouteMap } from "./RouteMap";
 
@@ -175,4 +175,109 @@ export function SettlementPanel({ className }: { className?: string }) {
 
 export function FilterHint() {
   return <Filter className="h-3 w-3" />;
+}
+
+const WEEK = [
+  ["Seg", 96], ["Ter", 98], ["Qua", 91], ["Qui", 99], ["Sex", 97], ["Sáb", 98], ["Dom", 100],
+] as const;
+const DRIVERS = [
+  ["João Silva", 99], ["Marcos Lima", 97], ["Ana Costa", 95], ["Carlos Souza", 92], ["Pedro Alves", 88],
+] as const;
+const tone = (v: number) => (v >= 95 ? "bg-brand" : v >= 90 ? "bg-nhf-alert" : "bg-nhf-late");
+const toneText = (v: number) => (v >= 95 ? "text-brand" : v >= 90 ? "text-alert" : "text-late");
+
+export function SlaPanel({ className }: { className?: string }) {
+  const reduce = useReducedMotion();
+  return (
+    <div className={cn(frame, className)}>
+      <Chrome title="SLA · semana 44" chip="97,4% no prazo">
+        <Gauge className="h-3.5 w-3.5 text-brand" />
+      </Chrome>
+      <div className="grid gap-4 p-4 md:grid-cols-[1fr_1fr]">
+        <div>
+          <p className="label-caps text-[9px] text-muted-foreground">Entregas no prazo por dia</p>
+          <div className="mt-3 flex h-32 items-end gap-2">
+            {WEEK.map(([d, v], i) => (
+              <div key={d} className="flex flex-1 flex-col items-center gap-1.5">
+                <span className="font-data text-[9px] tabular-nums text-muted-foreground">{v}%</span>
+                <motion.span
+                  className={cn("w-full rounded-t", tone(v))}
+                  initial={reduce ? false : { scaleY: 0 }}
+                  animate={{ scaleY: 1 }}
+                  transition={{ delay: 0.1 + i * 0.05, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
+                  style={{ height: `${(v - 80) * 4.5}%`, transformOrigin: "bottom" }}
+                />
+                <span className="font-data text-[9px] uppercase text-muted-foreground">{d}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 font-data text-[11px]">
+            {[["Osasco", 99], ["Barueri", 97], ["Carapicuíba", 92]].map(([r, v]) => (
+              <div key={r} className="rounded border border-foreground/10 bg-background/60 px-2 py-1.5">
+                <p className="truncate font-sans text-[10px] text-muted-foreground">{r}</p>
+                <p className={cn("font-bold", toneText(v as number))}>{v}%</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="label-caps text-[9px] text-muted-foreground">Ranking por motorista</p>
+          <ul className="mt-3 space-y-2.5">
+            {DRIVERS.map(([n, v], i) => (
+              <li key={n} className="text-[11px]">
+                <div className="flex justify-between font-data">
+                  <span className="font-sans text-foreground/85"><span className="mr-1.5 text-muted-foreground">{i + 1}</span>{n}</span>
+                  <span className={cn("font-bold tabular-nums", toneText(v))}>{v}%</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-foreground/10">
+                  <motion.div className={cn("h-full rounded-full", tone(v))} initial={reduce ? false : { width: 0 }} animate={{ width: `${v}%` }} transition={{ delay: 0.2 + i * 0.06, duration: 0.6 }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ReportsPanel({ className }: { className?: string }) {
+  const reduce = useReducedMotion();
+  return (
+    <div className={cn(frame, className)}>
+      <Chrome title="Relatórios · outubro" chip="Exporta em PDF">
+        <BarChart3 className="h-3.5 w-3.5 text-brand" />
+      </Chrome>
+      <div className="p-4">
+        <div className="grid grid-cols-3 gap-2 font-data">
+          {[["Custo por entrega", "R$ 18,40", "−6%"], ["Margem por rota", "R$ 312", "+9%"], ["Ocorrências", "12", "−4"]].map(([k, v, d]) => (
+            <div key={k} className="rounded border border-foreground/10 bg-background/60 p-2.5">
+              <p className="truncate font-sans text-[10px] text-muted-foreground">{k}</p>
+              <p className="mt-0.5 text-base font-bold tracking-tight">{v}</p>
+              <p className="text-[10px] font-semibold text-brand">{d} no mês</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded border border-foreground/10 bg-background/60 p-3">
+          <div className="flex items-center justify-between">
+            <p className="label-caps text-[9px] text-muted-foreground">SLA e custo por entrega</p>
+            <div className="flex gap-3 font-data text-[9px] uppercase text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="h-1.5 w-3 rounded bg-brand" /> SLA</span>
+              <span className="flex items-center gap-1"><span className="h-1.5 w-3 rounded bg-foreground/35" /> Custo</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 400 120" preserveAspectRatio="none" className="mt-2 h-28 w-full" fill="none" aria-hidden="true">
+            <g stroke="hsl(var(--foreground) / 0.08)"><path d="M0 30 H400" /><path d="M0 60 H400" /><path d="M0 90 H400" /></g>
+            <path d="M0 95 C 40 90, 60 70, 100 72 S 160 50, 200 48 S 260 40, 300 30 S 360 24, 400 18 V120 H0 Z" fill="hsl(var(--brand))" fillOpacity="0.1" />
+            <motion.path d="M0 95 C 40 90, 60 70, 100 72 S 160 50, 200 48 S 260 40, 300 30 S 360 24, 400 18" stroke="hsl(var(--brand))" strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.2 }} />
+            <path d="M0 60 C 40 64, 80 70, 120 72 S 200 80, 240 84 S 320 88, 400 92" stroke="hsl(var(--foreground) / 0.35)" strokeWidth="2" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+          </svg>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-muted-foreground">Top região com atraso: <span className="font-semibold text-foreground">Carapicuíba · 8%</span></p>
+          <span className="flex items-center gap-1.5 rounded border border-brand/40 px-2.5 py-1.5 text-[11px] font-semibold text-brand"><FileDown className="h-3.5 w-3.5" /> Exportar PDF</span>
+        </div>
+      </div>
+    </div>
+  );
 }

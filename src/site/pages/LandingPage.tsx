@@ -1,14 +1,16 @@
 import { useEffect } from "react";
 import { SiteLayout } from "../SiteLayout";
 import { Hero } from "../sections/Hero";
-import { Platforms } from "../sections/Platforms";
-import { Numbers } from "../sections/Numbers";
+import { Stats } from "../sections/Stats";
 import { Problem } from "../sections/Problem";
 import { HowItWorks } from "../sections/HowItWorks";
+import { DaySimulator } from "../sections/DaySimulator";
 import { Product } from "../sections/Product";
-import { Comparison } from "../sections/Comparison";
+import { Platform } from "../sections/Platform";
+import { Features } from "../sections/Features";
 import { Audience } from "../sections/Audience";
 import { DriverApp } from "../sections/DriverApp";
+import { Onboarding } from "../sections/Onboarding";
 import { Pricing } from "../sections/Pricing";
 import { Security } from "../sections/Security";
 import { FAQ } from "../sections/FAQ";
@@ -21,14 +23,16 @@ export default function LandingPage() {
   return (
     <SiteLayout>
       <Hero />
-      <Platforms />
-      <Numbers />
+      <Stats />
       <Problem />
       <HowItWorks />
+      <DaySimulator />
       <Product />
-      <Comparison />
+      <Platform />
+      <Features />
       <Audience />
       <DriverApp />
+      <Onboarding />
       <Pricing />
       <Security />
       <FAQ />
