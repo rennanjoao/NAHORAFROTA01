@@ -182,7 +182,8 @@ export const companyVehicleStore = {
         capacity: vehicle.capacity || capacityByType[vehicle.type],
         year: vehicle.year,
         renavam: vehicle.renavam,
-        photo_url: vehicle.photoUrl || null,
+        // So com foto: banco sem a atualizacao (sem a coluna) continua cadastrando.
+        ...(vehicle.photoUrl ? { photo_url: vehicle.photoUrl } : {}),
         current_driver_id: vehicle.currentDriverId,
         current_driver_name: vehicle.currentDriverName,
         tenant_id: tenantId,

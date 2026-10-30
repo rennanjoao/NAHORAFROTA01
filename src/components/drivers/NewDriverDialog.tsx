@@ -359,7 +359,8 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         avatar: photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formData.name)}`,
         photo: photoUrl,
         photo_url: photoUrl,
-        vehicle_photo_url: vehiclePhotoUrl,
+        // Coluna nova so com foto (banco ainda sem a atualizacao continua cadastrando)
+        ...(vehiclePhotoUrl ? { vehicle_photo_url: vehiclePhotoUrl } : {}),
         vehicle_plate: normalizePlate(formData.vehiclePlate) || "PENDENTE",
         vehicle_type: normalizedVehicleType,
         cnh: formData.cnhNumber,
@@ -461,7 +462,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
               avatar: driverData.avatar,
               photo: driverData.photo,
               photo_url: driverData.photo_url,
-              vehicle_photo_url: driverData.vehicle_photo_url,
+              ...(driverData.vehicle_photo_url ? { vehicle_photo_url: driverData.vehicle_photo_url } : {}),
               cnh: driverData.cnh,
               cnh_category: driverData.cnh_category,
               is_own_fleet: driverData.is_own_fleet,

@@ -590,7 +590,8 @@ export default function DriversPage() {
             photo: updatedDriver.photo,
             // Foto enviada pela empresa (o app do motorista le photo_url); iniciais nao contam.
             photo_url: updatedDriver.photo?.includes("api.dicebear.com") ? null : updatedDriver.photo,
-            vehicle_photo_url: updatedDriver.vehiclePhoto ?? null,
+            // So quando mudou: banco sem a coluna nova continua salvando o resto.
+            ...((updatedDriver.vehiclePhoto ?? null) !== (driverToEdit?.vehiclePhoto ?? null) ? { vehicle_photo_url: updatedDriver.vehiclePhoto ?? null } : {}),
             vehicle_plate: updatedDriver.vehiclePlate,
             vehicle_type: normalizeVehicleTypeForDb(updatedDriver.vehicleType),
             status: updatedDriver.status,

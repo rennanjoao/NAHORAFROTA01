@@ -206,7 +206,8 @@ export default function VehiclesPage() {
         ...(type !== selectedVehicle.type ? { capacity: capacityByType[type] } : {}),
         year: year ?? null,
         renavam: values.renavam.trim() || null,
-        photoUrl: values.photoUrl || null,
+        // So quando a foto mudou (banco sem a coluna nova continua salvando o resto)
+        ...((values.photoUrl || "") !== (selectedVehicle.photoUrl || "") ? { photoUrl: values.photoUrl || null } : {}),
       });
 
       toast({
