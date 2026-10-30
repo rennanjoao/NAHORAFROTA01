@@ -12,7 +12,7 @@ const OPTIONS = [
   {
     value: "yes",
     title: "Sim, só pago com nota fiscal",
-    description: "O agregado escolhe no app os dias que trabalhou e anexa a nota. O romaneio só é pago depois que a nota é aprovada.",
+    description: "O agregado que recebe direto (TAC) escolhe no app os dias que trabalhou e anexa a nota. O romaneio só é pago depois que a nota é aprovada. Transportadoras ficam fora.",
   },
   { value: "no", title: "Não, pago sem nota", description: "O acerto continua como hoje, sem exigir nota fiscal." },
 ] as const;

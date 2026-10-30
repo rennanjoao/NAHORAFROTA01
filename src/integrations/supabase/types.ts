@@ -1398,9 +1398,8 @@ export type Database = {
       provider_invoices: {
         Row: {
           amount: number
-          carrier_id: string | null
           created_at: string
-          driver_id: string | null
+          driver_id: string
           expected_amount: number
           file_name: string | null
           file_path: string
@@ -1419,9 +1418,8 @@ export type Database = {
         }
         Insert: {
           amount: number
-          carrier_id?: string | null
           created_at?: string
-          driver_id?: string | null
+          driver_id: string
           expected_amount?: number
           file_name?: string | null
           file_path: string
@@ -1440,9 +1438,8 @@ export type Database = {
         }
         Update: {
           amount?: number
-          carrier_id?: string | null
           created_at?: string
-          driver_id?: string | null
+          driver_id?: string
           expected_amount?: number
           file_name?: string | null
           file_path?: string
@@ -2173,8 +2170,7 @@ export type Database = {
       submit_provider_invoice: {
         Args: {
           p_amount: number
-          p_carrier_id: string | null
-          p_driver_id: string | null
+          p_driver_id: string
           p_file_name: string | null
           p_file_path: string
           p_id: string | null
@@ -2191,8 +2187,7 @@ export type Database = {
       delete_provider_invoice: { Args: { p_id: string }; Returns: undefined }
       provider_invoice_days: {
         Args: {
-          p_carrier_id: string | null
-          p_driver_id: string | null
+          p_driver_id: string
           p_from: string
           p_invoice_id?: string | null
           p_to: string

@@ -105,17 +105,18 @@ export default function SettlementPage() {
   const selectedCarrier = carriers.find((c) => c.id === selectedCarrierId) ?? null;
   const carrierByDriver = useMemo(() => new Map(drivers.map((d) => [d.id, d.carrier_id ?? null])), [drivers]);
   const invoicesById = useMemo(() => new Map(allInvoices.map((i) => [i.id, i])), [allInvoices]);
-  // Romaneio de agregado sem nota aprovada nao pode ser pago (o banco tambem bloqueia).
+  // Romaneio do agregado TAC sem nota aprovada nao pode ser pago (o banco tambem bloqueia).
+  // Transportadora e motorista da casa ficam fora da regra.
   const paymentBlock = useCallback(
     (m: DBManifest) => {
-      if (!invoiceRequired || m.is_own_fleet) return null;
+      if (!invoiceRequired || m.is_own_fleet || (m.driver_id && carrierByDriver.get(m.driver_id))) return null;
       const invoice = m.provider_invoice_id ? invoicesById.get(m.provider_invoice_id) : undefined;
       if (!invoice) return "Falta a nota fiscal";
       if (invoice.status === "pending") return "Nota aguardando aprovação";
       if (invoice.status === "rejected") return "Nota recusada";
       return null;
     },
-    [invoiceRequired, invoicesById],
+    [invoiceRequired, invoicesById, carrierByDriver],
   );
   const invoiceLabel = useCallback(
     (m: DBManifest) => {
@@ -224,13 +225,8 @@ export default function SettlementPage() {
       entry.totalValue += m.freight_value || 0;
       summary.set(carrierId, entry);
     }
-    for (const invoice of allInvoices) {
-      if (invoice.status !== "pending" || !invoice.carrier_id) continue;
-      const entry = summary.get(invoice.carrier_id);
-      if (entry) entry.invoicesToApprove = (entry.invoicesToApprove ?? 0) + 1;
-    }
     return Array.from(summary.values());
-  }, [manifests, carrierByDriver, carriers, allInvoices]);
+  }, [manifests, carrierByDriver, carriers]);
 
   // Romaneios e totais da transportadora escolhida
   const carrierDriverIds = useMemo(
@@ -750,7 +746,7 @@ export default function SettlementPage() {
         )}
 
         {/* Transportadora escolhida */}
-        {mode === "carriers" && selectedCarrier && tenant && (
+        {mode === "carriers" && selectedCarrier && (
           <div className="space-y-6 md:space-y-8">
             <CarrierSummaryCard
               carrier={selectedCarrier}
@@ -758,18 +754,6 @@ export default function SettlementPage() {
               stats={carrierStats}
               periodLabel={periodLabel}
               onOpenBankDetails={() => setIsBankDetailsDialogOpen(true)}
-            />
-            <ProviderInvoicesPanel
-              invoices={allInvoices.filter((i) => i.carrier_id === selectedCarrier.id)}
-              payee={{ carrierId: selectedCarrier.id }}
-              payeeName={carrierName(selectedCarrier)}
-              tenantId={tenant.id}
-              isAdmin={isAdmin()}
-              required={invoiceRequired}
-              onChanged={() => {
-                void refreshInvoices();
-                void fetchManifests();
-              }}
             />
             <ManifestsPanel
               manifests={carrierManifests}
@@ -816,7 +800,7 @@ export default function SettlementPage() {
                 <Warehouse aria-hidden="true" />
                 <AlertTitle>Recebe pela transportadora {carrierName(carriers.find((c) => c.id === selectedDriver.carrier_id))}</AlertTitle>
                 <AlertDescription className="flex flex-wrap items-center gap-3">
-                  O acerto e a nota fiscal dos romaneios dele saem para a transportadora.
+                  O acerto dos romaneios dele sai para a transportadora, sem a regra da nota fiscal.
                   <Button
                     size="sm"
                     variant="outline"
@@ -843,9 +827,9 @@ export default function SettlementPage() {
             {/* Nota fiscal do TAC (enviada pelo app ou anexada aqui) */}
             {!selectedDriver.is_own_fleet && !selectedDriver.carrier_id && tenant && (invoiceRequired || allInvoices.some((i) => i.driver_id === selectedDriver.id)) && (
               <ProviderInvoicesPanel
-                invoices={allInvoices.filter((i) => i.driver_id === selectedDriver.id && !i.carrier_id)}
-                payee={{ driverId: selectedDriver.id }}
-                payeeName={selectedDriver.name}
+                invoices={allInvoices.filter((i) => i.driver_id === selectedDriver.id)}
+                driverId={selectedDriver.id}
+                driverName={selectedDriver.name}
                 tenantId={tenant.id}
                 isAdmin={isAdmin()}
                 required={invoiceRequired}

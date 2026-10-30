@@ -3748,16 +3748,16 @@ USING (bucket_id = 'tenant-media' AND public.can_manage_tenant(public.storage_te
 -- Transportadoras e pagamento mediante nota fiscal.
 --
 -- 1. Empresa responde "so paga mediante nota fiscal?" (tenants.pays_only_with_invoice;
---    null = ainda nao respondeu). Com "sim", romaneio de agregado so vai para pago com a
---    nota fiscal aprovada.
+--    null = ainda nao respondeu). Com "sim", romaneio do agregado TAC so vai para pago
+--    com a nota fiscal aprovada. A regra nao vale para transportadora nem para motorista
+--    da casa.
 -- 2. Transportadoras (carriers): dados cadastrais, inscricao estadual e dados bancarios/Pix.
 --    O motorista pode ser de uma transportadora (drivers.carrier_id); o acerto dele e
---    feito com a transportadora.
--- 3. Notas fiscais do prestador (provider_invoices): o motorista TAC escolhe os dias que
+--    feito com a transportadora, sem nota no app.
+-- 3. Notas fiscais do agregado TAC (provider_invoices): ele escolhe os dias que
 --    trabalhou, emite a nota fora do app e anexa. A equipe aprova ou recusa. Enquanto nao
 --    aprovada (e nao paga), quem enviou pode editar; depois de aprovada, so o
---    administrador. Paga, ninguem edita (estorna antes). A nota da transportadora e
---    anexada pela equipe no painel.
+--    administrador. Paga, ninguem edita (estorna antes).
 -- Idempotente.
 
 -- ============================================================================
@@ -3861,13 +3861,14 @@ BEFORE INSERT OR UPDATE OF carrier_id ON public.drivers
 FOR EACH ROW EXECUTE FUNCTION public.guard_driver_carrier();
 
 -- ============================================================================
--- 3. Notas fiscais do prestador (motorista TAC ou transportadora)
+-- 3. Notas fiscais do agregado TAC (provider_invoices)
+--    So o agregado que recebe direto: motorista da casa nao tem frete e o de
+--    transportadora recebe pela transportadora, sem nota no app.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.provider_invoices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-  driver_id uuid REFERENCES public.drivers(id) ON DELETE SET NULL,
-  carrier_id uuid REFERENCES public.carriers(id) ON DELETE SET NULL,
+  driver_id uuid NOT NULL REFERENCES public.drivers(id) ON DELETE CASCADE,
   work_dates date[] NOT NULL,
   invoice_number text NOT NULL,
   issue_date date,
@@ -3884,7 +3885,6 @@ CREATE TABLE IF NOT EXISTS public.provider_invoices (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT provider_invoices_status CHECK (status IN ('pending', 'approved', 'rejected', 'paid')),
-  CONSTRAINT provider_invoices_payee CHECK (driver_id IS NOT NULL OR carrier_id IS NOT NULL),
   CONSTRAINT provider_invoices_amount CHECK (amount > 0),
   CONSTRAINT provider_invoices_days CHECK (cardinality(work_dates) > 0)
 );
@@ -3896,8 +3896,7 @@ ALTER TABLE public.provider_invoices ALTER COLUMN created_at SET DEFAULT now();
 ALTER TABLE public.provider_invoices ALTER COLUMN updated_at SET DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_provider_invoices_tenant ON public.provider_invoices(tenant_id, status);
-CREATE INDEX IF NOT EXISTS idx_provider_invoices_driver ON public.provider_invoices(driver_id) WHERE driver_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_provider_invoices_carrier ON public.provider_invoices(carrier_id) WHERE carrier_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_provider_invoices_driver ON public.provider_invoices(driver_id);
 
 ALTER TABLE public.manifests ADD COLUMN IF NOT EXISTS provider_invoice_id uuid REFERENCES public.provider_invoices(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_manifests_provider_invoice ON public.manifests(provider_invoice_id) WHERE provider_invoice_id IS NOT NULL;
@@ -3927,8 +3926,24 @@ AS $$
   SELECT (p_created_at AT TIME ZONE 'America/Sao_Paulo')::date
 $$;
 
--- Romaneios de agregado de quem recebe (motorista TAC ou motoristas da transportadora).
-CREATE OR REPLACE FUNCTION public.payee_manifests(p_tenant_id uuid, p_driver_id uuid, p_carrier_id uuid)
+-- Agregado que recebe direto (TAC): nao e da casa nem de transportadora.
+CREATE OR REPLACE FUNCTION public.is_tac_driver(p_driver_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.drivers d
+    WHERE d.id = p_driver_id AND NOT COALESCE(d.is_own_fleet, false) AND d.carrier_id IS NULL
+  )
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_tac_driver(uuid) FROM PUBLIC, anon, authenticated;
+
+-- Romaneios de agregado do motorista (os que a nota dele pode cobrir).
+CREATE OR REPLACE FUNCTION public.tac_manifests(p_driver_id uuid)
 RETURNS SETOF public.manifests
 LANGUAGE sql
 STABLE
@@ -3937,40 +3952,20 @@ SET search_path = ''
 AS $$
   SELECT m.*
   FROM public.manifests m
-  WHERE m.tenant_id = p_tenant_id
+  JOIN public.drivers d ON d.id = m.driver_id AND d.tenant_id = m.tenant_id
+  WHERE m.driver_id = p_driver_id
     AND NOT COALESCE(m.is_own_fleet, false)
     AND m.status <> 'cancelled'
-    AND (
-      (p_carrier_id IS NULL AND m.driver_id = p_driver_id)
-      OR (p_carrier_id IS NOT NULL AND m.driver_id IN (SELECT d.id FROM public.drivers d WHERE d.carrier_id = p_carrier_id))
-    )
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.payee_manifests(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
-
--- Quem envia/edita: o proprio motorista (sem transportadora) ou a equipe da empresa.
-CREATE OR REPLACE FUNCTION public.provider_invoice_tenant(p_driver_id uuid, p_carrier_id uuid)
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-  SELECT CASE
-    WHEN p_carrier_id IS NOT NULL THEN (SELECT c.tenant_id FROM public.carriers c WHERE c.id = p_carrier_id)
-    ELSE (SELECT d.tenant_id FROM public.drivers d WHERE d.id = p_driver_id)
-  END
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.provider_invoice_tenant(uuid, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.tac_manifests(uuid) FROM PUBLIC, anon, authenticated;
 
 -- Dias com romaneio no periodo, para escolher os dias trabalhados:
 -- quantos romaneios, quantos finalizados e sem pagamento, quantos ja pagos, o frete a
--- receber e se o dia ja esta em outra nota (p_invoice_id = a nota sendo editada, cujos dias ficam livres).
-DROP FUNCTION IF EXISTS public.provider_invoice_days(uuid, uuid, date, date, uuid);
+-- receber e se o dia ja esta em outra nota (p_invoice_id = a nota sendo editada, cujos
+-- dias ficam livres).
 CREATE OR REPLACE FUNCTION public.provider_invoice_days(
   p_driver_id uuid,
-  p_carrier_id uuid,
   p_from date,
   p_to date,
   p_invoice_id uuid DEFAULT NULL
@@ -3982,11 +3977,11 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_tenant uuid := public.provider_invoice_tenant(p_driver_id, p_carrier_id);
+  v_tenant uuid := (SELECT d.tenant_id FROM public.drivers d WHERE d.id = p_driver_id);
 BEGIN
   IF v_tenant IS NULL OR NOT (
     public.can_read_tenant_data(v_tenant, auth.uid())
-    OR (p_carrier_id IS NULL AND p_driver_id IN (SELECT public.current_driver_ids()))
+    OR p_driver_id IN (SELECT public.current_driver_ids())
   ) THEN
     RAISE EXCEPTION 'Sem acesso a estes romaneios.' USING ERRCODE = 'insufficient_privilege';
   END IF;
@@ -3996,9 +3991,9 @@ BEGIN
 
   RETURN QUERY
   WITH m AS (
-    SELECT pm.*, public.manifest_work_date(pm.created_at) AS day
-    FROM public.payee_manifests(v_tenant, p_driver_id, p_carrier_id) pm
-    WHERE public.manifest_work_date(pm.created_at) BETWEEN p_from AND p_to
+    SELECT tm.*, public.manifest_work_date(tm.created_at) AS day
+    FROM public.tac_manifests(p_driver_id) tm
+    WHERE public.manifest_work_date(tm.created_at) BETWEEN p_from AND p_to
   )
   SELECT
     m.day,
@@ -4007,10 +4002,9 @@ BEGIN
     count(*) FILTER (WHERE m.status = 'paid')::integer,
     COALESCE(sum(m.freight_value) FILTER (WHERE m.status = 'completed' AND (m.provider_invoice_id IS NULL OR m.provider_invoice_id = p_invoice_id)), 0),
     (SELECT pi.invoice_number FROM public.provider_invoices pi
-      WHERE pi.id IS DISTINCT FROM p_invoice_id AND pi.status <> 'rejected'
-        AND pi.tenant_id = v_tenant
-        AND (pi.driver_id IS NOT DISTINCT FROM CASE WHEN p_carrier_id IS NULL THEN p_driver_id END)
-        AND pi.carrier_id IS NOT DISTINCT FROM p_carrier_id
+      WHERE pi.driver_id = p_driver_id
+        AND pi.id IS DISTINCT FROM p_invoice_id
+        AND pi.status <> 'rejected'
         AND m.day = ANY (pi.work_dates)
       LIMIT 1)
   FROM m
@@ -4019,8 +4013,8 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.provider_invoice_days(uuid, uuid, date, date, uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.provider_invoice_days(uuid, uuid, date, date, uuid) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.provider_invoice_days(uuid, date, date, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.provider_invoice_days(uuid, date, date, uuid) TO authenticated;
 
 -- Liga a nota aos romaneios finalizados e sem pagamento dos dias escolhidos e
 -- recalcula o valor esperado (soma do frete).
@@ -4040,10 +4034,10 @@ BEGIN
   IF v.status IN ('pending', 'approved') THEN
     UPDATE public.manifests SET provider_invoice_id = p_invoice_id
     WHERE id IN (
-      SELECT pm.id FROM public.payee_manifests(v.tenant_id, v.driver_id, v.carrier_id) pm
-      WHERE pm.status = 'completed'
-        AND pm.provider_invoice_id IS NULL
-        AND public.manifest_work_date(pm.created_at) = ANY (v.work_dates)
+      SELECT tm.id FROM public.tac_manifests(v.driver_id) tm
+      WHERE tm.status = 'completed'
+        AND tm.provider_invoice_id IS NULL
+        AND public.manifest_work_date(tm.created_at) = ANY (v.work_dates)
     );
   END IF;
   SELECT COALESCE(sum(freight_value), 0) INTO v_total FROM public.manifests WHERE provider_invoice_id = p_invoice_id;
@@ -4054,11 +4048,10 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.relink_provider_invoice(uuid) FROM PUBLIC, anon, authenticated;
 
--- Envia ou edita uma nota. Devolve o id.
+-- Envia ou edita a nota do agregado TAC (ele mesmo ou a equipe). Devolve o id.
 CREATE OR REPLACE FUNCTION public.submit_provider_invoice(
   p_id uuid,
   p_driver_id uuid,
-  p_carrier_id uuid,
   p_work_dates date[],
   p_invoice_number text,
   p_issue_date date,
@@ -4072,9 +4065,8 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_driver_id uuid := CASE WHEN p_carrier_id IS NULL THEN p_driver_id END;
-  v_tenant uuid := public.provider_invoice_tenant(p_driver_id, p_carrier_id);
-  v_own boolean := p_carrier_id IS NULL AND p_driver_id IN (SELECT public.current_driver_ids());
+  v_tenant uuid := (SELECT d.tenant_id FROM public.drivers d WHERE d.id = p_driver_id);
+  v_own boolean := p_driver_id IN (SELECT public.current_driver_ids());
   v_staff boolean;
   v_admin boolean;
   v_old public.provider_invoices;
@@ -4084,15 +4076,15 @@ DECLARE
   v_status text := 'pending';
 BEGIN
   IF v_tenant IS NULL THEN
-    RAISE EXCEPTION 'Motorista ou transportadora não encontrado.' USING ERRCODE = 'no_data_found';
+    RAISE EXCEPTION 'Motorista não encontrado.' USING ERRCODE = 'no_data_found';
   END IF;
   v_staff := public.can_manage_tenant(v_tenant, auth.uid());
   v_admin := public.can_admin_tenant(v_tenant, auth.uid());
   IF NOT (v_own OR v_staff) THEN
     RAISE EXCEPTION 'Sem permissão para enviar esta nota.' USING ERRCODE = 'insufficient_privilege';
   END IF;
-  IF v_own AND NOT v_staff AND EXISTS (SELECT 1 FROM public.drivers d WHERE d.id = p_driver_id AND d.carrier_id IS NOT NULL) THEN
-    RAISE EXCEPTION 'Seu pagamento é feito pela transportadora. A nota fiscal é enviada por ela.' USING ERRCODE = 'insufficient_privilege';
+  IF NOT public.is_tac_driver(p_driver_id) THEN
+    RAISE EXCEPTION 'Nota fiscal só para agregado que recebe direto. Motorista da casa ou de transportadora não envia nota.' USING ERRCODE = 'check_violation';
   END IF;
 
   SELECT array_agg(DISTINCT d ORDER BY d) INTO v_dates FROM unnest(p_work_dates) AS d WHERE d IS NOT NULL;
@@ -4111,8 +4103,7 @@ BEGIN
 
   IF p_id IS NOT NULL THEN
     SELECT * INTO v_old FROM public.provider_invoices WHERE id = p_id FOR UPDATE;
-    IF v_old.id IS NULL OR v_old.tenant_id <> v_tenant
-      OR v_old.driver_id IS DISTINCT FROM v_driver_id OR v_old.carrier_id IS DISTINCT FROM p_carrier_id THEN
+    IF v_old.id IS NULL OR v_old.tenant_id <> v_tenant OR v_old.driver_id <> p_driver_id THEN
       RAISE EXCEPTION 'Nota fiscal não encontrada.' USING ERRCODE = 'no_data_found';
     END IF;
     IF v_old.status = 'paid' THEN
@@ -4127,11 +4118,9 @@ BEGIN
 
   SELECT pi.invoice_number INTO v_clash
   FROM public.provider_invoices pi
-  WHERE pi.tenant_id = v_tenant
+  WHERE pi.driver_id = p_driver_id
     AND pi.id IS DISTINCT FROM p_id
     AND pi.status <> 'rejected'
-    AND pi.driver_id IS NOT DISTINCT FROM v_driver_id
-    AND pi.carrier_id IS NOT DISTINCT FROM p_carrier_id
     AND pi.work_dates && v_dates
   LIMIT 1;
   IF v_clash IS NOT NULL THEN
@@ -4139,8 +4128,8 @@ BEGIN
   END IF;
 
   IF p_id IS NULL THEN
-    INSERT INTO public.provider_invoices (tenant_id, driver_id, carrier_id, work_dates, invoice_number, issue_date, amount, file_path, file_name, status, submitted_by)
-    VALUES (v_tenant, v_driver_id, p_carrier_id, v_dates, btrim(p_invoice_number), p_issue_date, round(p_amount, 2), p_file_path, p_file_name, 'pending', auth.uid())
+    INSERT INTO public.provider_invoices (tenant_id, driver_id, work_dates, invoice_number, issue_date, amount, file_path, file_name, status, submitted_by)
+    VALUES (v_tenant, p_driver_id, v_dates, btrim(p_invoice_number), p_issue_date, round(p_amount, 2), p_file_path, p_file_name, 'pending', auth.uid())
     RETURNING id INTO v_id;
   ELSE
     UPDATE public.provider_invoices SET
@@ -4164,8 +4153,8 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.submit_provider_invoice(uuid, uuid, uuid, date[], text, date, numeric, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.submit_provider_invoice(uuid, uuid, uuid, date[], text, date, numeric, text, text) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.submit_provider_invoice(uuid, uuid, date[], text, date, numeric, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.submit_provider_invoice(uuid, uuid, date[], text, date, numeric, text, text) TO authenticated;
 
 -- Aprova ou recusa (quem faz o acerto: equipe da empresa).
 CREATE OR REPLACE FUNCTION public.review_provider_invoice(p_id uuid, p_approve boolean, p_note text DEFAULT NULL)
@@ -4217,7 +4206,7 @@ BEGIN
   IF v.id IS NULL THEN
     RAISE EXCEPTION 'Nota fiscal não encontrada.' USING ERRCODE = 'no_data_found';
   END IF;
-  v_own := v.carrier_id IS NULL AND v.driver_id IN (SELECT public.current_driver_ids());
+  v_own := v.driver_id IN (SELECT public.current_driver_ids());
   IF v.status = 'paid' THEN
     RAISE EXCEPTION 'Esta nota já foi paga e não pode ser excluída.' USING ERRCODE = 'check_violation';
   END IF;
@@ -4235,9 +4224,10 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.delete_provider_invoice(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.delete_provider_invoice(uuid) TO authenticated;
 
--- Pagamento: com "so paga mediante nota fiscal", romaneio de agregado so vai para pago
--- com a nota aprovada. Quando todos os romaneios da nota estao pagos, a nota fica paga;
--- estorno volta a nota para aprovada.
+-- Pagamento: com "so paga mediante nota fiscal", romaneio do agregado TAC so vai para
+-- pago com a nota aprovada (transportadora e motorista da casa nao entram na regra).
+-- Quando todos os romaneios da nota estao pagos, a nota fica paga; estorno volta a nota
+-- para aprovada.
 CREATE OR REPLACE FUNCTION public.enforce_invoice_before_payment()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -4247,6 +4237,7 @@ AS $$
 BEGIN
   IF NEW.status = 'paid' AND OLD.status IS DISTINCT FROM 'paid'
     AND NOT COALESCE(NEW.is_own_fleet, false)
+    AND public.is_tac_driver(NEW.driver_id)
     AND COALESCE((SELECT t.pays_only_with_invoice FROM public.tenants t WHERE t.id = NEW.tenant_id), false)
     AND NOT EXISTS (
       SELECT 1 FROM public.provider_invoices pi
@@ -4299,20 +4290,19 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
-  v_carrier uuid;
   v_invoice uuid;
 BEGIN
   IF NEW.status <> 'completed' OR OLD.status IS NOT DISTINCT FROM 'completed'
-    OR NEW.provider_invoice_id IS NOT NULL OR COALESCE(NEW.is_own_fleet, false) OR NEW.driver_id IS NULL THEN
+    OR NEW.provider_invoice_id IS NOT NULL OR COALESCE(NEW.is_own_fleet, false)
+    OR NOT public.is_tac_driver(NEW.driver_id) THEN
     RETURN NEW;
   END IF;
-  SELECT d.carrier_id INTO v_carrier FROM public.drivers d WHERE d.id = NEW.driver_id;
   SELECT pi.id INTO v_invoice
   FROM public.provider_invoices pi
-  WHERE pi.tenant_id = NEW.tenant_id
+  WHERE pi.driver_id = NEW.driver_id
+    AND pi.tenant_id = NEW.tenant_id
     AND pi.status IN ('pending', 'approved')
     AND public.manifest_work_date(NEW.created_at) = ANY (pi.work_dates)
-    AND CASE WHEN v_carrier IS NULL THEN pi.driver_id = NEW.driver_id AND pi.carrier_id IS NULL ELSE pi.carrier_id = v_carrier END
   ORDER BY pi.created_at
   LIMIT 1;
   IF v_invoice IS NOT NULL THEN
@@ -4356,8 +4346,8 @@ REVOKE EXECUTE ON FUNCTION public.get_my_payment_profile() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_payment_profile() TO authenticated;
 
 -- ============================================================================
--- 4. Arquivos das notas: bucket privado, pasta da empresa e do motorista/transportadora
---    {tenant_id}/{driver_id}/... ou {tenant_id}/carrier-{carrier_id}/...
+-- 4. Arquivos das notas: bucket privado, pasta da empresa e do motorista
+--    {tenant_id}/{driver_id}/...
 -- ============================================================================
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('provider-invoices', 'provider-invoices', false, 10485760, ARRAY['application/pdf', 'image/png', 'image/jpeg', 'image/webp'])

@@ -8,18 +8,18 @@ import { carrierName, useCarriers } from "@/hooks/useCarriers";
 import { cn } from "@/lib/utils";
 
 /**
- * Agregado: recebe direto (TAC, envia a propria nota) ou por uma transportadora (o
- * acerto e a nota fiscal saem para ela).
+ * Agregado: recebe direto (TAC, envia a propria nota quando a empresa exige) ou por uma
+ * transportadora (o acerto sai para ela, fora da regra da nota fiscal).
  */
 export function CarrierChoice({ carrierId, onChange, idPrefix = "" }: { carrierId: string | null; onChange: (carrierId: string | null) => void; idPrefix?: string }) {
   const { carriers } = useCarriers();
   const active = carriers.filter((carrier) => carrier.active || carrier.id === carrierId);
   const options = [
-    { value: "tac", title: "Direto (TAC)", description: "Recebe no próprio nome e envia a nota fiscal dele.", icon: UserRound, disabled: false },
+    { value: "tac", title: "Direto (TAC)", description: "Recebe no próprio nome. Se a empresa exige, envia a nota fiscal pelo app.", icon: UserRound, disabled: false },
     {
       value: "carrier",
       title: "Por transportadora",
-      description: active.length ? "O acerto e a nota saem para a transportadora." : "Cadastre uma transportadora antes.",
+      description: active.length ? "O acerto sai para a transportadora, sem nota fiscal no app." : "Cadastre uma transportadora antes.",
       icon: Warehouse,
       disabled: active.length === 0,
     },

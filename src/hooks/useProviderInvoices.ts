@@ -5,11 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { onTableChange } from "@/lib/sharedRealtime";
 import type { ProviderInvoice } from "@/lib/providerInvoices";
 
-/** Notas fiscais de prestador: todas da empresa (acerto) ou so as de um motorista/transportadora. */
-export function useProviderInvoices(filter: { driverId?: string | null; carrierId?: string | null } = {}) {
+/** Notas fiscais dos agregados TAC: todas da empresa (acerto) ou so as de um motorista. */
+export function useProviderInvoices(filter: { driverId?: string | null } = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const key = ["provider-invoices", user?.id, filter.driverId ?? null, filter.carrierId ?? null];
+  const key = ["provider-invoices", user?.id, filter.driverId ?? null];
   const query = useQuery({
     queryKey: key,
     enabled: !!user,
@@ -17,7 +17,6 @@ export function useProviderInvoices(filter: { driverId?: string | null; carrierI
     queryFn: async (): Promise<ProviderInvoice[]> => {
       let request = supabase.from("provider_invoices").select("*").order("created_at", { ascending: false }).limit(500);
       if (filter.driverId) request = request.eq("driver_id", filter.driverId);
-      if (filter.carrierId) request = request.eq("carrier_id", filter.carrierId);
       const { data, error } = await request;
       // Banco sem a atualizacao ainda: sem notas (a tela continua funcionando).
       if (error) return [];

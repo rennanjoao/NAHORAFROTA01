@@ -2,18 +2,17 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tone } from "@/components/patterns";
 
 /*
- * Nota fiscal do prestador (motorista TAC ou transportadora) para o acerto.
- * Grava so pelas funcoes do banco (submit/review/delete_provider_invoice), que conferem
- * quem pode enviar, aprovar e editar. O arquivo fica no bucket privado
- * "provider-invoices", na pasta da empresa e do motorista ou transportadora.
+ * Nota fiscal do agregado TAC para o acerto (transportadora e motorista da casa ficam
+ * fora da regra). Grava so pelas funcoes do banco (submit/review/delete_provider_invoice),
+ * que conferem quem pode enviar, aprovar e editar. O arquivo fica no bucket privado
+ * "provider-invoices", na pasta da empresa e do motorista.
  */
 export type ProviderInvoiceStatus = "pending" | "approved" | "rejected" | "paid";
 
 export interface ProviderInvoice {
   id: string;
   tenant_id: string;
-  driver_id: string | null;
-  carrier_id: string | null;
+  driver_id: string;
   work_dates: string[];
   invoice_number: string;
   issue_date: string | null;
@@ -27,9 +26,6 @@ export interface ProviderInvoice {
   paid_at: string | null;
   created_at: string;
 }
-
-/** Quem recebe: motorista TAC (sem transportadora) ou transportadora. */
-export type Payee = { driverId: string; carrierId?: null } | { carrierId: string; driverId?: null };
 
 export interface WorkDay {
   work_date: string;
@@ -62,12 +58,11 @@ export function workDaysLabel(dates: string[]): string {
 }
 
 /** Envia o arquivo da nota e devolve o caminho (vai para submit_provider_invoice). */
-export async function uploadInvoiceFile(tenantId: string, payee: Payee, file: File): Promise<string> {
+export async function uploadInvoiceFile(tenantId: string, driverId: string, file: File): Promise<string> {
   if (file.size > 10 * 1024 * 1024) throw new Error("Arquivo muito grande. Envie um PDF ou foto de até 10 MB.");
   if (!INVOICE_FILE_TYPES.split(",").includes(file.type)) throw new Error("Envie a nota em PDF ou foto (JPG, PNG).");
-  const folder = payee.carrierId ? `carrier-${payee.carrierId}` : payee.driverId;
   const ext = file.type === "application/pdf" ? "pdf" : file.type.split("/")[1].replace("jpeg", "jpg");
-  const path = `${tenantId}/${folder}/${crypto.randomUUID()}.${ext}`;
+  const path = `${tenantId}/${driverId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from("provider-invoices").upload(path, file, { contentType: file.type });
   if (error) throw new Error("Não foi possível enviar o arquivo. Confira a internet e tente de novo.");
   return path;
@@ -87,10 +82,9 @@ export function invoiceError(error: unknown): string {
   return "Confira a internet e tente de novo.";
 }
 
-export async function fetchWorkDays(payee: Payee, from: string, to: string, invoiceId?: string | null): Promise<WorkDay[]> {
+export async function fetchWorkDays(driverId: string, from: string, to: string, invoiceId?: string | null): Promise<WorkDay[]> {
   const { data, error } = await supabase.rpc("provider_invoice_days", {
-    p_driver_id: payee.driverId ?? null,
-    p_carrier_id: payee.carrierId ?? null,
+    p_driver_id: driverId,
     p_from: from,
     p_to: to,
     p_invoice_id: invoiceId ?? null,
@@ -101,7 +95,7 @@ export async function fetchWorkDays(payee: Payee, from: string, to: string, invo
 
 export interface InvoiceInput {
   id?: string | null;
-  payee: Payee;
+  driverId: string;
   workDates: string[];
   number: string;
   issueDate: string | null;
@@ -113,8 +107,7 @@ export interface InvoiceInput {
 export async function submitInvoice(input: InvoiceInput): Promise<string> {
   const { data, error } = await supabase.rpc("submit_provider_invoice", {
     p_id: input.id ?? null,
-    p_driver_id: input.payee.driverId ?? null,
-    p_carrier_id: input.payee.carrierId ?? null,
+    p_driver_id: input.driverId,
     p_work_dates: input.workDates,
     p_invoice_number: input.number,
     p_issue_date: input.issueDate,

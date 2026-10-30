@@ -16,7 +16,7 @@ const fold = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 
 /**
  * Frota > Transportadoras: parceiras que recebem pelos motoristas ligados a elas
- * (o acerto sai para a transportadora, com a nota fiscal dela).
+ * (o acerto sai para a transportadora; a regra da nota fiscal so vale para o TAC).
  */
 export default function CarriersPage() {
   const { carriers, isLoading, refresh } = useCarriers();
@@ -72,7 +72,7 @@ export default function CarriersPage() {
       <PageHeader
         icon={Warehouse}
         title="Transportadoras"
-        description="Parceiras que recebem pelos motoristas ligados a elas. O acerto sai para a transportadora, com a nota fiscal dela."
+        description="Parceiras que recebem pelos motoristas ligados a elas. O acerto desses motoristas sai para a transportadora, sem exigir nota fiscal no app."
         actions={
           <Button ref={newButtonRef} onClick={openNew}>
             <Plus aria-hidden="true" />
@@ -190,7 +190,7 @@ export default function CarriersPage() {
         open={!!removing}
         onOpenChange={(open) => !open && setRemoving(null)}
         title={`Excluir ${carrierName(removing)}?`}
-        description="Os motoristas ligados a ela continuam cadastrados e passam a receber direto (TAC). As notas fiscais já enviadas ficam no histórico."
+        description="Os motoristas ligados a ela continuam cadastrados e passam a receber direto (TAC)."
         confirmLabel="Excluir transportadora"
         tone="danger"
         loading={busy}

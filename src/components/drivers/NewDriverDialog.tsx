@@ -127,7 +127,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   // Fotos ja enviadas para a pasta da empresa (o cadastro grava os links)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [vehiclePhotoUrl, setVehiclePhotoUrl] = useState<string | null>(null);
-  // Agregado de transportadora: o acerto e a nota saem para ela
+  // Agregado de transportadora: o acerto sai para ela (sem a regra da nota fiscal)
   const [carrierId, setCarrierId] = useState<string | null>(null);
 
   const update = (patch: Partial<FormData>) => {

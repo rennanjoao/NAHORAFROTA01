@@ -13,15 +13,14 @@ import {
   openInvoiceFile,
   reviewInvoice,
   workDaysLabel,
-  type Payee,
   type ProviderInvoice,
 } from "@/lib/providerInvoices";
 import { ProviderInvoiceDialog } from "./ProviderInvoiceDialog";
 
 interface ProviderInvoicesPanelProps {
   invoices: ProviderInvoice[];
-  payee: Payee;
-  payeeName: string;
+  driverId: string;
+  driverName: string;
   tenantId: string;
   /** Administrador: edita e exclui nota ja aprovada. */
   isAdmin: boolean;
@@ -33,10 +32,10 @@ interface ProviderInvoicesPanelProps {
 const dateBR = (iso: string | null) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR") : "—");
 
 /**
- * Acerto > notas fiscais do motorista TAC ou da transportadora: conferir o arquivo,
- * aprovar ou recusar (com motivo), corrigir e anexar a nota pela equipe.
+ * Acerto > notas fiscais do agregado TAC: conferir o arquivo, aprovar ou recusar (com
+ * motivo), corrigir e anexar a nota pela equipe.
  */
-export function ProviderInvoicesPanel({ invoices, payee, payeeName, tenantId, isAdmin, required, onChanged }: ProviderInvoicesPanelProps) {
+export function ProviderInvoicesPanel({ invoices, driverId, driverName, tenantId, isAdmin, required, onChanged }: ProviderInvoicesPanelProps) {
   const [editing, setEditing] = useState<ProviderInvoice | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [rejecting, setRejecting] = useState<ProviderInvoice | null>(null);
@@ -89,7 +88,7 @@ export function ProviderInvoicesPanel({ invoices, payee, payeeName, tenantId, is
           compact
           icon={FileText}
           title="Nenhuma nota enviada"
-          description={payee.carrierId ? "Anexe aqui a nota que a transportadora emitiu." : "Quando o motorista enviar a nota pelo app, ela aparece aqui para aprovar."}
+          description="Quando o motorista enviar a nota pelo app, ela aparece aqui para aprovar."
         />
       ) : (
         <ul className="space-y-3" aria-label={pendingCount ? `${pendingCount} nota(s) aguardando aprovação` : "Notas fiscais"}>
@@ -183,8 +182,8 @@ export function ProviderInvoicesPanel({ invoices, payee, payeeName, tenantId, is
         open={formOpen}
         onOpenChange={setFormOpen}
         tenantId={tenantId}
-        payee={payee}
-        payeeName={payeeName}
+        driverId={driverId}
+        driverName={driverName}
         invoice={editing}
         onSaved={onChanged}
       />

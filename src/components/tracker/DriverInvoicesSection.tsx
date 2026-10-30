@@ -19,9 +19,10 @@ interface PaymentProfile {
 }
 
 /**
- * Carteira > Notas fiscais (empresa que so paga mediante nota): o agregado escolhe os
+ * Carteira > Notas fiscais (empresa que so paga mediante nota): o agregado TAC escolhe os
  * dias que trabalhou e anexa a nota que emitiu fora do app. Enquanto a empresa nao
- * aprova, ele corrige ou exclui. Motorista de transportadora so ve o aviso.
+ * aprova, ele corrige ou exclui. Motorista de transportadora fica fora da regra (so ve
+ * por quem recebe).
  */
 export function DriverInvoicesSection({ driverId }: { driverId: string }) {
   const profileQuery = useQuery({
@@ -54,7 +55,7 @@ export function DriverInvoicesSection({ driverId }: { driverId: string }) {
             Você recebe pela transportadora
           </h2>
           <p className="text-sm text-muted-foreground">
-            O pagamento sai para a <span className="font-medium text-foreground">{profile.carrier_name}</span>, e ela envia a nota fiscal. Você não precisa anexar nota.
+            O pagamento sai para a <span className="font-medium text-foreground">{profile.carrier_name}</span>. Você não precisa anexar nota fiscal aqui.
           </p>
         </div>
       </section>
@@ -127,8 +128,8 @@ export function DriverInvoicesSection({ driverId }: { driverId: string }) {
         open={formOpen}
         onOpenChange={setFormOpen}
         tenantId={profile.tenant_id}
-        payee={{ driverId }}
-        payeeName="Você"
+        driverId={driverId}
+        driverName="Você"
         invoice={editing}
         variant="app"
         onSaved={() => void refresh()}

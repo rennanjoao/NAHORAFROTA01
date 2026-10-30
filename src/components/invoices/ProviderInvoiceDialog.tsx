@@ -16,7 +16,6 @@ import {
   submitInvoice,
   uploadInvoiceFile,
   workDaysLabel,
-  type Payee,
   type ProviderInvoice,
 } from "@/lib/providerInvoices";
 import { cn } from "@/lib/utils";
@@ -26,9 +25,9 @@ interface ProviderInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tenantId: string;
-  payee: Payee;
-  /** "Seu Osmar" / "Transportadora Rapida". */
-  payeeName: string;
+  driverId: string;
+  /** Nome do motorista (texto do painel). */
+  driverName: string;
   /** Nota sendo editada (null = nova). */
   invoice?: ProviderInvoice | null;
   /** "app": botoes e textos maiores (app do motorista). */
@@ -47,7 +46,7 @@ const money = (value: number) => formatCurrency(value).replace("R$", "").trim();
  * Enviar ou corrigir a nota fiscal: 1) dias trabalhados, 2) dados da nota e o arquivo
  * (PDF ou foto). O valor vem preenchido com o frete dos dias escolhidos.
  */
-export function ProviderInvoiceDialog({ open, onOpenChange, tenantId, payee, payeeName, invoice, variant = "panel", onSaved }: ProviderInvoiceDialogProps) {
+export function ProviderInvoiceDialog({ open, onOpenChange, tenantId, driverId, driverName, invoice, variant = "panel", onSaved }: ProviderInvoiceDialogProps) {
   const app = variant === "app";
   const ids = useId();
   const today = getTodayBrazil();
@@ -75,10 +74,9 @@ export function ProviderInvoiceDialog({ open, onOpenChange, tenantId, payee, pay
     setErrors({});
   }, [open, invoice, today]);
 
-  const payeeKey = payee.carrierId ? `c:${payee.carrierId}` : `d:${payee.driverId}`;
   const daysQuery = useQuery({
-    queryKey: ["work-days", payeeKey, month, invoice?.id ?? null],
-    queryFn: () => fetchWorkDays(payee, month, lastDay(month), invoice?.id),
+    queryKey: ["work-days", driverId, month, invoice?.id ?? null],
+    queryFn: () => fetchWorkDays(driverId, month, lastDay(month), invoice?.id),
     enabled: open,
     staleTime: 30 * 1000,
   });
@@ -129,10 +127,10 @@ export function ProviderInvoiceDialog({ open, onOpenChange, tenantId, payee, pay
     }
     setSaving(true);
     try {
-      const filePath = file ? await uploadInvoiceFile(tenantId, payee, file) : invoice!.file_path;
+      const filePath = file ? await uploadInvoiceFile(tenantId, driverId, file) : invoice!.file_path;
       await submitInvoice({
         id: invoice?.id,
-        payee,
+        driverId,
         workDates: selected,
         number: number.trim(),
         issueDate: issueDate || null,
@@ -174,7 +172,7 @@ export function ProviderInvoiceDialog({ open, onOpenChange, tenantId, payee, pay
         <DialogHeader className="border-b p-5 pb-4">
           <DialogTitle>{invoice ? "Corrigir nota fiscal" : "Enviar nota fiscal"}</DialogTitle>
           <DialogDescription>
-            {app ? "Escolha os dias que trabalhou e anexe a nota que você emitiu." : `Nota de ${payeeName}: dias trabalhados, dados da nota e o arquivo.`}
+            {app ? "Escolha os dias que trabalhou e anexe a nota que você emitiu." : `Nota de ${driverName}: dias trabalhados, dados da nota e o arquivo.`}
           </DialogDescription>
         </DialogHeader>
 

@@ -78,29 +78,29 @@ INSERT INTO public.manifests (id, driver_id, driver_name, status, tenant_id, cre
 
 -- Motorista ve os dias com romaneio e o frete de cada um
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000073');
-SELECT pg_temp.check((SELECT count(*) FROM public.provider_invoice_days('20000000-0000-0000-0000-000000000073', NULL, '2026-10-01', '2026-10-31')) = 4, 'motorista ve os 4 dias com romaneio');
-SELECT pg_temp.check((SELECT freight FROM public.provider_invoice_days('20000000-0000-0000-0000-000000000073', NULL, '2026-10-01', '2026-10-31') WHERE work_date = '2026-10-02') = 200, 'romaneio das 23h30 conta no dia certo (horario de Brasilia)');
-SELECT pg_temp.check((SELECT payable FROM public.provider_invoice_days('20000000-0000-0000-0000-000000000073', NULL, '2026-10-01', '2026-10-31') WHERE work_date = '2026-10-04') = 0, 'dia com romaneio na rua ainda nao tem valor a receber');
+SELECT pg_temp.check((SELECT count(*) FROM public.provider_invoice_days('20000000-0000-0000-0000-000000000073', '2026-10-01', '2026-10-31')) = 4, 'motorista ve os 4 dias com romaneio');
+SELECT pg_temp.check((SELECT freight FROM public.provider_invoice_days('20000000-0000-0000-0000-000000000073', '2026-10-01', '2026-10-31') WHERE work_date = '2026-10-02') = 200, 'romaneio das 23h30 conta no dia certo (horario de Brasilia)');
+SELECT pg_temp.check((SELECT payable FROM public.provider_invoice_days('20000000-0000-0000-0000-000000000073', '2026-10-01', '2026-10-31') WHERE work_date = '2026-10-04') = 0, 'dia com romaneio na rua ainda nao tem valor a receber');
 DO $$ BEGIN
-  PERFORM public.provider_invoice_days('20000000-0000-0000-0000-000000000074', NULL, '2026-10-01', '2026-10-31');
+  PERFORM public.provider_invoice_days('20000000-0000-0000-0000-000000000074', '2026-10-01', '2026-10-31');
   RAISE EXCEPTION 'FAIL: viu os dias de outro motorista';
 EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok: motorista nao ve os dias de outro motorista';
 END $$;
 
 -- Seu Osmar escolhe os dias errados (1 e 2), anexa a nota e depois corrige (enquanto nao aprovada)
 INSERT INTO storage.objects (bucket_id, name) VALUES ('provider-invoices', '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf');
-SELECT set_config('test.nf1', public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01','2026-10-02']::date[], '1001', '2026-10-05', 350, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf')::text, false);
+SELECT set_config('test.nf1', public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01','2026-10-02']::date[], '1001', '2026-10-05', 350, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf')::text, false);
 SELECT pg_temp.check((SELECT status = 'pending' AND expected_amount = 350 FROM public.provider_invoices WHERE id = current_setting('test.nf1')::uuid), 'nota enviada fica aguardando aprovacao, com o frete dos dias');
 SELECT pg_temp.check((SELECT count(*) FROM public.manifests WHERE provider_invoice_id = current_setting('test.nf1')::uuid) = 2, 'nota ligada aos 2 romaneios dos dias escolhidos');
-SELECT public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01','2026-10-02','2026-10-03']::date[], '1001', '2026-10-05', 470, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
+SELECT public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01','2026-10-02','2026-10-03']::date[], '1001', '2026-10-05', 470, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
 SELECT pg_temp.check((SELECT expected_amount = 470 AND cardinality(work_dates) = 3 FROM public.provider_invoices WHERE id = current_setting('test.nf1')::uuid), 'motorista corrige os dias antes da aprovacao');
 DO $$ BEGIN
-  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-03']::date[], '1002', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'x.pdf');
+  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-03']::date[], '1002', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'x.pdf');
   RAISE EXCEPTION 'FAIL: aceitou dia repetido em outra nota';
 EXCEPTION WHEN unique_violation THEN RAISE NOTICE 'ok: o mesmo dia nao entra em duas notas';
 END $$;
 DO $$ BEGIN
-  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-09']::date[], '1003', NULL, 10, 'outra-empresa/nf.pdf', 'x.pdf');
+  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-09']::date[], '1003', NULL, 10, 'outra-empresa/nf.pdf', 'x.pdf');
   RAISE EXCEPTION 'FAIL: aceitou arquivo fora da pasta da empresa';
 EXCEPTION WHEN check_violation THEN RAISE NOTICE 'ok: arquivo precisa estar na pasta da empresa';
 END $$;
@@ -117,12 +117,12 @@ EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok: motorista nao aprov
 END $$;
 RESET role;
 
--- Motorista da transportadora nao envia nota (a transportadora envia)
+-- Motorista da transportadora nao envia nota (a regra da nota nao vale para transportadora)
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000074');
 DO $$ BEGIN
-  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000074', NULL, ARRAY['2026-10-01']::date[], '9', NULL, 300, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000074/n.pdf', 'n.pdf');
+  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000074', ARRAY['2026-10-01']::date[], '9', NULL, 300, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000074/n.pdf', 'n.pdf');
   RAISE EXCEPTION 'FAIL: motorista de transportadora enviou nota';
-EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok: motorista de transportadora nao envia nota';
+EXCEPTION WHEN check_violation THEN RAISE NOTICE 'ok: motorista de transportadora nao envia nota';
 END $$;
 SELECT pg_temp.check((SELECT count(*) FROM public.provider_invoices) = 0, 'motorista nao le nota de outro motorista');
 RESET role;
@@ -146,7 +146,7 @@ SELECT pg_temp.check((SELECT status = 'rejected' AND review_note = 'Valor difere
 SELECT pg_temp.check((SELECT count(*) FROM public.manifests WHERE provider_invoice_id = current_setting('test.nf1')::uuid) = 0, 'nota recusada solta os romaneios');
 RESET role;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000073');
-SELECT public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01','2026-10-02','2026-10-03']::date[], '1001', '2026-10-05', 470, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
+SELECT public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01','2026-10-02','2026-10-03']::date[], '1001', '2026-10-05', 470, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
 SELECT pg_temp.check((SELECT status = 'pending' AND review_note IS NULL FROM public.provider_invoices WHERE id = current_setting('test.nf1')::uuid), 'motorista corrige a nota recusada e ela volta para aprovacao');
 RESET role;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000072');
@@ -157,20 +157,20 @@ RESET role;
 -- Aprovada: motorista e despachante nao editam; administrador edita
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000073');
 DO $$ BEGIN
-  PERFORM public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01']::date[], '1001', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
+  PERFORM public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01']::date[], '1001', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
   RAISE EXCEPTION 'FAIL: motorista editou nota aprovada';
 EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok: motorista nao edita nota aprovada';
 END $$;
 RESET role;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000072');
 DO $$ BEGIN
-  PERFORM public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01']::date[], '1001', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
+  PERFORM public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01']::date[], '1001', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
   RAISE EXCEPTION 'FAIL: despachante editou nota aprovada';
 EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'ok: despachante nao edita nota aprovada';
 END $$;
 RESET role;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000071');
-SELECT public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01','2026-10-02','2026-10-03','2026-10-04']::date[], '1001-A', '2026-10-05', 470, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
+SELECT public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01','2026-10-02','2026-10-03','2026-10-04']::date[], '1001-A', '2026-10-05', 470, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
 SELECT pg_temp.check((SELECT status = 'approved' AND invoice_number = '1001-A' FROM public.provider_invoices WHERE id = current_setting('test.nf1')::uuid), 'administrador edita a nota aprovada (continua aprovada)');
 RESET role;
 
@@ -188,7 +188,7 @@ SELECT pg_temp.check((SELECT status = 'paid' AND paid_at IS NOT NULL FROM public
 RESET role;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000071');
 DO $$ BEGIN
-  PERFORM public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-01']::date[], '1001', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
+  PERFORM public.submit_provider_invoice(current_setting('test.nf1')::uuid, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-01']::date[], '1001', NULL, 10, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf1.pdf', 'nf1.pdf');
   RAISE EXCEPTION 'FAIL: editou nota paga';
 EXCEPTION WHEN check_violation THEN RAISE NOTICE 'ok: nota paga nao e editada (estorna antes)';
 END $$;
@@ -196,13 +196,15 @@ UPDATE public.manifests SET status = 'completed', paid_at = NULL WHERE id = '570
 SELECT pg_temp.check((SELECT status FROM public.provider_invoices WHERE id = current_setting('test.nf1')::uuid) = 'approved', 'estorno volta a nota para aprovada');
 RESET role;
 
--- Transportadora: a equipe anexa a nota dela e o acerto sai para a transportadora
+-- Transportadora fora da regra: romaneio do motorista dela e pago sem nota
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000072');
-SELECT set_config('test.nf2', public.submit_provider_invoice(NULL, NULL, '70000000-0000-0000-0000-000000000001', ARRAY['2026-10-01']::date[], 'T-55', '2026-10-06', 300, '10000000-0000-0000-0000-000000000070/carrier-70000000-0000-0000-0000-000000000001/t55.pdf', 't55.pdf')::text, false);
-SELECT pg_temp.check((SELECT expected_amount = 300 AND carrier_id IS NOT NULL AND driver_id IS NULL FROM public.provider_invoices WHERE id = current_setting('test.nf2')::uuid), 'nota da transportadora pega os romaneios dos motoristas dela');
-SELECT public.review_provider_invoice(current_setting('test.nf2')::uuid, true, NULL);
 UPDATE public.manifests SET status = 'paid', paid_at = now() WHERE id = '57000000-0000-0000-0000-000000000005';
-SELECT pg_temp.check((SELECT status FROM public.provider_invoices WHERE id = current_setting('test.nf2')::uuid) = 'paid', 'acerto da transportadora pago com a nota dela');
+SELECT pg_temp.check((SELECT status FROM public.manifests WHERE id = '57000000-0000-0000-0000-000000000005') = 'paid', 'romaneio do motorista de transportadora e pago sem nota fiscal');
+DO $$ BEGIN
+  PERFORM public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000074', ARRAY['2026-10-01']::date[], 'T-55', NULL, 300, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000074/t55.pdf', 't55.pdf');
+  RAISE EXCEPTION 'FAIL: equipe enviou nota para motorista de transportadora';
+EXCEPTION WHEN check_violation THEN RAISE NOTICE 'ok: nem a equipe envia nota para motorista de transportadora';
+END $$;
 RESET role;
 
 -- Empresa que nao exige nota paga como antes
@@ -229,7 +231,7 @@ RESET role;
 
 -- Exclusao: motorista exclui pendente; aprovada so o administrador
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000073');
-SELECT set_config('test.nf3', public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', NULL, ARRAY['2026-10-20']::date[], '2000', NULL, 50, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf2.pdf', 'nf2.pdf')::text, false);
+SELECT set_config('test.nf3', public.submit_provider_invoice(NULL, '20000000-0000-0000-0000-000000000073', ARRAY['2026-10-20']::date[], '2000', NULL, 50, '10000000-0000-0000-0000-000000000070/20000000-0000-0000-0000-000000000073/nf2.pdf', 'nf2.pdf')::text, false);
 SELECT public.delete_provider_invoice(current_setting('test.nf3')::uuid);
 SELECT pg_temp.check(NOT EXISTS (SELECT 1 FROM public.provider_invoices WHERE id = current_setting('test.nf3')::uuid), 'motorista exclui a nota ainda nao aprovada');
 DO $$ BEGIN
