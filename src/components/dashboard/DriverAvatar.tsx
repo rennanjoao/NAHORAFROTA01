@@ -9,6 +9,21 @@ const sizes = {
   lg: "h-12 w-12 text-base",
 };
 
+/* Cor do avatar sem foto: fixa por nome (cinco tons da marca). */
+const AVATAR_COLORS = [
+  "bg-brand/15 text-primary",
+  "bg-info/15 text-info",
+  "bg-warning/15 text-warning",
+  "bg-[hsl(var(--chart-4)/0.16)] text-[hsl(var(--chart-4))]",
+  "bg-[hsl(var(--teal)/0.16)] text-[hsl(var(--teal))]",
+];
+export function avatarColor(name?: string | null): string {
+  const s = (name || "").trim();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
 const ringTone: Record<Tone, string> = {
   neutral: "ring-border",
   brand: "ring-primary/40",
@@ -41,7 +56,8 @@ export function DriverAvatar({
     <span
       aria-hidden="true"
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 font-semibold text-primary",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold",
+        avatarColor(name),
         tone && "ring-2 ring-offset-2 ring-offset-card",
         tone && ringTone[tone],
         sizes[size],

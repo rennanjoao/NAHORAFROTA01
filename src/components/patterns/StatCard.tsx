@@ -4,7 +4,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, type LucideIcon
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCountUp } from "@/hooks/useCountUp";
 import { cn } from "@/lib/utils";
-import { toneSoftBg, toneText, type Tone } from "./tones";
+import { toneSolid, toneWash, type Tone } from "./tones";
 
 const toneBar: Record<Tone, string> = {
   neutral: "bg-gradient-to-r from-transparent via-foreground/15 to-transparent",
@@ -72,8 +72,8 @@ export function StatCard({
             className={cn(
               // Menor no celular estreito: rotulo de uma palavra longa ("Disponiveis") cabe ao lado.
               "flex h-7 w-7 shrink-0 items-center justify-center rounded-md min-[400px]:h-10 min-[400px]:w-10 min-[400px]:rounded-xl",
-              toneSoftBg[tone],
-              toneText[tone],
+              toneSolid[tone],
+              "shadow-sm",
             )}
           >
             <Icon className="h-4 w-4 min-[400px]:h-[1.125rem] min-[400px]:w-[1.125rem]" />
@@ -119,6 +119,7 @@ export function StatCard({
 
   const classes = cn(
     "group relative isolate flex h-full min-h-[8.5rem] flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 text-left text-card-foreground shadow-sm min-[400px]:p-5",
+    toneWash[tone],
     interactive && "card-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     className,
   );

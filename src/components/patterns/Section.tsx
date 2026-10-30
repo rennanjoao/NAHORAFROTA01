@@ -19,7 +19,7 @@ export function Section({ title, description, actions, children, className, id }
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             {title && (
-              <h2 id={headingId} className="text-lg font-semibold tracking-tight text-foreground">
+              <h2 id={headingId} className="flex items-center gap-2.5 text-lg font-semibold tracking-tight text-foreground before:h-5 before:w-1 before:shrink-0 before:rounded-full before:bg-gradient-to-b before:from-brand before:to-info before:content-['']">
                 {title}
               </h2>
             )}

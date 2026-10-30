@@ -77,6 +77,7 @@
     --chart-3: 30 95% 42%;
     --chart-4: 262 52% 52%;
     --chart-5: 358 72% 50%;
+    --teal: 186 72% 30%;
 
     --overlay: 215 25% 8%;
     --overlay-opacity: 0.45;
@@ -147,6 +148,7 @@
     --chart-3: 42 100% 62%;
     --chart-4: 262 80% 74%;
     --chart-5: 359 100% 68%;
+    --teal: 186 80% 58%;
 
     --overlay: 0 0% 0%;
     --overlay-opacity: 0.65;
@@ -599,7 +601,7 @@
 /* Tiles do OSM: no escuro, base escura e dessaturada (manual); no claro, so
    menos saturada para nao brigar com os marcadores. */
 .nhf-map-dark {
-  filter: saturate(0.55) contrast(0.95);
+  filter: saturate(0.95) contrast(1.02);
 }
 .dark .nhf-map-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
@@ -1027,3 +1029,12 @@
   }
 
 }
+
+/* Pulso do marcador de veiculo andando (mapa ao vivo). */
+.nhf-marker-pulse { animation: nhf-marker-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.5; }
+@keyframes nhf-marker-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  80%, 100% { transform: scale(2.1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .nhf-marker-pulse { animation: none; opacity: 0; } }
+:root[data-motion="reduce"] .nhf-marker-pulse { animation: none; opacity: 0; }
