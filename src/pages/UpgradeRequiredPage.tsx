@@ -8,9 +8,20 @@ const SUPPORT_EMAIL = "suporte@nahorafrota.com.br";
 // plural: concordancia do verbo ("Os relatorios fazem parte...").
 const FEATURE_INFO: Record<Feature, { title: string; description: string; plural?: boolean }> = {
   financial_dashboard: {
-    title: "O acerto financeiro",
-    description: "Calcule quanto pagar a cada motorista, registre os pagamentos e veja a rentabilidade de cada rota.",
+    title: "Os números do frete no painel",
+    description: "Receita total, custo do frete de terceiros e eficiência do frete, atualizados no painel.",
+    plural: true,
   },
+  settlement: {
+    title: "O acerto financeiro",
+    description: "Calcule quanto pagar a cada motorista, dê baixa em lote e gere o comprovante.",
+  },
+  reports_performance: {
+    title: "Os relatórios de desempenho",
+    description: "SLA, ocorrências e eficiência por região no período escolhido.",
+    plural: true,
+  },
+  reports_export: { title: "A exportação de relatórios", description: "Baixe os relatórios do período em PDF para enviar a quem precisa." },
   financial_reports: {
     title: "Os relatórios financeiros",
     description: "Custos, fretes e rentabilidade por período, prontos para exportar.",
@@ -33,13 +44,16 @@ const FEATURE_INFO: Record<Feature, { title: string; description: string; plural
 
 // Tela de cada recurso (para quem ja tem acesso ir direto).
 const FEATURE_PATH: Partial<Record<Feature, string>> = {
-  financial_dashboard: "/settlement",
+  financial_dashboard: "/dashboard",
+  settlement: "/settlement",
   financial_reports: "/reports",
+  reports_performance: "/reports",
+  reports_export: "/reports",
   reports: "/reports",
-  sla_weekly: "/",
-  sla_drilldown: "/",
+  sla_weekly: "/dashboard",
+  sla_drilldown: "/dashboard",
   sla_evolution: "/reports",
-  realtime_dashboard: "/",
+  realtime_dashboard: "/dashboard",
   batch_import: "/deliveries",
 };
 

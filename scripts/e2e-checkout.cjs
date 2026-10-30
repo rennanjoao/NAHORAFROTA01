@@ -39,9 +39,9 @@ function assert(cond, msg) {
   assert((await page.title()).includes("Na Hora Frota"), "landing abre");
   assert((await page.locator("section[id]").count()) >= 7, "landing tem pelo menos 7 seções");
 
-  await page.getByRole("link", { name: /Assinar Controle:/ }).click();
+  await page.getByRole("article", { name: "Standard" }).getByRole("link", { name: /Assinar Standard:/ }).click();
   await page.waitForURL(/\/comprar\/control/);
-  assert(true, "clique em Assinar Controle leva ao checkout");
+  assert(true, "clique em Assinar Standard leva ao checkout");
 
   await page.fill("#company_name", "Transportes E2E LTDA");
   await page.fill("#cnpj", CNPJ);
@@ -75,7 +75,7 @@ function assert(cond, msg) {
   const state = await (await fetch(`${BACKEND}/dev/state`)).json();
   const tenant = state.tenants.find((t) => t.cnpj === CNPJ);
   const user = state.users.find((u) => u.email === email);
-  assert(tenant && tenant.status === "active" && tenant.plan === "control", "empresa criada ativa no plano Controle");
+  assert(tenant && tenant.status === "active" && tenant.plan === "control", "empresa criada ativa no plano Standard");
   assert(user && user.user_metadata.must_change_password === true, "usuário admin criado com troca de senha obrigatória");
   assert(state.user_roles.some((r) => r.user_id === user.id && r.role === "admin" && r.tenant_id === tenant.id), "papel admin vinculado à empresa");
 

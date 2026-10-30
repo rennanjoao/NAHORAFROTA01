@@ -2,47 +2,69 @@ import { Check, Minus } from "lucide-react";
 import { PLANS } from "@/config/plans";
 
 type Cell = boolean | string;
+/* Linhas da planilha de planos (29/10/2026), agrupadas por assunto. */
 const ROWS: { group: string; items: [string, Cell, Cell, Cell][] }[] = [
   {
-    group: "Operação",
+    group: "Painel",
     items: [
-      ["Mapa ao vivo da frota", true, true, true],
-      ["Romaneio digital e despacho", true, true, true],
-      ["App do motorista com canhoto, foto e assinatura", true, true, true],
-      ["Ocorrências de entrega com registro na hora", true, true, true],
-      ["Painel com atualização automática", false, true, true],
-      ["Importação de notas em lote (XML da NF-e)", false, true, true],
-      ["Áreas de alerta no mapa", false, true, true],
+      ["Motoristas na rua, mercadorias em rota, notas carregadas e entregas feitas", true, true, true],
+      ["Entregas não roteirizadas e status das notas", true, true, true],
+      ["Frota própria e de terceiros, motoristas que finalizaram", true, true, true],
+      ["SLA em tempo real", false, true, true],
+      ["Receita total, custo do frete de terceiros e eficiência do frete", false, true, true],
+      ["SLA por motorista: quem está abaixo hoje", false, false, true],
+      ["Motoristas que pedem atenção (nota de 0 a 5)", false, false, true],
     ],
   },
   {
-    group: "Prazo e números",
+    group: "Mapa e alertas",
     items: [
-      ["SLA semanal por motorista e região", false, true, true],
-      ["Relatórios de eficiência e evolução do prazo", false, true, true],
-      ["SLA por entrega e motorista (drill-down)", false, false, true],
-      ["Relatórios financeiros e lucratividade por rota", false, false, true],
+      ["Mapa da frota", false, "A cada 30 min", "Tempo real"],
+      ["Áreas de alerta (cerca) com o status dos motoristas", false, "A cada 30 min", "Tempo real"],
     ],
   },
   {
-    group: "Financeiro e suporte",
+    group: "Entregas e romaneio",
     items: [
-      ["Acerto: frete, adiantamento e desconto por romaneio", false, false, true],
-      ["Atendimento prioritário", false, false, true],
+      ["Importação de notas por XML", true, true, true],
+      ["Importação de pedidos por planilha (pedido, cliente, endereço, CEP, telefone, peso)", true, true, true],
+      ["Ordem do romaneio", "Sequência escolhida", "Melhor trajeto", "Roteirizador avançado"],
+      ["Devolvidos voltam para um novo romaneio", true, true, true],
+      ["Regiões separadas para ver e roteirizar", true, true, true],
     ],
   },
   {
-    group: "Limites",
+    group: "Motoristas e veículos",
     items: [
+      ["Motoristas e veículos incluídos", "3", "15", "50"],
+      ["Motorista além do limite", "R$ 10/mês", "R$ 10/mês", "R$ 10/mês"],
       ["Usuários no painel", "5", "20", "Ilimitado"],
-      ["Motoristas", "50", "200", "Ilimitado"],
-      ["Veículos", "20", "100", "Ilimitado"],
+      ["Documentos do motorista para baixar", true, true, true],
+      ["Tipo de veículo: peso das notas, restrição de circulação e alerta de rodízio", false, false, true],
+    ],
+  },
+  {
+    group: "Financeiro",
+    items: [
+      ["Acerto financeiro em lote, com recibo", true, true, true],
+      ["Baixa em lote e comprovante de pagamento", true, true, true],
+      ["Relatório de pagamento e motoristas que mais faturaram", false, false, true],
+      ["Aviso ao financeiro quando o motorista deixa de entregar", false, false, true],
+    ],
+  },
+  {
+    group: "Relatórios",
+    items: [
+      ["Uso da frota", true, true, true],
+      ["Desempenho e eficiência", false, true, true],
+      ["Rentabilidade", false, false, true],
+      ["Exportar relatórios", false, false, true],
     ],
   },
 ];
 
 function Value({ v }: { v: Cell }) {
-  if (typeof v === "string") return <span className="font-data font-semibold">{v}</span>;
+  if (typeof v === "string") return <span className="font-data text-[0.8rem] font-semibold">{v}</span>;
   return v ? (
     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand text-nhf-ink">
       <Check className="h-3.5 w-3.5" strokeWidth={3} aria-label="Incluído" />
@@ -56,7 +78,7 @@ function Value({ v }: { v: Cell }) {
 export function PlanTable({ id }: { id: string }) {
   return (
     <div id={id} className="site-card overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
         <caption className="sr-only">Recursos e limites de cada plano</caption>
         <thead>
           <tr className="border-b border-foreground/10">

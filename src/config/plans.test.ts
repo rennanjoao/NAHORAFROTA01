@@ -4,11 +4,11 @@ import path from "node:path";
 import { PLANS, PLAN_BY_ID, formatBRL, formatPriceShort, isPlanId } from "./plans";
 
 describe("planos", () => {
-  it("tem os três planos com os preços vendidos", () => {
+  it("tem os três planos com os preços vendidos (Basic 197, Standard 370, Premium 599)", () => {
     expect(PLANS.map((p) => [p.id, p.amountCents])).toEqual([
       ["basic", 19700],
       ["control", 37000],
-      ["total", 55000],
+      ["total", 59900],
     ]);
   });
 

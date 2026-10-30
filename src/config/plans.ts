@@ -26,53 +26,65 @@ export interface Plan {
   stepUp?: string;
 }
 
+/**
+ * Motorista alem do limite do plano: R$ 10 por mes cada (planilha de planos de 29/10/2026).
+ * Ainda nao e cobrado sozinho no checkout; o time libera manualmente.
+ */
+export const EXTRA_DRIVER_CENTS = 1000;
+
+/*
+ * Os ids internos continuam basic/control/total (estao gravados nas empresas e nos
+ * pedidos); so o nome que a pessoa ve mudou: Basic, Standard e Premium.
+ */
 export const PLANS: Plan[] = [
   {
     id: "basic",
-    name: "Básico",
-    tagline: "Para tirar a operação do papel.",
+    name: "Basic",
+    tagline: "Para organizar a operação e o acerto.",
     amountCents: 19700,
-    limits: { users: 5, drivers: 50, vehicles: 20 },
+    limits: { users: 5, drivers: 3, vehicles: 3 },
     features: [
-      "Mapa da frota com posição dos motoristas",
-      "Romaneio digital e despacho de entregas",
-      "App do motorista com canhoto, foto e assinatura",
-      "Ocorrências de entrega com registro na hora",
-      "Cadastro de motoristas, agregados e veículos",
-      "Até 5 usuários, 50 motoristas e 20 veículos",
+      "Painel do dia: motoristas na rua, mercadorias em rota, notas e entregas",
+      "Importação de notas por XML e de pedidos por planilha",
+      "Romaneio na sequência que você escolher",
+      "Acerto financeiro em lote, com recibo e comprovante",
+      "Relatório de uso da frota",
+      "Até 3 motoristas e veículos",
     ],
   },
   {
     id: "control",
-    name: "Controle",
-    tagline: "Para quem precisa medir o prazo todo dia.",
+    name: "Standard",
+    tagline: "Para acompanhar prazo e custo todo dia.",
     amountCents: 37000,
     highlight: true,
     badge: "Mais escolhido",
-    limits: { users: 20, drivers: 200, vehicles: 100 },
-    stepUp: "Tudo do Básico, mais:",
+    limits: { users: 20, drivers: 15, vehicles: 15 },
+    stepUp: "Tudo do Basic, mais:",
     features: [
-      "Painel em tempo real com atualização automática",
-      "Importação de notas em lote (XML da NF-e)",
-      "SLA semanal por motorista e por região",
-      "Relatórios de eficiência e evolução do prazo",
-      "Áreas de alerta no mapa",
-      "Até 20 usuários, 200 motoristas e 100 veículos",
+      "SLA em tempo real no painel",
+      "Receita, custo do frete de terceiros e eficiência do frete",
+      "Mapa da frota e áreas de alerta, atualizados a cada 30 minutos",
+      "Romaneio com o melhor trajeto",
+      "Relatórios de desempenho e eficiência",
+      "Até 15 motoristas e veículos",
     ],
   },
   {
     id: "total",
-    name: "Controle Total",
-    tagline: "Para fechar o acerto sem planilha.",
-    amountCents: 55000,
-    limits: { users: -1, drivers: -1, vehicles: -1 },
-    stepUp: "Tudo do Controle, mais:",
+    name: "Premium",
+    tagline: "Para controlar cada motorista em tempo real.",
+    amountCents: 59900,
+    limits: { users: -1, drivers: 50, vehicles: 50 },
+    stepUp: "Tudo do Standard, mais:",
     features: [
-      "Acerto financeiro: frete, adiantamento e desconto por romaneio",
-      "Drill-down de SLA por entrega e motorista",
-      "Relatórios financeiros e lucratividade por rota",
-      "Atendimento prioritário",
-      "Usuários, motoristas e veículos ilimitados",
+      "Mapa da frota e áreas de alerta em tempo real",
+      "SLA por motorista e motoristas que pedem atenção (nota de 0 a 5)",
+      "Roteirizador avançado",
+      "Tipo de veículo: peso das notas, restrição de circulação e rodízio",
+      "Acerto com relatório de pagamento e aviso de entrega não feita",
+      "Rentabilidade e exportação de relatórios",
+      "Até 50 motoristas e veículos, usuários ilimitados",
     ],
   },
 ];

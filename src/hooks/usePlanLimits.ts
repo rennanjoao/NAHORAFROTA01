@@ -38,9 +38,9 @@ const DEFAULT_LIMITS: PlanLimits = {
 };
 
 const planLabels: Record<string, string> = {
-  basic: 'Básico',
-  control: 'Controle',
-  total: 'Controle Total',
+  basic: 'Basic',
+  control: 'Standard',
+  total: 'Premium',
 };
 
 export const PLAN_STATUS_QUERY_KEY = 'plan-status';

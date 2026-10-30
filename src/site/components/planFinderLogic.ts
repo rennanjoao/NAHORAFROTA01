@@ -1,49 +1,65 @@
-import { PLAN_BY_ID, type PlanId } from "@/config/plans";
+import { EXTRA_DRIVER_CENTS, PLAN_BY_ID, formatBRL, type PlanId } from "@/config/plans";
 
 export interface FinderState {
   drivers: number;
-  vehicles: number;
   users: number;
-  xml: boolean;
+  /** Ver a frota no mapa (Standard: a cada 30 min). */
+  mapa: boolean;
+  /** SLA e custo do frete no painel (Standard). */
   sla: boolean;
-  acerto: boolean;
-  financeiro: boolean;
+  /** Mapa e areas de alerta em tempo real (Premium). */
+  tempoReal: boolean;
+  /** Rentabilidade, nota dos motoristas e relatorios exportados (Premium). */
+  analise: boolean;
 }
 
-export const FINDER_DEFAULT: FinderState = { drivers: 12, vehicles: 8, users: 3, xml: false, sla: false, acerto: false, financeiro: false };
+export const FINDER_DEFAULT: FinderState = { drivers: 8, users: 3, mapa: false, sla: false, tempoReal: false, analise: false };
 
-const RANK: Record<PlanId, number> = { basic: 0, control: 1, total: 2 };
 const BY_RANK: PlanId[] = ["basic", "control", "total"];
 
-/** Menor plano que atende aos numeros e aos recursos marcados, com os motivos. */
-export function recommend(s: FinderState): { plan: PlanId; reasons: string[] } {
+export interface Recommendation {
+  plan: PlanId;
+  reasons: string[];
+  /** Motoristas alem do limite do plano indicado (cobrados a parte). */
+  extraDrivers: number;
+  /** Plano + motoristas adicionais, em centavos por mes. */
+  monthlyCents: number;
+}
+
+/** Menor plano que atende aos numeros e ao que foi marcado, com os motivos. */
+export function recommend(s: FinderState): Recommendation {
   let need = 0;
   const reasons: string[] = [];
   const lim = (id: PlanId) => PLAN_BY_ID[id].limits;
-  const over = (id: PlanId) => {
-    const l = lim(id);
-    if (l.drivers !== -1 && s.drivers > l.drivers) return `${s.drivers >= 300 ? "Mais de 300" : s.drivers} motoristas: o ${PLAN_BY_ID[id].name} vai até ${l.drivers}.`;
-    if (l.vehicles !== -1 && s.vehicles > l.vehicles) return `${s.vehicles >= 150 ? "Mais de 150" : s.vehicles} veículos: o ${PLAN_BY_ID[id].name} vai até ${l.vehicles}.`;
-    if (l.users !== -1 && s.users > l.users) return `${s.users >= 40 ? "Mais de 40" : s.users} pessoas no painel: o ${PLAN_BY_ID[id].name} vai até ${l.users}.`;
-    return null;
-  };
-  const overControl = over("control");
-  const overBasic = over("basic");
-  if (overControl) {
+  const name = (id: PlanId) => PLAN_BY_ID[id].name;
+
+  if (s.drivers > lim("control").drivers) {
     need = 2;
-    reasons.push(overControl);
-  } else if (overBasic) {
+    reasons.push(`${s.drivers >= 100 ? "Mais de 100" : s.drivers} motoristas: o ${name("control")} vai até ${lim("control").drivers}.`);
+  } else if (s.drivers > lim("basic").drivers) {
     need = 1;
-    reasons.push(overBasic);
+    reasons.push(`${s.drivers} motoristas: o ${name("basic")} vai até ${lim("basic").drivers}.`);
   }
-  if (s.xml) { need = Math.max(need, 1); reasons.push("Importação de notas em lote (XML) entra a partir do Controle."); }
-  if (s.sla) { need = Math.max(need, 1); reasons.push("SLA semanal por motorista e região entra a partir do Controle."); }
-  if (s.acerto) { need = 2; reasons.push("Acerto financeiro de agregados é do Controle Total."); }
-  if (s.financeiro) { need = 2; reasons.push("Relatórios financeiros e lucratividade por rota são do Controle Total."); }
+  if (lim("control").users !== -1 && s.users > lim("control").users) {
+    need = 2;
+    reasons.push(`${s.users >= 40 ? "Mais de 40" : s.users} pessoas no painel: o ${name("control")} vai até ${lim("control").users}.`);
+  } else if (s.users > lim("basic").users) {
+    need = Math.max(need, 1);
+    reasons.push(`${s.users} pessoas no painel: o ${name("basic")} vai até ${lim("basic").users}.`);
+  }
+  if (s.mapa) { need = Math.max(need, 1); reasons.push(`O mapa da frota entra a partir do ${name("control")}, atualizado a cada 30 minutos.`); }
+  if (s.sla) { need = Math.max(need, 1); reasons.push(`SLA em tempo real e custo do frete entram a partir do ${name("control")}.`); }
+  if (s.tempoReal) { need = 2; reasons.push(`Mapa e áreas de alerta em tempo real são do ${name("total")}.`); }
+  if (s.analise) { need = 2; reasons.push(`Rentabilidade, nota dos motoristas e exportação de relatórios são do ${name("total")}.`); }
+
   const plan = BY_RANK[need];
-  if (!reasons.length) {
-    const l = lim("basic");
-    reasons.push(`Até ${l.drivers} motoristas, ${l.vehicles} veículos e ${l.users} pessoas no painel cabem no Básico.`);
+  const included = lim(plan).drivers;
+  const extraDrivers = included === -1 ? 0 : Math.max(0, s.drivers - included);
+  if (extraDrivers > 0) {
+    reasons.push(`O ${name(plan)} inclui ${included} motoristas; os outros ${extraDrivers} saem por ${formatBRL(EXTRA_DRIVER_CENTS)} cada, por mês.`);
   }
-  return { plan, reasons };
+  if (!reasons.length) {
+    reasons.push(`Até ${lim("basic").drivers} motoristas e ${lim("basic").users} pessoas no painel cabem no ${name("basic")}, com acerto financeiro e relatório de uso da frota.`);
+  }
+  return { plan, reasons, extraDrivers, monthlyCents: PLAN_BY_ID[plan].amountCents + extraDrivers * EXTRA_DRIVER_CENTS };
 }

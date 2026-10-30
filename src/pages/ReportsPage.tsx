@@ -1,7 +1,9 @@
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { PlanLockOverlay } from "@/components/plan/PlanLockOverlay";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, FileDown, MapPin, RefreshCw, Truck, Wallet } from "lucide-react";
+import { BarChart3, FileDown, Lock, MapPin, RefreshCw, Truck, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/patterns";
 import { toast } from "@/hooks/use-toast";
 
@@ -85,6 +87,9 @@ export default function ReportsPage() {
   const { checkFeatureAccess } = useFeatureAccess();
   const financialAccess = checkFeatureAccess('financial_reports');
   const slaAccess = checkFeatureAccess('sla_drilldown');
+  // Planilha de planos: uso da frota em todos; desempenho e eficiencia no Standard; exportar no Premium.
+  const performanceAccess = checkFeatureAccess('reports_performance');
+  const exportAccess = checkFeatureAccess('reports_export');
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
@@ -103,6 +108,12 @@ export default function ReportsPage() {
   // Active tab state
    const [activeTab, setActiveTab] = useState<"desempenho" | "regional" | "frota" | "rentabilidade">("desempenho");
   const rentabilidadeAccess = checkFeatureAccess('financial_reports');
+
+  // Sem desempenho no plano: abre direto em "Uso da frota" (quando o plano termina de carregar).
+  const performanceAllowed = performanceAccess.allowed;
+  useEffect(() => {
+    if (!performanceAllowed) setActiveTab((tab) => (tab === "desempenho" || tab === "regional" ? "frota" : tab));
+  }, [performanceAllowed]);
 
   // Fetch real invoices and manifests for reports
   const { invoices, isLoading: invoicesLoading, refetch: refetchInvoices } = useInvoicesDB();
@@ -541,10 +552,19 @@ export default function ReportsPage() {
               <RefreshCw className={isLoading ? "animate-spin" : undefined} aria-hidden="true" />
               {isLoading ? "Atualizando" : "Atualizar"}
             </Button>
-            <Button variant="outline" onClick={() => setShowExportDialog(true)}>
-              <FileDown aria-hidden="true" />
-              Exportar PDF
-            </Button>
+            {exportAccess.allowed ? (
+              <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+                <FileDown aria-hidden="true" />
+                Exportar PDF
+              </Button>
+            ) : (
+              <Button variant="outline" asChild>
+                <Link to={`/upgrade?feature=reports_export&plano=${encodeURIComponent(exportAccess.upgradePlanLabel)}`} title={`Exportar relatórios faz parte do plano ${exportAccess.upgradePlanLabel}`}>
+                  <Lock aria-hidden="true" />
+                  Exportar PDF
+                </Link>
+              </Button>
+            )}
           </>
         }
       />
@@ -579,6 +599,10 @@ export default function ReportsPage() {
 
           {/* Desempenho */}
           <TabsContent value="desempenho" className="mt-6 space-y-6 md:space-y-8">
+            {!performanceAccess.allowed ? (
+              <PlanLockOverlay upgradePlanLabel={performanceAccess.upgradePlanLabel} className="min-h-[18rem]" />
+            ) : (
+            <>
             {/* Indicadores com detalhe ao clicar */}
             <InteractiveKPIs
               data={kpiData}
@@ -607,10 +631,15 @@ export default function ReportsPage() {
               onRouteClick={(route) => applyRankingFilter("route", route)}
               onClientClick={(client) => applyRankingFilter("client", client)}
             />
+            </>
+            )}
           </TabsContent>
 
           {/* Eficiencia regional */}
           <TabsContent value="regional" className="mt-6">
+            {!performanceAccess.allowed ? (
+              <PlanLockOverlay upgradePlanLabel={performanceAccess.upgradePlanLabel} className="min-h-[18rem]" />
+            ) : (
             <RegionalEfficiencyDashboard
               invoices={filteredInvoices.map(inv => ({
                 id: inv.id,
@@ -622,6 +651,7 @@ export default function ReportsPage() {
               }))}
               isLoading={firstLoad}
             />
+            )}
           </TabsContent>
 
           {/* Uso de frota */}

@@ -17,6 +17,7 @@ MIGRATIONS=(
   20261028120000_trial_billing_funnel_and_ops.sql
   20261028130000_fix_driver_access_rpcs_and_realtime.sql
   20261029120000_checkout_orders.sql
+  20261029160000_plans_basic_standard_premium.sql
 )
 OUT=ATUALIZAR_BANCO.sql
 

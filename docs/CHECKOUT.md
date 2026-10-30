@@ -9,7 +9,7 @@ Empresa que já está no **teste grátis** (cadastro em `/register`) assina pelo
 | Onde | O quê |
 |---|---|
 | `src/site/` | Landing (11 seções), checkout (`/comprar/:plano`), pagamento de teste (`/checkout/sandbox/:pedido`), sucesso (`/comprar/sucesso`), termos e privacidade. |
-| `src/config/plans.ts` | Planos e preços do site (Básico 197 · Controle 370 · Controle Total 550). |
+| `src/config/plans.ts` | Planos e preços do site (Basic 197 · Standard 370 · Premium 599; ids internos `basic`, `control`, `total`). |
 | `supabase/functions/_shared/plans.ts` | Espelho dos planos no servidor. **O valor cobrado sai daqui**, nunca do navegador. O teste `src/config/plans.test.ts` falha se os dois divergirem. |
 | `supabase/functions/create-checkout` | Valida os dados, decide entre empresa nova e conversão do teste grátis (recusa CNPJ já assinante e e-mail de outra empresa), grava o pedido e abre o pagamento (Stripe Checkout ou, em teste, a página sandbox). |
 | `supabase/functions/stripe-webhook` | Recebe `checkout.session.completed` (cria empresa + admin + envia acesso), `invoice.paid` (renova vencimento), `invoice.payment_failed`, `customer.subscription.deleted` (bloqueia). Assinatura verificada com HMAC. |

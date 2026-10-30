@@ -13,9 +13,9 @@ export const TENANT_STATUS: Record<string, { label: string; tone: Tone }> = {
 
 /** Nomes dos planos como o cliente ve (mesmos de usePlanLimits). */
 export const PLAN_OPTIONS: { value: string; label: string }[] = [
-  { value: "basic", label: "Básico" },
-  { value: "control", label: "Controle" },
-  { value: "total", label: "Controle Total" },
+  { value: "basic", label: "Basic" },
+  { value: "control", label: "Standard" },
+  { value: "total", label: "Premium" },
 ];
 
 export const planLabel = (plan: string) => PLAN_OPTIONS.find((option) => option.value === plan)?.label ?? plan;

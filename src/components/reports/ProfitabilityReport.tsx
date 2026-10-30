@@ -56,7 +56,7 @@ function LockedState({ planLabel }: { planLabel: string }) {
       action={
         <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
           <Crown className="h-4 w-4" aria-hidden="true" />
-          Disponível no plano {planLabel || "Controle Total"}
+          Disponível no plano {planLabel || "Premium"}
         </span>
       }
     />

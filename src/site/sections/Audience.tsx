@@ -4,10 +4,10 @@ import { Stagger, StaggerItem } from "../components/Reveal";
 import { Tilt } from "../motion/Tilt";
 
 const WHO = [
-  { icon: Truck, title: "Transportadoras regionais", text: "Vários romaneios por dia, frota mista e cliente cobrando prazo. O mapa e o SLA respondem antes do telefone tocar.", plan: "Controle" },
-  { icon: Warehouse, title: "Distribuidoras com frota própria", text: "Entregas recorrentes para os mesmos pontos. Rota otimizada, canhoto digital e relatório por região.", plan: "Básico ou Controle" },
-  { icon: Handshake, title: "Operações com agregados", text: "Frete por romaneio, adiantamento e desconto. O acerto fecha sozinho e o histórico fica guardado.", plan: "Controle Total" },
-  { icon: PackageCheck, title: "Last mile e e-commerce", text: "Muitas notas pequenas e prazo curto. Importação em lote do XML e prova de entrega com hora.", plan: "Controle" },
+  { icon: Truck, title: "Transportadoras regionais", text: "Vários romaneios por dia, frota mista e cliente cobrando prazo. O mapa e o SLA respondem antes do telefone tocar.", plan: "Standard" },
+  { icon: Warehouse, title: "Distribuidoras com frota própria", text: "Entregas recorrentes para os mesmos pontos. Rota otimizada, canhoto digital e relatório por região.", plan: "Basic ou Standard" },
+  { icon: Handshake, title: "Operações com agregados", text: "Frete por romaneio, adiantamento e desconto. Acerto em lote com recibo e, no Premium, relatório de pagamento por motorista.", plan: "Premium" },
+  { icon: PackageCheck, title: "Last mile e e-commerce", text: "Muitas notas pequenas e prazo curto. Importação do XML ou da planilha de pedidos e prova de entrega com hora.", plan: "Standard" },
 ];
 
 export function Audience() {

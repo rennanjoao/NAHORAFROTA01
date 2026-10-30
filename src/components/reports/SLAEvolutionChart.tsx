@@ -343,13 +343,13 @@ export function SLAEvolutionChart({
         icon={LineChartIcon}
         tone="success"
         title="Evolução do SLA"
-        description="Consolidado do mês escolhido. A evolução dia a dia faz parte do plano Controle."
+        description="Consolidado do mês escolhido. A evolução dia a dia faz parte do plano Standard."
         actions={
           <>
             {monthSelect}
             <Badge variant="outline" className="gap-1 text-muted-foreground">
               <Crown aria-hidden="true" />
-              Plano Controle
+              Plano Standard
             </Badge>
           </>
         }

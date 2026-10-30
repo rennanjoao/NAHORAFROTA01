@@ -9,6 +9,15 @@ SELECT set_config('request.jwt.claim.sub', '', false);
 INSERT INTO auth.users (id, email) VALUES
  ('00000000-0000-0000-0000-0000000000a5','disp2.a@x.com');
 
+-- Planilha de planos (29/10/2026): Basic 3, Standard 15, Premium 50 motoristas e veiculos
+SELECT pg_temp.check(public.get_plan_limits('basic')->>'max_drivers' = '3' AND public.get_plan_limits('basic')->>'max_vehicles' = '3', 'Basic: 3 motoristas e 3 veiculos');
+SELECT pg_temp.check(public.get_plan_limits('control')->>'max_drivers' = '15' AND public.get_plan_limits('control')->>'max_users' = '20', 'Standard: 15 motoristas e 20 usuarios');
+SELECT pg_temp.check(public.get_plan_limits('total')->>'max_drivers' = '50' AND public.get_plan_limits('total')->>'max_users' = '-1', 'Premium: 50 motoristas e usuarios ilimitados');
+SELECT pg_temp.check((public.get_plan_limits('basic')->>'batch_import')::boolean AND NOT (public.get_plan_limits('basic')->>'realtime')::boolean AND NOT (public.get_plan_limits('basic')->>'financial_dashboard')::boolean, 'Basic: XML sim; mapa e numeros do frete nao');
+SELECT pg_temp.check((public.get_plan_limits('control')->>'realtime')::boolean AND (public.get_plan_limits('control')->>'financial_dashboard')::boolean AND NOT (public.get_plan_limits('control')->>'sla_drilldown')::boolean, 'Standard: mapa e numeros do frete; SLA por motorista nao');
+SELECT pg_temp.check((public.get_plan_limits('total')->>'sla_drilldown')::boolean, 'Premium: SLA por motorista');
+SELECT pg_temp.check(public.get_plan_limits(NULL) = public.get_plan_limits('basic'), 'plano vazio cai no Basic');
+
 -- Teste gratis (plano contratado "basic") usa os limites do plano completo
 INSERT INTO public.user_roles (user_id, role, tenant_id)
 VALUES ('00000000-0000-0000-0000-0000000000a5','dispatcher','10000000-0000-0000-0000-00000000000a');
