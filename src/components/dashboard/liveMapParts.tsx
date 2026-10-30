@@ -33,6 +33,8 @@ export interface FleetPosition {
   status?: string;
   last_update: string;
   gpsStale?: boolean;
+  /** A ultima atualizacao do motorista foi uma ocorrencia (marcador vermelho). */
+  hasOccurrence?: boolean;
 }
 
 function batteryTone(level?: number | null): Tone {

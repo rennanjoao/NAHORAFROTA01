@@ -1,11 +1,14 @@
-import type { ReactNode } from "react";
-import { AlertTriangle, Maximize2, RefreshCw, Truck } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, FileText, Maximize2, RefreshCw, RotateCcw, Truck, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/patterns";
+import { EmptyState, StatusBadge, toneDot, toneSoftBg, toneText, type Tone } from "@/components/patterns";
 import { cn } from "@/lib/utils";
 import { useOnline } from "@/components/layout/useOnline";
-import { VEHICLE_STATUS, type MapStatusCounts, type VehicleMapStatus } from "./mapStatus";
+import { useTodayInvoices, type TodayInvoices } from "@/hooks/useTodayInvoices";
+import { DetailDialog } from "./DetailPanel";
+import { InvoiceList } from "./InvoiceList";
+import type { MapStatusCounts } from "./mapStatus";
 import { plural } from "./status";
 
 interface LiveMapFrameProps {
@@ -21,14 +24,26 @@ interface LiveMapFrameProps {
   onRetry?: () => void;
 }
 
-const ORDER: VehicleMapStatus[] = ["onTime", "atRisk", "delayed", "stale"];
+type NoteGroup = Exclude<keyof TodayInvoices, "pending">;
+
+/** Notas de hoje no topo do mapa (abrem a lista). Tambem e a legenda: azul em rota, vermelho ocorrencia. */
+const NOTE_GROUPS: { key: NoteGroup; one: string; many: string; title: string; hint: string; tone: Tone; icon: LucideIcon }[] = [
+  { key: "inRoute", one: "em rota", many: "em rota", title: "Em rota", hint: "Notas a caminho do cliente agora.", tone: "info", icon: Truck },
+  { key: "delivered", one: "entregue", many: "entregues", title: "Entregues", hint: "Notas entregues hoje.", tone: "success", icon: CheckCircle2 },
+  { key: "occurrence", one: "ocorrência", many: "ocorrências", title: "Ocorrência", hint: "Notas com ocorrência ou devolvidas hoje.", tone: "danger", icon: RotateCcw },
+];
 
 /**
- * Moldura do mapa ao vivo (Mapbox ou OpenStreetMap): barra com a contagem por
- * situacao (que tambem e a legenda das cores) e os botoes do mapa.
+ * Moldura do mapa ao vivo (Mapbox ou OpenStreetMap): resumo das notas de hoje e dos
+ * veiculos sem sinal (que tambem e a legenda das cores) e os botoes do mapa.
  */
 export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, onFitAll, children, state = "ready", error, onRetry }: LiveMapFrameProps) {
   const online = useOnline();
+  const { data: notes } = useTodayInvoices();
+  const [openGroup, setOpenGroup] = useState<NoteGroup | null>(null);
+  const [lastGroup, setLastGroup] = useState<NoteGroup>("inRoute");
+  const group = NOTE_GROUPS.find((g) => g.key === (openGroup ?? lastGroup))!;
+  const groupNotes = notes[group.key];
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -36,17 +51,37 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
           <p className="text-sm font-medium text-foreground">
             {state === "loading" ? "Carregando o mapa…" : plural(vehicleCount, "veículo com GPS ligado", "veículos com GPS ligado")}
           </p>
-          {counts && (
-            <ul className="flex flex-wrap gap-1.5" aria-label="Situação dos veículos (cor no mapa)">
-              {ORDER.map((key) => (
-                <li key={key}>
-                  <StatusBadge tone={VEHICLE_STATUS[key].tone}>
-                    {counts[key]} {(counts[key] === 1 ? VEHICLE_STATUS[key].label : VEHICLE_STATUS[key].plural).toLowerCase()}
-                  </StatusBadge>
+          <ul className="flex flex-wrap gap-1.5" aria-label="Notas de hoje e veículos sem sinal">
+            {NOTE_GROUPS.map((item) => {
+              const count = notes[item.key].length;
+              return (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLastGroup(item.key);
+                      setOpenGroup(item.key);
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium transition-[filter,box-shadow] duration-fast hover:brightness-110 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      toneSoftBg[item.tone],
+                      toneText[item.tone],
+                    )}
+                  >
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", toneDot[item.tone])} aria-hidden="true" />
+                    <span className="font-data font-semibold">{count}</span>
+                    {count === 1 ? item.one : item.many}
+                  </button>
                 </li>
-              ))}
-            </ul>
-          )}
+              );
+            })}
+            <li>
+              <StatusBadge tone="neutral" className="py-1">
+                <span className="font-data font-semibold">{counts?.stale ?? 0}</span>
+                sem sinal
+              </StatusBadge>
+            </li>
+          </ul>
         </div>
         {state === "ready" && (
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -97,6 +132,30 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
           </div>
         )}
       </div>
+
+      <DetailDialog
+        open={openGroup !== null}
+        onOpenChange={(open) => !open && setOpenGroup(null)}
+        icon={group.icon ?? FileText}
+        tone={group.tone}
+        title={`${group.title} · ${plural(groupNotes.length, "nota", "notas")}`}
+        description={group.hint}
+        bodyLabel={`Notas: ${group.title}`}
+        className="sm:max-w-lg"
+      >
+        {groupNotes.length === 0 ? (
+          <EmptyState compact icon={FileText} title="Nenhuma nota nesta situação" />
+        ) : (
+          <InvoiceList
+            items={groupNotes.map((invoice) => ({
+              id: invoice.id,
+              number: `NF ${invoice.nfe_number || "sem número"}`,
+              recipient: invoice.recipient_name,
+              address: invoice.address_full,
+            }))}
+          />
+        )}
+      </DetailDialog>
     </Card>
   );
 }

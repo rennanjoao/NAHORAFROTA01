@@ -7,7 +7,8 @@ import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
-import { DELIVERY_OCCURRENCE_TYPES } from "./occurrenceTypes";
+import { useOccurrenceReasons } from "@/hooks/useOccurrenceReasons";
+import { deliveryReasonOptions } from "./occurrenceTypes";
 import { OptionTiles } from "./OptionTiles";
 import { PhotoField } from "./PhotoField";
 
@@ -37,6 +38,9 @@ export function DeliveryOccurrenceModal({
   const [isLoading, setIsLoading] = useState(false);
   const [typeError, setTypeError] = useState<string | undefined>();
   const [occurrenceType, setOccurrenceType] = useState("");
+  // So os motivos que a empresa cadastrou (Configuracoes > Ocorrencias); a observacao e livre.
+  const { active: reasons, labelFor } = useOccurrenceReasons();
+  const reasonOptions = deliveryReasonOptions(reasons);
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -182,7 +186,7 @@ export function DeliveryOccurrenceModal({
         toast.warning("A entrega ficou com problema, mas o detalhe não foi salvo. Avise a base.");
       }
 
-      const typeLabel = DELIVERY_OCCURRENCE_TYPES.find((item) => item.value === occurrenceType)?.label || occurrenceType;
+      const typeLabel = labelFor(occurrenceType);
       toast.success(`Problema registrado: ${typeLabel}`);
 
       resetAndClose();
@@ -233,7 +237,7 @@ export function DeliveryOccurrenceModal({
           <OptionTiles
             name="tipo-problema-entrega"
             legend="Por que não deu para entregar?"
-            options={DELIVERY_OCCURRENCE_TYPES}
+            options={reasonOptions}
             value={occurrenceType}
             onChange={(value) => {
               setOccurrenceType(value);
@@ -245,7 +249,7 @@ export function DeliveryOccurrenceModal({
 
           <div className="space-y-2">
             <Label htmlFor="delivery-occurrence-description">
-              Explique em poucas palavras <span className="font-normal text-muted-foreground">(opcional)</span>
+              Observação <span className="font-normal text-muted-foreground">(opcional)</span>
             </Label>
             <Textarea
               id="delivery-occurrence-description"

@@ -19,6 +19,8 @@ MIGRATIONS=(
   20261029120000_checkout_orders.sql
   20261029160000_plans_basic_standard_premium.sql
   20261029170000_fixed_freight_pays_kept_invoices.sql
+  20261030120000_occurrence_reasons.sql
+  20261030130000_company_logo_and_photos.sql
 )
 OUT=ATUALIZAR_BANCO.sql
 

@@ -17,6 +17,8 @@ export interface DBDriver {
   phone: string;
   avatar: string;
   photo?: string;
+  photo_url?: string | null;
+  vehicle_photo_url?: string | null;
   address?: string;
   vehicle_plate: string;
   vehicle_type: string;

@@ -13,6 +13,7 @@ import { STATUS_HEX } from "@/lib/brandSymbol";
 import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
 import { BRAZIL_CENTER, BRAZIL_REGIONS, CITY_COORDINATES, riskZones, type DangerousZone, type RiskZone } from "./riskZones";
+import { cargoTheft } from "@/lib/riskStats";
 
 type RiskLevel = RiskZone["riskLevel"];
 
@@ -76,13 +77,13 @@ function RiskZoneDetail({ zone }: { zone: RiskZone }) {
             <dd className="font-data text-xl font-semibold text-foreground">{pctBR(zone.statistics.percentOfTotal)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">No último ano</dt>
+            <dt className="text-xs text-muted-foreground">Contra {cargoTheft.lastYear}</dt>
             <dd>
               <Trend value={zone.statistics.yearlyTrend} large />
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">Roubos por mês</dt>
+            <dt className="text-xs text-muted-foreground">Casos por mês</dt>
             <dd className="font-data text-xl font-semibold text-foreground">
               {zone.statistics.monthlyOccurrences.toLocaleString("pt-BR")}
             </dd>
@@ -90,7 +91,10 @@ function RiskZoneDetail({ zone }: { zone: RiskZone }) {
         </dl>
       </div>
 
-      <p className="mt-4 text-sm text-foreground">{zone.description}</p>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Números do estado ({zone.state}) de {cargoTheft.periodLabel}, comparados com o mesmo período de {cargoTheft.lastYear}.
+      </p>
+      <p className="mt-3 text-sm text-foreground">{zone.description}</p>
 
       <Alert variant="warning" role="note" className="mt-4">
         <ShieldAlert aria-hidden="true" />

@@ -77,6 +77,7 @@ export type Database = {
           current_driver_name: string | null
           id: string
           model: string
+          photo_url: string | null
           plate: string
           renavam: string | null
           status: string
@@ -93,6 +94,7 @@ export type Database = {
           current_driver_name?: string | null
           id?: string
           model: string
+          photo_url?: string | null
           plate: string
           renavam?: string | null
           status?: string
@@ -109,6 +111,7 @@ export type Database = {
           current_driver_name?: string | null
           id?: string
           model?: string
+          photo_url?: string | null
           plate?: string
           renavam?: string | null
           status?: string
@@ -567,6 +570,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
           vehicle_document_url: string | null
+          vehicle_photo_url: string | null
           vehicle_plate: string
           vehicle_type: string
           contact_email: string | null
@@ -609,6 +613,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           vehicle_document_url?: string | null
+          vehicle_photo_url?: string | null
           vehicle_plate: string
           vehicle_type: string
           contact_email?: string | null
@@ -651,6 +656,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           vehicle_document_url?: string | null
+          vehicle_photo_url?: string | null
           vehicle_plate?: string
           vehicle_type?: string
           contact_email?: string | null
@@ -1094,6 +1100,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      occurrence_reasons: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       occurrences: {
         Row: {
@@ -1582,6 +1621,7 @@ export type Database = {
           financial_status: string | null
           id: string
           latitude: number | null
+          logo_url: string | null
           logradouro: string | null
           longitude: number | null
           next_due_date: string | null
@@ -1613,6 +1653,7 @@ export type Database = {
           financial_status?: string | null
           id?: string
           latitude?: number | null
+          logo_url?: string | null
           logradouro?: string | null
           longitude?: number | null
           next_due_date?: string | null
@@ -1644,6 +1685,7 @@ export type Database = {
           financial_status?: string | null
           id?: string
           latitude?: number | null
+          logo_url?: string | null
           logradouro?: string | null
           longitude?: number | null
           next_due_date?: string | null

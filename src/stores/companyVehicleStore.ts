@@ -17,6 +17,7 @@ export interface CompanyVehicle {
   capacity?: string;
   year?: number;
   renavam?: string;
+  photoUrl?: string;
   createdAt: Date;
   updatedAt: Date;
   currentDriverId?: string;
@@ -33,6 +34,7 @@ interface DBVehicle {
   capacity: string | null;
   year: number | null;
   renavam: string | null;
+  photo_url?: string | null;
   current_driver_id: string | null;
   current_driver_name: string | null;
   created_at: string;
@@ -49,9 +51,10 @@ const capacityByType: Record<CompanyVehicleType, string> = {
 };
 
 /** null em ano/RENAVAM apaga o valor salvo. */
-export type CompanyVehicleUpdate = Partial<Omit<CompanyVehicle, "id" | "createdAt" | "year" | "renavam">> & {
+export type CompanyVehicleUpdate = Partial<Omit<CompanyVehicle, "id" | "createdAt" | "year" | "renavam" | "photoUrl">> & {
   year?: number | null;
   renavam?: string | null;
+  photoUrl?: string | null;
 };
 
 // Convert DB record to CompanyVehicle
@@ -65,6 +68,7 @@ const mapDBToVehicle = (db: DBVehicle): CompanyVehicle => ({
   capacity: db.capacity || undefined,
   year: db.year || undefined,
   renavam: db.renavam || undefined,
+  photoUrl: db.photo_url || undefined,
   currentDriverId: db.current_driver_id || undefined,
   currentDriverName: db.current_driver_name || undefined,
   createdAt: new Date(db.created_at),
@@ -178,6 +182,7 @@ export const companyVehicleStore = {
         capacity: vehicle.capacity || capacityByType[vehicle.type],
         year: vehicle.year,
         renavam: vehicle.renavam,
+        photo_url: vehicle.photoUrl || null,
         current_driver_id: vehicle.currentDriverId,
         current_driver_name: vehicle.currentDriverName,
         tenant_id: tenantId,
@@ -212,6 +217,7 @@ export const companyVehicleStore = {
     if (updates.capacity !== undefined) updateData.capacity = updates.capacity;
     if (updates.year !== undefined) updateData.year = updates.year;
     if (updates.renavam !== undefined) updateData.renavam = updates.renavam;
+    if (updates.photoUrl !== undefined) updateData.photo_url = updates.photoUrl;
     // Chave presente com valor undefined = desvincular o motorista (liberar/manutencao).
     if ("currentDriverId" in updates) updateData.current_driver_id = updates.currentDriverId ?? null;
     if ("currentDriverName" in updates) updateData.current_driver_name = updates.currentDriverName ?? null;

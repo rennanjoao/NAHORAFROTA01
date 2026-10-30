@@ -20,9 +20,13 @@ export function VehicleCard({ vehicle, onEdit, onToggleMaintenance, onRemove }: 
   return (
     <li className="card-interactive relative flex flex-col rounded-lg border bg-card p-5 text-card-foreground shadow-sm">
       <div className="flex items-start gap-3">
-        <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <Truck className="h-5 w-5" />
-        </span>
+        {vehicle.photoUrl ? (
+          <img src={vehicle.photoUrl} alt="" loading="lazy" className="h-11 w-16 shrink-0 rounded-lg border object-cover" />
+        ) : (
+          <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Truck className="h-5 w-5" />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <h3 className="leading-tight">
             <button

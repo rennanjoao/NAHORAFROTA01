@@ -34,7 +34,8 @@ import { FreightDialog, FreightData } from "@/components/deliveries/FreightDialo
 import { EditObservationDialog } from "@/components/deliveries/EditObservationDialog";
 import { EditDeliveryDialog } from "@/components/deliveries/EditDeliveryDialog";
 import { ManifestPrintPreview } from "@/components/deliveries/ManifestPrintPreview";
-import { RegisterOccurrenceDialog, occurrenceTypes } from "@/components/deliveries/RegisterOccurrenceDialog";
+import { RegisterOccurrenceDialog } from "@/components/deliveries/RegisterOccurrenceDialog";
+import { useOccurrenceReasons } from "@/hooks/useOccurrenceReasons";
 import { RemoveFromManifestDialog } from "@/components/deliveries/RemoveFromManifestDialog";
 import { AddToManifestDialog } from "@/components/deliveries/AddToManifestDialog";
 import { ManifestsTabDB } from "@/components/deliveries/ManifestsTabDB";
@@ -66,6 +67,7 @@ type DeliveriesTab = "nfs" | "romaneios";
 export default function DeliveriesPage() {
   const { checkFeatureAccess, isLoading: isPlanLoading } = useFeatureAccess();
   const batchAccess = checkFeatureAccess('batch_import');
+  const { labelFor: reasonLabelFor } = useOccurrenceReasons();
   const isMobile = useIsMobile();
   // Local state for mock data compatibility
   const [localDeliveries, setLocalDeliveries] = useState<Delivery[]>(initialDeliveries);
@@ -636,7 +638,7 @@ export default function DeliveriesPage() {
 
   // Grava a ocorrencia (com historico quando a nota esta em romaneio). Devolve false se nao gravou.
   const handleSaveOccurrence = async (deliveryId: number, occurrenceType: string, observation: string): Promise<boolean> => {
-    const occurrenceLabel = occurrenceTypes.find(t => t.value === occurrenceType)?.label || occurrenceType;
+    const occurrenceLabel = reasonLabelFor(occurrenceType);
     const delivery = deliveries.find(d => d.id === deliveryId);
     const dbId = delivery?.dbId;
     if (!dbId) return false;

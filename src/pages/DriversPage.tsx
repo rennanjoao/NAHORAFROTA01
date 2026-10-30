@@ -179,7 +179,8 @@ export default function DriversPage() {
         phone: d.phone,
         // E-mail de contato (recebe os dados de acesso), nao o login interno do app.
         email: d.contact_email || "",
-        photo: d.avatar || d.photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(d.name || "Motorista")}`,
+        photo: d.photo_url || d.avatar || d.photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(d.name || "Motorista")}`,
+        vehiclePhoto: d.vehicle_photo_url ?? null,
         vehiclePlate: d.vehicle_plate,
         vehicleType: normalizeVehicleTypeForDisplay(d.vehicle_type),
         status: displayStatus as any,
@@ -587,6 +588,9 @@ export default function DriversPage() {
             contact_email: updatedDriver.email?.trim().toLowerCase() || null,
             avatar: updatedDriver.photo,
             photo: updatedDriver.photo,
+            // Foto enviada pela empresa (o app do motorista le photo_url); iniciais nao contam.
+            photo_url: updatedDriver.photo?.includes("api.dicebear.com") ? null : updatedDriver.photo,
+            vehicle_photo_url: updatedDriver.vehiclePhoto ?? null,
             vehicle_plate: updatedDriver.vehiclePlate,
             vehicle_type: normalizeVehicleTypeForDb(updatedDriver.vehicleType),
             status: updatedDriver.status,
@@ -603,7 +607,8 @@ export default function DriversPage() {
 
           const refreshedDriver: DriverRecord = {
             ...updatedDriver,
-            photo: updatedRecord.avatar || updatedRecord.photo || updatedDriver.photo,
+            photo: updatedRecord.photo_url || updatedRecord.avatar || updatedRecord.photo || updatedDriver.photo,
+            vehiclePhoto: updatedRecord.vehicle_photo_url ?? updatedDriver.vehiclePhoto ?? null,
             vehiclePlate: updatedRecord.vehicle_plate || updatedDriver.vehiclePlate,
             vehicleType: normalizeVehicleTypeForDisplay(updatedRecord.vehicle_type || updatedDriver.vehicleType),
             status: (updatedRecord.status as Driver["status"]) || updatedDriver.status,

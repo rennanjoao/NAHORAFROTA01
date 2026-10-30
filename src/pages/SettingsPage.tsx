@@ -1,15 +1,17 @@
 ﻿import { useSearchParams } from "react-router-dom";
-import { Building2, Palette, Settings, Shield, User, Users, type LucideIcon } from "lucide-react";
+import { Building2, ListChecks, Palette, Settings, Shield, User, Users, type LucideIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/patterns";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { CompanySettingsTab } from "@/components/settings/CompanySettingsTab";
+import { OccurrenceReasonsTab } from "@/components/settings/OccurrenceReasonsTab";
+import { CompanyLogoCard } from "@/components/media/LogoField";
 import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import { UserHierarchyTab } from "@/components/settings/UserHierarchyTab";
 import { cn } from "@/lib/utils";
 
-type SettingsTab = "profile" | "security" | "appearance" | "company" | "users";
+type SettingsTab = "profile" | "security" | "appearance" | "company" | "occurrences" | "users";
 
 interface TabItem {
   value: SettingsTab;
@@ -34,7 +36,8 @@ const GROUPS: { id: string; label: string; items: TabItem[] }[] = [
     id: "empresa",
     label: "Empresa",
     items: [
-      { value: "company", label: "Dados da empresa", short: "Empresa", description: "Cadastro e endereço", icon: Building2 },
+      { value: "company", label: "Dados da empresa", short: "Empresa", description: "Cadastro, logo e endereço", icon: Building2 },
+      { value: "occurrences", label: "Ocorrências", short: "Ocorrências", description: "Motivos que o motorista escolhe", icon: ListChecks },
       { value: "users", label: "Usuários e acesso", short: "Usuários", description: "Quem pode fazer o quê", icon: Users },
     ],
   },
@@ -54,6 +57,8 @@ const TAB_ALIASES: Record<string, SettingsTab> = {
   theme: "appearance",
   tema: "appearance",
   empresa: "company",
+  ocorrencias: "occurrences",
+  motivos: "occurrences",
   usuarios: "users",
   equipe: "users",
   team: "users",
@@ -153,8 +158,12 @@ export default function SettingsPage() {
           <TabsContent value="appearance" className="mt-0">
             <AppearanceSettings />
           </TabsContent>
-          <TabsContent value="company" className="mt-0">
+          <TabsContent value="company" className="mt-0 space-y-6">
+            <CompanyLogoCard />
             <CompanySettingsTab />
+          </TabsContent>
+          <TabsContent value="occurrences" className="mt-0">
+            <OccurrenceReasonsTab />
           </TabsContent>
           <TabsContent value="users" className="mt-0">
             <UserHierarchyTab />

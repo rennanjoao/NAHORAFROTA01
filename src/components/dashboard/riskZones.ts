@@ -2,22 +2,16 @@
  * Zonas de risco de roubo de carga no Brasil (dados de relatorios publicos).
  * So dados: o mapa e a tela ficam em BrasilRiskMap.tsx.
  */
+import { cargoTheft, riskLevelForShare } from "@/lib/riskStats";
 
 /** Centro do Brasil. */
 export const BRAZIL_CENTER: [number, number] = [-15.7801, -47.9292];
 
-/**
- * DADOS ATUALIZADOS DE ROUBO DE CARGA NO BRASIL
- * Fontes: nstech Report 2024/2025, AAAPV, Buonny, ISTOÉ Dinheiro
- * 
- * Estatísticas Gerais 2024:
- * - Total de ocorrências: 10.478 casos
- * - Prejuízo estimado: R$ 1,2 bilhão
- * - Crescimento 2025 (1º semestre): +24,8% vs 2024
- * - Sudeste: 83% dos prejuízos totais
- * - SP: 45,8% das ocorrências | RJ: 25% (subiu de 18,9%)
- * - Horário crítico: Noturno (+14,3% em 2025)
- * - Dia crítico: Sexta-feira (23,2%)
+/*
+ * Numeros por estado: base oficial Sinesp VDE (Ministerio da Justica), em
+ * src/data/roubo-de-carga.json (atualizar com scripts/risk-data/atualizar.py). A parte do
+ * pais, a variacao e a media mensal saem dela; o nivel de risco segue a legenda do mapa.
+ * Trechos criticos, cargas visadas e horarios vem dos relatorios citados em cada regiao.
  */
 
 export interface DangerousZone {
@@ -37,8 +31,11 @@ export interface RiskZone {
   cities: string[];
   dangerousZones: DangerousZone[];
   statistics: {
+    /** Parte dos roubos de carga do pais no periodo (estado). */
     percentOfTotal: number;
+    /** Variacao (%) sobre o mesmo periodo do ano anterior. */
     yearlyTrend: number;
+    /** Media de casos por mes no periodo (estado). */
     monthlyOccurrences: number;
     mainTargets: string[];
   };
@@ -48,127 +45,94 @@ export interface RiskZone {
   source: string;
 }
 
-// Dados baseados em relatórios oficiais nstech 2024/2025
-export const riskZones: RiskZone[] = [
-  // CRÍTICO - Baseado em dados reais
-  {
-    id: "sp-metro",
-    name: "Região Metropolitana de São Paulo",
-    region: "Grande São Paulo",
-    state: "SP",
-    position: [-23.5505, -46.6333],
-    radius: 35000,
-    riskLevel: "critical",
-    cities: [
-      "São Paulo (Capital)",
-      "Guarulhos",
-      "Osasco",
-      "Santo André",
-      "São Bernardo do Campo",
-      "Diadema",
-      "Mauá",
-      "Carapicuíba",
-      "Itaquaquecetuba",
-      "Barueri",
-    ],
-    dangerousZones: [
-      { name: "Rodoanel Trecho Sul (SP-021)", type: "Rodovia", risk: "extreme" },
-      { name: "Marginal Tietê (Ponte das Bandeiras)", type: "Via urbana", risk: "extreme" },
-      { name: "Marginal Pinheiros (Ceagesp)", type: "Via urbana", risk: "extreme" },
-      { name: "Anhanguera Km 15-30", type: "Rodovia", risk: "high" },
-      { name: "Raposo Tavares (Cotia)", type: "Rodovia", risk: "high" },
-      { name: "Fernão Dias Km 60-85", type: "Rodovia", risk: "high" },
-      { name: "Dutra Km 220-235 (Guarulhos)", type: "Rodovia", risk: "extreme" },
-      { name: "Régis Bittencourt (Embu)", type: "Rodovia", risk: "moderate" },
-    ],
-    statistics: {
-      percentOfTotal: 45.8,
-      yearlyTrend: 12,
-      monthlyOccurrences: 402,
-      mainTargets: ["Eletrônicos", "Medicamentos", "Cigarros", "Cosméticos"],
-    },
-    description: "Maior concentração de roubos do país. 45,8% de todas as ocorrências nacionais.",
-    recommendation: "Escolta armada obrigatória para cargas acima de R$ 100 mil. Evitar o Rodoanel Sul entre 22h e 5h.",
-    route: "Rodoanel (SP-021), Marginais, Anhanguera",
-    source: "nstech Report Anual 2024",
-  },
+type ZoneInfo = Omit<RiskZone, "riskLevel" | "statistics"> & { mainTargets: string[] };
+
+const SINESP = `Sinesp/MJSP (até ${cargoTheft.latestMonthLabel})`;
+
+const ZONES: ZoneInfo[] = [
   {
     id: "rj-metro",
     name: "Região Metropolitana do Rio de Janeiro",
     region: "Grande Rio / Baixada Fluminense",
     state: "RJ",
-    position: [-22.9068, -43.1729],
+    position: [-22.8, -43.3],
     radius: 30000,
-    riskLevel: "critical",
-    cities: [
-      "Rio de Janeiro (Capital)",
-      "Duque de Caxias",
-      "Nova Iguaçu",
-      "São João de Meriti",
-      "Belford Roxo",
-      "Nilópolis",
-      "Mesquita",
-      "Queimados",
-      "Japeri",
-      "Magé",
-    ],
+    cities: ["Rio de Janeiro (Capital)", "Duque de Caxias", "São Gonçalo", "São João de Meriti", "Nova Iguaçu", "Belford Roxo", "Niterói", "Magé"],
     dangerousZones: [
-      { name: "Av. Brasil (Penha - Deodoro)", type: "Via urbana", risk: "extreme" },
-      { name: "Rodovia Presidente Dutra Km 165-190", type: "Rodovia", risk: "extreme" },
-      { name: "Linha Vermelha (Caju - Vigário Geral)", type: "Via urbana", risk: "extreme" },
-      { name: "Arco Metropolitano (Duque de Caxias)", type: "Rodovia", risk: "high" },
-      { name: "BR-040 (Saracuruna)", type: "Rodovia", risk: "high" },
-      { name: "Washington Luís (São Cristóvão)", type: "Via urbana", risk: "high" },
-      { name: "Grajaú-Jacarepaguá", type: "Via urbana", risk: "moderate" },
+      { name: "Av. Brasil (BR-101)", type: "Via urbana", risk: "extreme" },
+      { name: "Rod. Washington Luís (BR-040), Duque de Caxias", type: "Rodovia", risk: "extreme" },
+      { name: "Via Dutra (BR-116), Baixada Fluminense", type: "Rodovia", risk: "high" },
+      { name: "Duque de Caxias: 411 casos de jan a set/2026", type: "Município", risk: "extreme" },
+      { name: "São Gonçalo: 206 casos de jan a set/2026", type: "Município", risk: "high" },
+      { name: "São João de Meriti: 181 casos de jan a set/2026", type: "Município", risk: "high" },
     ],
-    statistics: {
-      percentOfTotal: 25.0,
-      yearlyTrend: 32,
-      monthlyOccurrences: 219,
-      mainTargets: ["Eletrônicos", "Carga fracionada", "Combustíveis"],
-    },
-    description: "Crescimento alarmante: +32% em 2024. Quadrilhas especializadas na Baixada Fluminense.",
-    recommendation: "Evitar Av. Brasil e Dutra (Km 165-190) após 18h. Comboio mínimo de 3 veículos.",
-    route: "Av. Brasil, Dutra (BR-116), Linha Vermelha",
-    source: "nstech Report Anual 2024 / Planeta Caminhão",
+    mainTargets: ["Carga fracionada", "Alimentos", "Medicamentos", "Cigarros"],
+    description: "Em 2026 o Rio passou a liderar o roubo de carga no país. Mais da metade dos casos do estado fica em poucas delegacias da capital e da Baixada; a capital teve 1.085 casos de janeiro a setembro.",
+    recommendation: "Evitar Av. Brasil, Washington Luís e Dutra de madrugada e no fim da tarde. Rastreamento ativo e paradas só em pontos combinados.",
+    route: "Av. Brasil (BR-101), Washington Luís (BR-040), Dutra (BR-116)",
+    source: `${SINESP}; ISP-RJ (municípios, jan–set/2026); Firjan 2026 (corredores)`,
+  },
+  {
+    id: "sp-metro",
+    name: "Região Metropolitana de São Paulo",
+    region: "Capital e Grande São Paulo",
+    state: "SP",
+    position: [-23.5505, -46.6333],
+    radius: 35000,
+    cities: ["São Paulo (Capital)", "Guarulhos", "Osasco", "São Bernardo do Campo", "Santo André", "Cajamar", "Barueri", "Diadema"],
+    dangerousZones: [
+      { name: "Capital: 905 casos de jan a set/2026", type: "Município", risk: "extreme" },
+      { name: "Grande São Paulo: 604 casos de jan a set/2026", type: "Região", risk: "extreme" },
+      { name: "Cajamar (Anhanguera e Bandeirantes)", type: "Rodovia", risk: "high" },
+      { name: "São Bernardo do Campo (Anchieta e Rodoanel)", type: "Rodovia", risk: "high" },
+      { name: "Miracatu (Régis Bittencourt, BR-116)", type: "Rodovia", risk: "moderate" },
+      { name: "Santos (acesso ao porto)", type: "Área portuária", risk: "moderate" },
+    ],
+    mainTargets: ["Alimentos", "Carga fracionada", "Medicamentos", "Eletrônicos"],
+    description: "Segundo estado do país, com queda forte desde 2025. A capital concentra a maior parte dos casos (62% dos roubos de SP em 2025); fora dela, Grande SP, Campinas e Baixada Santista.",
+    recommendation: "Cargas de alto valor com rastreamento e janela de entrega curta. Evitar paradas em vias urbanas da capital e no Rodoanel à noite.",
+    route: "Marginais, Rodoanel, Anhanguera, Bandeirantes, Régis Bittencourt",
+    source: `${SINESP}; SSP-SP (regiões, jan–set/2026); SETCESP 2025; nstech 1º sem. 2026`,
   },
   {
     id: "br101-nordeste",
     name: "BR-101 - Trecho Nordeste",
     region: "Região Metropolitana de Recife",
     state: "PE",
-    position: [-8.0476, -34.8770],
+    position: [-8.0476, -34.877],
     radius: 20000,
-    riskLevel: "critical",
-    cities: [
-      "Recife",
-      "Jaboatão dos Guararapes",
-      "Olinda",
-      "Paulista",
-      "Cabo de Santo Agostinho",
-      "Camaragibe",
-      "Igarassu",
-      "Abreu e Lima",
-    ],
+    cities: ["Recife", "Jaboatão dos Guararapes", "Olinda", "Paulista", "Cabo de Santo Agostinho", "Igarassu", "Abreu e Lima"],
     dangerousZones: [
-      { name: "BR-101 Km 65-90 (Prazeres)", type: "Rodovia", risk: "extreme" },
-      { name: "BR-232 (Entrada Recife)", type: "Rodovia", risk: "high" },
-      { name: "PE-015 (Olinda - Paulista)", type: "Rodovia", risk: "high" },
+      { name: "BR-101 (Prazeres a Igarassu)", type: "Rodovia", risk: "extreme" },
+      { name: "BR-232 (entrada do Recife)", type: "Rodovia", risk: "high" },
+      { name: "BR-316 (sertão)", type: "Rodovia", risk: "moderate" },
       { name: "Complexo de Suape", type: "Área portuária", risk: "moderate" },
-      { name: "Av. Recife (Imbiribeira)", type: "Via urbana", risk: "moderate" },
     ],
-    statistics: {
-      percentOfTotal: 14.7,
-      yearlyTrend: 5.5,
-      monthlyOccurrences: 129,
-      mainTargets: ["Alimentos", "Bebidas", "Eletrônicos"],
-    },
-    description: "A BR-101 lidera os prejuízos no 1º semestre de 2025 (14,7%). O Nordeste cresceu 5,5%.",
-    recommendation: "Rastreamento ativo 24 horas. Avisar a central a cada 30 minutos. Não estacionar fora de postos homologados.",
-    route: "BR-101 (PE/AL/SE/BA)",
-    source: "AAAPV / nstech 2025",
+    mainTargets: ["Alimentos", "Bebidas", "Carga fracionada"],
+    description: "Pernambuco lidera o Nordeste. A BR-101 é a rodovia mais perigosa da região: 30,8% dos roubos de carga do Nordeste em 2025.",
+    recommendation: "Rastreamento ativo 24 horas e aviso à central a cada 30 minutos. Não estacionar fora de postos homologados.",
+    route: "BR-101 (PE/AL/SE/BA), BR-232, BR-316",
+    source: `${SINESP}; NTC&Logística 2025`,
   },
-  // ALTO RISCO
+  {
+    id: "ba-feira",
+    name: "Eixo Salvador-Feira de Santana",
+    region: "Salvador / Feira de Santana",
+    state: "BA",
+    position: [-12.2547, -38.9567],
+    radius: 15000,
+    cities: ["Salvador", "Feira de Santana", "Camaçari", "Lauro de Freitas", "Simões Filho", "Candeias"],
+    dangerousZones: [
+      { name: "BR-324 (Salvador - Feira)", type: "Rodovia", risk: "high" },
+      { name: "BR-116 Norte (Feira de Santana)", type: "Rodovia", risk: "high" },
+      { name: "BR-101 (sul da Bahia)", type: "Rodovia", risk: "moderate" },
+    ],
+    mainTargets: ["Alimentos", "Bebidas", "Combustíveis"],
+    description: "Cruzamento das rotas para o Norte e o Nordeste. A Bahia subiu 14% em 2025 e voltou a cair em 2026.",
+    recommendation: "Manter rastreamento ativo e comunicar desvios à central.",
+    route: "BR-324, BR-116, BR-101",
+    source: `${SINESP}; nstech 2025`,
+  },
   {
     id: "mg-rmbh",
     name: "Região Metropolitana de BH",
@@ -176,68 +140,37 @@ export const riskZones: RiskZone[] = [
     state: "MG",
     position: [-19.9167, -43.9345],
     radius: 22000,
-    riskLevel: "high",
-    cities: [
-      "Belo Horizonte",
-      "Contagem",
-      "Betim",
-      "Ribeirão das Neves",
-      "Santa Luzia",
-      "Ibirité",
-      "Sabará",
-      "Vespasiano",
-    ],
+    cities: ["Belo Horizonte", "Contagem", "Betim", "Ribeirão das Neves", "Santa Luzia", "Sabará"],
     dangerousZones: [
-      { name: "BR-381 Km 480-520 (Betim)", type: "Rodovia", risk: "extreme" },
-      { name: "Anel Rodoviário (Barreiro)", type: "Rodovia", risk: "high" },
-      { name: "BR-040 (Contagem)", type: "Rodovia", risk: "high" },
-      { name: "MG-030 (Nova Lima)", type: "Rodovia", risk: "moderate" },
-      { name: "Via Expressa (Venda Nova)", type: "Via urbana", risk: "moderate" },
+      { name: "BR-381 (Fernão Dias): 36% dos casos de MG em 2025", type: "Rodovia", risk: "extreme" },
+      { name: "BR-040 (Contagem a Sete Lagoas): 14,6%", type: "Rodovia", risk: "high" },
+      { name: "BR-452 (Triângulo Mineiro): 18,3%", type: "Rodovia", risk: "high" },
+      { name: "BR-153 (Triângulo Mineiro): 11,7%", type: "Rodovia", risk: "moderate" },
     ],
-    statistics: {
-      percentOfTotal: 8.2,
-      yearlyTrend: -5,
-      monthlyOccurrences: 72,
-      mainTargets: ["Siderúrgicos", "Autopeças", "Eletrônicos"],
-    },
-    description: "Terceiro estado em ocorrências. Quadrilhas especializadas na BR-381 (Fernão Dias).",
-    recommendation: "Evitar paradas não programadas na BR-381. Utilizar apenas postos de rede.",
-    route: "BR-381 (Fernão Dias), BR-040, MG-030",
-    source: "nstech Report 2024",
+    mainTargets: ["Alimentos", "Autopeças", "Siderúrgicos"],
+    description: "Casos em queda desde 2025. Quatro rodovias federais somam mais de 80% dos roubos do estado, com a BR-381 à frente.",
+    recommendation: "Evitar paradas não programadas na BR-381 e usar só postos de rede.",
+    route: "BR-381 (Fernão Dias), BR-040, BR-452, BR-153",
+    source: `${SINESP}; nstech 2025 (rodovias)`,
   },
   {
     id: "pr-curitiba",
     name: "Região Metropolitana de Curitiba",
     region: "Curitiba / São José dos Pinhais",
     state: "PR",
-    position: [-25.4290, -49.2671],
+    position: [-25.429, -49.2671],
     radius: 18000,
-    riskLevel: "high",
-    cities: [
-      "Curitiba",
-      "São José dos Pinhais",
-      "Colombo",
-      "Araucária",
-      "Pinhais",
-      "Campo Largo",
-      "Almirante Tamandaré",
-    ],
+    cities: ["Curitiba", "São José dos Pinhais", "Colombo", "Araucária", "Pinhais", "Campo Largo"],
     dangerousZones: [
-      { name: "BR-116 Km 100-130 (Contorno Sul)", type: "Rodovia", risk: "high" },
-      { name: "BR-376 (São José dos Pinhais)", type: "Rodovia", risk: "high" },
+      { name: "BR-116 (Régis Bittencourt)", type: "Rodovia", risk: "high" },
+      { name: "BR-376 (São José dos Pinhais)", type: "Rodovia", risk: "moderate" },
       { name: "Contorno Leste (Pinhais)", type: "Rodovia", risk: "moderate" },
-      { name: "Linha Verde (CIC)", type: "Via urbana", risk: "moderate" },
     ],
-    statistics: {
-      percentOfTotal: 4.1,
-      yearlyTrend: 8,
-      monthlyOccurrences: 36,
-      mainTargets: ["Grãos", "Autopeças", "Eletrônicos"],
-    },
-    description: "Principal ponto de risco do Sul. Furtos em áreas de descanso da BR-116.",
-    recommendation: "Utilizar apenas postos de rede homologados. Monitoramento via satélite ativo.",
+    mainTargets: ["Grãos", "Autopeças", "Eletrônicos"],
+    description: "Queda forte em 2025 e 2026. Uma quadrilha presa em 2026 fez cerca de 20 roubos na BR-116 (Régis Bittencourt) em um ano.",
+    recommendation: "Usar só postos de rede homologados e manter o rastreamento por satélite ligado.",
     route: "BR-116, BR-376, Contorno Leste",
-    source: "nstech Report 2024",
+    source: `${SINESP}; imprensa (Band, ago/2026)`,
   },
   {
     id: "rs-poa",
@@ -246,66 +179,16 @@ export const riskZones: RiskZone[] = [
     state: "RS",
     position: [-30.0346, -51.2177],
     radius: 16000,
-    riskLevel: "high",
-    cities: [
-      "Porto Alegre",
-      "Canoas",
-      "Gravataí",
-      "Cachoeirinha",
-      "Alvorada",
-      "Viamão",
-      "Novo Hamburgo",
-      "São Leopoldo",
-    ],
+    cities: ["Porto Alegre", "Canoas", "Gravataí", "Cachoeirinha", "Novo Hamburgo", "São Leopoldo"],
     dangerousZones: [
-      { name: "BR-290 Freeway (Canoas - Osório)", type: "Rodovia", risk: "high" },
-      { name: "BR-116 (Sapucaia - Esteio)", type: "Rodovia", risk: "high" },
-      { name: "RS-118 (Gravataí)", type: "Rodovia", risk: "moderate" },
-      { name: "Av. Assis Brasil (Sarandi)", type: "Via urbana", risk: "moderate" },
+      { name: "BR-290 Freeway (Canoas - Osório)", type: "Rodovia", risk: "moderate" },
+      { name: "BR-116 (Sapucaia - Esteio)", type: "Rodovia", risk: "moderate" },
     ],
-    statistics: {
-      percentOfTotal: 3.8,
-      yearlyTrend: 15,
-      monthlyOccurrences: 33,
-      mainTargets: ["Eletrônicos", "Medicamentos", "Calçados"],
-    },
-    description: "Roubos em congestionamentos na Freeway (BR-290). Aumento de 15% em 2024.",
-    recommendation: "Evitar os horários de pico (7h às 9h e 17h às 19h). Rastreamento por satélite obrigatório.",
-    route: "BR-290 (Freeway), BR-116, RS-118",
-    source: "nstech Report 2024",
-  },
-  // MÉDIO RISCO
-  {
-    id: "ba-feira",
-    name: "Eixo Salvador-Feira de Santana",
-    region: "Salvador / Feira de Santana",
-    state: "BA",
-    position: [-12.2547, -38.9567],
-    radius: 15000,
-    riskLevel: "medium",
-    cities: [
-      "Salvador",
-      "Feira de Santana",
-      "Camaçari",
-      "Lauro de Freitas",
-      "Simões Filho",
-      "Candeias",
-    ],
-    dangerousZones: [
-      { name: "BR-324 Km 580-620", type: "Rodovia", risk: "high" },
-      { name: "BR-116 Norte (Feira)", type: "Rodovia", risk: "moderate" },
-      { name: "CIA Aeroporto (Camaçari)", type: "Área industrial", risk: "moderate" },
-    ],
-    statistics: {
-      percentOfTotal: 2.9,
-      yearlyTrend: -8,
-      monthlyOccurrences: 25,
-      mainTargets: ["Alimentos", "Bebidas", "Combustíveis"],
-    },
-    description: "Cruzamento das rotas para o Norte e o Nordeste. Queda de 8% em 2024.",
-    recommendation: "Manter rastreamento ativo. Comunicar desvios à central.",
-    route: "BR-324, BR-116, BA-502",
-    source: "nstech Report 2024",
+    mainTargets: ["Eletrônicos", "Medicamentos", "Calçados"],
+    description: "Poucos casos no estado; os roubos se concentram em congestionamentos da Freeway e da BR-116.",
+    recommendation: "Evitar os horários de pico (7h às 9h e 17h às 19h) nas rodovias da região metropolitana.",
+    route: "BR-290 (Freeway), BR-116",
+    source: SINESP,
   },
   {
     id: "go-goiania",
@@ -314,43 +197,43 @@ export const riskZones: RiskZone[] = [
     state: "GO",
     position: [-16.6869, -49.2648],
     radius: 18000,
-    riskLevel: "medium",
-    cities: [
-      "Goiânia",
-      "Anápolis",
-      "Aparecida de Goiânia",
-      "Senador Canedo",
-      "Trindade",
-      "Goianira",
-    ],
+    cities: ["Goiânia", "Anápolis", "Aparecida de Goiânia", "Senador Canedo", "Trindade"],
     dangerousZones: [
-      { name: "BR-153 (Goiânia - Anápolis)", type: "Rodovia", risk: "high" },
+      { name: "BR-153 (Goiânia - Anápolis)", type: "Rodovia", risk: "moderate" },
       { name: "BR-060 (Anápolis - Alexânia)", type: "Rodovia", risk: "moderate" },
-      { name: "GO-070 (Goianira)", type: "Rodovia", risk: "moderate" },
-      { name: "DAIA (Distrito Industrial)", type: "Área industrial", risk: "moderate" },
     ],
-    statistics: {
-      percentOfTotal: 2.1,
-      yearlyTrend: 22,
-      monthlyOccurrences: 18,
-      mainTargets: ["Grãos", "Fertilizantes", "Máquinas agrícolas"],
-    },
-    description: "Hub logístico do Centro-Oeste. Crescimento preocupante de 22% em 2024.",
+    mainTargets: ["Grãos", "Fertilizantes", "Máquinas agrícolas"],
+    description: "Hub logístico do Centro-Oeste com poucos casos registrados. Atenção em trechos rurais com carga agrícola.",
     recommendation: "Atenção redobrada em trechos rurais. Escolta para máquinas agrícolas.",
-    route: "BR-153, BR-060, GO-070",
-    source: "nstech Report 2024",
+    route: "BR-153, BR-060",
+    source: SINESP,
   },
 ];
 
-// Estatisticas nacionais consolidadas
+export const riskZones: RiskZone[] = ZONES.map(({ mainTargets, ...zone }) => {
+  const state = cargoTheft.states.find((s) => s.uf === zone.state);
+  const share = state?.share ?? 0;
+  return {
+    ...zone,
+    riskLevel: riskLevelForShare(share),
+    statistics: {
+      percentOfTotal: share,
+      yearlyTrend: state?.change ?? 0,
+      monthlyOccurrences: state?.monthlyAverage ?? 0,
+      mainTargets,
+    },
+  };
+}).sort((a, b) => b.statistics.percentOfTotal - a.statistics.percentOfTotal);
+
+/** Fora dos numeros do Sinesp: relatorios citados (periodo de cada um no texto). */
 export const nationalStats = {
-  totalOccurrences2024: 10478,
-  estimatedLoss: "R$ 1,2 bilhão",
-  growth2025: "+24,8%",
-  sudeste: "83%",
-  peakDay: "Sexta-feira (23,2%)",
-  peakHour: "Noturno (+14,3%)",
-  topTargets: ["Eletrônicos (32%)", "Medicamentos (18%)", "Alimentos (14%)", "Cigarros (12%)"],
+  loss2025: "R$ 900 mi",
+  loss2025Hint: "Prejuízo direto em 2025; passa de R$ 1 bi com os custos indiretos (NTC&Logística)",
+  sudeste: "77,2%",
+  sudesteHint: "Do prejuízo no 1º semestre de 2026 (nstech)",
+  peakDay: "Quinta-feira (22%)",
+  peakHour: "Madrugada (32,9%)",
+  topTargets: ["Carga fracionada (36,6%)", "Alimentos (24,6%)", "Medicamentos (19%)", "Cigarros (6,3%)"],
 };
 
 /**

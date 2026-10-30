@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { uniqueChannelName } from "@/lib/realtime";
 import { getCurrentTenantId } from '@/lib/tenant';
+import { useDriverActivity } from '@/hooks/useDriverActivity';
 import { LiveMapFrame } from './LiveMapFrame';
 
 interface LiveMapProps {
@@ -31,6 +32,7 @@ interface FleetPosition {
   vehicle_type?: string;
   phone?: string;
   status?: string;
+  hasOccurrence?: boolean;
 }
 
 interface DriverInfo {
@@ -102,6 +104,9 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
   const [tokenLoading, setTokenLoading] = useState(true);
   const [isRefreshingPositions, setIsRefreshingPositions] = useState(false);
 
+  // Ultima atualizacao foi ocorrencia: marcador vermelho ate o motorista seguir.
+  const { withOccurrence } = useDriverActivity();
+
   // Show active drivers based on their last known GPS position, even if the app is closed.
   const visiblePositions = useMemo(() => {
     const now = Date.now();
@@ -111,9 +116,9 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
       .map((p) => {
         const lastUpdateMs = p.last_update ? new Date(p.last_update).getTime() : 0;
         const gpsStale = (now - lastUpdateMs) > GPS_STALE_MS;
-        return { ...p, gpsStale };
+        return { ...p, gpsStale, hasOccurrence: withOccurrence.has(p.driver_id) };
       });
-  }, [positions]);
+  }, [positions, withOccurrence]);
 
   // Cleanup ghost drivers (offline for 15+ minutes) on mount and every 60 seconds
   useEffect(() => {

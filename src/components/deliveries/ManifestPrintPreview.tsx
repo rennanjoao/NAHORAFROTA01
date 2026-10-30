@@ -22,6 +22,25 @@ import { useTenantData } from "@/hooks/useTenantData";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { plateText, vehicleTypeLabel } from "./status";
+import nhfLogo from "@/assets/brand/nhf-logo-horizontal-cor-fundo-claro.svg";
+import nhfLogoLine from "@/assets/brand/nhf-logo-linha-cor-fundo-claro.svg";
+
+/** Imagem como data URL: a janela de impressao nao espera imagem remota carregar. */
+async function toDataUrl(url: string): Promise<string> {
+  const blob = await fetch(url).then((response) => {
+    if (!response.ok) throw new Error(String(response.status));
+    return response.blob();
+  });
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** A razao social e o proprio nome da marca (conta de teste): o logo ja diz isso. */
+const isBrandName = (name?: string | null) => (name || "").toLowerCase().replace(/[^a-z]/g, "") === "nahorafrota";
 
 interface DeliveryItem {
   id: number | string;
@@ -89,6 +108,22 @@ export function ManifestPrintPreview({
         telefone: tenant.telefone,
       }
     : null;
+  // Logo da empresa (Configuracoes > Dados da empresa); sem ele, o logo do Na Hora Frota.
+  const clientLogoUrl = tenant?.logo_url ?? null;
+  const [clientLogo, setClientLogo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || !clientLogoUrl) {
+      setClientLogo(null);
+      return;
+    }
+    let cancelled = false;
+    toDataUrl(clientLogoUrl)
+      .then((data) => !cancelled && setClientLogo(data))
+      .catch(() => !cancelled && setClientLogo(clientLogoUrl));
+    return () => {
+      cancelled = true;
+    };
+  }, [open, clientLogoUrl]);
   const [dbDeliveries, setDbDeliveries] = useState<DeliveryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -212,7 +247,9 @@ export function ManifestPrintPreview({
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: Inter, Arial, sans-serif; padding: 15px; color: #1a1a1a; font-size: 11px; }
             .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; border-bottom: 2px solid #080808; padding-bottom: 10px; }
-            .logo { font-size: 20px; font-weight: bold; color: #080808; }
+            .brand { display: flex; align-items: flex-start; gap: 14px; }
+            .brand-logo { height: 46px; max-width: 220px; object-fit: contain; object-position: left center; }
+            .logo { font-size: 13px; font-weight: bold; color: #080808; }
             .logo-sub { font-size: 10px; color: #666; }
             .manifest-info { text-align: right; }
             .manifest-id { font-size: 16px; font-weight: bold; color: #0B6B4F; font-variant-numeric: tabular-nums; }
@@ -235,11 +272,15 @@ export function ManifestPrintPreview({
             .total-value { font-weight: bold; }
             .signature { text-align: center; }
             .signature-line { border-top: 1px solid #333; width: 200px; margin: 0 auto; padding-top: 5px; font-size: 10px; color: #666; }
+            .freight-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 10px; }
+            .freight-chip { display: inline-block; border: 1px solid #ccc; border-radius: 999px; padding: 1px 8px; font-size: 9px; font-weight: 600; }
             .freight-badge { display: inline-block; background: #080808; color: #04E8A4; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; }
             .obs-section { margin-top: 10px; padding: 8px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 4px; }
             .obs-title { font-weight: bold; font-size: 10px; color: #92400e; margin-bottom: 5px; }
             .obs-item { font-size: 9px; margin-bottom: 3px; }
             .obs-nf { font-weight: 600; color: #92400e; }
+            .issued { margin-top: 18px; padding-top: 8px; border-top: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 9px; color: #666; }
+            .issued img { height: 11px; width: auto; }
             @media print { body { padding: 0; } }
           </style>
         </head>
@@ -251,10 +292,19 @@ export function ManifestPrintPreview({
 
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    // Espera os logos carregarem (ate 3 s) antes de abrir a impressao.
+    const images = [...printWindow.document.images].map((image) =>
+      image.complete ? Promise.resolve() : new Promise<void>((done) => {
+        image.onload = () => done();
+        image.onerror = () => done();
+      }),
+    );
+    void Promise.race([Promise.all(images), new Promise((done) => setTimeout(done, 3000))]).then(() => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 150);
+    });
   };
 
   return (
@@ -310,10 +360,16 @@ export function ManifestPrintPreview({
           <div ref={printRef} className="light mx-auto min-w-[56rem] rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
             {/* Header */}
             <div className="header mb-4 flex items-start justify-between border-b-2 border-foreground pb-3">
-              <div>
-                <div className="logo font-heading text-xl font-bold text-foreground">
-                  {company?.razaoSocial || "Na Hora Frota"}
-                </div>
+              <div className="brand flex items-start gap-3.5">
+                <img
+                  src={clientLogo ?? clientLogoUrl ?? nhfLogo}
+                  alt={clientLogoUrl ? `Logo de ${company?.razaoSocial || "sua empresa"}` : "Na Hora Frota"}
+                  className="brand-logo h-[46px] max-w-[220px] object-contain object-left"
+                />
+                <div>
+                {company?.razaoSocial && !(isBrandName(company.razaoSocial) && !clientLogoUrl) && (
+                  <div className="logo text-sm font-bold text-foreground">{company.razaoSocial}</div>
+                )}
                 {company?.cnpj && (
                   <div className="logo-sub text-xs text-muted-foreground">CNPJ: {formatCNPJ(company.cnpj)}</div>
                 )}
@@ -323,6 +379,7 @@ export function ManifestPrintPreview({
                     {company.telefone && ` • Tel: ${company.telefone}`}
                   </div>
                 )}
+                </div>
               </div>
               <div className="manifest-info text-right">
                 <div className="text-xs text-muted-foreground mb-1">Romaneio nº</div>
@@ -370,14 +427,14 @@ export function ManifestPrintPreview({
                 <div className="section-title text-xs font-bold mb-2 text-foreground border-b pb-1">
                   Frete
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="freight-row flex flex-wrap items-center gap-3">
                   {/* Frota propria nao tem tipo de frete (o banco guarda "fixed"). */}
                   {!manifestData.isOwnVehicle && (
-                    <Badge variant="outline" className="border-primary/40 bg-primary/10 text-xs text-primary">
+                    <Badge variant="outline" className="freight-chip border-primary/40 bg-primary/10 text-xs text-primary">
                       {freightTypeLabels[manifestData.freightType] || manifestData.freightType}
                     </Badge>
                   )}
-                  <Badge variant={manifestData.isOwnVehicle ? "default" : "outline"} className="text-xs">
+                  <Badge variant={manifestData.isOwnVehicle ? "default" : "outline"} className="freight-chip text-xs">
                     {manifestData.isOwnVehicle ? "Frota própria" : "Terceiro / agregado"}
                   </Badge>
                   {/* Sem "> 0" o React escrevia um "0" solto quando a rota nao tinha distancia. */}
@@ -487,9 +544,11 @@ export function ManifestPrintPreview({
               </div>
             </div>
 
-            {/* Footer note */}
-            <div className="mt-6 pt-3 border-t text-center text-xs text-muted-foreground">
-              Documento gerado automaticamente pelo Na Hora Frota • {new Date().toLocaleDateString('pt-BR')}
+            {/* Rodape: quem emitiu */}
+            <div className="issued mt-6 flex items-center justify-center gap-1.5 border-t pt-3 text-xs text-muted-foreground">
+              <span>Emitido com</span>
+              <img src={nhfLogoLine} alt="Na Hora Frota" className="h-3 w-auto" />
+              <span>• {new Date().toLocaleDateString('pt-BR')}</span>
             </div>
           </div>
           </div>

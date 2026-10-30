@@ -13,6 +13,8 @@ import { AuthField, AuthInput, PasswordInput } from "@/components/auth/AuthField
 import { detectDocumentType, formatDocument, isValidCNPJ, onlyDigits } from "@/lib/documentValidation";
 import { TRIAL_DAYS } from "@/lib/billingStatus";
 import { getVisitorId, trackFunnelEvent } from "@/lib/funnel";
+import { saveCompanyLogo } from "@/lib/tenantMedia";
+import { LogoChooser } from "@/components/media/LogoField";
 
 function formatCNPJ(value: string): string {
   const cleaned = value.replace(/\D/g, "").slice(0, 14);
@@ -93,6 +95,8 @@ export default function RegisterPage() {
 
   const [cnpj, setCnpj] = useState("");
   const [razaoSocial, setRazaoSocial] = useState("");
+  // Logo opcional: sobe logo depois do primeiro login (antes disso a empresa nao existe).
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -194,6 +198,11 @@ export default function RegisterPage() {
       });
 
       if (!signInError) {
+        if (logoFile) {
+          await saveCompanyLogo(logoFile).catch(() =>
+            toast({ title: "Não foi possível enviar o logo", description: "Envie de novo em Configurações > Dados da empresa.", variant: "destructive" }),
+          );
+        }
         toast({
           title: `Teste grátis de ${TRIAL_DAYS} dias liberado`,
           description: "Bem-vindo ao Na Hora Frota. Seu teste já começou.",
@@ -340,6 +349,8 @@ export default function RegisterPage() {
             )}
             <p className="text-xs text-muted-foreground">O teste grátis vale uma vez por CNPJ ou CPF.</p>
           </div>
+
+          <LogoChooser file={logoFile} onChange={setLogoFile} disabled={isLoading} />
         </fieldset>
 
         <fieldset className="space-y-5" disabled={isLoading}>

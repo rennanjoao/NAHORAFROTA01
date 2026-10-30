@@ -65,10 +65,10 @@ import { ManifestPrintPreview } from "./ManifestPrintPreview";
 import { DeliveryProofViewer } from "./DeliveryProofViewer";
 import { whatsappUrl } from "@/lib/whatsapp";
 import { recalculateManifestTotals } from "@/lib/manifestTotals";
+import { useOccurrenceReasons } from "@/hooks/useOccurrenceReasons";
 import {
   DeliveryStatusBadge,
   ManifestStatusBadge,
-  OCCURRENCE_TYPES,
   getDeliveryStatus,
   occurrenceLabel,
   plateText,
@@ -95,6 +95,8 @@ export function ManifestDetailSheet({
   onRefresh,
 }: ManifestDetailSheetProps) {
   const [invoices, setInvoices] = useState<ManifestInvoice[]>([]);
+  // Motivos cadastrados pela empresa (Configuracoes > Ocorrencias)
+  const { active: occurrenceReasons, labelFor: reasonLabelFor } = useOccurrenceReasons();
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPrintOpen, setIsPrintOpen] = useState(false);
@@ -312,7 +314,7 @@ export function ManifestDetailSheet({
     if (isSaving) return;
 
     const invoice = occurrenceDialog.invoice;
-    const typeLabel = occurrenceLabel(occurrenceType);
+    const typeLabel = reasonLabelFor(occurrenceType);
     const notes = occurrenceNotes.trim();
 
     // Sem detalhes, a observacao da nota fica como estava (antes era apagada).
@@ -902,9 +904,9 @@ export function ManifestDetailSheet({
                     <SelectValue placeholder="Escolher o motivo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {OCCURRENCE_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
+                    {occurrenceReasons.map((reason) => (
+                      <SelectItem key={reason.code} value={reason.code}>
+                        {reason.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
