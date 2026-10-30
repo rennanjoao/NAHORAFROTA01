@@ -34,6 +34,8 @@ export interface DBDriver {
   conta?: string | null;
   tipo_conta?: string | null;
   chave_pix?: string | null;
+  /** Transportadora que recebe pelo motorista (null = recebe direto, TAC). */
+  carrier_id?: string | null;
   created_at: string;
   updated_at: string;
   // Computed field: does driver have an open manifest?
@@ -111,19 +113,25 @@ export function useDBDrivers() {
       }
 
       // Fetch active and in_route drivers. In_route without an invoice in transit is treated as available below.
-      const [driversResult, manifestsResult] = await Promise.all([
+      const columns = "id, user_id, name, cpf, phone, avatar, photo_url, vehicle_plate, vehicle_type, cnh, cnh_category, status, current_delay, individual_sla, daily_sla, deliveries_completed, total_deliveries, is_own_fleet, finished_time, banco, agencia, conta, tipo_conta, chave_pix, created_at, updated_at";
+      const queryDrivers = (select: string) =>
         supabase
           .from("drivers")
-          .select("id, user_id, name, cpf, phone, avatar, photo_url, vehicle_plate, vehicle_type, cnh, cnh_category, status, current_delay, individual_sla, daily_sla, deliveries_completed, total_deliveries, is_own_fleet, finished_time, banco, agencia, conta, tipo_conta, chave_pix, created_at, updated_at")
+          .select(select)
           .eq("tenant_id", tenantId)
           .in("status", ["active", "in_route"]) // Exclude inactive drivers from selection
-          .order("name", { ascending: true }),
+          .order("name", { ascending: true });
+      const [firstDriversResult, manifestsResult] = await Promise.all([
+        queryDrivers(`${columns}, carrier_id`),
         loadOpenManifestsByDriver(tenantId).catch((err) => {
           console.error("Error fetching open manifests:", err);
           return new Map<string, { id: string; code: string }>();
         }),
       ]);
 
+      // Banco ainda sem a coluna da transportadora (atualizacao nao rodada): busca sem ela.
+      const missingColumn = firstDriversResult.error?.code === "42703" || /carrier_id/.test(firstDriversResult.error?.message ?? "");
+      const driversResult = missingColumn ? await queryDrivers(columns) : firstDriversResult;
       if (driversResult.error) throw driversResult.error;
 
       // Map database rows to the selector shape.
@@ -152,6 +160,7 @@ export function useDBDrivers() {
         conta: d.conta,
         tipo_conta: d.tipo_conta,
         chave_pix: d.chave_pix,
+        carrier_id: d.carrier_id ?? null,
         created_at: d.created_at,
         updated_at: d.updated_at,
       }));

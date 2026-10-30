@@ -22,6 +22,8 @@ export interface TenantData {
   next_due_date: string | null;
   /** Logo da empresa (romaneio impresso). */
   logo_url: string | null;
+  /** So paga agregado mediante nota fiscal? null = nao respondeu; undefined = banco sem a pergunta. */
+  pays_only_with_invoice?: boolean | null;
 }
 
 async function fetchTenantRow(): Promise<TenantData | null> {
@@ -46,6 +48,7 @@ async function fetchTenantRow(): Promise<TenantData | null> {
     status: data.status,
     next_due_date: data.next_due_date ?? null,
     logo_url: data.logo_url ?? null,
+    pays_only_with_invoice: "pays_only_with_invoice" in data ? data.pays_only_with_invoice : undefined,
   };
 }
 

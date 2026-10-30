@@ -68,6 +68,72 @@ export type Database = {
         }
         Relationships: []
       }
+      carriers: {
+        Row: {
+          active: boolean
+          agencia: string | null
+          banco: string | null
+          chave_pix: string | null
+          cidade: string | null
+          cnpj: string
+          conta: string | null
+          created_at: string
+          email: string | null
+          id: string
+          ie_isento: boolean
+          inscricao_estadual: string | null
+          nome_fantasia: string | null
+          razao_social: string
+          telefone: string | null
+          tenant_id: string
+          tipo_conta: string | null
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          agencia?: string | null
+          banco?: string | null
+          chave_pix?: string | null
+          cidade?: string | null
+          cnpj: string
+          conta?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          ie_isento?: boolean
+          inscricao_estadual?: string | null
+          nome_fantasia?: string | null
+          razao_social: string
+          telefone?: string | null
+          tenant_id: string
+          tipo_conta?: string | null
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          agencia?: string | null
+          banco?: string | null
+          chave_pix?: string | null
+          cidade?: string | null
+          cnpj?: string
+          conta?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          ie_isento?: boolean
+          inscricao_estadual?: string | null
+          nome_fantasia?: string | null
+          razao_social?: string
+          telefone?: string | null
+          tenant_id?: string
+          tipo_conta?: string | null
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       company_vehicles: {
         Row: {
           brand: string
@@ -539,6 +605,7 @@ export type Database = {
           avatar: string
           banco: string | null
           chave_pix: string | null
+          carrier_id: string | null
           cnh: string
           cnh_category: string
           cnh_expiry_date: string | null
@@ -582,6 +649,7 @@ export type Database = {
           avatar: string
           banco?: string | null
           chave_pix?: string | null
+          carrier_id?: string | null
           cnh: string
           cnh_category: string
           cnh_expiry_date?: string | null
@@ -625,6 +693,7 @@ export type Database = {
           avatar?: string
           banco?: string | null
           chave_pix?: string | null
+          carrier_id?: string | null
           cnh?: string
           cnh_category?: string
           cnh_expiry_date?: string | null
@@ -997,6 +1066,7 @@ export type Database = {
           observation: string | null
           paid_at: string | null
           per_km_value: number | null
+          provider_invoice_id: string | null
           scheduled_date: string
           status: string
           tenant_id: string | null
@@ -1025,6 +1095,7 @@ export type Database = {
           observation?: string | null
           paid_at?: string | null
           per_km_value?: number | null
+          provider_invoice_id?: string | null
           scheduled_date?: string
           status?: string
           tenant_id?: string | null
@@ -1053,6 +1124,7 @@ export type Database = {
           observation?: string | null
           paid_at?: string | null
           per_km_value?: number | null
+          provider_invoice_id?: string | null
           scheduled_date?: string
           status?: string
           tenant_id?: string | null
@@ -1322,6 +1394,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      provider_invoices: {
+        Row: {
+          amount: number
+          carrier_id: string | null
+          created_at: string
+          driver_id: string | null
+          expected_amount: number
+          file_name: string | null
+          file_path: string
+          id: string
+          invoice_number: string
+          issue_date: string | null
+          paid_at: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_by: string | null
+          tenant_id: string
+          updated_at: string
+          work_dates: string[]
+        }
+        Insert: {
+          amount: number
+          carrier_id?: string | null
+          created_at?: string
+          driver_id?: string | null
+          expected_amount?: number
+          file_name?: string | null
+          file_path: string
+          id?: string
+          invoice_number: string
+          issue_date?: string | null
+          paid_at?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by?: string | null
+          tenant_id: string
+          updated_at?: string
+          work_dates: string[]
+        }
+        Update: {
+          amount?: number
+          carrier_id?: string | null
+          created_at?: string
+          driver_id?: string | null
+          expected_amount?: number
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          invoice_number?: string
+          issue_date?: string | null
+          paid_at?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_by?: string | null
+          tenant_id?: string
+          updated_at?: string
+          work_dates?: string[]
+        }
+        Relationships: []
       }
       settlement_audit_logs: {
         Row: {
@@ -1627,6 +1765,7 @@ export type Database = {
           next_due_date: string | null
           numero: string | null
           payment_cycle: string | null
+          pays_only_with_invoice: boolean | null
           plan: string
           plan_started_at: string | null
           razao_social: string
@@ -1659,6 +1798,7 @@ export type Database = {
           next_due_date?: string | null
           numero?: string | null
           payment_cycle?: string | null
+          pays_only_with_invoice?: boolean | null
           plan?: string
           plan_started_at?: string | null
           razao_social: string
@@ -1691,6 +1831,7 @@ export type Database = {
           next_due_date?: string | null
           numero?: string | null
           payment_cycle?: string | null
+          pays_only_with_invoice?: boolean | null
           plan?: string
           plan_started_at?: string | null
           razao_social?: string
@@ -2029,6 +2170,43 @@ export type Database = {
         }
         Returns: undefined
       }
+      submit_provider_invoice: {
+        Args: {
+          p_amount: number
+          p_carrier_id: string | null
+          p_driver_id: string | null
+          p_file_name: string | null
+          p_file_path: string
+          p_id: string | null
+          p_invoice_number: string
+          p_issue_date: string | null
+          p_work_dates: string[]
+        }
+        Returns: string
+      }
+      review_provider_invoice: {
+        Args: { p_approve: boolean; p_id: string; p_note?: string | null }
+        Returns: string
+      }
+      delete_provider_invoice: { Args: { p_id: string }; Returns: undefined }
+      provider_invoice_days: {
+        Args: {
+          p_carrier_id: string | null
+          p_driver_id: string | null
+          p_from: string
+          p_invoice_id?: string | null
+          p_to: string
+        }
+        Returns: {
+          freight: number
+          manifests: number
+          other_invoice: string | null
+          paid: number
+          payable: number
+          work_date: string
+        }[]
+      }
+      get_my_payment_profile: { Args: never; Returns: Json }
       register_driver_arrival: {
         Args: {
           p_invoice_id: string

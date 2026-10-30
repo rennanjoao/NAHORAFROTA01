@@ -2,12 +2,13 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["Escolha o motorista", "Confira os romaneios", "Marque como pago"];
+const CARRIER_STEPS = ["Escolha a transportadora", "Confira os romaneios", "Marque como pago"];
 
 /** Passo a passo do acerto (1 → 2 → 3). O passo atual fica destacado. */
-export function SettlementSteps({ current }: { current: 1 | 2 | 3 }) {
+export function SettlementSteps({ current, carrier }: { current: 1 | 2 | 3; carrier?: boolean }) {
   return (
     <ol aria-label="Passo a passo do acerto" className="grid grid-cols-3 gap-2 sm:gap-3">
-      {STEPS.map((label, index) => {
+      {(carrier ? CARRIER_STEPS : STEPS).map((label, index) => {
         const step = index + 1;
         const state = step < current ? "done" : step === current ? "current" : "upcoming";
         return (

@@ -70,4 +70,6 @@ export interface PendingDriverSummary {
   driverCpf: string;
   manifestCount: number;
   totalValue: number;
+  /** Notas fiscais aguardando aprovacao. */
+  invoicesToApprove?: number;
 }

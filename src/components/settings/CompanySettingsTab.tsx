@@ -13,6 +13,7 @@ import { useTenantData } from "@/hooks/useTenantData";
 import { useAuth } from "@/contexts/AuthContext";
 import { FormField } from "@/components/patterns/FormField";
 import { SettingsCard } from "./SettingsCard";
+import { INVOICE_RULE_QUESTION, InvoiceRuleChoice } from "./InvoiceRuleQuestion";
 
 const UF_OPTIONS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
@@ -55,6 +56,9 @@ export function CompanySettingsTab() {
   const [uf, setUf] = useState("");
   const [cep, setCep] = useState("");
   const [latitude, setLatitude] = useState<number | null>(null);
+  // Pergunta obrigatoria: so paga agregado mediante nota fiscal? (undefined = banco sem a pergunta)
+  const [paysWithInvoice, setPaysWithInvoice] = useState<boolean | null | undefined>(undefined);
+  const [invoiceRuleError, setInvoiceRuleError] = useState<string | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
 
   const [cnpjValid, setCnpjValid] = useState<boolean | null>(null);
@@ -75,6 +79,7 @@ export function CompanySettingsTab() {
       setUf(tenant.uf || "");
       setCep(tenant.cep || "");
       setLatitude(tenant.latitude);
+      setPaysWithInvoice(tenant.pays_only_with_invoice);
       setLongitude(tenant.longitude);
     }
   }, [tenant]);
@@ -149,8 +154,14 @@ export function CompanySettingsTab() {
       razaoRef.current?.focus();
       return;
     }
+    if (paysWithInvoice === null) {
+      setInvoiceRuleError("Responda se a empresa só paga mediante nota fiscal.");
+      document.getElementById("regra-nota-yes")?.focus();
+      return;
+    }
     setIsSaving(true);
     await updateTenant({
+      ...(paysWithInvoice !== undefined ? { pays_only_with_invoice: paysWithInvoice } : {}),
       razao_social: razaoSocial,
       telefone,
       logradouro: logradouro || null,
@@ -307,6 +318,20 @@ export function CompanySettingsTab() {
             </div>
           </div>
         </FormGroup>
+
+        {paysWithInvoice !== undefined && (
+          <FormGroup title="Pagamento dos agregados" description={`${INVOICE_RULE_QUESTION} (obrigatório)`}>
+            <InvoiceRuleChoice
+              value={paysWithInvoice}
+              onChange={(value) => {
+                setPaysWithInvoice(value);
+                setInvoiceRuleError(null);
+              }}
+              disabled={!canEdit}
+              error={invoiceRuleError}
+            />
+          </FormGroup>
+        )}
 
         <FormGroup title="Localização no mapa" description="Com a localização, o sistema calcula as rotas a partir da base.">
           <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">

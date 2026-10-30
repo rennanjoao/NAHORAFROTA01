@@ -46,6 +46,7 @@ import {
 import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
 import { PhotoPicker } from "@/components/media/PhotoPicker";
+import { CarrierChoice } from "./CarrierChoice";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 type DriverDocuments = Partial<Record<DriverDocumentKey, { id?: string; name: string; url?: string; path?: string; uploadedAt: Date }>>;
@@ -497,6 +498,12 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
               <FieldGroup title="Tipo de motorista" description="Motoristas da casa não geram valores a pagar no acerto financeiro.">
                 <DriverKindChoice idPrefix="edit-" isOwnFleet={Boolean(formData.isOwnFleet)} onChange={(isOwnFleet) => updateField({ isOwnFleet })} />
               </FieldGroup>
+
+              {!formData.isOwnFleet && (
+                <FieldGroup title="Como recebe" description="Direto no nome dele ou pela transportadora de que ele faz parte.">
+                  <CarrierChoice idPrefix="edit-" carrierId={formData.carrierId ?? null} onChange={(carrierId) => updateField({ carrierId })} />
+                </FieldGroup>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField id="edit-vehicle-type" label="Tipo de veículo">

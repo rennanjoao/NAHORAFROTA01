@@ -39,6 +39,7 @@ import {
 import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
 import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
+import { CarrierChoice } from "./CarrierChoice";
 import { PhotoPicker } from "@/components/media/PhotoPicker";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
 
@@ -126,6 +127,8 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   // Fotos ja enviadas para a pasta da empresa (o cadastro grava os links)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [vehiclePhotoUrl, setVehiclePhotoUrl] = useState<string | null>(null);
+  // Agregado de transportadora: o acerto e a nota saem para ela
+  const [carrierId, setCarrierId] = useState<string | null>(null);
 
   const update = (patch: Partial<FormData>) => {
     setFormData((current) => ({ ...current, ...patch }));
@@ -224,6 +227,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
     setDocuments({});
     setPhotoUrl(null);
     setVehiclePhotoUrl(null);
+    setCarrierId(null);
     setErrors({});
     setIsOwnFleet(false);
     setActiveTab("personal");
@@ -361,6 +365,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         photo_url: photoUrl,
         // Coluna nova so com foto (banco ainda sem a atualizacao continua cadastrando)
         ...(vehiclePhotoUrl ? { vehicle_photo_url: vehiclePhotoUrl } : {}),
+        ...(!isOwnFleet && carrierId ? { carrier_id: carrierId } : {}),
         vehicle_plate: normalizePlate(formData.vehiclePlate) || "PENDENTE",
         vehicle_type: normalizedVehicleType,
         cnh: formData.cnhNumber,
@@ -463,6 +468,7 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
               photo: driverData.photo,
               photo_url: driverData.photo_url,
               ...(driverData.vehicle_photo_url ? { vehicle_photo_url: driverData.vehicle_photo_url } : {}),
+              ...(driverData.carrier_id ? { carrier_id: driverData.carrier_id } : {}),
               cnh: driverData.cnh,
               cnh_category: driverData.cnh_category,
               is_own_fleet: driverData.is_own_fleet,
@@ -691,6 +697,12 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
           <FieldGroup title="Tipo de motorista">
             <DriverKindChoice isOwnFleet={isOwnFleet} onChange={setIsOwnFleet} />
           </FieldGroup>
+
+          {!isOwnFleet && (
+            <FieldGroup title="Como recebe" description="Direto no nome dele ou pela transportadora de que ele faz parte.">
+              <CarrierChoice idPrefix="new-" carrierId={carrierId} onChange={setCarrierId} />
+            </FieldGroup>
+          )}
 
           {isOwnFleet ? (
             <div className="space-y-4">

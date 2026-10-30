@@ -1,10 +1,20 @@
 import { useState, useMemo, useCallback } from "react";
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock, Users, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock, Users, Wallet, Warehouse } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EmptyState, ListSkeleton, PageHeader, Section, StatCard } from "@/components/patterns";
+import { EmptyState, ListSkeleton, PageHeader, Section, SegmentedControl, StatCard } from "@/components/patterns";
+import { InvoiceRulePrompt } from "@/components/settings/InvoiceRuleQuestion";
+import { ProviderInvoicesPanel } from "@/components/invoices/ProviderInvoicesPanel";
+import { CarrierSummaryCard } from "@/components/settlement/CarrierSummaryCard";
+import { useTenantData } from "@/hooks/useTenantData";
+import { useProviderInvoices } from "@/hooks/useProviderInvoices";
+import { carrierName, useCarriers } from "@/hooks/useCarriers";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatCNPJ } from "@/lib/cnpjValidation";
+import { INVOICE_STATUS } from "@/lib/providerInvoices";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency, parseDecimalInput } from "@/lib/formatCurrency";
 import { getTodayBrazil, parseDateOnly } from "@/lib/timezone";
@@ -84,6 +94,36 @@ export default function SettlementPage() {
   // Mesmo "No prazo (6 meses)" da tela de Motoristas (antes mostrava individual_sla, sempre 100%).
   const { driverStats: slaDriverStats } = useSLADB();
 
+  // Pagamento mediante nota fiscal e transportadoras
+  const { tenant } = useTenantData();
+  const { isAdmin } = useAuth();
+  const invoiceRequired = tenant?.pays_only_with_invoice === true;
+  const { invoices: allInvoices, refresh: refreshInvoices } = useProviderInvoices();
+  const { carriers } = useCarriers();
+  const [mode, setMode] = useState<"drivers" | "carriers">("drivers");
+  const [selectedCarrierId, setSelectedCarrierId] = useState<string | null>(null);
+  const selectedCarrier = carriers.find((c) => c.id === selectedCarrierId) ?? null;
+  const carrierByDriver = useMemo(() => new Map(drivers.map((d) => [d.id, d.carrier_id ?? null])), [drivers]);
+  const invoicesById = useMemo(() => new Map(allInvoices.map((i) => [i.id, i])), [allInvoices]);
+  // Romaneio de agregado sem nota aprovada nao pode ser pago (o banco tambem bloqueia).
+  const paymentBlock = useCallback(
+    (m: DBManifest) => {
+      if (!invoiceRequired || m.is_own_fleet) return null;
+      const invoice = m.provider_invoice_id ? invoicesById.get(m.provider_invoice_id) : undefined;
+      if (!invoice) return "Falta a nota fiscal";
+      if (invoice.status === "pending") return "Nota aguardando aprovação";
+      if (invoice.status === "rejected") return "Nota recusada";
+      return null;
+    },
+    [invoiceRequired, invoicesById],
+  );
+  const invoiceLabel = useCallback(
+    (m: DBManifest) => {
+      const invoice = m.provider_invoice_id ? invoicesById.get(m.provider_invoice_id) : undefined;
+      return invoice ? `NF ${invoice.invoice_number} · ${INVOICE_STATUS[invoice.status].label.toLowerCase()}` : null;
+    },
+    [invoicesById],
+  );
   const [selectedDriver, setSelectedDriver] = useState<DBDriver | null>(null);
   const [driverSearchOpen, setDriverSearchOpen] = useState(false);
   // Creditos/debitos avulsos do motorista (driver_wallet). Antes ficavam so na tela.
@@ -146,6 +186,8 @@ export default function SettlementPage() {
 
     pending.forEach(m => {
       if (!m.driver_id) return;
+      // Motorista de transportadora: o acerto fica na aba Transportadoras
+      if (carrierByDriver.get(m.driver_id)) return;
       const existing = summary.get(m.driver_id);
       if (existing) {
         existing.manifestCount++;
@@ -161,8 +203,57 @@ export default function SettlementPage() {
       }
     });
 
+    for (const invoice of allInvoices) {
+      if (invoice.status !== "pending" || !invoice.driver_id) continue;
+      const entry = summary.get(invoice.driver_id);
+      if (entry) entry.invoicesToApprove = (entry.invoicesToApprove ?? 0) + 1;
+    }
     return Array.from(summary.values());
-  }, [manifests]);
+  }, [manifests, carrierByDriver, allInvoices]);
+
+  // Transportadoras com romaneio sem pagamento (dos motoristas ligados a elas)
+  const pendingCarriers = useMemo(() => {
+    const summary = new Map<string, PendingDriverSummary>();
+    for (const m of manifests) {
+      const carrierId = m.driver_id ? carrierByDriver.get(m.driver_id) : null;
+      if (!carrierId || m.is_own_fleet || m.status === "paid" || m.status === "cancelled") continue;
+      const carrier = carriers.find((c) => c.id === carrierId);
+      if (!carrier) continue;
+      const entry = summary.get(carrierId) ?? { driverId: carrierId, driverName: carrierName(carrier), driverCpf: formatCNPJ(carrier.cnpj), manifestCount: 0, totalValue: 0 };
+      entry.manifestCount += 1;
+      entry.totalValue += m.freight_value || 0;
+      summary.set(carrierId, entry);
+    }
+    for (const invoice of allInvoices) {
+      if (invoice.status !== "pending" || !invoice.carrier_id) continue;
+      const entry = summary.get(invoice.carrier_id);
+      if (entry) entry.invoicesToApprove = (entry.invoicesToApprove ?? 0) + 1;
+    }
+    return Array.from(summary.values());
+  }, [manifests, carrierByDriver, carriers, allInvoices]);
+
+  // Romaneios e totais da transportadora escolhida
+  const carrierDriverIds = useMemo(
+    () => new Set(drivers.filter((d) => selectedCarrierId && d.carrier_id === selectedCarrierId).map((d) => d.id)),
+    [drivers, selectedCarrierId],
+  );
+  const carrierManifests = useMemo(() => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - periodDays[activePeriod]);
+    return manifests
+      .filter((m) => m.driver_id && carrierDriverIds.has(m.driver_id) && !m.is_own_fleet)
+      .filter((m) => new Date(m.created_at) >= cutoffDate)
+      .filter((m) => (activeTab === "pending" ? m.status === "pending" || m.status === "in_progress" || m.status === "completed" : m.status === "paid"));
+  }, [manifests, carrierDriverIds, activePeriod, activeTab]);
+  const carrierStats = useMemo(() => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - periodDays[activePeriod]);
+    const mine = manifests.filter((m) => m.driver_id && carrierDriverIds.has(m.driver_id) && !m.is_own_fleet);
+    return {
+      paid: mine.filter((m) => m.status === "paid" && new Date(m.created_at) >= cutoffDate).reduce((sum, m) => sum + (m.freight_value || 0), 0),
+      pending: mine.filter((m) => m.status !== "paid" && m.status !== "cancelled").reduce((sum, m) => sum + (m.freight_value || 0), 0),
+    };
+  }, [manifests, carrierDriverIds, activePeriod]);
 
   // Get driver manifests filtered by period
   const driverManifests = useMemo(() => {
@@ -400,6 +491,7 @@ export default function SettlementPage() {
     }
 
     await fetchManifests();
+    void refreshInvoices();
     toast({
       title: "Pagamento registrado",
       description: "Romaneio marcado como pago.",
@@ -459,6 +551,7 @@ export default function SettlementPage() {
     }
 
     await fetchManifests();
+    void refreshInvoices();
     setManifestToReverse(null);
     // O romaneio sai da aba "Pagos": o foco vai para o vizinho (ou para a aba "Pendentes").
     window.setTimeout(() => {
@@ -480,7 +573,10 @@ export default function SettlementPage() {
   const periodLabel = periodLabels[activePeriod];
   const statsLoading = manifestsLoading && manifests.length === 0;
   // Passo atual: 1 escolher, 2 conferir, 3 pagar (quando ha romaneio finalizado na lista).
-  const currentStep = !selectedDriver ? 1 : driverManifests.some((m) => m.status === "completed") ? 3 : 2;
+  const currentStep =
+    mode === "carriers"
+      ? !selectedCarrier ? 1 : carrierManifests.some((m) => m.status === "completed") ? 3 : 2
+      : !selectedDriver ? 1 : driverManifests.some((m) => m.status === "completed") ? 3 : 2;
 
   return (
     <>
@@ -511,6 +607,8 @@ export default function SettlementPage() {
       />
 
       <div className="space-y-6 md:space-y-8">
+        <InvoiceRulePrompt />
+
         {/* Resumo do periodo (so agregados; frota propria nao recebe frete) */}
         <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           <StatCard
@@ -552,7 +650,54 @@ export default function SettlementPage() {
           description="Escolha o motorista, confira os romaneios e marque como pago depois de pagar."
         >
           <Card className="space-y-5 p-4 sm:p-5">
-            <SettlementSteps current={currentStep} />
+            <SettlementSteps current={currentStep} carrier={mode === "carriers"} />
+            {carriers.length > 0 && (
+              <SegmentedControl
+                label="Acerto de"
+                value={mode}
+                onChange={(value) => {
+                  setMode(value);
+                  setSelectedDriver(null);
+                  setSelectedCarrierId(null);
+                }}
+                options={[
+                  { value: "drivers", label: "Motoristas (TAC)", icon: Users, count: pendingDrivers.length },
+                  { value: "carriers", label: "Transportadoras", icon: Warehouse, count: pendingCarriers.length },
+                ]}
+              />
+            )}
+            {mode === "carriers" ? (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <Label htmlFor="carrier-picker" className="shrink-0 sm:w-24">
+                  Transportadora
+                </Label>
+                <Select value={selectedCarrierId ?? ""} onValueChange={(value) => setSelectedCarrierId(value)}>
+                  <SelectTrigger id="carrier-picker" className="w-full sm:max-w-sm">
+                    <SelectValue placeholder="Escolha a transportadora" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {carriers.map((carrier) => (
+                      <SelectItem key={carrier.id} value={carrier.id}>
+                        {carrierName(carrier)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedCarrier && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedCarrierId(null);
+                      focusById("carrier-picker");
+                    }}
+                    className="self-start sm:self-auto"
+                  >
+                    <ArrowLeft aria-hidden="true" />
+                    Voltar à lista
+                  </Button>
+                )}
+              </div>
+            ) : (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <Label htmlFor="driver-picker" className="shrink-0 sm:w-24">
                 Motorista
@@ -581,11 +726,69 @@ export default function SettlementPage() {
                 </Button>
               )}
             </div>
+            )}
           </Card>
         </Section>
 
+        {/* Transportadoras: quem tem algo a receber */}
+        {mode === "carriers" && !selectedCarrier && (
+          <Section id="pendencias-transportadoras" title="Transportadoras com pendências" description="Romaneios dos motoristas delas ainda sem pagamento.">
+            {pendingCarriers.length === 0 ? (
+              <EmptyState icon={Warehouse} title="Nenhuma transportadora com pagamento pendente" description="Quando um motorista ligado a uma transportadora finalizar romaneios, eles aparecem aqui." />
+            ) : (
+              <PendingDriversList
+                drivers={pendingCarriers}
+                nameLabel="Transportadora"
+                documentLabel="CNPJ"
+                onSelect={(carrierId) => {
+                  setSelectedCarrierId(carrierId);
+                  focusById("acerto-transportadora");
+                }}
+              />
+            )}
+          </Section>
+        )}
+
+        {/* Transportadora escolhida */}
+        {mode === "carriers" && selectedCarrier && tenant && (
+          <div className="space-y-6 md:space-y-8">
+            <CarrierSummaryCard
+              carrier={selectedCarrier}
+              drivers={drivers.filter((d) => d.carrier_id === selectedCarrier.id).map((d) => d.name)}
+              stats={carrierStats}
+              periodLabel={periodLabel}
+              onOpenBankDetails={() => setIsBankDetailsDialogOpen(true)}
+            />
+            <ProviderInvoicesPanel
+              invoices={allInvoices.filter((i) => i.carrier_id === selectedCarrier.id)}
+              payee={{ carrierId: selectedCarrier.id }}
+              payeeName={carrierName(selectedCarrier)}
+              tenantId={tenant.id}
+              isAdmin={isAdmin()}
+              required={invoiceRequired}
+              onChanged={() => {
+                void refreshInvoices();
+                void fetchManifests();
+              }}
+            />
+            <ManifestsPanel
+              manifests={carrierManifests}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              driverName={carrierName(selectedCarrier)}
+              periodLabel={periodLabel}
+              onEdit={handleEditManifest}
+              onMarkPaid={handleMarkAsPaid}
+              onReverse={handleReverseToPending}
+              paymentBlock={paymentBlock}
+              invoiceLabel={invoiceLabel}
+              showDriver
+            />
+          </div>
+        )}
+
         {/* Sem motorista: quem tem algo a receber */}
-        {!selectedDriver && (
+        {mode === "drivers" && !selectedDriver && (
           <Section
             id="pendencias"
             title="Motoristas com pendências"
@@ -606,8 +809,28 @@ export default function SettlementPage() {
         )}
 
         {/* Motorista escolhido */}
-        {selectedDriver && (
+        {mode === "drivers" && selectedDriver && (
           <div className="space-y-6 md:space-y-8">
+            {selectedDriver.carrier_id && (
+              <Alert variant="info">
+                <Warehouse aria-hidden="true" />
+                <AlertTitle>Recebe pela transportadora {carrierName(carriers.find((c) => c.id === selectedDriver.carrier_id))}</AlertTitle>
+                <AlertDescription className="flex flex-wrap items-center gap-3">
+                  O acerto e a nota fiscal dos romaneios dele saem para a transportadora.
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setMode("carriers");
+                      setSelectedCarrierId(selectedDriver.carrier_id ?? null);
+                      setSelectedDriver(null);
+                    }}
+                  >
+                    Abrir acerto da transportadora
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
             <DriverSummaryCard
               driver={selectedDriver}
               stats={driverStats}
@@ -616,6 +839,22 @@ export default function SettlementPage() {
               onOpenBankDetails={() => setIsBankDetailsDialogOpen(true)}
               onAddAdjustment={() => setIsAdjustmentDialogOpen(true)}
             />
+
+            {/* Nota fiscal do TAC (enviada pelo app ou anexada aqui) */}
+            {!selectedDriver.is_own_fleet && !selectedDriver.carrier_id && tenant && (invoiceRequired || allInvoices.some((i) => i.driver_id === selectedDriver.id)) && (
+              <ProviderInvoicesPanel
+                invoices={allInvoices.filter((i) => i.driver_id === selectedDriver.id && !i.carrier_id)}
+                payee={{ driverId: selectedDriver.id }}
+                payeeName={selectedDriver.name}
+                tenantId={tenant.id}
+                isAdmin={isAdmin()}
+                required={invoiceRequired}
+                onChanged={() => {
+                  void refreshInvoices();
+                  void fetchManifests();
+                }}
+              />
+            )}
 
             <ManifestsPanel
               manifests={driverManifests}
@@ -626,6 +865,8 @@ export default function SettlementPage() {
               onEdit={handleEditManifest}
               onMarkPaid={handleMarkAsPaid}
               onReverse={handleReverseToPending}
+              paymentBlock={paymentBlock}
+              invoiceLabel={invoiceLabel}
             />
 
             {/* Lancamentos avulsos (gravados na carteira do motorista) */}
@@ -665,7 +906,23 @@ export default function SettlementPage() {
         onSave={handleSaveManifest}
       />
 
-      {selectedDriver && (
+      {mode === "carriers" && selectedCarrier && (
+        <BankDetailsDialog
+          open={isBankDetailsDialogOpen}
+          onOpenChange={setIsBankDetailsDialogOpen}
+          bankDetails={{
+            banco: selectedCarrier.banco ?? undefined,
+            agencia: selectedCarrier.agencia ?? undefined,
+            conta: selectedCarrier.conta ?? undefined,
+            tipo_conta: selectedCarrier.tipo_conta ?? undefined,
+            chave_pix: selectedCarrier.chave_pix ?? undefined,
+            cpf: formatCNPJ(selectedCarrier.cnpj),
+            driverName: carrierName(selectedCarrier),
+          }}
+        />
+      )}
+
+      {mode === "drivers" && selectedDriver && (
         <BankDetailsDialog
           open={isBankDetailsDialogOpen}
           onOpenChange={setIsBankDetailsDialogOpen}
