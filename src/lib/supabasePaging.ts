@@ -15,13 +15,25 @@ export async function fetchAllPages<T>(
   maxRows: number = DEFAULT_MAX_ROWS,
 ): Promise<T[]> {
   const rows: T[] = [];
-
-  for (let from = 0; from < maxRows; from += SUPABASE_PAGE_SIZE) {
+  const load = async (from: number) => {
     const { data, error } = await buildPage(from, from + SUPABASE_PAGE_SIZE - 1);
     if (error) throw error;
-    const page = data ?? [];
-    rows.push(...page);
-    if (page.length < SUPABASE_PAGE_SIZE) break;
+    return data ?? [];
+  };
+
+  // Primeira pagina sozinha (a maioria das empresas cabe nela). Se vier cheia, as
+  // seguintes vao em paralelo, de 3 em 3, em vez de uma depois da outra.
+  const first = await load(0);
+  rows.push(...first);
+  if (first.length < SUPABASE_PAGE_SIZE) return rows;
+
+  for (let from = SUPABASE_PAGE_SIZE; from < maxRows; from += 3 * SUPABASE_PAGE_SIZE) {
+    const starts = [0, 1, 2].map((i) => from + i * SUPABASE_PAGE_SIZE).filter((f) => f < maxRows);
+    const pages = await Promise.all(starts.map(load));
+    for (const page of pages) {
+      rows.push(...page);
+      if (page.length < SUPABASE_PAGE_SIZE) return rows;
+    }
   }
 
   return rows;

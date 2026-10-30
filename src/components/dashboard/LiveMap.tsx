@@ -83,6 +83,15 @@ function getEnvMapboxToken() {
   return normalizeMapboxToken(import.meta.env.VITE_MAPBOX_TOKEN);
 }
 
+function hasWebGL(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
 export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
   const [positions, setPositions] = useState<FleetPosition[]>([]);
   const [driversInfo, setDriversInfo] = useState<Map<string, DriverInfo>>(new Map());
@@ -285,9 +294,13 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
     setIsLoading(true);
     setLoadError(null);
     
+    // Com token do Mapbox: Mapbox. Sem token: mapa vetorial gratis (MapLibre + OpenFreeMap).
+    // Sem WebGL (navegador muito antigo): Leaflet com OpenStreetMap.
     const componentImport = mapboxToken
       ? import('./LiveMapMapbox')
-      : import('./LiveMapLeaflet');
+      : hasWebGL()
+        ? import('./LiveMapVector')
+        : import('./LiveMapLeaflet');
 
     componentImport.then((module) => {
       setMapComponent(() => module.default as React.ComponentType<MapViewProps>);

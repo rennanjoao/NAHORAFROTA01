@@ -77,6 +77,7 @@
     --chart-3: 30 95% 42%;
     --chart-4: 262 52% 52%;
     --chart-5: 358 72% 50%;
+    --teal: 186 72% 30%;
 
     --overlay: 215 25% 8%;
     --overlay-opacity: 0.45;
@@ -96,7 +97,7 @@
     --background: 220 10% 4%;
     --foreground: 210 20% 96%;
 
-    --card: 220 8% 7%;
+    --card: 220 9% 7.5%;
     --card-foreground: 210 20% 96%;
     --popover: 220 8% 9%;
     --popover-foreground: 210 20% 96%;
@@ -147,12 +148,13 @@
     --chart-3: 42 100% 62%;
     --chart-4: 262 80% 74%;
     --chart-5: 359 100% 68%;
+    --teal: 186 80% 58%;
 
     --overlay: 0 0% 0%;
     --overlay-opacity: 0.65;
 
-    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
-    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+    --shadow-xs: inset 0 1px 0 0 rgb(255 255 255 / 0.035), 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-sm: inset 0 1px 0 0 rgb(255 255 255 / 0.045), 0 1px 3px 0 rgb(0 0 0 / 0.5);
     --shadow-md: 0 8px 24px -8px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 20px 40px -12px rgb(0 0 0 / 0.7);
     --shadow-xl: 0 32px 64px -16px rgb(0 0 0 / 0.8);
@@ -599,7 +601,7 @@
 /* Tiles do OSM: no escuro, base escura e dessaturada (manual); no claro, so
    menos saturada para nao brigar com os marcadores. */
 .nhf-map-dark {
-  filter: saturate(0.55) contrast(0.95);
+  filter: saturate(0.95) contrast(1.02);
 }
 .dark .nhf-map-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
@@ -1001,3 +1003,38 @@
 :root[data-motion="reduce"] .route-flow,
 :root[data-motion="reduce"] .orbit,
 :root[data-motion="reduce"] .toast-loop { animation: none; }
+
+/* 9. PAINEL: identidade da marca no sistema interno --------------------------- */
+@layer utilities {
+  /* Cantos um pouco mais macios dentro do painel (o site tem os proprios). */
+  .panel-shell { --radius: 0.875rem; }
+
+  /* Fundo do topo de cada tela: brilho verde + padrao "rotas" da marca, bem de leve. */
+  .panel-backdrop {
+    background:
+      radial-gradient(70% 60% at 85% -10%, hsl(var(--brand) / 0.10), transparent 70%),
+      radial-gradient(45% 45% at 0% 0%, hsl(var(--brand) / 0.05), transparent 70%);
+  }
+  .panel-routes {
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.6) 45%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.6) 45%, transparent 100%);
+    opacity: 0.75;
+  }
+
+  /* Cartao de destaque (abertura do Inicio): verde da marca sobre tinta. */
+  .panel-hero {
+    background:
+      radial-gradient(60% 120% at 100% 0%, hsl(var(--brand) / 0.16), transparent 60%),
+      linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card)) 60%, hsl(var(--brand) / 0.05) 100%);
+  }
+
+}
+
+/* Pulso do marcador de veiculo andando (mapa ao vivo). */
+.nhf-marker-pulse { animation: nhf-marker-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.5; }
+@keyframes nhf-marker-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  80%, 100% { transform: scale(2.1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .nhf-marker-pulse { animation: none; opacity: 0; } }
+:root[data-motion="reduce"] .nhf-marker-pulse { animation: none; opacity: 0; }

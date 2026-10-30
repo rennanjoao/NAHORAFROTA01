@@ -44,3 +44,23 @@ export const toneBorder: Record<Tone, string> = {
   danger: "border-destructive/30",
   info: "border-info/30",
 };
+
+/** Selo cheio (icone dos indicadores): cor do tom com o texto que contrasta. */
+export const toneSolid: Record<Tone, string> = {
+  neutral: "bg-muted text-muted-foreground",
+  brand: "bg-brand text-brand-foreground",
+  success: "bg-success text-success-foreground",
+  warning: "bg-warning text-warning-foreground",
+  danger: "bg-destructive text-destructive-foreground",
+  info: "bg-info text-info-foreground",
+};
+
+/** Fundo do cartao levemente tingido na cor do tom (de cima para baixo). */
+export const toneWash: Record<Tone, string> = {
+  neutral: "",
+  brand: "bg-gradient-to-br from-brand/[0.13] via-card to-card",
+  success: "bg-gradient-to-br from-success/[0.11] via-card to-card",
+  warning: "bg-gradient-to-br from-warning/[0.11] via-card to-card",
+  danger: "bg-gradient-to-br from-destructive/[0.11] via-card to-card",
+  info: "bg-gradient-to-br from-info/[0.11] via-card to-card",
+};

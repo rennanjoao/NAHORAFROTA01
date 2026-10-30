@@ -1,5 +1,7 @@
  // Hook for manifest database operations with realtime sync
- import { useState, useEffect, useCallback, useMemo } from "react";
+ import { useEffect, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
  import { supabase } from "@/integrations/supabase/client";
 import { uniqueChannelName } from "@/lib/realtime";
  import { fetchAllPages } from "@/lib/supabasePaging";
@@ -67,69 +69,69 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
    return `ROM-${dateStr}-${rand}`;
  };
  
- export function useManifestsDB() {
-   const [manifests, setManifests] = useState<DBManifest[]>([]);
-   const [isLoading, setIsLoading] = useState(true);
-   const [error, setError] = useState<string | null>(null);
- 
-   // Fetch all manifests
-   const fetchManifests = useCallback(async () => {
-     setIsLoading(true);
-     setError(null);
- 
-     try {
-       const tenantId = await getCurrentTenantId();
-       if (!tenantId) {
-         setManifests([]);
-         return;
-       }
+export const MANIFESTS_QUERY_KEY = "manifests-db";
+const NO_MANIFESTS: DBManifest[] = [];
 
-       // Paginado: o Supabase devolve no maximo 1000 linhas por requisicao
-       const data = await fetchAllPages((from, to) =>
-         supabase
-           .from("manifests")
-           .select("*")
-           .eq("tenant_id", tenantId)
-           .order("created_at", { ascending: false })
-           .order("id", { ascending: true })
-           .range(from, to)
-       );
-       setManifests((data as DBManifest[]) || []);
-     } catch (err: any) {
-       setError(err.message);
-     } finally {
-       setIsLoading(false);
-     }
-   }, []);
- 
-   // Subscribe to realtime changes
-   useEffect(() => {
-     fetchManifests();
- 
-     const channel = supabase
-       .channel(uniqueChannelName("manifests-realtime"))
-       .on(
-         "postgres_changes",
-         { event: "*", schema: "public", table: "manifests" },
-         (payload) => {
-           if (payload.eventType === "INSERT") {
-             setManifests((prev) => [payload.new as DBManifest, ...prev]);
-           } else if (payload.eventType === "UPDATE") {
-             setManifests((prev) =>
-               prev.map((m) => (m.id === (payload.new as DBManifest).id ? (payload.new as DBManifest) : m))
-             );
-           } else if (payload.eventType === "DELETE") {
-             setManifests((prev) => prev.filter((m) => m.id !== (payload.old as any).id));
-           }
-         }
-       )
-       .subscribe();
- 
-     return () => {
-       supabase.removeChannel(channel);
-     };
-   }, [fetchManifests]);
- 
+async function loadManifests(): Promise<DBManifest[]> {
+  const tenantId = await getCurrentTenantId();
+  if (!tenantId) return [];
+  // Paginado: o Supabase devolve no maximo 1000 linhas por requisicao
+  const data = await fetchAllPages((from, to) =>
+    supabase
+      .from("manifests")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  return (data as DBManifest[]) || [];
+}
+
+/**
+ * Romaneios da empresa. A lista e compartilhada entre os blocos e guardada entre telas
+ * (antes Entregas, Relatorios e Acerto buscavam tudo de novo, ate duas vezes por tela).
+ */
+export function useManifestsDB() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => [MANIFESTS_QUERY_KEY, user?.id], [user?.id]);
+  const query = useQuery({ queryKey, queryFn: loadManifests, enabled: !!user });
+  const manifests = query.data ?? NO_MANIFESTS;
+  const isLoading = query.isLoading;
+  const error = query.error ? (query.error as Error).message : null;
+
+  const setManifests = useCallback(
+    (fn: (prev: DBManifest[]) => DBManifest[]) => queryClient.setQueryData<DBManifest[]>(queryKey, (prev) => fn(prev ?? [])),
+    [queryClient, queryKey],
+  );
+  const fetchManifests = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: [MANIFESTS_QUERY_KEY] });
+  }, [queryClient]);
+
+  // Tempo real: aplica a mudanca na lista guardada (idempotente: varios blocos podem ouvir juntos).
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(uniqueChannelName("manifests-realtime"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "manifests" }, (payload) => {
+        if (payload.eventType === "INSERT") {
+          const row = payload.new as DBManifest;
+          setManifests((prev) => (prev.some((m) => m.id === row.id) ? prev : [row, ...prev]));
+        } else if (payload.eventType === "UPDATE") {
+          const row = payload.new as DBManifest;
+          setManifests((prev) => prev.map((m) => (m.id === row.id ? row : m)));
+        } else if (payload.eventType === "DELETE") {
+          const id = (payload.old as { id?: string }).id;
+          setManifests((prev) => prev.filter((m) => m.id !== id));
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, setManifests]);
+
   const fetchManifestById = async (manifestId: string): Promise<DBManifest | null> => {
     const { data, error: fetchError } = await supabase.from("manifests").select("*").eq("id", manifestId).maybeSingle();
     if (fetchError) throw fetchError;
@@ -291,7 +293,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
 
       // 3. Get current user's full name for audit
       const userFullName = await getCurrentUserFullName();
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
       const manifestDisplayNumber = formatManifestNumber(manifest);
 
       // 4. Clear manifest_id and driver_id from the invoice, set status back to pending
@@ -362,7 +364,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
   // Get current user's full name from profiles
   const getCurrentUserFullName = async (): Promise<string> => {
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
       if (!userData.user?.id) return "Sistema";
 
       const { data: profile } = await supabase
@@ -444,7 +446,7 @@ export const formatManifestNumber = (manifest: DBManifest): string => {
 
       // 6. Create audit log entry with user's full name
       const manifestDisplayNumber = formatManifestNumber(manifest);
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
 
       const { error: auditError } = await supabase
         .from("manifest_audit_logs")

@@ -8,6 +8,14 @@ import { cn } from "@/lib/utils";
 import { useShell } from "./ShellContext";
 import { UserMenu } from "./UserMenu";
 
+/* Cada grupo do menu tem uma cor (o icone), para achar as telas pelo olho. */
+const GROUP_ICON: Record<NavItem["group"], string> = {
+  operacao: "text-primary",
+  frota: "text-info",
+  financeiro: "text-warning",
+  gestao: "text-[hsl(var(--chart-4))]",
+};
+
 function SidebarLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
   const Icon = item.icon;
   const link = (
@@ -19,7 +27,7 @@ function SidebarLink({ item, active, collapsed }: { item: NavItem; active: boole
         "focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         collapsed && "justify-center px-0",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          ? "bg-brand-soft font-semibold text-sidebar-accent-foreground"
           : "text-sidebar-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
       )}
     >
@@ -27,7 +35,7 @@ function SidebarLink({ item, active, collapsed }: { item: NavItem; active: boole
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand transition-all duration ease-out",
+          "absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-brand shadow-[0_0_10px_hsl(var(--brand)/0.7)] transition-all duration ease-out",
           active ? "opacity-100" : "h-0 opacity-0",
         )}
       />
@@ -35,7 +43,8 @@ function SidebarLink({ item, active, collapsed }: { item: NavItem; active: boole
         aria-hidden="true"
         className={cn(
           "h-[1.125rem] w-[1.125rem] shrink-0 transition-colors duration-fast",
-          active ? "text-primary" : "text-sidebar-foreground group-hover:text-sidebar-accent-foreground",
+          GROUP_ICON[item.group],
+          !active && "opacity-80 group-hover:opacity-100",
         )}
       />
       {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}

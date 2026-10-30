@@ -4,7 +4,16 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, type LucideIcon
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCountUp } from "@/hooks/useCountUp";
 import { cn } from "@/lib/utils";
-import { toneSoftBg, toneText, type Tone } from "./tones";
+import { toneSolid, toneWash, type Tone } from "./tones";
+
+const toneBar: Record<Tone, string> = {
+  neutral: "bg-gradient-to-r from-transparent via-foreground/15 to-transparent",
+  brand: "bg-gradient-to-r from-transparent via-brand to-transparent",
+  success: "bg-gradient-to-r from-transparent via-success to-transparent",
+  warning: "bg-gradient-to-r from-transparent via-warning to-transparent",
+  danger: "bg-gradient-to-r from-transparent via-destructive to-transparent",
+  info: "bg-gradient-to-r from-transparent via-info to-transparent",
+};
 
 interface StatCardProps {
   label: string;
@@ -62,9 +71,9 @@ export function StatCard({
             aria-hidden="true"
             className={cn(
               // Menor no celular estreito: rotulo de uma palavra longa ("Disponiveis") cabe ao lado.
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md min-[400px]:h-9 min-[400px]:w-9 min-[400px]:rounded-lg",
-              toneSoftBg[tone],
-              toneText[tone],
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-md min-[400px]:h-10 min-[400px]:w-10 min-[400px]:rounded-xl",
+              toneSolid[tone],
+              "shadow-sm",
             )}
           >
             <Icon className="h-4 w-4 min-[400px]:h-[1.125rem] min-[400px]:w-[1.125rem]" />
@@ -74,7 +83,7 @@ export function StatCard({
       {loading ? (
         <Skeleton className="mt-1 h-9 w-24" />
       ) : (
-        <p className="font-data text-[2rem] font-semibold leading-none tracking-tight text-foreground">
+        <p className="font-data text-[2rem] font-semibold leading-none tracking-tight text-foreground min-[400px]:text-[2.25rem]">
           {typeof value === "number" ? <AnimatedValue value={value} format={format} /> : value}
         </p>
       )}
@@ -97,6 +106,8 @@ export function StatCard({
         </div>
       )}
       {children}
+      {/* filete na cor do indicador, no topo */}
+      <span aria-hidden="true" className={cn("pointer-events-none absolute inset-x-0 top-0 h-[2px] opacity-70", toneBar[tone])} />
       {interactive && (
         <ChevronRight
           aria-hidden="true"
@@ -107,7 +118,8 @@ export function StatCard({
   );
 
   const classes = cn(
-    "group relative flex h-full min-h-[8.5rem] flex-col gap-3 rounded-lg border bg-card p-4 text-left text-card-foreground shadow-sm min-[400px]:p-5",
+    "group relative isolate flex h-full min-h-[8.5rem] flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 text-left text-card-foreground shadow-sm min-[400px]:p-5",
+    toneWash[tone],
     interactive && "card-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
     className,
   );

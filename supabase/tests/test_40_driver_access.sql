@@ -187,6 +187,27 @@ DELETE FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000070';
 SELECT pg_temp.check(NOT EXISTS (SELECT 1 FROM public.driver_wallet WHERE description LIKE '%ROM-W1%'), 'romaneio excluido sai da carteira');
 SELECT pg_temp.check((SELECT completed_at IS NOT NULL FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000060'), 'conclusao grava completed_at');
 
+-- Frete com NF que sai do romaneio por ocorrencia (6 NFs, 4 entregues, 2 com ocorrencia):
+-- por entrega (fixo por NF) paga so as 4; fechado (por saida) e por km pagam o valor cheio.
+INSERT INTO public.manifests (id, driver_id, driver_name, status, tenant_id, created_at, scheduled_date, freight_value, freight_type, deliveries_count, is_own_fleet, manifest_code) VALUES
+ ('50000000-0000-0000-0000-000000000080','20000000-0000-0000-0000-00000000000c','Fantasma A','in_progress','10000000-0000-0000-0000-00000000000a', now(), current_date, 153, 'fixed', 6, false, 'ROM-F6'),
+ ('50000000-0000-0000-0000-000000000081','20000000-0000-0000-0000-00000000000c','Fantasma A','in_progress','10000000-0000-0000-0000-00000000000a', now(), current_date, 153, 'lumpsum', 6, false, 'ROM-L6'),
+ ('50000000-0000-0000-0000-000000000082','20000000-0000-0000-0000-00000000000c','Fantasma A','in_progress','10000000-0000-0000-0000-00000000000a', now(), current_date, 153, 'per_km', 6, false, 'ROM-K6');
+INSERT INTO public.invoices (id, access_key, address_full, recipient_name, status, tenant_id, manifest_id, driver_id, total_value, total_weight)
+SELECT ('3600000' || m || '-0000-0000-0000-00000000000' || g)::uuid, 'kfr' || m || g, 'Rua R' || g, 'Cli R' || g,
+       CASE WHEN g <= 4 THEN 'delivered' ELSE 'occurrence' END,
+       '10000000-0000-0000-0000-00000000000a', ('50000000-0000-0000-0000-00000000008' || m)::uuid, '20000000-0000-0000-0000-00000000000c', 100, 10
+FROM generate_series(0, 2) m, generate_series(1, 6) g;
+SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000080')->>'freight_value')::numeric = 102, 'por entrega: 6 x 25,50 vira 4 x 25,50');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000081')->>'freight_value')::numeric = 153, 'frete fechado (por saida) continua cheio');
+SELECT pg_temp.check((public.finalize_manifest('50000000-0000-0000-0000-000000000082')->>'freight_value')::numeric = 153, 'frete por km continua cheio');
+RESET role;
+SELECT pg_temp.check((SELECT amount FROM public.driver_wallet WHERE manifest_id = '50000000-0000-0000-0000-000000000080' AND type = 'freight') = 102, 'carteira do motorista mostra 4 x 25,50');
+SELECT pg_temp.check((SELECT amount FROM public.driver_wallet WHERE manifest_id = '50000000-0000-0000-0000-000000000081' AND type = 'freight') = 153, 'carteira do frete fechado continua cheia');
+SELECT pg_temp.check((SELECT deliveries_count = 4 AND total_value = 400 AND total_weight = 40 FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000080'), 'romaneio por entrega fica com as 4 NFs que ficaram');
+SELECT pg_temp.check((SELECT count(*) FROM public.invoices WHERE status = 'returned' AND manifest_id IS NULL AND access_key LIKE 'kfr%') = 6, 'NFs com ocorrencia voltam para a roteirizacao nos tres tipos');
+
 -- Bloqueio automatico por atraso: so depois dos X dias configurados
 SELECT set_config('request.jwt.claim.sub', '', false);
 -- Datas no fuso de Brasilia, como a regra (current_date e UTC e erra entre 0h e 3h UTC).

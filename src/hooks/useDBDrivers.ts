@@ -42,6 +42,39 @@ export interface DBDriver {
   openManifestCode?: string;
 }
 
+/**
+ * Motoristas com romaneio aberto e NF em rota (para nao escalar quem ja esta na rua).
+ * Duas consultas simples em vez de "manifests!inner(...)": o embutido depende de uma
+ * chave estrangeira invoices -> manifests que o banco de producao pode nao ter, e ai a
+ * consulta falhava calada e todo motorista aparecia livre.
+ */
+async function loadOpenManifestsByDriver(tenantId: string): Promise<Map<string, { id: string; code: string }>> {
+  const { data: inTransit, error: invoicesError } = await supabase
+    .from("invoices")
+    .select("driver_id, manifest_id")
+    .eq("tenant_id", tenantId)
+    .eq("status", "in_transit")
+    .not("driver_id", "is", null)
+    .not("manifest_id", "is", null);
+  if (invoicesError) throw invoicesError;
+  const manifestIds = [...new Set((inTransit || []).map((i) => i.manifest_id as string))];
+  const byDriver = new Map<string, { id: string; code: string }>();
+  if (manifestIds.length === 0) return byDriver;
+  const { data: open, error: manifestsError } = await supabase
+    .from("manifests")
+    .select("id, manifest_code, status")
+    .eq("tenant_id", tenantId)
+    .in("id", manifestIds)
+    .not("status", "in", '("completed","cancelled","paid")');
+  if (manifestsError) throw manifestsError;
+  const openById = new Map((open || []).map((m) => [m.id, m]));
+  for (const inv of inTransit || []) {
+    const m = openById.get(inv.manifest_id as string);
+    if (inv.driver_id && m) byDriver.set(inv.driver_id, { id: m.id, code: m.manifest_code });
+  }
+  return byDriver;
+}
+
 export function useDBDrivers() {
   const [drivers, setDrivers] = useState<DBDriver[]>([]);
   const [driversWithOpenManifests, setDriversWithOpenManifests] = useState<Set<string>>(new Set());
@@ -55,29 +88,8 @@ export function useDBDrivers() {
       const tenantId = await getCurrentTenantId();
       if (!tenantId) return;
 
-      const { data, error: fetchError } = await supabase
-        .from("invoices")
-        .select("driver_id, manifest_id, manifests!inner(id, manifest_code, status)")
-        .eq("tenant_id", tenantId)
-        .eq("status", "in_transit")
-        .not("driver_id", "is", null)
-        .not("manifest_id", "is", null)
-        .not("manifests.status", "in", '("completed","cancelled","paid")');
-
-      if (fetchError) throw fetchError;
-
-      const driverIds = new Set<string>();
-      const manifestMap = new Map<string, { id: string; code: string }>();
-      
-      (data || []).forEach((invoice: any) => {
-        const manifest = invoice.manifests;
-        if (invoice.driver_id && manifest?.id) {
-          driverIds.add(invoice.driver_id);
-          manifestMap.set(invoice.driver_id, { id: manifest.id, code: manifest.manifest_code });
-        }
-      });
-      
-      setDriversWithOpenManifests(driverIds);
+      const manifestMap = await loadOpenManifestsByDriver(tenantId);
+      setDriversWithOpenManifests(new Set(manifestMap.keys()));
       setOpenManifestsByDriver(manifestMap);
     } catch (err: any) {
       console.error("Error fetching open manifests:", err);
@@ -106,14 +118,10 @@ export function useDBDrivers() {
           .eq("tenant_id", tenantId)
           .in("status", ["active", "in_route"]) // Exclude inactive drivers from selection
           .order("name", { ascending: true }),
-        supabase
-          .from("invoices")
-          .select("driver_id, manifest_id, manifests!inner(id, manifest_code, status)")
-          .eq("tenant_id", tenantId)
-          .eq("status", "in_transit")
-          .not("driver_id", "is", null)
-          .not("manifest_id", "is", null)
-          .not("manifests.status", "in", '("completed","cancelled","paid")')
+        loadOpenManifestsByDriver(tenantId).catch((err) => {
+          console.error("Error fetching open manifests:", err);
+          return new Map<string, { id: string; code: string }>();
+        }),
       ]);
 
       if (driversResult.error) throw driversResult.error;
@@ -149,18 +157,8 @@ export function useDBDrivers() {
       }));
 
       // Process open manifests
-      const driverIds = new Set<string>();
-      const manifestMap = new Map<string, { id: string; code: string }>();
-      
-      (manifestsResult.data || []).forEach((invoice: any) => {
-        const manifest = invoice.manifests;
-        if (invoice.driver_id && manifest?.id) {
-          driverIds.add(invoice.driver_id);
-          manifestMap.set(invoice.driver_id, { id: manifest.id, code: manifest.manifest_code });
-        }
-      });
-      
-      setDriversWithOpenManifests(driverIds);
+      const manifestMap = manifestsResult;
+      setDriversWithOpenManifests(new Set(manifestMap.keys()));
       setOpenManifestsByDriver(manifestMap);
       setDrivers(mappedDrivers);
     } catch (err: any) {

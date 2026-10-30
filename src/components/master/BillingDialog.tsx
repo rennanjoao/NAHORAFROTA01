@@ -219,7 +219,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       reference_date: nextDue || new Date().toISOString().split("T")[0],
       channel: noticeChannel,
       notes: noticeNotes.trim() || null,
-      user_id: (await supabase.auth.getUser()).data.user?.id,
+      user_id: (await supabase.auth.getSession()).data.session?.user?.id,
     });
     setSavingNotice(false);
 
@@ -276,7 +276,7 @@ export function BillingDialog({ open, onOpenChange, tenant, onSaved }: BillingDi
       due_date: nextDue || null,
       cycle,
       notes: newNotes || null,
-      recorded_by: (await supabase.auth.getUser()).data.user?.id,
+      recorded_by: (await supabase.auth.getSession()).data.session?.user?.id,
     } as any);
 
     if (error) {

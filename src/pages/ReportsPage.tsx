@@ -23,7 +23,7 @@ import { useInvoicesDB } from "@/hooks/useInvoicesDB";
 import { formatManifestNumber, useManifestsDB } from "@/hooks/useManifestsDB";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { getOccurrenceLabel, getOccurrenceWeight } from "@/hooks/useSLADB";
-import { downloadReportPdf, pdfCurrency, pdfPercent, type ReportPdfSection } from "@/lib/reportPdf";
+import { pdfCurrency, pdfPercent, type ReportPdfSection } from "@/lib/reportPdfFormat";
 import { useTenantData } from "@/hooks/useTenantData";
 import {
   buildManifestIndex,
@@ -494,6 +494,8 @@ export default function ReportsPage() {
       }
 
       const stamp = new Date().toISOString().slice(0, 10);
+      // O gerador de PDF (jsPDF, pesado) so e baixado quando alguem exporta.
+      const { downloadReportPdf } = await import("@/lib/reportPdf");
       const fileName = downloadReportPdf(
         { companyName: tenant?.razao_social || 'Na Hora Frota', periodLabel, filtersLabel: filtersLabel || 'Nenhum', sections },
         `relatorio-${stamp}.pdf`,

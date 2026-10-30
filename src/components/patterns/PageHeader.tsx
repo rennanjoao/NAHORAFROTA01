@@ -23,13 +23,13 @@ export function PageHeader({ title, description, icon: Icon, actions, children, 
           {Icon && (
             <span
               aria-hidden="true"
-              className="mt-0.5 hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl border bg-card text-primary shadow-xs sm:flex"
+              className="mt-0.5 hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-brand-soft text-primary shadow-xs sm:flex"
             >
               <Icon className="h-5 w-5" />
             </span>
           )}
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-foreground md:text-[1.75rem]">{title}</h1>
+            <h1 className="font-heading text-2xl font-semibold leading-tight tracking-tight text-foreground md:text-[2rem]">{title}</h1>
             {description && <p className="mt-1 max-w-[65ch] text-sm text-muted-foreground md:text-[0.9375rem]">{description}</p>}
           </div>
         </div>

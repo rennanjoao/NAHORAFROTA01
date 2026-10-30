@@ -60,7 +60,7 @@ export function RegionFilter({ selectedRegions, onRegionsChange, availableRegion
         <Button
           variant={count > 0 ? "soft" : "outline"}
           className={cn("justify-between gap-2", className)}
-          aria-label={count > 0 ? `Regiões: ${count} selecionada(s)` : "Filtrar por região"}
+          aria-label={count > 0 ? `Regiões ${count} selecionada(s)` : "Regiões: filtrar por região"}
         >
           <span className="flex items-center gap-2">
             <MapPin aria-hidden="true" />

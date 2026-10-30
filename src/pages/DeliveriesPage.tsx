@@ -651,7 +651,7 @@ export default function DeliveriesPage() {
     const invoice = dbInvoices.find(inv => inv.id === dbId);
     if (invoice?.manifest_id) {
       try {
-        const { data: userData } = await supabase.auth.getUser();
+        const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
         const { data: profile } = await supabase
           .from("profiles")
           .select("name")
@@ -817,7 +817,7 @@ export default function DeliveriesPage() {
 
     try {
       // Get current user info for audit
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
       const { data: profile } = await supabase
         .from("profiles")
         .select("name")
@@ -1001,7 +1001,7 @@ export default function DeliveriesPage() {
     if (!success) return;
 
     if (delivery.manifestUuid) {
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
       const { data: profile } = await supabase
         .from("profiles")
         .select("name")

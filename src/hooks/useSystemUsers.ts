@@ -33,7 +33,7 @@ export function useSystemUsers() {
     setError(null);
 
     try {
-      const currentUserId = (await supabase.auth.getUser()).data.user?.id ?? '';
+      const currentUserId = (await supabase.auth.getSession()).data.session?.user?.id ?? '';
 
       // O usuario pode ter mais de um papel (ex.: viewer criado no cadastro + admin).
       const { data: currentUserRoles, error: currentRolesError } = await supabase

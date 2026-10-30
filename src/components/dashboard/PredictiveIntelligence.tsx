@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { onTableChange } from "@/lib/sharedRealtime";
 import { AlertCircle, CheckCircle2, Clock, History, MessageCircle, UserCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { EmptyState, StatusBadge, toneDot, toneText, type Tone } from "@/components/patterns";
 import { supabase } from "@/integrations/supabase/client";
-import { uniqueChannelName } from "@/lib/realtime";
 import { getDayBoundsUTC, getTodayBrazil } from "@/lib/timezone";
 import { formatSLA } from "@/lib/formatSLA";
 import { cn } from "@/lib/utils";
@@ -346,24 +346,12 @@ export function PredictiveIntelligence() {
     };
 
     fetchData();
-
-    // Subscribe to driver status changes
-    const channel = supabase
-      .channel(uniqueChannelName("predictive-drivers"))
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "drivers" },
-        () => fetchData()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "invoices" },
-        () => fetchData()
-      )
-      .subscribe();
-
+    // Motoristas e NFs em tempo real (canal compartilhado; rajadas viram uma recarga so)
+    const offDrivers = onTableChange("drivers", () => void fetchData());
+    const offInvoices = onTableChange("invoices", () => void fetchData());
     return () => {
-      supabase.removeChannel(channel);
+      offDrivers();
+      offInvoices();
     };
   }, []);
 

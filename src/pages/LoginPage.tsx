@@ -204,7 +204,7 @@ export default function LoginPage() {
       const { data: membership } = await supabase
         .from("tenant_memberships")
         .select("tenant_id")
-        .eq("user_id", (await supabase.auth.getUser()).data.user?.id || "")
+        .eq("user_id", (await supabase.auth.getSession()).data.session?.user?.id || "")
         .maybeSingle();
 
       if (membership?.tenant_id) {

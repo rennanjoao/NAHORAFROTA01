@@ -20,13 +20,12 @@ export function UserAvatar({ name, className }: { name?: string | null; classNam
   return (
     <span
       aria-hidden="true"
+      data-initials={initials(name)}
       className={cn(
-        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary ring-1 ring-inset ring-primary/20",
+        "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary ring-1 ring-inset ring-primary/20 before:content-[attr(data-initials)]",
         className,
       )}
-    >
-      {initials(name)}
-    </span>
+    />
   );
 }
 
@@ -62,13 +61,13 @@ export function UserMenu({ variant = "avatar", side = "bottom", align = "end" }:
           "group flex items-center gap-3 rounded-lg text-left outline-none transition-colors duration-fast focus-visible:ring-2 focus-visible:ring-ring",
           variant === "full" ? "w-full p-2 hover:bg-sidebar-accent" : "rounded-full p-0.5 hover:bg-accent",
         )}
-        aria-label={`Menu da conta de ${name}`}
+        aria-label={variant === "full" ? `${name} ${roleLabel(roles)}: menu da conta` : `Menu da conta de ${name}`}
       >
         <UserAvatar name={profile?.name} />
         {variant === "full" && (
           <>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground">{name}</span>
+              <span className="block truncate text-sm font-medium text-foreground">{name}</span>{" "}
               <span className="block truncate text-xs text-sidebar-foreground">{roleLabel(roles)}</span>
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 text-sidebar-foreground" aria-hidden="true" />

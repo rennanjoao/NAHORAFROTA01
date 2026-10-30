@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from "react";
+import { BrandRoutes } from "@/site/components/BrandRoutes";
 import { Outlet, useLocation } from "react-router-dom";
 import { PageLoading } from "@/components/patterns";
 import { useNavigation } from "@/hooks/useNavigation";
@@ -46,7 +47,7 @@ function ShellLayout() {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="panel-shell min-h-screen bg-background">
       <a href="#conteudo" className="skip-link">
         Pular para o conteúdo
       </a>
@@ -64,8 +65,15 @@ function ShellLayout() {
           id="conteudo"
           ref={mainRef}
           tabIndex={-1}
-          className="min-w-0 flex-1 px-4 pt-5 outline-none sm:px-6 md:pb-12 md:pt-8 lg:px-8 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+1.5rem)]"
+          className="relative isolate min-w-0 flex-1 px-4 pt-5 outline-none sm:px-6 md:pb-12 md:pt-8 lg:px-8 pb-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+1.5rem)]"
         >
+          {/* Identidade da marca no topo de toda tela: brilho verde e o padrao "rotas", de leve. */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] overflow-hidden">
+            <div className="panel-backdrop absolute inset-0" />
+            <div className="panel-routes absolute inset-0">
+              <BrandRoutes scale={0.7} />
+            </div>
+          </div>
           <div key={location.pathname} className="page-enter mx-auto w-full max-w-[1600px]">
             {/* Telas carregam sob demanda; o esqueleto fica dentro do shell (menu e topo nao piscam). */}
             <Suspense fallback={<PageLoading />}>

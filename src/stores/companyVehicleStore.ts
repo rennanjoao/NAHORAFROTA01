@@ -2,6 +2,7 @@
 // These are vehicles owned by the company (Frota Própria)
 
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentTenantId as getCachedTenantId } from "@/lib/tenant";
 
 export type VehicleStatus = "available" | "in_use" | "maintenance";
 export type CompanyVehicleType = "Fiorino" | "VUC" | "Toco" | "Truck" | "Carreta" | "Van";
@@ -87,32 +88,11 @@ supabase.auth.onAuthStateChange((_event, session) => {
   listeners.forEach((l) => l());
 });
 
+// Empresa do usuario: mesma consulta (em cache) das outras telas.
 const getCurrentTenantId = async (): Promise<string> => {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    throw new Error("Sessão inválida. Faça login novamente.");
-  }
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("tenant_memberships")
-    .select("tenant_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-
-  if (membershipError) {
-    throw new Error(membershipError.message);
-  }
-
-  if (!membership?.tenant_id) {
-    throw new Error("Tenant não identificado para o usuário atual.");
-  }
-
-  return membership.tenant_id;
+  const tenantId = await getCachedTenantId();
+  if (!tenantId) throw new Error("Tenant não identificado para o usuário atual.");
+  return tenantId;
 };
 
 const notifyListeners = () => {

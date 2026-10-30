@@ -83,7 +83,7 @@ export function ReversalPasswordDialog({
       }
 
       // Password validated server-side, log the reversal action
-      const { data: userData } = await supabase.auth.getUser();
+      const userData = { user: (await supabase.auth.getSession()).data.session?.user ?? null };
       
       // performed_at vai explicito: sem o padrao now() no banco, o registro falhava calado.
       const { error: auditError } = await supabase.from("settlement_audit_logs").insert({
