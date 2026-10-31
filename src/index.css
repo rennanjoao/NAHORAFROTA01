@@ -493,6 +493,39 @@
     backdrop-filter: saturate(1.6) blur(14px);
   }
 
+  /* Painel flutuando sobre o mapa: vidro mais aberto, com brilho na borda. */
+  .surface-glass-float {
+    background: hsl(var(--background) / 0.68);
+    -webkit-backdrop-filter: saturate(1.8) blur(18px);
+    backdrop-filter: saturate(1.8) blur(18px);
+    border: 1px solid hsl(0 0% 100% / 0.6);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.55),
+      0 18px 40px -16px hsl(222 47% 11% / 0.35);
+  }
+
+  .dark .surface-glass-float {
+    background: hsl(var(--background) / 0.62);
+    border-color: hsl(0 0% 100% / 0.1);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.06),
+      0 18px 40px -16px hsl(0 0% 0% / 0.7);
+  }
+
+  /* Sem desfoque (navegador antigo) ou quem pediu menos transparencia: quase solido. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .surface-glass-float {
+      background: hsl(var(--background) / 0.96);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .surface-glass-float,
+    .dark .surface-glass-float {
+      background: hsl(var(--background) / 0.96);
+    }
+  }
+
   .truncate-safe {
     @apply truncate max-w-full;
   }

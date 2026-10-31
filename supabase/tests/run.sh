@@ -34,7 +34,7 @@ python3 -I "$TESTS/gen_schema.py" "$TMP/types_before.ts" \
 sed -n '/^CREATE OR REPLACE FUNCTION public.has_role/,$p' \
   "$ROOT/supabase/migrations/20260427110000_bootstrap_mhn_app_schema.sql" > "$TMP/03_bootstrap_functions.sql"
 
-for f in "$TESTS/00_supabase_stubs.sql" "$TMP/01_schema.sql" "$TESTS/02_extras.sql" "$TMP/03_bootstrap_functions.sql" \
+for f in "$TESTS/00_supabase_stubs.sql" "$TMP/01_schema.sql" "$TESTS/01b_producao.sql" "$TESTS/02_extras.sql" "$TMP/03_bootstrap_functions.sql" \
   "$ROOT/supabase/ATUALIZAR_BANCO.sql" "$ROOT/supabase/ATUALIZAR_BANCO.sql"; do
   psql "$PGURL" -q -v ON_ERROR_STOP=1 -c "\\connect $DB" -f "$f" > /dev/null 2>&1 || { echo "Falhou ao aplicar $f"; exit 1; }
 done

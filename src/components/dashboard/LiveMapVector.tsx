@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import Map, { Marker, NavigationControl, FullscreenControl, AttributionControl, type MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useResolvedTheme } from '@/components/theme/PreferencesProvider';
 import { prefersReducedMotion, readPreferences } from '@/lib/preferences';
 import { LiveMapFrame } from './LiveMapFrame';
+import { mapFitPadding } from './mapOverlay';
 import { countByStatus } from './mapStatus';
 import { useBrandMapStyle } from './brandMapStyle';
 import { VehicleMarker, type FleetPosition } from './liveMapParts';
@@ -17,6 +18,7 @@ interface LiveMapVectorProps {
   onFocusHandled?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  overlay?: ReactNode;
 }
 
 /*
@@ -34,6 +36,7 @@ export default function LiveMapVector({
   onFocusHandled,
   onRefresh,
   isRefreshing = false,
+  overlay,
 }: LiveMapVectorProps) {
   const theme = useResolvedTheme();
   const mapStyle = useBrandMapStyle(theme);
@@ -48,6 +51,7 @@ export default function LiveMapVector({
   const counts = useMemo(() => countByStatus(positions), [positions]);
 
   // Enquadra todos os veiculos
+  const hasOverlay = !!overlay;
   const fitBounds = useCallback(() => {
     if (!mapRef.current || positions.length === 0) return;
 
@@ -72,11 +76,11 @@ export default function LiveMapVector({
         [bounds.maxLng, bounds.maxLat],
       ],
       {
-        padding: 50,
+        padding: mapFitPadding(hasOverlay),
         duration: prefersReducedMotion(readPreferences()) ? 0 : 1000,
       },
     );
-  }, [positions]);
+  }, [hasOverlay, positions]);
 
   useEffect(() => {
     if (!focusDriverId || !mapRef.current) return;
@@ -109,6 +113,7 @@ export default function LiveMapVector({
       onRefresh={onRefresh}
       isRefreshing={isRefreshing}
       onFitAll={fitBounds}
+      overlay={overlay}
     >
       {mapStyle && (
       <Map

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { readDeliveryOccurrences } from "@/lib/deliveryOccurrences";
 import { useAuth } from "@/contexts/AuthContext";
 import { uniqueChannelName } from "@/lib/realtime";
 import { plateText } from "@/lib/vehicles";
@@ -60,12 +61,14 @@ async function fetchAlerts(): Promise<OperationalAlert[]> {
   const since = new Date(Date.now() - WINDOW_HOURS * 60 * 60 * 1000).toISOString();
 
   const [deliveryRes, vehicleRes] = await Promise.all([
-    supabase
-      .from("delivery_occurrences")
-      .select("id, invoice_id, driver_id, occurrence_type, description, created_at")
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT),
+    readDeliveryOccurrences<{ id: string; invoice_id: string | null; driver_id: string | null; occurrence_type: string; description: string | null; created_at: string }>((typeColumn) =>
+      supabase
+        .from("delivery_occurrences")
+        .select(`id, invoice_id, driver_id, ${typeColumn}, description, created_at`)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(LIMIT),
+    ),
     supabase
       .from("driver_occurrences")
       .select("id, driver_id, type, description, created_at")
@@ -74,7 +77,7 @@ async function fetchAlerts(): Promise<OperationalAlert[]> {
       .limit(LIMIT),
   ]);
 
-  const deliveryRows = deliveryRes.data || [];
+  const deliveryRows = deliveryRes.data;
   const vehicleRows = vehicleRes.data || [];
 
   const invoiceIds = [...new Set(deliveryRows.map((r) => r.invoice_id).filter(Boolean))] as string[];

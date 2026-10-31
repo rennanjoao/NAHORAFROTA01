@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { uniqueChannelName } from "@/lib/realtime";
 import { getCurrentTenantId } from '@/lib/tenant';
@@ -8,6 +8,8 @@ import { LiveMapFrame } from './LiveMapFrame';
 interface LiveMapProps {
   focusDriverId?: string | null;
   onFocusHandled?: () => void;
+  /** Painel de vidro sobre o mapa (atualizacoes dos motoristas). */
+  overlay?: ReactNode;
 }
 
 interface FleetPosition {
@@ -59,6 +61,7 @@ interface MapViewProps {
   onFocusHandled?: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  overlay?: ReactNode;
 }
 
 function normalizeMapboxToken(value: unknown): string | null {
@@ -94,7 +97,7 @@ function hasWebGL(): boolean {
   }
 }
 
-export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
+export function LiveMap({ focusDriverId, onFocusHandled, overlay }: LiveMapProps) {
   const [positions, setPositions] = useState<FleetPosition[]>([]);
   const [driversInfo, setDriversInfo] = useState<Map<string, DriverInfo>>(new Map());
   const [MapComponent, setMapComponent] = useState<React.ComponentType<MapViewProps> | null>(null);
@@ -323,11 +326,11 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
 
   // Carregando (token ou componente do mapa)
   if (tokenLoading || isLoading || (!MapComponent && !loadError)) {
-    return <LiveMapFrame state="loading" vehicleCount={positions.length} />;
+    return <LiveMapFrame state="loading" vehicleCount={positions.length} overlay={overlay} />;
   }
 
   if (loadError) {
-    return <LiveMapFrame state="error" vehicleCount={positions.length} error={loadError} onRetry={() => window.location.reload()} />;
+    return <LiveMapFrame state="error" vehicleCount={positions.length} error={loadError} onRetry={() => window.location.reload()} overlay={overlay} />;
   }
 
   // Mapbox e opcional. Sem token o componente usa o OpenStreetMap.
@@ -338,12 +341,13 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
         vehicleCount={positions.length}
         error="Token do Mapbox não encontrado. Verifique a tabela app_config no banco de dados."
         onRetry={() => window.location.reload()}
+        overlay={overlay}
       />
     );
   }
 
   if (!MapComponent) {
-    return <LiveMapFrame state="loading" vehicleCount={positions.length} />;
+    return <LiveMapFrame state="loading" vehicleCount={positions.length} overlay={overlay} />;
   }
 
   return (
@@ -356,6 +360,7 @@ export function LiveMap({ focusDriverId, onFocusHandled }: LiveMapProps) {
       onFocusHandled={onFocusHandled}
       onRefresh={refreshPositions}
       isRefreshing={isRefreshingPositions}
+      overlay={overlay}
     />
   );
 }

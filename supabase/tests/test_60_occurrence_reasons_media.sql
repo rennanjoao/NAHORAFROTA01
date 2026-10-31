@@ -46,6 +46,11 @@ SELECT pg_temp.as_user('00000000-0000-0000-0000-0000000000d1');
 INSERT INTO public.delivery_occurrences (invoice_id, driver_id, tenant_id, occurrence_type, description)
 VALUES ('36060000-0000-0000-0000-000000000060','20000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a','loja_fechada_balanco','Volto amanha');
 SELECT pg_temp.check(EXISTS (SELECT 1 FROM public.delivery_occurrences WHERE occurrence_type = 'loja_fechada_balanco'), 'motorista registra ocorrencia com motivo da empresa e observacao livre');
+SELECT pg_temp.check(EXISTS (SELECT 1 FROM public.delivery_occurrences WHERE occurrence_type = 'loja_fechada_balanco' AND type = 'loja_fechada_balanco'), 'coluna antiga "type" (NOT NULL na producao) recebe o motivo');
+-- App antigo que ainda grava so "type": o motivo vai para occurrence_type
+INSERT INTO public.delivery_occurrences (invoice_id, driver_id, tenant_id, type)
+VALUES ('36060000-0000-0000-0000-000000000060','20000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a','avaria');
+SELECT pg_temp.check(EXISTS (SELECT 1 FROM public.delivery_occurrences WHERE type = 'avaria' AND occurrence_type = 'avaria'), 'gravar so "type" preenche occurrence_type');
 DO $$ BEGIN
   INSERT INTO public.delivery_occurrences (invoice_id, driver_id, tenant_id, occurrence_type)
   VALUES ('36060000-0000-0000-0000-000000000060','20000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a','qualquer_coisa');

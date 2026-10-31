@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { vehicleMarkerHtml } from "@/lib/brandSymbol";
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -6,6 +6,7 @@ import { prefersReducedMotion, readPreferences } from "@/lib/preferences";
 import { whatsappNumber } from "@/lib/whatsapp";
 import { vehicleTypeLabel } from "@/components/deliveries/status";
 import { LiveMapFrame } from "./LiveMapFrame";
+import { mapFitPadding } from "./mapOverlay";
 import { VEHICLE_STATUS, countByStatus, vehicleStatus } from "./mapStatus";
 import { plateLabel } from "./status";
 
@@ -37,6 +38,7 @@ interface LiveMapLeafletProps {
   onFocusHandled?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  overlay?: ReactNode;
 }
 
 function escapeHtml(value: unknown) {
@@ -95,6 +97,7 @@ export default function LiveMapLeaflet({
   onFocusHandled,
   onRefresh,
   isRefreshing = false,
+  overlay,
 }: LiveMapLeafletProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -103,14 +106,16 @@ export default function LiveMapLeaflet({
 
   const counts = useMemo(() => countByStatus(positions), [positions]);
 
+  const hasOverlay = !!overlay;
   const fitBounds = useCallback(() => {
     if (!mapRef.current || positions.length === 0) return;
 
     const bounds = L.latLngBounds(
       positions.map((position) => [Number(position.latitude), Number(position.longitude)]),
     );
-    mapRef.current.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
-  }, [positions]);
+    const pad = mapFitPadding(hasOverlay);
+    mapRef.current.fitBounds(bounds, { paddingTopLeft: [pad.left, pad.top], paddingBottomRight: [pad.right, pad.bottom], maxZoom: 15 });
+  }, [hasOverlay, positions]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -195,6 +200,7 @@ export default function LiveMapLeaflet({
       onRefresh={onRefresh}
       isRefreshing={isRefreshing}
       onFitAll={fitBounds}
+      overlay={overlay}
     >
       <div ref={containerRef} role="region" aria-label="Mapa com a posição dos veículos" className="h-full w-full" />
     </LiveMapFrame>
