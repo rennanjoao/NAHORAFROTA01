@@ -19,7 +19,7 @@ import {
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { FormField } from "@/components/patterns";
-import { OCCURRENCE_TYPES } from "./status";
+import { useOccurrenceReasons } from "@/hooks/useOccurrenceReasons";
 
 interface RegisterOccurrenceDialogProps {
   open: boolean;
@@ -30,8 +30,6 @@ interface RegisterOccurrenceDialogProps {
   onSave: (deliveryId: number, occurrenceType: string, observation: string) => Promise<boolean> | boolean | void;
 }
 
-const occurrenceTypes = OCCURRENCE_TYPES;
-
 export function RegisterOccurrenceDialog({
   open,
   onOpenChange,
@@ -40,6 +38,9 @@ export function RegisterOccurrenceDialog({
   onSave,
 }: RegisterOccurrenceDialogProps) {
   const [occurrenceType, setOccurrenceType] = useState("");
+  // Motivos cadastrados pela empresa (Configuracoes > Ocorrencias)
+  const { active: reasons } = useOccurrenceReasons();
+  const occurrenceTypes = reasons.map((reason) => ({ value: reason.code, label: reason.label }));
   const [observation, setObservation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [typeError, setTypeError] = useState<string | null>(null);
@@ -150,4 +151,3 @@ export function RegisterOccurrenceDialog({
   );
 }
 
-export { occurrenceTypes };

@@ -14,7 +14,7 @@ import { revealSection } from "@/lib/scroll";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { NotificationBanner } from "@/components/dashboard/NotificationBanner";
 import { LiveMap } from "@/components/dashboard/LiveMap";
-import { DeliveryStatus } from "@/components/dashboard/DeliveryStatus";
+import { DriverActivityFeed } from "@/components/dashboard/DriverActivityFeed";
 import { SLAWeeklyWidget } from "@/components/dashboard/SLAWeeklyWidget";
 import { SLARealTimeWidget } from "@/components/dashboard/SLARealTimeWidget";
 import { PredictiveIntelligence } from "@/components/dashboard/PredictiveIntelligence";
@@ -220,14 +220,24 @@ export default function Index() {
         <Section
           id={MAP_SECTION_ID}
           title="Agora na rua"
-          description="Onde cada motorista está e em que pé estão as notas de hoje."
+          description="Onde cada motorista está, as notas de hoje e o que os motoristas vão registrando nas entregas."
           className="scroll-mt-24"
         >
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="min-w-0 lg:col-span-2">
               {realtimeAccess.allowed ? liveMap : <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>{liveMap}</PlanLockOverlay>}
             </div>
-            <DeliveryStatus />
+            {/* A lista acompanha a altura do mapa e rola por dentro */}
+            <div className="relative min-w-0">
+              <DriverActivityFeed
+                className="h-[28rem] lg:absolute lg:inset-0 lg:h-auto"
+                onSelectDriver={(driverId) => {
+                  const nextParams = new URLSearchParams(searchParams);
+                  nextParams.set("focusDriver", driverId);
+                  setSearchParams(nextParams, { replace: true });
+                }}
+              />
+            </div>
           </div>
         </Section>
 

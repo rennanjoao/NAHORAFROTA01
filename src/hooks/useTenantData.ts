@@ -20,6 +20,8 @@ export interface TenantData {
   plan: string;
   status: string;
   next_due_date: string | null;
+  /** Logo da empresa (romaneio impresso). */
+  logo_url: string | null;
 }
 
 async function fetchTenantRow(): Promise<TenantData | null> {
@@ -43,6 +45,7 @@ async function fetchTenantRow(): Promise<TenantData | null> {
     plan: data.plan,
     status: data.status,
     next_due_date: data.next_due_date ?? null,
+    logo_url: data.logo_url ?? null,
   };
 }
 

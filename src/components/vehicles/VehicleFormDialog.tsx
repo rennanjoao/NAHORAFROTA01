@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Truck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormField } from "@/components/patterns/FormField";
 import { invalidSelectClass } from "@/components/drivers/DriverFormParts";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
+import { PhotoPicker } from "@/components/media/PhotoPicker";
 import { vehicleCapacityByType, type CompanyVehicleType } from "@/stores/companyVehicleStore";
 import {
   COMPANY_VEHICLE_TYPES,
@@ -35,7 +36,7 @@ interface VehicleFormDialogProps {
   onSubmit: (values: VehicleFormValues, year: number | undefined) => void;
 }
 
-const FIELD_IDS: Record<keyof VehicleFormValues, string> = {
+const FIELD_IDS: Record<Exclude<keyof VehicleFormValues, "photoUrl">, string> = {
   plate: "vehicle-plate",
   brand: "vehicle-brand",
   model: "vehicle-model",
@@ -72,7 +73,7 @@ export function VehicleFormDialog({ open, onOpenChange, mode, initialValues, sav
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const { errors: found, year } = validateVehicleForm(values);
-    const firstInvalid = (Object.keys(FIELD_IDS) as (keyof VehicleFormValues)[]).find((key) => found[key]);
+    const firstInvalid = (Object.keys(FIELD_IDS) as (keyof typeof FIELD_IDS)[]).find((key) => found[key]);
     if (firstInvalid) {
       setErrors(found);
       document.getElementById(FIELD_IDS[firstInvalid])?.focus();
@@ -166,6 +167,16 @@ export function VehicleFormDialog({ open, onOpenChange, mode, initialValues, sav
               />
             )}
           </FormField>
+          <PhotoPicker
+            kind="vehicles"
+            label="Foto do veículo"
+            hint="Opcional"
+            value={values.photoUrl || null}
+            onChange={(url) => update({ photoUrl: url ?? "" })}
+            placeholderIcon={Truck}
+            shape="rect"
+            facing="environment"
+          />
         </form>
 
         <DialogFooter>

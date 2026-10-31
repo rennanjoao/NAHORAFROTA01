@@ -42,8 +42,8 @@ SELECT pg_temp.check((SELECT status FROM public.drivers WHERE id = '20000000-000
 SELECT pg_temp.check((SELECT count(*) FROM public.manifest_audit_logs WHERE action_type = 'auto_finalized') = 1, 'auditoria da auto-finalizacao');
 
 -- M2: occurrence then delivered -> stays open
-INSERT INTO public.delivery_occurrences (invoice_id, driver_id, occurrence_type, tenant_id) VALUES ('31000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-00000000000a','recusa_recebimento','10000000-0000-0000-0000-00000000000a');
-UPDATE public.invoices SET status = 'occurrence', occurrence_type = 'recusa_recebimento' WHERE id = '31000000-0000-0000-0000-000000000003';
+INSERT INTO public.delivery_occurrences (invoice_id, driver_id, occurrence_type, tenant_id) VALUES ('31000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-00000000000a','recusado','10000000-0000-0000-0000-00000000000a');
+UPDATE public.invoices SET status = 'occurrence', occurrence_type = 'recusado' WHERE id = '31000000-0000-0000-0000-000000000003';
 UPDATE public.invoices SET status = 'delivered' WHERE id IN ('31000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000004');
 SELECT pg_temp.check((SELECT status FROM public.manifests WHERE id = '50000000-0000-0000-0000-000000000002') = 'in_progress', 'romaneio com ocorrencia nao finaliza sozinho');
 

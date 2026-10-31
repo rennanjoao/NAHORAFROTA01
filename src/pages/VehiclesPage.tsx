@@ -170,6 +170,7 @@ export default function VehiclesPage() {
         capacity: capacityByType[values.type as CompanyVehicleType],
         year,
         renavam: values.renavam.trim() || undefined,
+        photoUrl: values.photoUrl || undefined,
       });
       invalidatePlanStatus(queryClient);
 
@@ -205,6 +206,8 @@ export default function VehiclesPage() {
         ...(type !== selectedVehicle.type ? { capacity: capacityByType[type] } : {}),
         year: year ?? null,
         renavam: values.renavam.trim() || null,
+        // So quando a foto mudou (banco sem a coluna nova continua salvando o resto)
+        ...((values.photoUrl || "") !== (selectedVehicle.photoUrl || "") ? { photoUrl: values.photoUrl || null } : {}),
       });
 
       toast({
@@ -296,6 +299,7 @@ export default function VehiclesPage() {
       type: vehicle.type,
       year: vehicle.year ? String(vehicle.year) : "",
       renavam: vehicle.renavam || "",
+      photoUrl: vehicle.photoUrl || "",
     });
     setIsFormOpen(true);
   };

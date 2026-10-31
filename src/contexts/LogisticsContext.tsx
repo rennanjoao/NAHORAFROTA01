@@ -78,6 +78,8 @@ export interface Driver {
   region: string;
   joinedAt: Date;
   isOwnFleet: boolean;  // true = Frota Própria (não gera valor a receber), false = Terceiro
+  /** Foto do veiculo do motorista (agregado com veiculo proprio). */
+  vehiclePhoto?: string | null;
   /** SLA dos ultimos 6 meses (null = sem NFs finalizadas). */
   sla?: number | null;
   /** Frete a pagar (romaneios ainda nao pagos) - so agregados. */

@@ -20,6 +20,8 @@ export interface VehicleFormValues {
   type: CompanyVehicleType | "";
   year: string;
   renavam: string;
+  /** Link da foto (ja enviada) ou vazio. */
+  photoUrl: string;
 }
 
 export type VehicleFormErrors = Partial<Record<keyof VehicleFormValues, string>>;
@@ -31,6 +33,7 @@ export const emptyVehicleForm = (): VehicleFormValues => ({
   type: "",
   year: String(CURRENT_YEAR),
   renavam: "",
+  photoUrl: "",
 });
 
 /** Valida o formulario. Devolve os erros por campo e o ano numerico (undefined = sem ano). */

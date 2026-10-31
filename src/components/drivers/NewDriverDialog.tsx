@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, Car, FileText, Landmark, Loader2, User } from "lucide-react";
+import { Building2, Car, FileText, Landmark, Loader2, Truck, User, UserRound } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ import {
 import { AppLoginFields, BankFields, DocumentSlot, DocumentSlotList, DriverKindChoice, invalidSelectClass, type BankValues } from "./DriverFormParts";
 import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
+import { PhotoPicker } from "@/components/media/PhotoPicker";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 interface DocumentFile {
@@ -122,6 +123,9 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   const [errors, setErrors] = useState<FieldErrors>({});
   const [createLogin, setCreateLogin] = useState(false);
   const [formData, setFormData] = useState<FormData>(emptyForm);
+  // Fotos ja enviadas para a pasta da empresa (o cadastro grava os links)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [vehiclePhotoUrl, setVehiclePhotoUrl] = useState<string | null>(null);
 
   const update = (patch: Partial<FormData>) => {
     setFormData((current) => ({ ...current, ...patch }));
@@ -218,6 +222,8 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
   const resetForm = () => {
     setFormData(emptyForm());
     setDocuments({});
+    setPhotoUrl(null);
+    setVehiclePhotoUrl(null);
     setErrors({});
     setIsOwnFleet(false);
     setActiveTab("personal");
@@ -350,7 +356,11 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
         name: formData.name.trim(),
         cpf: cpfToSave,
         phone: formatPhone(formData.phone),
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formData.name)}`,
+        avatar: photoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formData.name)}`,
+        photo: photoUrl,
+        photo_url: photoUrl,
+        // Coluna nova so com foto (banco ainda sem a atualizacao continua cadastrando)
+        ...(vehiclePhotoUrl ? { vehicle_photo_url: vehiclePhotoUrl } : {}),
         vehicle_plate: normalizePlate(formData.vehiclePlate) || "PENDENTE",
         vehicle_type: normalizedVehicleType,
         cnh: formData.cnhNumber,
@@ -450,6 +460,9 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
               vehicle_plate: driverData.vehicle_plate,
               vehicle_type: vehicleType,
               avatar: driverData.avatar,
+              photo: driverData.photo,
+              photo_url: driverData.photo_url,
+              ...(driverData.vehicle_photo_url ? { vehicle_photo_url: driverData.vehicle_photo_url } : {}),
               cnh: driverData.cnh,
               cnh_category: driverData.cnh_category,
               is_own_fleet: driverData.is_own_fleet,
@@ -587,6 +600,14 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
 
   const personalFields = (
     <div className="space-y-4">
+      <PhotoPicker
+        kind="drivers"
+        label="Foto do motorista"
+        hint="Opcional. Sem foto, mostramos as iniciais."
+        value={photoUrl}
+        onChange={setPhotoUrl}
+        placeholderIcon={UserRound}
+      />
       <FormField id="new-name" label="Nome completo" required error={errors.name}>
         {(control) => (
           <Input {...control} placeholder="Nome do motorista" autoComplete="off" value={formData.name} onChange={(e) => update({ name: e.target.value })} />
@@ -740,6 +761,16 @@ export function NewDriverDialog({ open, onOpenChange, onSave, addDriver }: NewDr
                     )}
                   </FormField>
                 </div>
+                <PhotoPicker
+                  kind="drivers"
+                  label="Foto do veículo"
+                  hint="Opcional"
+                  value={vehiclePhotoUrl}
+                  onChange={setVehiclePhotoUrl}
+                  placeholderIcon={Truck}
+                  shape="rect"
+                  facing="environment"
+                />
               </TabsContent>
 
               <TabsContent value="documents" className="mt-5">

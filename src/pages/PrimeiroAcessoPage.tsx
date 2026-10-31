@@ -9,6 +9,9 @@ import { BrandedLoader } from "@/components/auth/BrandedLoader";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import { saveCompanyLogo } from "@/lib/tenantMedia";
+import { LogoChooser } from "@/components/media/LogoField";
 
 /** 0 a 4: tamanho, maiusculas+minusculas, numero, simbolo. */
 function strength(p: string) {
@@ -35,6 +38,8 @@ export default function PrimeiroAcessoPage() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // Empresa que comprou pelo site: logo opcional do romaneio ja no primeiro acesso.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
@@ -70,6 +75,13 @@ export default function PrimeiroAcessoPage() {
           : "Não conseguimos salvar a senha. Confira a internet e tente de novo.",
       );
       return;
+    }
+    if (logoFile && !isDriverUser) {
+      setBusy(true);
+      await saveCompanyLogo(logoFile).catch(() =>
+        toast({ title: "Não foi possível enviar o logo", description: "Envie de novo em Configurações > Dados da empresa.", variant: "destructive" }),
+      );
+      setBusy(false);
     }
     navigate(isDriverUser ? "/tracker" : "/dashboard", { replace: true });
   };
@@ -144,6 +156,8 @@ export default function PrimeiroAcessoPage() {
             />
           )}
         </AuthField>
+
+        {!isDriverUser && <LogoChooser file={logoFile} onChange={setLogoFile} disabled={busy} />}
 
         <Button type="submit" size="lg" className="w-full" aria-disabled={busy || undefined}>
           {busy ? (

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Car, FileText, Landmark, Loader2, User } from "lucide-react";
+import { Car, FileText, Landmark, Loader2, Truck, User, UserRound } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ import {
 } from "./DriverFormParts";
 import { FieldGroup, FormField } from "@/components/patterns/FormField";
 import { TabErrorDot } from "./TabErrorDot";
+import { PhotoPicker } from "@/components/media/PhotoPicker";
 import { useReturnFocus } from "@/hooks/useReturnFocus";
 
 type DriverDocuments = Partial<Record<DriverDocumentKey, { id?: string; name: string; url?: string; path?: string; uploadedAt: Date }>>;
@@ -424,6 +425,14 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
             </TabsList>
 
             <TabsContent value="personal" className="mt-5 space-y-4">
+              <PhotoPicker
+                kind="drivers"
+                label="Foto do motorista"
+                hint="Opcional. Sem foto, mostramos as iniciais."
+                value={formData.photo || null}
+                onChange={(url) => updateField({ photo: url ?? "" })}
+                placeholderIcon={UserRound}
+              />
               <FormField id="edit-name" label="Nome completo">
                 {(control) => <Input {...control} autoComplete="off" value={formData.name || ""} onChange={(e) => updateField({ name: e.target.value })} />}
               </FormField>
@@ -482,11 +491,6 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                 )}
               </FormField>
 
-              <FormField id="edit-photo" label="Foto" optional hint="Endereço (link) de uma imagem na internet. Sem foto, mostramos as iniciais do nome.">
-                {(control) => (
-                  <Input {...control} type="url" value={formData.photo || ""} onChange={(e) => updateField({ photo: e.target.value })} placeholder="https://..." />
-                )}
-              </FormField>
             </TabsContent>
 
             <TabsContent value="vehicle" className="mt-5 space-y-5">
@@ -529,6 +533,17 @@ export function EditDriverDialog({ driver, open, onOpenChange, onSave }: EditDri
                   )}
                 </FormField>
               </div>
+
+              <PhotoPicker
+                kind="drivers"
+                label="Foto do veículo"
+                hint="Opcional"
+                value={formData.vehiclePhoto || null}
+                onChange={(url) => updateField({ vehiclePhoto: url })}
+                placeholderIcon={Truck}
+                shape="rect"
+                facing="environment"
+              />
             </TabsContent>
 
             <TabsContent value="documents" className="mt-5">

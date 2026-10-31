@@ -5,9 +5,11 @@ import {
   Clock,
   MapPinX,
   MessageSquareText,
+  PackageMinus,
   PackageX,
   PackageSearch,
   ShieldAlert,
+  Store,
   UserX,
   Wrench,
   type LucideIcon,
@@ -46,4 +48,17 @@ export const DELIVERY_OCCURRENCE_TYPES: OccurrenceOption[] = [
   { value: "avaria", label: "Mercadoria avariada", icon: PackageX, tone: "danger" },
   { value: "extravio", label: "Mercadoria extraviada", icon: PackageSearch, tone: "danger" },
   { value: "outros", label: "Outro motivo", icon: AlertTriangle, tone: "neutral" },
+  { value: "estabelecimento_fechado", label: "Estabelecimento fechado", icon: Store, tone: "warning" },
+  { value: "falta_mercadoria", label: "Falta de mercadoria", icon: PackageMinus, tone: "danger" },
 ];
+
+/**
+ * Opcoes do "Reportar problema" a partir dos motivos que a empresa cadastrou: nome da
+ * empresa, icone do motivo padrao (motivo novo usa o icone de alerta).
+ */
+export function deliveryReasonOptions(reasons: { code: string; label: string }[]): OccurrenceOption[] {
+  return reasons.map((reason) => {
+    const known = DELIVERY_OCCURRENCE_TYPES.find((option) => option.value === reason.code);
+    return { value: reason.code, label: reason.label, icon: known?.icon ?? AlertTriangle, tone: known?.tone ?? "warning" };
+  });
+}
