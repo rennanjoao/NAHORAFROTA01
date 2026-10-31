@@ -65,7 +65,7 @@ export function BankDetailsDialog({ open, onOpenChange, bankDetails }: BankDetai
             {bankDetails.driverName ? (
               <>
                 Para pagar <span className="font-medium text-foreground">{bankDetails.driverName}</span>
-                {bankDetails.cpf && <span className="font-data"> · CPF {bankDetails.cpf}</span>}
+                {bankDetails.cpf && <span className="font-data"> · {bankDetails.cpf.replace(/\D/g, "").length === 14 ? "CNPJ" : "CPF"} {bankDetails.cpf}</span>}
               </>
             ) : (
               "Use estes dados para fazer o pagamento."

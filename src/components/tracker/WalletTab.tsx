@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatCurrency";
 import { formatDateOnly } from "@/lib/timezone";
 import { ScreenHeader } from "./ScreenHeader";
+import { DriverInvoicesSection } from "./DriverInvoicesSection";
 
 interface WalletItem {
   id: string;
@@ -127,6 +128,8 @@ export function WalletTab({ driverId }: WalletTabProps) {
               )}
             </dl>
           </section>
+
+          <DriverInvoicesSection driverId={driverId} />
 
           <section aria-labelledby="historico-titulo" className="space-y-3">
             <h2 id="historico-titulo" className="text-lg font-semibold text-foreground">

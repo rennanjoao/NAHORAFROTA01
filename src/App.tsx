@@ -19,6 +19,7 @@ const Index = lazy(() => import("./pages/Index"));
 const DriversPage = lazy(() => import("./pages/DriversPage"));
 const RoutesPage = lazy(() => import("./pages/RoutesPage"));
 const VehiclesPage = lazy(() => import("./pages/VehiclesPage"));
+const CarriersPage = lazy(() => import("./pages/CarriersPage"));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const DeliveriesPage = lazy(() => import("./pages/DeliveriesPage"));
 const SettlementPage = lazy(() => import("./pages/SettlementPage"));
@@ -103,6 +104,7 @@ const App = () => (
                       <Route path="/routes" element={<RoutesPage />} />
                       <Route path="/drivers" element={<DriversPage />} />
                       <Route path="/vehicles" element={<VehiclesPage />} />
+                      <Route path="/carriers" element={<CarriersPage />} />
                       <Route
                         path="/settlement"
                         element={

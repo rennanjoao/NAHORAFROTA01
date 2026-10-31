@@ -36,7 +36,7 @@ const GROUPS: { id: string; label: string; items: TabItem[] }[] = [
     id: "empresa",
     label: "Empresa",
     items: [
-      { value: "company", label: "Dados da empresa", short: "Empresa", description: "Cadastro, logo e endereço", icon: Building2 },
+      { value: "company", label: "Dados da empresa", short: "Empresa", description: "Cadastro, logo e pagamento", icon: Building2 },
       { value: "occurrences", label: "Ocorrências", short: "Ocorrências", description: "Motivos que o motorista escolhe", icon: ListChecks },
       { value: "users", label: "Usuários e acesso", short: "Usuários", description: "Quem pode fazer o quê", icon: Users },
     ],

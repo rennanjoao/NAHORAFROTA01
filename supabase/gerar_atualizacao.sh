@@ -21,6 +21,7 @@ MIGRATIONS=(
   20261029170000_fixed_freight_pays_kept_invoices.sql
   20261030120000_occurrence_reasons.sql
   20261030130000_company_logo_and_photos.sql
+  20261030140000_carriers_and_provider_invoices.sql
 )
 OUT=ATUALIZAR_BANCO.sql
 

@@ -9,6 +9,7 @@ import {
   Truck,
   Users,
   Wallet,
+  Warehouse,
   type LucideIcon,
 } from "lucide-react";
 import type { Feature } from "@/hooks/useFeatureAccess";
@@ -123,6 +124,19 @@ export const NAV_ITEMS: NavItem[] = [
     tips: [
       "Cadastre cada veículo da empresa com placa e modelo.",
       "A situação mostra se o veículo está livre, em uso ou em manutenção.",
+    ],
+  },
+  {
+    path: "/carriers",
+    label: "Transportadoras",
+    description: "Transportadoras parceiras: dados cadastrais, inscrição estadual, Pix e os motoristas de cada uma.",
+    icon: Warehouse,
+    group: "frota",
+    keywords: ["transportadora", "parceira", "cnpj", "inscrição estadual", "pix", "terceirizada"],
+    shortcut: "t",
+    tips: [
+      "Cadastre a transportadora com CNPJ, inscrição estadual e Pix.",
+      "No cadastro do motorista, escolha “Por transportadora” para o acerto sair para ela.",
     ],
   },
   {

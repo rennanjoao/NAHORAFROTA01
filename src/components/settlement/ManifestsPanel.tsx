@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle2, Clock, FileText, Pencil, RotateCcw, Truck } from "lucide-react";
+import { CheckCircle2, Clock, FileText, FileWarning, Pencil, RotateCcw, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,6 +24,12 @@ interface ManifestsPanelProps {
   onEdit: (manifest: DBManifest) => void;
   onMarkPaid: (manifestId: string) => Promise<void>;
   onReverse: (manifest: DBManifest) => void;
+  /** Motivo de o romaneio ainda nao poder ser pago (ex.: falta a nota aprovada). */
+  paymentBlock?: (manifest: DBManifest) => string | null;
+  /** "NF 1001" da nota que cobre o romaneio. */
+  invoiceLabel?: (manifest: DBManifest) => string | null;
+  /** Mostra o motorista em cada romaneio (acerto da transportadora). */
+  showDriver?: boolean;
 }
 
 const formatDate = (value: string) => format(new Date(value), "dd/MM/yyyy", { locale: ptBR });
@@ -38,6 +44,9 @@ export function ManifestsPanel({
   onEdit,
   onMarkPaid,
   onReverse,
+  paymentBlock,
+  invoiceLabel,
+  showDriver,
 }: ManifestsPanelProps) {
   const [toPay, setToPay] = useState<DBManifest | null>(null);
   const [paying, setPaying] = useState(false);
@@ -89,7 +98,12 @@ export function ManifestsPanel({
           <TooltipContent>Editar valor</TooltipContent>
         </Tooltip>
         {activeTab === "pending" &&
-          (manifest.status === "completed" ? (
+          (manifest.status === "completed" && paymentBlock?.(manifest) ? (
+            <span className={full ? "flex flex-1 items-center gap-1.5 text-xs font-medium text-warning" : "flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-warning"}>
+              <FileWarning className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {paymentBlock(manifest)}
+            </span>
+          ) : manifest.status === "completed" ? (
             <Button size={full ? "default" : "sm"} variant="soft" className={full ? "flex-1" : undefined} onClick={() => setToPay(manifest)}>
               <CheckCircle2 aria-hidden="true" />
               Marcar como pago
@@ -156,7 +170,9 @@ export function ManifestsPanel({
                     <span className="flex items-center gap-2">
                       {formatManifestNumber(manifest)}
                       {manifest.is_own_fleet && ownFleetBadge}
+                      {invoiceLabel?.(manifest) && <Badge variant="outline">{invoiceLabel(manifest)}</Badge>}
                     </span>
+                    {showDriver && <span className="block font-sans text-xs font-normal text-muted-foreground">{manifest.driver_name}</span>}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     <span className="block whitespace-nowrap font-data text-foreground">{formatDate(manifest.created_at)}</span>
@@ -196,10 +212,12 @@ export function ManifestsPanel({
                 <Card className="flex h-full flex-col gap-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="flex items-center gap-2 font-data font-semibold text-foreground">
+                      <p className="flex flex-wrap items-center gap-2 font-data font-semibold text-foreground">
                         Romaneio {formatManifestNumber(manifest)}
                         {manifest.is_own_fleet && ownFleetBadge}
+                        {invoiceLabel?.(manifest) && <Badge variant="outline">{invoiceLabel(manifest)}</Badge>}
                       </p>
+                      {showDriver && <p className="text-xs text-muted-foreground">{manifest.driver_name}</p>}
                       <p className="text-xs text-muted-foreground">
                         {formatDate(manifest.created_at)} · {freightTypeLabels[manifest.freight_type] || manifest.freight_type} ·{" "}
                         {manifest.deliveries_count} entrega{manifest.deliveries_count === 1 ? "" : "s"}

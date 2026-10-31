@@ -181,6 +181,7 @@ export default function DriversPage() {
         email: d.contact_email || "",
         photo: d.photo_url || d.avatar || d.photo || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(d.name || "Motorista")}`,
         vehiclePhoto: d.vehicle_photo_url ?? null,
+        carrierId: d.carrier_id ?? null,
         vehiclePlate: d.vehicle_plate,
         vehicleType: normalizeVehicleTypeForDisplay(d.vehicle_type),
         status: displayStatus as any,
@@ -592,6 +593,10 @@ export default function DriversPage() {
             photo_url: updatedDriver.photo?.includes("api.dicebear.com") ? null : updatedDriver.photo,
             // So quando mudou: banco sem a coluna nova continua salvando o resto.
             ...((updatedDriver.vehiclePhoto ?? null) !== (driverToEdit?.vehiclePhoto ?? null) ? { vehicle_photo_url: updatedDriver.vehiclePhoto ?? null } : {}),
+            // Motorista da casa nao fica ligado a transportadora
+            ...((updatedDriver.isOwnFleet ? null : updatedDriver.carrierId ?? null) !== (driverToEdit?.carrierId ?? null)
+              ? { carrier_id: updatedDriver.isOwnFleet ? null : updatedDriver.carrierId ?? null }
+              : {}),
             vehicle_plate: updatedDriver.vehiclePlate,
             vehicle_type: normalizeVehicleTypeForDb(updatedDriver.vehicleType),
             status: updatedDriver.status,
@@ -610,6 +615,7 @@ export default function DriversPage() {
             ...updatedDriver,
             photo: updatedRecord.photo_url || updatedRecord.avatar || updatedRecord.photo || updatedDriver.photo,
             vehiclePhoto: updatedRecord.vehicle_photo_url ?? updatedDriver.vehiclePhoto ?? null,
+            carrierId: updatedRecord.carrier_id ?? null,
             vehiclePlate: updatedRecord.vehicle_plate || updatedDriver.vehiclePlate,
             vehicleType: normalizeVehicleTypeForDisplay(updatedRecord.vehicle_type || updatedDriver.vehicleType),
             status: (updatedRecord.status as Driver["status"]) || updatedDriver.status,

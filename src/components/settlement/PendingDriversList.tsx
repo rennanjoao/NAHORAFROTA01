@@ -10,12 +10,28 @@ import type { PendingDriverSummary } from "./settlementConfig";
 interface PendingDriversListProps {
   drivers: PendingDriverSummary[];
   onSelect: (driverId: string) => void;
+  /** "CPF" (motorista) ou "CNPJ" (transportadora). */
+  documentLabel?: string;
+  /** Primeira coluna: "Motorista" ou "Transportadora". */
+  nameLabel?: string;
+}
+
+/** "Pendente" ou "N notas para aprovar" (a nota enviada pelo app pede acao). */
+function PendingStatus({ driver }: { driver: PendingDriverSummary }) {
+  const count = driver.invoicesToApprove ?? 0;
+  return count > 0 ? (
+    <StatusBadge tone="info" pulse>
+      {count === 1 ? "1 nota para aprovar" : `${count} notas para aprovar`}
+    </StatusBadge>
+  ) : (
+    <StatusBadge tone="warning">Pendente</StatusBadge>
+  );
 }
 
 const manifestsLabel = (count: number) => `${count.toLocaleString("pt-BR")} romaneio${count === 1 ? "" : "s"}`;
 
 /** Motoristas com romaneio sem pagamento: tabela no computador, cartoes no celular. */
-export function PendingDriversList({ drivers, onSelect }: PendingDriversListProps) {
+export function PendingDriversList({ drivers, onSelect, documentLabel = "CPF", nameLabel = "Motorista" }: PendingDriversListProps) {
   return (
     <>
       {/* Computador */}
@@ -23,8 +39,8 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Motorista</TableHead>
-              <TableHead>CPF</TableHead>
+              <TableHead>{nameLabel}</TableHead>
+              <TableHead>{documentLabel}</TableHead>
               <TableHead className="text-center">Romaneios</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead className="text-right">Valor a pagar</TableHead>
@@ -47,7 +63,7 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
                 <TableCell className="font-data text-muted-foreground">{driver.driverCpf || "—"}</TableCell>
                 <TableCell className="text-center font-data">{driver.manifestCount.toLocaleString("pt-BR")}</TableCell>
                 <TableCell>
-                  <StatusBadge tone="warning">Pendente</StatusBadge>
+                  <PendingStatus driver={driver} />
                 </TableCell>
                 <TableCell className="text-right font-data font-semibold">{formatCurrency(driver.totalValue)}</TableCell>
                 <TableCell className="text-right">
@@ -74,10 +90,10 @@ export function PendingDriversList({ drivers, onSelect }: PendingDriversListProp
                     {driver.driverName}
                   </p>
                   <p className="font-data text-xs text-muted-foreground">
-                    {driver.driverCpf ? `CPF ${driver.driverCpf}` : "CPF não informado"}
+                    {driver.driverCpf ? `${documentLabel} ${driver.driverCpf}` : `${documentLabel} não informado`}
                   </p>
                 </div>
-                <StatusBadge tone="warning">Pendente</StatusBadge>
+                <PendingStatus driver={driver} />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">A pagar · {manifestsLabel(driver.manifestCount)}</p>

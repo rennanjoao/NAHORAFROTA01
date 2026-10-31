@@ -18,6 +18,8 @@ export interface DBManifest {
   driver_id: string | null;
   driver_name: string;
   driver_cpf: string | null;
+  /** Nota fiscal do prestador que cobre este romaneio (pagamento mediante nota). */
+  provider_invoice_id?: string | null;
   vehicle_plate: string | null;
   vehicle_type: string | null;
   is_own_fleet: boolean;
