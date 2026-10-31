@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import Map, { Marker, NavigationControl, FullscreenControl, AttributionControl, type MapRef } from 'react-map-gl/maplibre';
+import Map, { Marker, NavigationControl, AttributionControl, type MapRef } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useResolvedTheme } from '@/components/theme/PreferencesProvider';
 import { prefersReducedMotion, readPreferences } from '@/lib/preferences';
 import { LiveMapFrame } from './LiveMapFrame';
+import { MapFullscreenControl } from './mapFullscreen';
 import { mapFitPadding } from './mapOverlay';
 import { countByStatus } from './mapStatus';
 import { useBrandMapStyle } from './brandMapStyle';
@@ -126,7 +127,7 @@ export default function LiveMapVector({
       >
         <AttributionControl compact position="bottom-right" />
         <NavigationControl position="top-left" />
-        <FullscreenControl position="top-left" />
+        <MapFullscreenControl />
 
         {positions.map((position) => {
           const isSelected = selectedDriver === position.driver_id;
