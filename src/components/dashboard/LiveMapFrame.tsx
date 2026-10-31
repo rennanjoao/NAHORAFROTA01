@@ -8,6 +8,7 @@ import { useOnline } from "@/components/layout/useOnline";
 import { useTodayInvoices, type TodayInvoices } from "@/hooks/useTodayInvoices";
 import { DetailDialog } from "./DetailPanel";
 import { InvoiceList } from "./InvoiceList";
+import { MapFullscreenContext, useFrameFullscreen } from "./mapFullscreen";
 import type { MapStatusCounts } from "./mapStatus";
 import { plural } from "./status";
 
@@ -38,7 +39,7 @@ const NOTE_GROUPS: { key: NoteGroup; one: string; many: string; title: string; h
 /**
  * Moldura do mapa ao vivo (Mapbox ou OpenStreetMap): resumo das notas de hoje e dos
  * veiculos sem sinal (que tambem e a legenda das cores), os botoes do mapa e o painel
- * de vidro com as atualizacoes dos motoristas.
+ * de vidro com as atualizacoes dos motoristas. A tela cheia leva a moldura toda.
  */
 export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, onFitAll, children, state = "ready", error, onRetry, overlay }: LiveMapFrameProps) {
   const online = useOnline();
@@ -47,8 +48,16 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
   const [lastGroup, setLastGroup] = useState<NoteGroup>("inRoute");
   const group = NOTE_GROUPS.find((g) => g.key === (openGroup ?? lastGroup))!;
   const groupNotes = notes[group.key];
+  const fullscreen = useFrameFullscreen();
+  const isFullscreen = fullscreen.active;
   return (
-    <Card className="overflow-hidden">
+    <Card
+      className={cn(
+        "overflow-hidden",
+        isFullscreen &&
+          "fixed inset-0 z-[800] !m-0 flex flex-col rounded-none border-0 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] shadow-none",
+      )}
+    >
       <div className="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-2">
           <p className="text-sm font-medium text-foreground">
@@ -105,8 +114,8 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
         )}
       </div>
 
-      <div className="relative">
-        <div className="relative h-[24rem] sm:h-[32rem] xl:h-[36rem]">
+      <div className={cn("relative", isFullscreen && "flex min-h-0 flex-1 flex-col")}>
+        <div className={cn("relative", isFullscreen ? "min-h-0 flex-1" : "h-[24rem] sm:h-[32rem] xl:h-[36rem]")}>
           {state === "loading" && <div className="skeleton-shimmer absolute inset-0" aria-hidden="true" />}
           {state === "error" && (
             <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/40 p-6 text-center">
@@ -123,7 +132,7 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
               )}
             </div>
           )}
-          {state === "ready" && children}
+          {state === "ready" && <MapFullscreenContext.Provider value={fullscreen}>{children}</MapFullscreenContext.Provider>}
           {state === "ready" && vehicleCount === 0 && (
             <div className={cn("pointer-events-none absolute inset-0 z-[450] flex items-center justify-center p-6", overlay && "xl:pr-[22.5rem]")}>
               <div className="max-w-xs rounded-lg border bg-popover/95 p-5 text-center shadow-lg backdrop-blur">
@@ -138,7 +147,12 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
         </div>
         {overlay && (
           // Tela grande: vidro no canto do mapa, com folga embaixo para a atribuicao do mapa.
-          <div className="flex max-h-[26rem] min-h-0 flex-col border-t xl:surface-glass-float xl:absolute xl:right-3 xl:top-3 xl:z-[460] xl:max-h-[calc(100%-3.75rem)] xl:w-[21rem] xl:overflow-hidden xl:rounded-2xl">
+          <div
+            className={cn(
+              "flex min-h-0 flex-col border-t xl:surface-glass-float xl:absolute xl:right-3 xl:top-3 xl:z-[460] xl:max-h-[calc(100%-3.75rem)] xl:w-[21rem] xl:overflow-hidden xl:rounded-2xl",
+              isFullscreen ? "max-h-[40dvh]" : "max-h-[26rem]",
+            )}
+          >
             {overlay}
           </div>
         )}

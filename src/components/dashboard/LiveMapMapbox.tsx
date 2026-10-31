@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import Map, { Marker, NavigationControl, FullscreenControl, type MapRef } from 'react-map-gl';
+import Map, { Marker, NavigationControl, type MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useResolvedTheme } from '@/components/theme/PreferencesProvider';
 import { prefersReducedMotion, readPreferences } from '@/lib/preferences';
 import { LiveMapFrame } from './LiveMapFrame';
+import { MapFullscreenControl } from './mapFullscreen';
 import { mapFitPadding } from './mapOverlay';
 import { countByStatus } from './mapStatus';
 import { VehicleMarker, type FleetPosition } from './liveMapParts';
@@ -126,7 +127,7 @@ export default function LiveMapMapbox({
         style={{ width: '100%', height: '100%' }}
       >
         <NavigationControl position="top-left" />
-        <FullscreenControl position="top-left" />
+        <MapFullscreenControl />
 
         {positions.map((position) => {
           const isSelected = selectedDriver === position.driver_id;

@@ -423,11 +423,12 @@
     color: hsl(var(--primary-foreground));
     font-weight: 600;
     font-size: 0.875rem;
-    box-shadow: var(--shadow-lg);
     transition: top var(--duration) var(--ease-out);
   }
+  /* Sombra so com foco: escondido no alto, ela vazava para o topo da tela. */
   .skip-link:focus {
     top: 1rem;
+    box-shadow: var(--shadow-lg);
   }
 
   /* Cartao clicavel: levanta 1px, ganha sombra e borda verde. */
@@ -524,6 +525,17 @@
     .dark .surface-glass-float {
       background: hsl(var(--background) / 0.96);
     }
+  }
+
+  /* Mapa em tela cheia (mapFullscreen.ts): a pagina de tras nao rola, e o conteudo
+     (que isola as camadas dele) sobe acima do menu e do topo para o quadro cobrir tudo.
+     Janelas abertas (z 1000) continuam por cima. */
+  html[data-map-fullscreen] {
+    overflow: hidden;
+  }
+
+  html[data-map-fullscreen] #conteudo {
+    z-index: 800;
   }
 
   .truncate-safe {
