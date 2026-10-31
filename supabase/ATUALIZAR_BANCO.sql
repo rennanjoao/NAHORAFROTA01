@@ -3622,6 +3622,44 @@ CREATE TRIGGER trg_seed_occurrence_reasons
 AFTER INSERT ON public.tenants
 FOR EACH ROW EXECUTE FUNCTION public.seed_occurrence_reasons_for_new_tenant();
 
+-- Em producao a tabela veio do bootstrap com a coluna "type" (NOT NULL) e sem
+-- occurrence_type, que e o que o app grava e le: o detalhe da ocorrencia nao era salvo.
+-- Cria occurrence_type, copia o que ja existe e mantem as duas iguais.
+ALTER TABLE public.delivery_occurrences ADD COLUMN IF NOT EXISTS occurrence_type text;
+
+CREATE OR REPLACE FUNCTION public.sync_delivery_occurrence_type()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.type IS DISTINCT FROM OLD.type
+    AND NEW.occurrence_type IS NOT DISTINCT FROM OLD.occurrence_type THEN
+    NEW.occurrence_type := NEW.type;
+  ELSE
+    NEW.occurrence_type := COALESCE(NEW.occurrence_type, NEW.type);
+    NEW.type := NEW.occurrence_type;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'delivery_occurrences' AND column_name = 'type'
+  ) THEN
+    UPDATE public.delivery_occurrences SET occurrence_type = type
+    WHERE occurrence_type IS NULL AND type IS NOT NULL;
+    -- O nome faz este gatilho rodar antes da validacao do motivo (ordem alfabetica).
+    DROP TRIGGER IF EXISTS trg_sync_delivery_occurrence_type ON public.delivery_occurrences;
+    CREATE TRIGGER trg_sync_delivery_occurrence_type
+    BEFORE INSERT OR UPDATE ON public.delivery_occurrences
+    FOR EACH ROW EXECUTE FUNCTION public.sync_delivery_occurrence_type();
+  END IF;
+END $$;
+
 -- Ocorrencia registrada pelo motorista so com motivo ativo da empresa. A equipe e as
 -- integracoes (sem login de motorista) nao passam por aqui. Empresa sem nenhum motivo
 -- cadastrado (nao deveria acontecer) nao fica impedida de registrar.

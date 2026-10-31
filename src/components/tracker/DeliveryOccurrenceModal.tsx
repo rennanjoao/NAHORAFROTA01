@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { insertDeliveryOccurrence } from "@/lib/deliveryOccurrences";
 import { getProofStorageOwnerId, prepareImageForUpload, revokeObjectUrl } from "@/lib/driverApp";
 import { useOccurrenceReasons } from "@/hooks/useOccurrenceReasons";
 import { deliveryReasonOptions } from "./occurrenceTypes";
@@ -170,16 +171,14 @@ export function DeliveryOccurrenceModal({
         console.warn("Delivery record creation failed (non-fatal):", deliveryError);
       }
 
-      const occurrencePayload = {
+      const { error: occurrenceError } = await insertDeliveryOccurrence({
         invoice_id: invoiceId,
         delivery_id: deliveryId,
         driver_id: driverId,
         occurrence_type: occurrenceType,
         description: description.trim() || null,
         photo_url: photoUrl,
-      };
-
-      const { error: occurrenceError } = await supabase.from("delivery_occurrences").insert(occurrencePayload);
+      });
 
       if (occurrenceError) {
         console.warn("Occurrence record failed after invoice status update:", occurrenceError);

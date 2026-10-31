@@ -149,7 +149,21 @@ export default function Index() {
     );
   }
 
-  const liveMap = <LiveMap focusDriverId={focusDriverId} onFocusHandled={handleMapFocusHandled} />;
+  const liveMap = (
+    <LiveMap
+      focusDriverId={focusDriverId}
+      onFocusHandled={handleMapFocusHandled}
+      overlay={
+        <DriverActivityFeed
+          onSelectDriver={(driverId) => {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.set("focusDriver", driverId);
+            setSearchParams(nextParams, { replace: true });
+          }}
+        />
+      }
+    />
+  );
 
   return (
     <>
@@ -223,22 +237,8 @@ export default function Index() {
           description="Onde cada motorista está, as notas de hoje e o que os motoristas vão registrando nas entregas."
           className="scroll-mt-24"
         >
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="min-w-0 lg:col-span-2">
-              {realtimeAccess.allowed ? liveMap : <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>{liveMap}</PlanLockOverlay>}
-            </div>
-            {/* A lista acompanha a altura do mapa e rola por dentro */}
-            <div className="relative min-w-0">
-              <DriverActivityFeed
-                className="h-[28rem] lg:absolute lg:inset-0 lg:h-auto"
-                onSelectDriver={(driverId) => {
-                  const nextParams = new URLSearchParams(searchParams);
-                  nextParams.set("focusDriver", driverId);
-                  setSearchParams(nextParams, { replace: true });
-                }}
-              />
-            </div>
-          </div>
+          {/* As atualizacoes dos motoristas ficam num painel de vidro dentro do mapa */}
+          {realtimeAccess.allowed ? liveMap : <PlanLockOverlay upgradePlanLabel={realtimeAccess.upgradePlanLabel}>{liveMap}</PlanLockOverlay>}
         </Section>
 
         <Section

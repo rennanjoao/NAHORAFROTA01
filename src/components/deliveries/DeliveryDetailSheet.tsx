@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { readDeliveryOccurrences } from "@/lib/deliveryOccurrences";
 import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import {
   Package,
@@ -711,7 +712,6 @@ async function fetchProofImages(invoiceId: string): Promise<ProofImage[]> {
 }
 
 async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurrenceEntry[]> {
-  const columns = "id, occurrence_type, description, photo_url, created_at";
   type Row = { id: string; occurrence_type: string; description: string | null; photo_url: string | null; created_at: string | null };
   const toEntries = async (rows: Row[]) =>
     withFreshProofPhotos(
@@ -725,15 +725,17 @@ async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurr
       ["photo_url"],
     );
 
-  const { data: byInvoice, error: byInvoiceError } = await supabase
-    .from("delivery_occurrences")
-    .select(columns)
-    .eq("invoice_id", invoiceId)
-    .order("created_at", { ascending: false });
+  const { data: byInvoice, error: byInvoiceError } = await readDeliveryOccurrences<Row>((typeColumn) =>
+    supabase
+      .from("delivery_occurrences")
+      .select(`id, ${typeColumn}, description, photo_url, created_at`)
+      .eq("invoice_id", invoiceId)
+      .order("created_at", { ascending: false }),
+  );
 
   if (byInvoiceError) console.warn("Error fetching delivery occurrences:", byInvoiceError);
-  if (!byInvoiceError && byInvoice && byInvoice.length > 0) {
-    return toEntries(byInvoice as Row[]);
+  if (!byInvoiceError && byInvoice.length > 0) {
+    return toEntries(byInvoice);
   }
 
   const { data: deliveries } = await supabase
@@ -744,16 +746,18 @@ async function fetchOccurrenceEntries(invoiceId: string): Promise<DeliveryOccurr
   const deliveryIds = (deliveries || []).map((linkedDelivery) => linkedDelivery.id);
   if (deliveryIds.length === 0) return [];
 
-  const { data: byDelivery, error: byDeliveryError } = await supabase
-    .from("delivery_occurrences")
-    .select(columns)
-    .in("delivery_id", deliveryIds)
-    .order("created_at", { ascending: false });
+  const { data: byDelivery, error: byDeliveryError } = await readDeliveryOccurrences<Row>((typeColumn) =>
+    supabase
+      .from("delivery_occurrences")
+      .select(`id, ${typeColumn}, description, photo_url, created_at`)
+      .in("delivery_id", deliveryIds)
+      .order("created_at", { ascending: false }),
+  );
 
   if (byDeliveryError) {
     console.warn("Error fetching delivery occurrence photos:", byDeliveryError);
     return [];
   }
 
-  return toEntries((byDelivery || []) as Row[]);
+  return toEntries(byDelivery);
 }

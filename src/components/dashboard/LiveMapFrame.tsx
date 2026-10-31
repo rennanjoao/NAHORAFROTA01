@@ -22,6 +22,8 @@ interface LiveMapFrameProps {
   state?: "ready" | "loading" | "error";
   error?: string;
   onRetry?: () => void;
+  /** Painel sobre o mapa (atualizacoes dos motoristas). Em tela menor vai para baixo do mapa. */
+  overlay?: ReactNode;
 }
 
 type NoteGroup = Exclude<keyof TodayInvoices, "pending">;
@@ -35,9 +37,10 @@ const NOTE_GROUPS: { key: NoteGroup; one: string; many: string; title: string; h
 
 /**
  * Moldura do mapa ao vivo (Mapbox ou OpenStreetMap): resumo das notas de hoje e dos
- * veiculos sem sinal (que tambem e a legenda das cores) e os botoes do mapa.
+ * veiculos sem sinal (que tambem e a legenda das cores), os botoes do mapa e o painel
+ * de vidro com as atualizacoes dos motoristas.
  */
-export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, onFitAll, children, state = "ready", error, onRetry }: LiveMapFrameProps) {
+export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, onFitAll, children, state = "ready", error, onRetry, overlay }: LiveMapFrameProps) {
   const online = useOnline();
   const { data: notes } = useTodayInvoices();
   const [openGroup, setOpenGroup] = useState<NoteGroup | null>(null);
@@ -102,33 +105,41 @@ export function LiveMapFrame({ vehicleCount, counts, onRefresh, isRefreshing, on
         )}
       </div>
 
-      <div className="relative h-[24rem] sm:h-[32rem]">
-        {state === "loading" && <div className="skeleton-shimmer absolute inset-0" aria-hidden="true" />}
-        {state === "error" && (
-          <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/40 p-6 text-center">
-            <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-              <AlertTriangle className="h-6 w-6" />
-            </span>
-            <p className="font-heading font-semibold text-foreground">Não foi possível carregar o mapa</p>
-            {error && <p className="max-w-sm text-sm text-muted-foreground">{error}</p>}
-            {onRetry && (
-              <Button variant="outline" size="sm" onClick={onRetry}>
-                <RefreshCw aria-hidden="true" />
-                Tentar de novo
-              </Button>
-            )}
-          </div>
-        )}
-        {state === "ready" && children}
-        {state === "ready" && vehicleCount === 0 && (
-          <div className="pointer-events-none absolute inset-0 z-[450] flex items-center justify-center p-6">
-            <div className="max-w-xs rounded-lg border bg-popover/95 p-5 text-center shadow-lg backdrop-blur">
-              <span aria-hidden="true" className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <Truck className="h-5 w-5" />
+      <div className="relative">
+        <div className="relative h-[24rem] sm:h-[32rem] xl:h-[36rem]">
+          {state === "loading" && <div className="skeleton-shimmer absolute inset-0" aria-hidden="true" />}
+          {state === "error" && (
+            <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/40 p-6 text-center">
+              <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+                <AlertTriangle className="h-6 w-6" />
               </span>
-              <p className="font-heading text-sm font-semibold text-foreground">Nenhum veículo com GPS ligado</p>
-              <p className="mt-1 text-sm text-muted-foreground">O motorista aparece aqui quando abre o aplicativo e inicia a rota.</p>
+              <p className="font-heading font-semibold text-foreground">Não foi possível carregar o mapa</p>
+              {error && <p className="max-w-sm text-sm text-muted-foreground">{error}</p>}
+              {onRetry && (
+                <Button variant="outline" size="sm" onClick={onRetry}>
+                  <RefreshCw aria-hidden="true" />
+                  Tentar de novo
+                </Button>
+              )}
             </div>
+          )}
+          {state === "ready" && children}
+          {state === "ready" && vehicleCount === 0 && (
+            <div className={cn("pointer-events-none absolute inset-0 z-[450] flex items-center justify-center p-6", overlay && "xl:pr-[22.5rem]")}>
+              <div className="max-w-xs rounded-lg border bg-popover/95 p-5 text-center shadow-lg backdrop-blur">
+                <span aria-hidden="true" className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                  <Truck className="h-5 w-5" />
+                </span>
+                <p className="font-heading text-sm font-semibold text-foreground">Nenhum veículo com GPS ligado</p>
+                <p className="mt-1 text-sm text-muted-foreground">O motorista aparece aqui quando abre o aplicativo e inicia a rota.</p>
+              </div>
+            </div>
+          )}
+        </div>
+        {overlay && (
+          // Tela grande: vidro no canto do mapa, com folga embaixo para a atribuicao do mapa.
+          <div className="flex max-h-[26rem] min-h-0 flex-col border-t xl:surface-glass-float xl:absolute xl:right-3 xl:top-3 xl:z-[460] xl:max-h-[calc(100%-3.75rem)] xl:w-[21rem] xl:overflow-hidden xl:rounded-2xl">
+            {overlay}
           </div>
         )}
       </div>

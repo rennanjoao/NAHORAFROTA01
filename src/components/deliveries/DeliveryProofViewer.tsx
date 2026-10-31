@@ -22,6 +22,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { readDeliveryOccurrences } from "@/lib/deliveryOccurrences";
 import { withFreshProofPhotos } from "@/lib/proofPhotos";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -95,8 +96,8 @@ export function DeliveryProofViewer({
 
       const deliveryIds = (linkedDeliveries || []).map((delivery) => delivery.id);
       let occurrencesData: DeliveryOccurrence[] = [];
-      const occurrenceColumns = "id, occurrence_type, description, created_at, photo_url";
-      const toOccurrences = (rows: Array<{ id: string; occurrence_type: string; description: string | null; created_at: string | null; photo_url: string | null }>) =>
+      type OccurrenceRow = { id: string; occurrence_type: string; description: string | null; created_at: string | null; photo_url: string | null };
+      const toOccurrences = (rows: OccurrenceRow[]) =>
         rows.map((row) => ({
           id: row.id,
           type: row.occurrence_type,
@@ -106,30 +107,34 @@ export function DeliveryProofViewer({
         }));
 
       if (deliveryIds.length > 0) {
-        const { data, error } = await supabase
-          .from("delivery_occurrences")
-          .select(occurrenceColumns)
-          .in("delivery_id", deliveryIds)
-          .order("created_at", { ascending: false });
+        const { data, error } = await readDeliveryOccurrences<OccurrenceRow>((typeColumn) =>
+          supabase
+            .from("delivery_occurrences")
+            .select(`id, ${typeColumn}, description, created_at, photo_url`)
+            .in("delivery_id", deliveryIds)
+            .order("created_at", { ascending: false }),
+        );
 
         if (error) {
           console.warn("Error fetching occurrences by delivery_id:", error);
         } else {
-          occurrencesData = toOccurrences(data || []);
+          occurrencesData = toOccurrences(data);
         }
       }
 
       if (occurrencesData.length === 0) {
-        const { data, error } = await supabase
-          .from("delivery_occurrences")
-          .select(occurrenceColumns)
-          .eq("invoice_id", invoiceId)
-          .order("created_at", { ascending: false });
+        const { data, error } = await readDeliveryOccurrences<OccurrenceRow>((typeColumn) =>
+          supabase
+            .from("delivery_occurrences")
+            .select(`id, ${typeColumn}, description, created_at, photo_url`)
+            .eq("invoice_id", invoiceId)
+            .order("created_at", { ascending: false }),
+        );
 
         if (error) {
           console.warn("Error fetching occurrences by invoice_id:", error);
         } else {
-          occurrencesData = toOccurrences(data || []);
+          occurrencesData = toOccurrences(data);
         }
       }
 

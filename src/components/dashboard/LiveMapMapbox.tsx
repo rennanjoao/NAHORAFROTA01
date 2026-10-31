@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import Map, { Marker, NavigationControl, FullscreenControl, type MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useResolvedTheme } from '@/components/theme/PreferencesProvider';
 import { prefersReducedMotion, readPreferences } from '@/lib/preferences';
 import { LiveMapFrame } from './LiveMapFrame';
+import { mapFitPadding } from './mapOverlay';
 import { countByStatus } from './mapStatus';
 import { VehicleMarker, type FleetPosition } from './liveMapParts';
 
@@ -16,6 +17,7 @@ interface LiveMapMapboxProps {
   onFocusHandled?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  overlay?: ReactNode;
 }
 
 // Estilo do mapa acompanha o tema da tela.
@@ -33,6 +35,7 @@ export default function LiveMapMapbox({
   onFocusHandled,
   onRefresh,
   isRefreshing = false,
+  overlay,
 }: LiveMapMapboxProps) {
   const theme = useResolvedTheme();
   const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export default function LiveMapMapbox({
   const counts = useMemo(() => countByStatus(positions), [positions]);
 
   // Enquadra todos os veiculos
+  const hasOverlay = !!overlay;
   const fitBounds = useCallback(() => {
     if (!mapRef.current || positions.length === 0) return;
 
@@ -70,11 +74,11 @@ export default function LiveMapMapbox({
         [bounds.maxLng, bounds.maxLat],
       ],
       {
-        padding: 50,
+        padding: mapFitPadding(hasOverlay),
         duration: prefersReducedMotion(readPreferences()) ? 0 : 1000,
       },
     );
-  }, [positions]);
+  }, [hasOverlay, positions]);
 
   useEffect(() => {
     if (!focusDriverId || !mapRef.current) return;
@@ -101,7 +105,7 @@ export default function LiveMapMapbox({
   }, [focusDriverId, onFocusHandled, positions]);
 
   if (!mapboxToken) {
-    return <LiveMapFrame state="error" vehicleCount={positions.length} error="Token do Mapbox não configurado." />;
+    return <LiveMapFrame state="error" vehicleCount={positions.length} error="Token do Mapbox não configurado." overlay={overlay} />;
   }
 
   return (
@@ -111,6 +115,7 @@ export default function LiveMapMapbox({
       onRefresh={onRefresh}
       isRefreshing={isRefreshing}
       onFitAll={fitBounds}
+      overlay={overlay}
     >
       <Map
         ref={mapRef}
